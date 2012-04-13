@@ -147,18 +147,27 @@ def main():
     import argparse
 
     aparse = argparse.ArgumentParser(prog=BASENAME, description="%s (%s)" % (PROGNAME, VERSION))
-    #aparse.add_argument('-v', '--verbosity', type=int, default=DEBUG, help='set the debug level [%s]' % (DEBUG))
-    aparse.add_argument('-p', '--maxproc', type=int, default=MAXPROC, help='set maximum process count [%s]' % (MAXPROC))
-    aparse.add_argument('-pt', '--process-timeout', type=int, default=PROCESSTIMEOUT, help='kill wget after x seconds [%s sec]' % (PROCESSTIMEOUT))
-    aparse.add_argument('-t', '--timeout', type=int, help='set wget global timeout [individual]')
-    aparse.add_argument('-ct', '--connect-timeout', type=int, default=CONNECTTIMEOUT, help='set wget connect-timeout [%s sec]' % (CONNECTTIMEOUT))
-    aparse.add_argument('-dt', '--dns-timeout', type=int, default=DNSTIMEOUT, help='set wget dns-timeout [%s sec]' % (DNSTIMEOUT))
-    aparse.add_argument('-rt', '--read-timeout', type=int, default=READTIMEOUT, help='set wget read-timeout [%s sec]' % (READTIMEOUT))
+    #aparse.add_argument('-v', '--verbosity', type=int, default=DEBUG
+    #                    , help='set the debug level [%s]' % (DEBUG))
+    aparse.add_argument('-p', '--maxproc', type=int, default=MAXPROC
+                        , help='set maximum process count [%s]' % (MAXPROC))
+    aparse.add_argument('-pt', '--process-timeout', type=int, default=PROCESSTIMEOUT
+                        , help='kill wget after x seconds [%s sec]' % (PROCESSTIMEOUT))
+    aparse.add_argument('-t', '--timeout', type=int
+                        , help='set wget global timeout [individual]')
+    aparse.add_argument('-ct', '--connect-timeout', type=int, default=CONNECTTIMEOUT
+                        , help='set wget connect-timeout [%s sec]' % (CONNECTTIMEOUT))
+    aparse.add_argument('-dt', '--dns-timeout', type=int, default=DNSTIMEOUT
+                        , help='set wget dns-timeout [%s sec]' % (DNSTIMEOUT))
+    aparse.add_argument('-rt', '--read-timeout', type=int, default=READTIMEOUT
+                        , help='set wget read-timeout [%s sec]' % (READTIMEOUT))
     aparse.add_argument('-r', '--referer', help='referer url')
     aparse.add_argument('-d', '--dynname', action='store_true', default=DYNNAME \
-                        , help="dynamically name output file, example: http://foo.bar/bla/baz.tar => foo.bar+bla+baz.tar")
+                        , help="dynamically name output file, example:"
+                             + " http://foo.bar/bla/baz.tar => foo.bar+bla+baz.tar")
     aparse.add_argument('-s', '--skipifexists', action='store_true', default=False \
-                        , help="skip if the output file already exists, instead of continuing (only in combination with --dynname)")
+                        , help="skip if the output file already exists, instead of"
+                             + " continuing (only in combination with --dynname)")
     aparse.add_argument('url', nargs='+', help='url to fetch')
     args = aparse.parse_args() #sys.argv[1:]
 
