@@ -1,3 +1,24 @@
 Some (hopefully) useful Bash/Python/.. scripts.
 
 Note that these scripts are made for my personal use, and if they are no longer used by me, I may not update them (if they cease to function). They are often a result of a quick an dirty hack at night and their sole purpose is to do their job, so ... they may not be very pretty.
+
+Main Scripts:
+- smfetch.sn   fetch rtmp / http(s) streams from some known (mostly german) tv
+               stations and pages like youtube using wget and rtmpdump
+- wgetmp.py    fetch multiple files in parallel using wget
+- getbyext.sh  fetch all media files (or specific files by ext.) from a given
+               url using wget
+
+Some other scripts:
+- audio-volume.sh  toggle mute and change volume using hotkeys within the wm
+- backup.sh        backup script with exclusion list, supports full and
+                   incremental backups
+- backup2ftp.sh    capo last backup (made by backup.sh) to an ftp server,
+                   preserve previous backup on ftp
+- clear-cache.sh   clean up home folder by removing (known) local caches, temp
+                   files etc.
+- gallery.sh       create a very simple image gallery (static html file with
+                   static thumbs)
+- pdfprint.sh      print a pdf/ps file using psnup for multi page per sheet
+                   printing
+
