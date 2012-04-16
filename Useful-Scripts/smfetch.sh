@@ -44,7 +44,7 @@ else
 fi
 
 # known services
-declare -ra SERVICES=(3sat ard arte zdf)
+declare -ra SERVICES=(3sat ard arte zdf youtube)
 
 # -- default options --------------------------------------------------------
 # start in interactive mode?
@@ -202,7 +202,7 @@ Options:
                             the lowest quality for the current service is
                             used. (global default: $QUALITY)
   -o, --outfile FILE      set output file name (only for single downloads,
-                           not usable if multiple ids are given)
+                            not usable if multiple ids are given)
   -op, --outfileprefix X  specify a prefix for the automaticly generated
                             output file name(s).
   -os, --outfilesuffix X  specify a suffix for the automaticly generated
@@ -215,22 +215,22 @@ Options:
   -km, --keepmetafile     don't delete meta file after download is finished `[ $KEEP_META -eq 1 ] && printf "\n%27s(default)"`
 
 Supported Services (example URLs/Ids, availlable options):
-  yt    url: http://www.youtube.com/?v=XXXXXXXXXXX
-          -> id = XXXXXXXXXXX
-        lang: *, quality (special): $PROG --help-youtube-qualities for details
-  3sat  url: http://www.3sat.de/mediathek/mediathek.php?obj=12345
-          -> id = 12345
-        lang: de, quality: 1-3 [veryhigh, high, low]
-  ard   url: http://www.ardmediathek.de/*/content/12345?documentId=23456
+  youtube url: http://www.youtube.com/?v=XXXXXXXXXXX
+            -> id = XXXXXXXXXXX
+          lang: *, quality: special, see: $PROG --help-youtube-qualities
+  3sat    url: http://www.3sat.de/mediathek/mediathek.php?obj=12345
+            -> id = 12345
+          lang: de, quality: 1-3 [veryhigh, high, low]
+  ard     url: http://www.ardmediathek.de/*/content/12345?documentId=23456
           -> id = CURRENTLY URL ONLY
-        lang: de, quality: 1-3 [high, medium, low]
-        quality=3 may be mp3 and 1-2 may be direct mp4 media links
-  arte  url: http://videos.arte.tv/de/videos/show_one-12345.html
-          -> id = show_one-12345
-        lang: de/fr, quality: 1-2 [hd, sd]
-  zdf   url: http://www.zdf.de/ZDFmediathek/.../video/12345/Show-X
-          -> id = 12345
-        lang: de, quality: 1-3 [veryhigh, high, low]
+          lang: de, quality: 1-3 [high, medium, low]
+          quality=3 may be mp3 and 1-2 may be direct mp4 media links
+  arte    url: http://videos.arte.tv/de/videos/show_one-12345.html
+            -> id = show_one-12345
+          lang: de/fr, quality: 1-2 [hd, sd]
+  zdf     url: http://www.zdf.de/ZDFmediathek/.../video/12345/Show-X
+            -> id = 12345
+          lang: de, quality: 1-3 [veryhigh, high, low]
 
 Examples:
   simplest case, fetch given video by url
