@@ -97,7 +97,9 @@ declare -ra YT_AVQUAL=(38
                        83
                        17
                        13)
-# flv_h263_224p flv_h263_270p flv_h264_360p flv_h264_480p mp4_h264_360p	mp4_h264_720p mp4_h264_1080p mp4_h264_2304p mp4_h264_3d_240p mp4_h264_3d_360p mp4_h264_3d_520p mp4_h264_3d_720p webm_vp8_360p webm_vp8_480p webm_vp8_720p webm_vp8_1080p webm_vp8_3d_360p webm_vp8_3d_480p webm_vp8_3d_540p webm_vp8_3d_720p 3gp_mp3v_lq 3gp_mp3v_hq
+# flv_h263_224p flv_h263_270p flv_h264_360p flv_h264_480p mp4_h264_360p	mp4_h264_720p mp4_h264_1080p mp4_h264_2304p
+# mp4_h264_3d_240p mp4_h264_3d_360p mp4_h264_3d_520p mp4_h264_3d_720p webm_vp8_360p webm_vp8_480p webm_vp8_720p
+# webm_vp8_1080p webm_vp8_3d_360p webm_vp8_3d_480p webm_vp8_3d_540p webm_vp8_3d_720p 3gp_mp3v_lq 3gp_mp3v_hq
 declare -ra YT_AVQUALNAME=(mp4_h264_2304p
                            mp4_h264_1080p
                            webm_vp8_1080p
@@ -214,10 +216,10 @@ Options:
                             output file name(s).
   -os, --outfilesuffix X  specify a suffix for the automaticly generated
                             output file name(s).
-  -i, --interactive       start in interactive mode `[ $INTERACTIVE -eq 1 ] && printf "\n%27s(default)"`
+  -i, --interactive       start in interactive mode `[ $INTERACTIVE -eq 1 ] && printf "(default)"`
   -n, --noninteractive    don't ask any questions, answer everything with YES
                             NOTE: existing files will be overwritten without
-                            hesitation `[ $INTERACTIVE -ne 1 ] && printf "\n%27s(default)"`
+                            hesitation `[ $INTERACTIVE -ne 1 ] && printf "(default)"`
   -dm, --deletemetafile   delete meta file after download is finished `[ $KEEP_META -ne 1 ] && printf "\n%27s(default)"`
   -km, --keepmetafile     don't delete meta file after download is finished `[ $KEEP_META -eq 1 ] && printf "\n%27s(default)"`
 
@@ -677,7 +679,9 @@ process_zdf() {
 
   # get 2nd meta file containing rtmp details
   prt_dbg 1 "$l_service | fetching 2nd meta file containing rtmp uri"
-  l_rtmp=$("${WGET_CMD[@]}" -O - "`cat \"$l_metafile\" | awk '/<formitaet.*h264_aac_mp4_rtmp_zdfmeta_http/,/\/formitaet/ {ORS=\"\";gsub(/<\/formitaet>/, \"</formitaet>\n\"); print}' | grep -i \">$l_quality<\" | sed -r 's/.*url>([^<]*)<\/url.*/\1/g'`" |\
+  l_rtmp=$("${WGET_CMD[@]}" -O - "`cat \"$l_metafile\" |\
+    awk '/<formitaet.*h264_aac_mp4_rtmp_zdfmeta_http/,/\/formitaet/ {ORS=\"\";gsub(/<\/formitaet>/, \"</formitaet>\n\"); print}' |\
+    grep -i \">$l_quality<\" | sed -r 's/.*url>([^<]*)<\/url.*/\1/g'`" |\
     awk -F'[<|>]' '/default-stream-url/{print $3}')
   l_orgfilename="`basename $l_rtmp`"
   l_ext="${l_rtmp##*.}"
@@ -713,7 +717,8 @@ process_youtube() {
 
   "${WGET_CMD[@]}" -O "$l_metafile" "http://www.youtube.com/watch?v=${l_id}" || return 1
 
-  local l_metainfo="`cat \"$l_metafile\" | grep -Eo 'url_encoded_fmt_stream_map[^;]*' | sed 's/url_encoded_fmt_stream_map=//;s/url%3D//;s/%2Curl%3D/\n/g' | grep -E \"itag%3D${l_quality}([^0-9]|$)\"`"
+  local l_metainfo="`cat \"$l_metafile\" | grep -Eo 'url_encoded_fmt_stream_map[^;]*' |\
+    sed 's/url_encoded_fmt_stream_map=//;s/url%3D//;s/%2Curl%3D/\n/g' | grep -E \"itag%3D${l_quality}([^0-9]|$)\"`"
   local l_idx=-1
   if [ -z "$l_metainfo" ]; then
     prt_warn "media not found in given / default quality: $o_quality ($QUALITY)"
@@ -722,7 +727,8 @@ process_youtube() {
       l_idx=$((l_idx+1))
       l_quality=${YT_AVQUAL[$l_idx]}
       prt_dbg 1 "$l_service | checking availability of quality: $l_quality"
-      l_metainfo="`cat \"$l_metafile\" | grep -Eo 'url_encoded_fmt_stream_map[^;]*' | sed 's/url_encoded_fmt_stream_map=//;s/url%3D//;s/%2Curl%3D/\n/g' | grep -E \"itag%3D${l_quality}([^0-9]|$)\"`"
+      l_metainfo="`cat \"$l_metafile\" | grep -Eo 'url_encoded_fmt_stream_map[^;]*' |\
+        sed 's/url_encoded_fmt_stream_map=//;s/url%3D//;s/%2Curl%3D/\n/g' | grep -E \"itag%3D${l_quality}([^0-9]|$)\"`"
       #prt_dbg 1 "$l_service | meta info: $l_metainfo"
     done
     if [ -z "$l_metainfo" ]; then
@@ -742,7 +748,8 @@ process_youtube() {
   # parse meta file
   prt_dbg 1 "$l_service | parsing meta file, quality = $l_quality"
   l_title="`cat \"$l_metafile\" | grep '<title>' | sed -r 's/(.*<title>|<\/title>.*)//g;s/^YouTube - //;s/&[^;]\;/_/g'`"
-  l_media="`echo $l_metainfo | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | xargs echo -e | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | xargs echo -e`"
+  l_media="`echo $l_metainfo | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' |\
+    xargs echo -e | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | xargs echo -e`"
   local l_qualityname="unknown";
   for i in `seq 0 $((${#YT_AVQUAL[@]}-1))`; do
     l_idx=$i
@@ -757,9 +764,12 @@ process_youtube() {
 }
 
 # == URL / ID processing ====================================================
+trap 'prt_err "BREAK (exit forced)"; prt_warn "Skipped $(($cnt_max-$cnt+1)) link(s)/ID(s): $rest"; exit 1' INT TERM SIGTERM
+
 cnt=0
 cnt_max=$#
 while [ -n "$1" ]; do
+  rest="$*"
   obj="$1"; shift
   cnt=$(($cnt+1))
   prt_msg "object #$cnt/$cnt_max: $obj"
@@ -786,3 +796,4 @@ while [ -n "$1" ]; do
 done
 
 exit $EXIT_STATUS
+
