@@ -46,6 +46,13 @@ fi
 # known services
 declare -ra SERVICES=(3sat ard arte zdf youtube)
 
+# recode (replace html entities in output file name, if recode is installed)
+declare -r RECODE_MODE="html..ascii"        # no umlauts etc.
+#declare -r RECODE_MODE="html..ISO-8859-1"   # including umlauts
+
+# default exit status (will be changed in case of error)
+EXIT_STATUS=0
+
 # -- default options --------------------------------------------------------
 # start in interactive mode?
 # yes -> overwrite existent files without query etc.
@@ -120,7 +127,7 @@ declare -ra YT_AVQUALNAME=(mp4_h264_2304p
 # print a message "usage: [msg].."
 prt_msg() { echo -e "> $*"; return 0; }
 # print error message in format "ERROR: [msg].."
-prt_err() { echo -e "ERROR: $*" >&2; return 0; }
+prt_err() { echo -e "ERROR: $*" >&2; EXIT_STATUS=1; return 0; }
 # print error message in format "ERROR: [msg].."
 prt_warn() { echo -e "WARNING: $*" >&2; return 0; }
 # print debug message in format "DEBUG: [msg].." where debug level must fit:
@@ -145,7 +152,7 @@ isint() { # may not contain .
 }
 
 yesno_p() {
-  [ -z "$1" ] && prt_err "usage: yesno_p question" && return 1
+  [ -z "$1" ] && prt_msg "usage: yesno_p question" && return 1
   sh="`basename $SHELL`"
   key=""
   printf "$* (y/n) "
@@ -355,6 +362,7 @@ done
 # fetch_rtmp TARGET URI
 fetch_rtmp() {
   prt_dbg 1 "rtmp | $2\n  -> $1"
+  prt_msg "target file: $l_outfile"
   [ $o_interactive -eq 1 ] && !(overwrite_p "$1") && return 0
   ${RTMPDUMP_CMD[@]} -o "$1" -r "$2"
 }
@@ -362,6 +370,7 @@ fetch_rtmp() {
 # fetch_media TARGET URI
 fetch_media() {
   prt_dbg 1 "media | $2\n  -> $1"
+  prt_msg "target file: $l_outfile"
   [ $o_interactive -eq 1 ] && !(overwrite_p "$1") && return 0
   "${WGET_CMD[@]}" -O "$1" "$2"
 }
@@ -369,6 +378,9 @@ fetch_media() {
 # generate output file name, change to your liking
 out_file_name() {
   local l_result
+
+  local l_recode=0
+  app_available recode && l_recode=1
 
   # if outfile is given, use it and return
   if [ -n "${o_outfile}" ]; then
@@ -379,9 +391,13 @@ out_file_name() {
     # re-append extension (if any)
     echo "$o_outfile" | grep '\.' 2>&1 > /dev/null \
       && l_result="$l_result.${o_outfile##*.}"
+    l_result="`echo $l_result | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g'`"
+    [ $l_recode -eq 1 ] && l_result="`echo $l_result | recode -f $RECODE_MODE`"
     echo $l_result; return 0
   elif [ -n "${l_outfile}" ]; then
-    echo $l_outfile; return 0
+    l_result="`echo $l_result | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g'`"
+    [ $l_recode -eq 1 ] && l_result="`echo $l_result | recode -f $RECODE_MODE`"
+    echo $l_result; return 0
   fi
 
   # if no file name is given, generate one
@@ -412,7 +428,9 @@ out_file_name() {
   l_result="$l_result.${l_ext}"
 
   #echo $l_result | tr 'A-Z' 'a-z' | tr ' :!"' '_'
-  echo $l_result | tr ' :!"' '_'
+  l_result="`echo $l_result | tr ' :!\"' '_' | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g'`"
+  [ $l_recode -eq 1 ] && l_result="`echo $l_result | recode -f $RECODE_MODE`"
+  echo $l_result; return 0
 }
 
 # generate meta file name, same as with out_file_name
@@ -462,9 +480,9 @@ core_processor() {
 process_3sat() {
   # select lowest available quality if given quality not available (too high)
   local l_lowestquality=3
-  if [ $l_quality -gt ]; then
+  if [ $o_quality -gt $l_lowestquality ]; then
     prt_warn "quality $l_quality not availlable (too high), new quality: "
-    l_quality=$l_lowestquality
+    o_quality=$l_lowestquality
   fi
 
   # get id (if url was given)
@@ -514,9 +532,9 @@ process_3sat() {
 process_ard() {
   # select lowest available quality if given quality not available (too high)
   local l_lowestquality=3
-  if [ $l_quality -gt ]; then
+  if [ $o_quality -gt $l_lowestquality ]; then
     prt_warn "quality $l_quality not availlable (too high), new quality: "
-    l_quality=$l_lowestquality
+    o_quality=$l_lowestquality
   fi
 
   # get id (if url was given)
@@ -591,9 +609,9 @@ process_ard() {
 process_arte() {
   # select lowest available quality if given quality not available (too high)
   local l_lowestquality=2
-  if [ $l_quality -gt ]; then
+  if [ $o_quality -gt $l_lowestquality ]; then
     prt_warn "quality $l_quality not availlable (too high), new quality: "
-    l_quality=$l_lowestquality
+    o_quality=$l_lowestquality
   fi
 
   # get id (if url was given)
@@ -626,9 +644,9 @@ process_arte() {
 process_zdf() {
   # select lowest available quality if given quality not available (too high)
   local l_lowestquality=3
-  if [ $l_quality -gt ]; then
+  if [ $o_quality -gt $l_lowestquality ]; then
     prt_warn "quality $l_quality not availlable (too high), new quality: "
-    l_quality=$l_lowestquality
+    o_quality=$l_lowestquality
   fi
 
   # get id (if url was given)
@@ -740,10 +758,11 @@ process_youtube() {
 
 # == URL / ID processing ====================================================
 cnt=0
+cnt_max=$#
 while [ -n "$1" ]; do
   obj="$1"; shift
   cnt=$(($cnt+1))
-  prt_msg "object #$cnt: $obj"
+  prt_msg "object #$cnt/$cnt_max: $obj"
   # service enforced?
   if [ -n "$o_service" ]; then
     service="$o_service"
@@ -766,4 +785,4 @@ while [ -n "$1" ]; do
     || prt_err "error while processing ($o_service): $obj"
 done
 
-exit 0
+exit $EXIT_STATUS
