@@ -37,8 +37,8 @@ CFILES+=({.adobe,.macromedia}/Flash_Player)
 CFILES+=(.evolution/cache)
 # thunderbird (imap and message db)
 CFILES+=(.thunderbird/*.*/{ImapMail,global-messages-db.sqlite})
-# openoffice
-CFILES+=(.openoffice.org*/{?/user,user}/{temp,backup})
+# openoffice / libreoffice
+CFILES+=(.{openoffice.org,libreoffice}*/{?/user,user}/{temp,backup})
 # gqview/geeqie (if not configured to use .thumbnails)
 CFILES+=(.{gqview,geeqie}/thumbnails)
 # pidgin logs
@@ -66,50 +66,67 @@ CFILES+=(.*[-_]history)
 
 # == CORE ===================================================================
 noact=0
-case "$1" in
-  "-n")
-    noact=1
-    ;;
-  "-f")
-    ;;
-  "-h")
-    cat <<USAGE
+force=0
+while [ -n "$1" ]; do
+  case "$1" in
+    "-n")
+      noact=1; shift
+      ;;
+    "-f")
+      force=1; shift
+      ;;
+    "-b")
+      [ -z "$2" ] && echo "error parsing args" && exit 1
+      BASEDIR="$2"; shift 2
+      ;;
+    "-h")
+      cat <<USAGE
 usage: `basename $0` [option]
 
 [options]
   -h   show this help
   -n   no act mode (no changes will be made)
   -f   force processing (don't ask stupid questions)
+  -b   basedir (default: \$HOME)
 USAGE
-    exit 0
-    ;;
-  *)
-    echo "> use argument -n to make a dry run (no deletion)"
-    echo "> use argument -f to skip the following question"
-    echo "> are you sure that you want to continue?"
-    printf "(y)es, (n)o, (d)ry-run: "
-    while ((1)); do
-      read -s -n1 yesno
-      case $yesno in
-        [yY])
-          echo
-          break
-          ;;
-        [nN])
-          echo
-          exit 0
-          ;;
-        [dD])
-          noact=1
-          echo
-          break
-          ;;
-        *)
-          ;;
-       esac
-    done
-    echo
-esac
+      exit 0
+      ;;
+    *)
+      echo "error parsing args"
+      exit 1
+      ;;
+  esac
+done
+
+if [ $force -ne 1 ]; then
+  echo "> use argument -n to make a dry run (no deletion)"
+  echo "> use argument -f to skip the following question"
+  echo "> are you sure that you want to continue?"
+  printf "(y)es, (n)o, (d)ry-run: "
+  while ((1)); do
+    read -s -n1 yesno
+    case $yesno in
+      [yY])
+        echo
+        break
+        ;;
+      [nN])
+        echo
+        exit 0
+        ;;
+      [dD])
+        noact=1
+        echo
+        break
+        ;;
+      *)
+        ;;
+     esac
+  done
+  echo
+fi
+
+[ ! -d "$BASEDIR" ] && echo "given base directory '$BASEDIR' not found/accessible" && exit 1
 
 if [ $noact -eq 1 ]; then
   echo "> NO ACT MODE (no changes will be made)"
@@ -120,11 +137,14 @@ fi
 echo "> processing specific files/folders"
 for f in ${CFILES[@]}; do
   file="$BASEDIR/$f"
+  echo "> processing: $file"
   if echo "$file" | grep -v "/\.\." >/dev/null &&\
-     echo "$file" | grep -vE "^${BASEDIR}/\.?$" >/dev/null &&\
-     [ -e "$file" ]; then
-    echo "rm -rf $file"
-    [ $noact -ne 1 ] && rm -rf "$file"
+     echo "$file" | grep -vE "^${BASEDIR}/\.?$" >/dev/null; then #&&\
+     #[ -e "$file" ]; then
+    #echo "rm -rf $file"
+    [ $noact -ne 1 ] && rm -rf $file
+  else
+     echo "> skipping .."
   fi
 done
 
@@ -143,3 +163,4 @@ echo "> find: processing local backup/temp files '*~'"
 find "$BASEDIR" -depth -type f -iname '*~' -print0 | xargs -0 -r $xargs_v $echo rm -f
 echo "> find: processing swap files '.*.swp'"
 find "$BASEDIR" -depth -type f -iname '.*.swp' -print0 | xargs -0 -r $xargs_v $echo rm -f
+
