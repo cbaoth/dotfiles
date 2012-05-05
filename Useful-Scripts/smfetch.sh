@@ -19,8 +19,8 @@
 #   documentation and/or other materials provided with the distribution.
 
 # == Comments, Todo etc. ====================================================
-# add additional services
-# http://mediathek.daserste.de / http://www.ardmediathek.de
+# * add additional services
+# * add id support to service: ard
 
 # == Constants & Options ====================================================
 declare -r  VERSION="120412"
@@ -231,7 +231,8 @@ Supported Services (example URLs/Ids, availlable options):
             -> id = 12345
           lang: de, quality: 1-3 [veryhigh, high, low]
   ard     url: http://www.ardmediathek.de/*/content/12345?documentId=23456
-          -> id = CURRENTLY URL ONLY
+               http://mediathek.daserste.de/*/12345_show_one
+          -> id = CURRENTLY URL ONLY (id only not supported)
           lang: de, quality: 1-3 [high, medium, low]
           quality=3 may be mp3 and 1-2 may be direct mp4 media links
   arte    url: http://videos.arte.tv/de/videos/show_one-12345.html
@@ -780,7 +781,7 @@ while [ -n "$1" ]; do
     case "$obj" in
       *"youtube.com"*)          service="youtube";;
       *"3sat.de/mediathek/"*)   service="3sat";;
-      *"ardmediathek.de/ard/"*) service="ard";;
+      *"ardmediathek.de/ard/"|*"mediathek.daserste.de"*) service="ard";;
       *"videos.arte.tv/"*)      service="arte";;
       *"zdf.de/ZDFmediathek/"*) service="zdf";;
       *) prt_warn "can't resolve service from '$obj'" \
