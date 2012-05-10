@@ -37,10 +37,11 @@ declare -ra RTMPDUMP_CMD=($RTMPDUMP)
 
 declare -r  WGET="wget"           # change if not in path or name different
 # wget should not be quiet if debuging
+declare -ra WGET_CMD=($WGET -U "$UAGENT" --progress=dot) #--progress=bar:force
 if [ $DEBUG -gt 0 ]; then
-  declare -ra WGET_CMD=($WGET -U "$UAGENT")
+  declare -ra WGET_CMD_BG=($WGET_CMD)
 else
-  declare -ra WGET_CMD=($WGET -U "$UAGENT" -q)
+  declare -ra WGET_CMD_BG=($WGET_CMD -q)
 fi
 
 # known services
@@ -210,6 +211,9 @@ Options:
                             quality value is out of range (value too high)
                             the lowest quality for the current service is
                             used. (global default: $QUALITY)
+  -nd, --nodownload       don't fetch the files, just print the URIs
+                            and outfilenamae (tab separated) to stdout
+                            all other messages are printed to stderr
   -o, --outfile FILE      set output file name (only for single downloads,
                             not usable if multiple ids are given)
   -op, --outfileprefix X  specify a prefix for the automaticly generated
@@ -265,6 +269,7 @@ o_keepmeta=$KEEP_META
 o_interactive=$INTERACTIVE
 o_quality=$QUALITY
 o_language="$LANGUAGE"
+o_nodownload=0
 o_outfile=""
 o_outfilepre=""
 o_outfilesuf=""
@@ -304,6 +309,13 @@ while [ -n "$1" ]; do
       o_quality="$2"
       shift 2
       prt_dbg 1 "args | setting quality: $o_quality"
+      ;;
+    -nd|--nodownload)
+      o_nodownload=1
+      # redefine prt_msg, print output to stderr so that only urls are
+      # printed to stdout
+      prt_msg() { echo -e "> $*" >&2; return 0; }
+      shift
       ;;
     -o|--outfile)
       [ -z "$2" ] &&\
@@ -367,7 +379,11 @@ fetch_rtmp() {
   prt_dbg 1 "rtmp | $2\n  -> $1"
   prt_msg "target file: $l_outfile"
   [ $o_interactive -eq 1 ] && !(overwrite_p "$1") && return 0
-  ${RTMPDUMP_CMD[@]} -o "$1" -r "$2"
+  if [ $o_nodownload -eq 1 ]; then
+    echo -e "$2\t$1"
+  else
+    ${RTMPDUMP_CMD[@]} -o "$1" -r "$2"
+  fi
 }
 
 # fetch_media TARGET URI
@@ -375,7 +391,16 @@ fetch_media() {
   prt_dbg 1 "media | $2\n  -> $1"
   prt_msg "target file: $l_outfile"
   [ $o_interactive -eq 1 ] && !(overwrite_p "$1") && return 0
-  "${WGET_CMD[@]}" -O "$1" "$2"
+  if [ $o_nodownload -eq 1 ]; then
+    echo -e "$2\t$1"
+  else
+    if [ $DEBUG -gt 0 ]; then
+      "${WGET_CMD[@]}" -O "$1" "$2"
+    else
+      "${WGET_CMD[@]}" -O "$1" "$2" 2>&1 | grep --line-buffered "%" | sed -u -e "s,\.,,g" | awk '{printf("\b\b\b\b%4s", $2)}'
+      echo
+    fi
+  fi
 }
 
 # generate output file name, change to your liking
@@ -502,10 +527,10 @@ process_3sat() {
   l_lang=de  # no other options
   l_metafile="`meta_file_name`"
   prt_dbg 1 "$l_service | fetching meta file, lang = $l_lang, meta file = $l_metafile"
-  "${WGET_CMD[@]}" -O - "http://www.3sat.de/mediathek/mediathek.php?obj=$l_id&mode=play" |\
+  "${WGET_CMD_BG[@]}" -O - "http://www.3sat.de/mediathek/mediathek.php?obj=$l_id&mode=play" |\
     grep -Ei "playerBottomFlashvars.mediaURL" |\
     sed -r 's/.*=\s*"([^"]+)".*/\1/' | head -1 |\
-    xargs "${WGET_CMD[@]}" -O "$l_metafile" \
+    xargs "${WGET_CMD_BG[@]}" -O "$l_metafile" \
       || return 1
 
   case $o_quality in
@@ -523,9 +548,6 @@ process_3sat() {
   local l_app="`cat \"$l_metafile\" | grep -i 'name=\"app\"' |\
     sed 's/.*value=\"//;s/\".*//'`"
   #l_title=""
-  echo $l_ppath
-  echo $l_host
-  echo $l_app
   # rtmp[t][e]://hostname[:port][/app[/playpath]]
   l_rtmp="rtmp://$l_host:1935/$l_app/$l_ppath"
   l_orgfilename="`basename $l_ppath`"
@@ -555,7 +577,7 @@ process_ard() {
   l_lang=de  # no other options
   l_metafile="`meta_file_name`"
   prt_dbg 1 "$l_service | fetching meta file, lang = $l_lang, meta file = $l_metafile"
-  "${WGET_CMD[@]}" -O "$l_metafile" "$l_id" \
+  "${WGET_CMD_BG[@]}" -O "$l_metafile" "$l_id" \
     || return 1
   l_quality="$(awk '{print ($0>=3?0:3-$0)}' <<<$o_quality)"
   # parse meta file
@@ -629,9 +651,9 @@ process_arte() {
   l_lang=`case $o_lang in de|fr) echo $o_lang;; *) echo de;; esac`
   l_metafile="`meta_file_name`"
   prt_dbg 1 "$l_service | fetching meta file, lang = $l_lang, meta file = $l_metafile"
-  "${WGET_CMD[@]}" -O - "http://videos.arte.tv/de/do_delegate/videos/${l_id},view,asPlayerXml.xml" |\
+  "${WGET_CMD_BG[@]}" -O - "http://videos.arte.tv/de/do_delegate/videos/${l_id},view,asPlayerXml.xml" |\
     grep -Ei "lang=.?$LANG" | sed -r 's/.*ref="([^>]+)".\s*\/>.*/\1/' |\
-    head -1 | xargs "${WGET_CMD[@]}" -O "$l_metafile" \
+    head -1 | xargs "${WGET_CMD_BG[@]}" -O "$l_metafile" \
       || return 1
 
   l_quality=`[ $o_quality -eq 1 ] && echo hd || echo sd`
@@ -667,7 +689,7 @@ process_zdf() {
   l_metafile="`meta_file_name`"
   prt_dbg 1 "$l_service | fetching meta file, lang = $l_lang, meta file = $l_metafile"
 
-  "${WGET_CMD[@]}" -O "$l_metafile" "http://www.zdf.de/ZDFmediathek/xmlservice/web/beitragsDetails?id=${l_id}" || return 1
+  "${WGET_CMD_BG[@]}" -O "$l_metafile" "http://www.zdf.de/ZDFmediathek/xmlservice/web/beitragsDetails?id=${l_id}" || return 1
 
   case $o_quality in
     1) l_quality="veryhigh";;
@@ -680,7 +702,7 @@ process_zdf() {
 
   # get 2nd meta file containing rtmp details
   prt_dbg 1 "$l_service | fetching 2nd meta file containing rtmp uri"
-  l_rtmp=$("${WGET_CMD[@]}" -O - "`cat \"$l_metafile\" |\
+  l_rtmp=$("${WGET_CMD_BG[@]}" -O - "`cat \"$l_metafile\" |\
     awk '/<formitaet.*h264_aac_mp4_rtmp_zdfmeta_http/,/\/formitaet/ {ORS=\"\";gsub(/<\/formitaet>/, \"</formitaet>\n\"); print}' |\
     grep -i \">$l_quality<\" | sed -r 's/.*url>([^<]*)<\/url.*/\1/g'`" |\
     awk -F'[<|>]' '/default-stream-url/{print $3}')
@@ -716,7 +738,7 @@ process_youtube() {
   l_metafile="`meta_file_name`"
   prt_dbg 1 "$l_service | fetching meta file, meta file = $l_metafile"
 
-  "${WGET_CMD[@]}" -O "$l_metafile" "http://www.youtube.com/watch?v=${l_id}" || return 1
+  "${WGET_CMD_BG[@]}" -O "$l_metafile" "http://www.youtube.com/watch?v=${l_id}" || return 1
 
   local l_metainfo="`cat \"$l_metafile\" | grep -Eo 'url_encoded_fmt_stream_map[^;]*' |\
     sed 's/url_encoded_fmt_stream_map=//;s/url%3D//;s/%2Curl%3D/\n/g' | grep -E \"itag%3D${l_quality}([^0-9]|$)\"`"
@@ -748,7 +770,7 @@ process_youtube() {
 
   # parse meta file
   prt_dbg 1 "$l_service | parsing meta file, quality = $l_quality"
-  l_title="`cat \"$l_metafile\" | grep '<title>' | sed -r 's/(.*<title>|<\/title>.*)//g;s/^YouTube - //;s/&[^;]\;/_/g'`"
+  l_title="`cat \"$l_metafile\" | awk '/<title>/,/<\/title>/'|tr '\n' ' ' | sed -r 's/(.*<title>|<\/title>.*)//g;s/(^\s*YouTube\s*-\s*|\s*-\s*YouTube\s*$)//;s/&[^;]\;/_/g'`"
   l_media="`echo $l_metainfo | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' |\
     xargs echo -e | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | xargs echo -e`"
   local l_qualityname="unknown";
@@ -792,9 +814,7 @@ while [ -n "$1" ]; do
     prt_dbg 1 "obj | service '$service' detected"
   fi
   prt_dbg 1 "obj | calling: process_$service(\"$obj\")"
-  core_processor "$service" "$obj" \
-    || prt_err "error while processing ($o_service): $obj"
+  core_processor "$service" "$obj" || prt_err "error while processing ($o_service): $obj"
 done
 
 exit $EXIT_STATUS
-
