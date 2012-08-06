@@ -21,14 +21,26 @@
 # == Comments, Todo etc. ====================================================
 # * add additional services
 # * add id support to service: ard
+# * temporarily removed uagent, vimeo downloads don't function with set ua
+# * fix: error after succ. youtube dl
+# * youtube to mp3: ffmpeg -i in.flv out.mp3
 
 # == Constants & Options ====================================================
-declare -r  VERSION="120412"
+declare -r  VERSION="120806"
 declare -r  PROG="`basename $0`"
+#declare -r  UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517 Mozilla Firebird/0.6"
+declare -r  UAGENT="Mozilla/5.0 (X11; Linux x86_64; rv:12.0) Gecko/20100101 Mozilla Firefox/12.0"
+
+# -- DEBUGGING --------------------------------------------------------------
 declare -r  DEBUG=0               # set to >0 to increase debug level
-declare -r  UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517 Mozilla Firebird/0.6"
+#declare -r  DEBUG=3               # full debuging (currently highest dbg lvl)
+#set -v                            # PRINT SHELL INPUT (set -o verbose)
+#set -x                            # COMMAND TRACE (set -o xtrace)
 
 # -- static settings and commands -------------------------------------------
+# known services
+declare -ra SERVICES=(3sat ard arte zdf youtube vimeo)
+
 declare -r  RTMPDUMP="rtmpdump"   # change if not in path or name different
 #declare -ra RTMPDUMP_CMD=($RTMPDUMP -e) # "-e" to always try resuming
 # no longer supported, -e is not a good idea in most cases, file will
@@ -36,16 +48,30 @@ declare -r  RTMPDUMP="rtmpdump"   # change if not in path or name different
 declare -ra RTMPDUMP_CMD=($RTMPDUMP)
 
 declare -r  WGET="wget"           # change if not in path or name different
+
+declare -r  USE_COOKIES=0         # use cookies (wget)
+#declare -r  USE_COOKIES=1         # don't use cookies (wget)
+#declare -r  COOKIE_FILE=".smfetch_cookies_`date +%s%N`"
+declare -r  COOKIE_FILE="$HOME/.smfetch_cookies"
+declare -r  KEEP_COOKIEFILE=0     # delete cookie file after exit
+#declare -r KEEP_COOKIEFILE=1      # keep cookie file after exit
+# note: cookie file can (surely) only be re-used when a static file name is set!
+
 # wget should not be quiet if debuging
-declare -ra WGET_CMD=($WGET -U "$UAGENT" --progress=dot) #--progress=bar:force
+if [ $USE_COOKIES -eq 1 ]; then
+  # FIXME: uagend removed for vimeo support
+  #declare -ra WGET_CMD=($WGET -U "$UAGENT" --cookies=on --progress=dot --load-cookies="$COOKIE_FILE" --save-cookies="$COOKIE_FILE" --keep-session-cookies) #--progress=bar:force
+  declare -ra WGET_CMD=($WGET --cookies=on --progress=dot --load-cookies="$COOKIE_FILE" --save-cookies="$COOKIE_FILE" --keep-session-cookies) #--progress=bar:force
+else
+  # FIXME: uagend removed for vimeo support
+  #declare -ra WGET_CMD=($WGET -U "$UAGENT" --progress=dot) #--progress=bar:force
+  declare -ra WGET_CMD=($WGET --progress=dot) #--progress=bar:force
+fi
 if [ $DEBUG -gt 0 ]; then
   declare -ra WGET_CMD_BG=($WGET_CMD)
 else
   declare -ra WGET_CMD_BG=($WGET_CMD -q)
 fi
-
-# known services
-declare -ra SERVICES=(3sat ard arte zdf youtube)
 
 # recode (replace html entities in output file name, if recode is installed)
 declare -r RECODE_MODE="html..ascii"        # no umlauts etc.
@@ -61,8 +87,8 @@ declare -r  INTERACTIVE=0
 #declare -r  INTERACTIVE=1
 
 # keep meta data file, don't delete it after download
-#declare -ri KEEP_META=0
-declare -ri KEEP_META=0
+declare -ri KEEP_META=0           # delete meta files after download
+#declare -ri KEEP_META=1           # keep meta files
 
 # default language (depends on service, eg. arte: de/fr)
 declare -r  LANG="de"
@@ -74,56 +100,77 @@ declare -r  LANG="de"
 declare -ri  QUALITY=1
 
 # -- youtube specialties ---------------------------------------------------
-# available youtube qualities, availability checked in the given sequence
+# available youtube qualities
 #5 6 34 35 18 22 37 38 83 82 85 84 43 44 45 46 100 101 46 102 13 17)
-declare -ra YT_AVQUAL=(38
-                       37
-                       46
-                       22
-                       45
-                       35
-                       44
-                       18
-                       34
-                       43
-                       6
-                       5
-                       84
-                       102
-                       46
-                       85
-                       101
-                       82
-                       100
-                       83
-                       17
-                       13)
-# flv_h263_224p flv_h263_270p flv_h264_360p flv_h264_480p mp4_h264_360p	mp4_h264_720p mp4_h264_1080p mp4_h264_2304p
-# mp4_h264_3d_240p mp4_h264_3d_360p mp4_h264_3d_520p mp4_h264_3d_720p webm_vp8_360p webm_vp8_480p webm_vp8_720p
-# webm_vp8_1080p webm_vp8_3d_360p webm_vp8_3d_480p webm_vp8_3d_540p webm_vp8_3d_720p 3gp_mp3v_lq 3gp_mp3v_hq
-declare -ra YT_AVQUALNAME=(mp4_h264_2304p
-                           mp4_h264_1080p
-                           webm_vp8_1080p
-                           mp4_h264_720p
-                           webm_vp8_720p
-                           flv_h264_480p
-                           webm_vp8_480p
-                           mp4_h264_360p
-                           flv_h264_360p
-                           webm_vp8_360p
-                           flv_h263_270p
-                           flv_h263_224p
-                           mp4_h264_3d_720p
-                           webm_vp8_3d_720p
-                           webm_vp8_3d_540p
-                           mp4_h264_3d_520p
-                           webm_vp8_3d_480p
-                           mp4_h264_3d_360p
-                           webm_vp8_3d_360p
-                           mp4_h264_3d_240p
-                           3gp_mp3v_lq
-                           3gp_mp3v_hq)
-# default quality: 1080p H.264 mp4
+declare -rA YT_AVQUAL=(["38"]=mp4_3072p_h264_aac
+                       ["37"]=mp4_1080p_h264_aac
+                       ["46"]=webm_1080p_vp8_vorbis
+                       ["22"]=mp4_720p_h264_aac
+                       ["45"]=webm_720p_vp8_vorbis
+                       ["35"]=flv_480p_h264_acc
+                       ["44"]=webm_480p_vp8_vorbis
+                       ["18"]=mp4_360p_h264_aac
+                       ["34"]=flv_360p_h264_aac
+                       ["43"]=webm_360p_vp8_vorbis
+                       ["6"]=flv_270p_h263_mp3
+                       ["5"]=flv_224_h263_mp3
+                       ["84"]=mp4_720p_h264-3d_aac
+                       ["102"]=webm_720p_vp8-3d_vorbis
+                       ["85"]=mp4_520p_h264-3d_aac
+                       ["101"]=webm_480p_vp8-3d_vorbis
+                       ["82"]=mp4_360p_h264-3d_aac
+                       ["100"]=webm_360p_vp8-3d_vorbis
+                       ["83"]=mp4_240p_h264-3d_aac
+                       ["36"]=3gp_240p_mpeg4v_aac
+                       ["17"]=3gp_144p_mpeg4v_aac
+                       ["13"]=3gp_xxxp_mpeg4v_aac)
+
+declare -rA YT_AVQUAL_DESC=(["38"]="MP4 3072p, H.264 <5 Mbit/s, AAC@152"
+                            ["37"]="MP4 1080p, H.264 <4.3 Mbit/s, AAC@152"
+                            ["46"]="WebM 1080p, VP8 ??? Mbit/s, Vorbis@192"
+                            ["22"]="MP4 720p, H.264 <2.9 Mbit/s, AAC@152"
+                            ["45"]="WebM 720p, VP8 2 Mbit/s, Vorbis@192"
+                            ["35"]="FLV 480p, H.264 <1 Mbit/s, AAC@128"
+                            ["44"]="WebM 480p, VP8 1 Mbit/s, Vorbis@128"
+                            ["18"]="MP4 360p, H.264 0.5 Mbit/s, AAC@96"
+                            ["34"]="FLV 360p, H.264 0.5 Mbit/s, AAC@96"
+                            ["43"]="WebM 360p, VP8 0.5 Mbit/s, Vorbis@128"
+                            ["6"]="FLV 270p, H.263 0.8 Mbit/s, MP3@64"
+                            ["5"]="FLV 224p, H.263 0.25 Mbit/s, MP3@64"
+                            ["84"]="MP4 720p, H.264 3D <2.9 Mbit/s, AAC@152"
+                            ["102"]="WebM 720p, VP8 3D ??? Mbit/s, Vorbis@192"
+                            ["85"]="MP4 520p, H.264 3D <2.9 Mbit/s, AAC@152"
+                            ["101"]="WebM 480p, VP8 3D ??? Mbit/s, Vorbis@192"
+                            ["82"]="MP4 360p, H.264 3D 0.5 Mbit/s, AAC@96"
+                            ["100"]="WebM 360p, VP8 3D ??? Mbit/s, Vorbis@128"
+                            ["83"]="MP4 240p, H.264 3D 0.5 Mbit/s, AAC@96"
+                            ["36"]="3GP 240p, MPEG-4 Visual 0.17 MBit/s, AAC@38"
+                            ["17"]="3GP 144p, MPEG-4 Visual 0.05 MBit/s, AAC@24"
+                            ["13"]="3GP ???p, MPEG-4 Visual 0.5 MBit/s, AAC@???")
+
+# available youtube qualities, availability checked in the given sequence
+declare -ra YT_AVQUAL_SEQ=(38   #mp4_3072p_h264_aac
+                           37   #mp4_1080p_h264_aac
+                           46   #webm_1080p_vp8_vorbis
+                           22   #mp4_720p_h264_aac
+                           45   #webm_720p_vp8_vorbis
+                           35   #flv_480p_h264_acc
+                           44   #webm_480p_vp8_vorbis
+                           18   #mp4_360p_h264_aac
+                           34   #flv_360p_h264_aac
+                           43   #webm_360p_vp8_vorbis
+                           6    #flv_270p_h263_mp3
+                           5    #flv_224_h263_mp3
+                           84   #mp4_720p_h264-3d_aac
+                           102  #webm_720p_vp8-3d_vorbis
+                           85   #mp4_520p_h264-3d_aac
+                           101  #webm_480p_vp8-3d_vorbis
+                           82   #mp4_360p_h264-3d_aac
+                           100  #webm_360p_vp8-3d_vorbis
+                           83   #mp4_240p_h264-3d_aac
+                           36   #3gp_240p_mpeg4v_aac
+                           17   #3gp_144p_mpeg4v_aac
+                           13)  #3gp_xxxp_mpeg4v_aac
 
 # == Initial stuff ==========================================================
 # -- Aux functions ----------------------------------------------------------
@@ -184,6 +231,15 @@ overwrite_p() {
   fi
 }
 
+flv2mp4 () {
+  [ -z "$1" ] && prt_usg "$0 flvfile" &&\
+    return 1
+  infile="$1"
+  outfile="${infile%.*}.mp4"
+  prt_msg "converting '$infile' to '$outfile'"
+  ffmpeg -i "$infile" -vcodec copy -acodec copy "$outfile"
+}
+
 # -- Requirements -----------------------------------------------------------
 app_available $RTMPDUMP || exit 1
 app_available $WGET || exit 1
@@ -226,6 +282,8 @@ Options:
                             hesitation `[ $INTERACTIVE -ne 1 ] && printf "(default)"`
   -dm, --deletemetafile   delete meta file after download is finished `[ $KEEP_META -ne 1 ] && printf "\n%27s(default)"`
   -km, --keepmetafile     don't delete meta file after download is finished `[ $KEEP_META -eq 1 ] && printf "\n%27s(default)"`
+  -f2m, --flvtomp4        convert flv files into mp4 format (if e.g.
+                          downloading flv from youtube)
 
 Supported Services (example URLs/Ids, availlable options):
   youtube url: http://www.youtube.com/?v=XXXXXXXXXXX
@@ -245,6 +303,9 @@ Supported Services (example URLs/Ids, availlable options):
   zdf     url: http://www.zdf.de/ZDFmediathek/.../video/12345/Show-X
             -> id = 12345
           lang: de, quality: 1-3 [veryhigh, high, low]
+  vimeo   url: http://vimeo.com/12345
+            -> id = 12345
+          lang: *, quality: 1-3 [hd, sd, mobile] (may vary in current impl.)
 
 Examples:
   simplest case, fetch given video by url
@@ -256,8 +317,8 @@ USAGE
 
 youtube_qualities() {
   echo "available youtube qualities:"
-  for i in `seq 0 $((${#YT_AVQUALNAME[@]}-1))`; do
-    echo -e "  ${YT_AVQUAL[$i]}\t-> ${YT_AVQUALNAME[$i]}" | sed 's/_/ /g'
+  for itag in ${YT_AVQUAL_SEQ[@]}; do # ${!YT_AVQUAL[@]}
+    echo -e "  $itag\t-> ${YT_AVQUAL_DESC[$itag]} (${YT_AVQUAL[$itag]})"
   done
   echo
   echo "note: if no quality is given, the shown sequence is tried (one quality after another)"
@@ -273,6 +334,7 @@ o_nodownload=0
 o_outfile=""
 o_outfilepre=""
 o_outfilesuf=""
+o_flvtomp4=0
 # parse arguments
 while [ -n "$1" ]; do
   case "$1" in
@@ -358,6 +420,22 @@ while [ -n "$1" ]; do
       shift
       prt_dbg 1 "args | keep metafile: off"
       ;;
+    -f2m|--flvtomp4)
+      if (! app_available avconv); then
+        prt_warn "trying depricated executable 'ffmpeg'"
+        if (! app_available ffmpeg); then
+          prt_err "argument -f2m | --flvtomp4 not possible due to missing application"
+          exit 1
+        fi
+      fi
+      o_flvtomp4=1
+      shift
+      prt_dbg 1 "args | flvtomp4: on"
+      ;;
+    -*)
+      prt_err "parsing args, unknown argument: $1"
+      exit 1
+      ;;
     *)
       break;  # we assume that ids/urls follow at this point
       ;;
@@ -376,31 +454,43 @@ done
 # == Core Functionality =====================================================
 # fetch_rtmp TARGET URI
 fetch_rtmp() {
+  local l_return=1
   prt_dbg 1 "rtmp | $2\n  -> $1"
   prt_msg "target file: $l_outfile"
   [ $o_interactive -eq 1 ] && !(overwrite_p "$1") && return 0
   if [ $o_nodownload -eq 1 ]; then
     echo -e "$2\t$1"
   else
-    ${RTMPDUMP_CMD[@]} -o "$1" -r "$2"
+    prt_msg "fetching stream via rtmpdump ..."
+    ${RTMPDUMP_CMD[@]} -o "$1" -r "$2" || l_return=0
   fi
+  return $l_return
 }
 
 # fetch_media TARGET URI
 fetch_media() {
+  local l_return=1
   prt_dbg 1 "media | $2\n  -> $1"
   prt_msg "target file: $l_outfile"
   [ $o_interactive -eq 1 ] && !(overwrite_p "$1") && return 0
   if [ $o_nodownload -eq 1 ]; then
     echo -e "$2\t$1"
   else
+    prt_msg "fetching media via wget ..."
     if [ $DEBUG -gt 0 ]; then
-      "${WGET_CMD[@]}" -O "$1" "$2"
+      "${WGET_CMD[@]}" -O "$1" "$2" || l_return=0
     else
       "${WGET_CMD[@]}" -O "$1" "$2" 2>&1 | grep --line-buffered "%" | sed -u -e "s,\.,,g" | awk '{printf("\b\b\b\b%4s", $2)}'
+      [ $? -ne 0 ] && l_return=0
       echo
     fi
+    # check if file is non-html (else, it is most likely an error page!)
+    [ $l_return -eq 1 ] &&\
+      file -bi "$1" | grep 'text/html' 2>&1 >/dev/null &&\
+      prt_err "download seems to have failed, some html page was fetched (check output file for details/verification)" &&\
+      l_return=0
   fi
+  return $l_return
 }
 
 # generate output file name, change to your liking
@@ -419,12 +509,14 @@ out_file_name() {
     # re-append extension (if any)
     echo "$o_outfile" | grep '\.' 2>&1 > /dev/null \
       && l_result="$l_result.${o_outfile##*.}"
-    l_result="`echo $l_result | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g'`"
+    l_result="`echo $l_result | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | tr ' :!\"/' '_'`"
     [ $l_recode -eq 1 ] && l_result="`echo $l_result | recode -f $RECODE_MODE`"
+    l_result="`echo $l_result | sed -r 's/[\]{1,2}u[0-9a-f]{4}//g'`"
     echo $l_result; return 0
   elif [ -n "${l_outfile}" ]; then
-    l_result="`echo $l_result | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g'`"
+    l_result="`echo $l_result | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | tr ' :!\"/' '_'`"
     [ $l_recode -eq 1 ] && l_result="`echo $l_result | recode -f $RECODE_MODE`"
+    l_result="`echo $l_result | sed -r 's/[\]{1,2}u[0-9a-f]{4}//g'`"
     echo $l_result; return 0
   fi
 
@@ -456,8 +548,9 @@ out_file_name() {
   l_result="$l_result.${l_ext}"
 
   #echo $l_result | tr 'A-Z' 'a-z' | tr ' :!"' '_'
-  l_result="`echo $l_result | tr ' :!\"' '_' | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g'`"
+  l_result="`echo $l_result | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | tr ' :!\"/' '_'`"
   [ $l_recode -eq 1 ] && l_result="`echo $l_result | recode -f $RECODE_MODE`"
+  l_result="`echo $l_result | sed -r 's/[\]{1,2}u[0-9a-f]{4}//g'`"
   echo $l_result; return 0
 }
 
@@ -497,6 +590,8 @@ core_processor() {
     prt_err "neither rtmp uri nor direct media link found" \
       && return 1
   fi
+  [ $o_flvtomp4 -eq 1 ] && [ "${l_outfile##*.}" == "flv" ] &&\
+    flv2mp4 "$l_outfile" && rm -f "$l_outfile"
 
   # remove meta file if desired
   [ $o_keepmeta -ne 1 ] && rm -f "$l_metafile"
@@ -710,11 +805,63 @@ process_zdf() {
   l_ext="${l_rtmp##*.}"
 }
 
+process_vimeo() {
+  # select lowest available quality if given quality not available (too high)
+  local l_lowestquality=3 # hd sd mobile
+  if [ $o_quality -gt $l_lowestquality ]; then
+    prt_warn "quality $l_quality not availlable (too high), new quality: "
+    o_quality=$l_lowestquality
+  fi
+
+  # get id (if url was given)
+  l_id="${l_obj/*vimeo.com\//}"
+  l_id="${l_id/\/*/}"
+  prt_dbg 1 "$l_service | id = $l_id"
+
+  # check for valid id
+  ([ -z "$l_id" ] || !(isint "$l_id")) && prt_err "no a valid id found" \
+    && return 1
+
+  # fetch meta file
+  l_lang=de  # no other options
+  l_metafile="`meta_file_name`"
+  prt_dbg 1 "$l_service | fetching meta file, lang = $l_lang, meta file = $l_metafile"
+
+  # available qualities in (example):
+  # var...profiles":{"h264":{"hd":113,"sd":112,"mobile":116}},"smil":{"url":"http:\/\/player.vimeo.com\/config\/39275532.smil","qualities":["hd","sd","mobile"]}},...
+  #"${WGET_CMD_BG[@]}" -O "$l_metafile" "http://player.vimeo.com/config/${l_id}.smil" || return 1
+  "${WGET_CMD_BG[@]}" -O "$l_metafile" "http://player.vimeo.com/config/${l_id}" || return 1
+
+  case $o_quality in
+    1) l_quality="hd";;
+    2) l_quality="sd";;
+    *) l_quality="mobile";;
+  esac;
+  # parse meta file
+  prt_dbg 1 "$l_service | parsing meta file, quality = $l_quality"
+  #prt_msg "note: current implementation doesn't guarantee correct quality selection, just sorted from max to min (usually hd, sd, mobile)"
+  #l_title="`cat \"$l_metafile\" | grep -E 'meta.*title'|sed 's/.*content=\"//;s/\".*//'`"
+  l_title="`cat \"$l_metafile\" | grep -Eo 'video.:{[^}]*' | sed 's/.*,\"title\":.//;s/.[,}].*//'`"
+  local l_signature="`cat \"$l_metafile\" | grep -Eo 'request.:{[^}]*' | sed 's/.*\"signature\":.//;s/.[,}].*//'`"
+  local l_timestamp="`cat \"$l_metafile\" | grep -Eo 'request.:{[^}]*' | sed 's/.*\"timestamp\"://;s/[,}].*//'`"
+  prt_dbg 1 "$l_service | signature: $l_signature, tstamp: $l_timestamp, title: $l_title"
+  #l_host="`cat \"$l_metafile\" | grep 'httpBase'|sed 's/.*content=\"//;s/\".*//'`"
+  #l_host="http://av.vimeo.com"
+  #l_media="$l_host/`cat \"$l_metafile\" | grep -iE 'video.*src'|sed -r 's/.*src=\"([^\"]+)\".*system-bitrate=\"([^\"]+)\".*/\2\t\1/g'|sort -n|awk 'NR==n{print $0;exit};END{print $0}' n=$o_quality|uniq|cut -f 2`"
+  #l_media="$l_host/`cat \"$l_metafile\" | grep -iE 'video.*src'|sed -r 's/.*src=\"([^\"]+)\".*system-bitrate=\"([^\"]+)\".*/\2\t\1/g'|sort -n|awk 'NR==n{print $0;exit};END{print $0}' n=$o_quality|uniq|cut -f 2 | sed 's/primaryToken/token/g'`"
+  l_media="http://player.vimeo.com/play_redirect?sig=${l_signature}&clip_id=${l_id}&time=${l_timestamp}&quality=${l_quality}"
+  #l_media="http://player.vimeo.com/play_redirect?sig=${l_signature}&clip_id=${l_id}&time=${l_timestamp}&codecs=H264,VP8,VP6&type=moogaloop_local&embed_location="
+  #l_orgfilename="`basename $l_rtmp`"
+  #l_orgfilename="${l_orgfilename%%\?*}"
+  #l_ext="${l_orgfilename##*.}"
+  l_ext="mp4"
+}
+
 # youtube has some specialties, e.g. regarding the big variety of formats/qualities
 process_youtube() {
   # check if given quality is availlable
   local l_quality=$o_quality
-  if [ -z "$(echo \"${YT_AVQUAL[@]:0}\" | grep -Eo '(^|[^0-9])$l_quality([^0-9]|$)')" ]; then
+  if [ -z "${YT_AVQUAL[$o_quality]}" ]; then
     if [ $l_quality -eq $QUALITY ]; then
       prt_warn "no / default given, trying all available qualities ('best' first)"
     else
@@ -742,23 +889,36 @@ process_youtube() {
 
   local l_metainfo="`cat \"$l_metafile\" | grep -Eo 'url_encoded_fmt_stream_map[^;]*' |\
     sed 's/url_encoded_fmt_stream_map=//;s/url%3D//;s/%2Curl%3D/\n/g' | grep -E \"itag%3D${l_quality}([^0-9]|$)\"`"
-  local l_idx=-1
+  #local l_idx=-1
   if [ -z "$l_metainfo" ]; then
     prt_warn "media not found in given / default quality: $o_quality ($QUALITY)"
-    prt_warn "checking media in all possible qualities (highest first) ..."
-    while [ -z "$l_metainfo" ] && [ $l_idx -lt $((${#YT_AVQUAL[@]}-1)) ]; do
-      l_idx=$((l_idx+1))
-      l_quality=${YT_AVQUAL[$l_idx]}
+    prt_warn "arcording to the meta data the following qualities are available:"
+    local l_available_qualities="`cat \"$l_metafile\" | sed 's/, /\n  ,/g' | grep fmt_list |\
+        sed -r 's/^[^:]*:[ \"]+//g;s/([0-9]+)[^,]*[,\"]*/\1\n/g' | grep -vE '(^$|var)'`"
+
+    for q in $l_available_qualities; do
+      printf " $q"
+      # TODO: display short name too
+    done
+    echo
+
+    prt_warn "trying to get media in highest possible quality ..."
+    #while [ -z "$l_metainfo" ] && [ $l_itag -lt $((${#YT_AVQUAL_SEQ[@]}-1)) ]; do
+    for itag in ${YT_AVQUAL_SEQ[@]}; do
+      #l_idx=$((l_idx+1))
+      l_quality=$itag
       prt_dbg 1 "$l_service | checking availability of quality: $l_quality"
       l_metainfo="`cat \"$l_metafile\" | grep -Eo 'url_encoded_fmt_stream_map[^;]*' |\
         sed 's/url_encoded_fmt_stream_map=//;s/url%3D//;s/%2Curl%3D/\n/g' | grep -E \"itag%3D${l_quality}([^0-9]|$)\"`"
       #prt_dbg 1 "$l_service | meta info: $l_metainfo"
+      if [ -n "$l_metainfo" ]; then
+        prt_msg "media found in quality: $l_quality -> ${YT_AVQUAL_DESC[$l_quality]} (${YT_AVQUAL[$l_quality]})"
+        break
+      fi
     done
     if [ -z "$l_metainfo" ]; then
-      prt_err "no media found, tried all possible qualities: ${YT_AVQUAL[@]}"
+      prt_err "no media found, tried all possible qualities (itag): ${!YT_AVQUAL[@]}"
       return 1
-    else
-      prt_msg "media found in quality: ${YT_AVQUAL[$l_idx]} (${YT_AVQUALNAME[$l_idx]})"
     fi
   fi
 
@@ -773,21 +933,18 @@ process_youtube() {
   l_title="`cat \"$l_metafile\" | awk '/<title>/,/<\/title>/'|tr '\n' ' ' | sed -r 's/(.*<title>|<\/title>.*)//g;s/(^\s*YouTube\s*-\s*|\s*-\s*YouTube\s*$)//;s/&[^;]\;/_/g'`"
   l_media="`echo $l_metainfo | sed 's/%26.*//g' | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' |\
     xargs echo -e | sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | xargs echo -e`"
-  local l_qualityname="unknown";
-  for i in `seq 0 $((${#YT_AVQUAL[@]}-1))`; do
-    l_idx=$i
-    if [ "${YT_AVQUAL[$l_idx]}" = "$l_quality" ]; then
-      l_ext="`echo ${YT_AVQUALNAME[$l_idx]} | sed 's/_.*//g'`"
-      l_qualityname="`echo ${YT_AVQUALNAME[$l_idx]}`"
-      break
-    fi
-  done
+  local l_qualityname="${YT_AVQUAL[$l_quality]}";
+  l_ext="`echo $l_qualityname | cut -d _ -f 1`" #sed -r 's/.*(MP4|WebM|FLV|3GP).*/\1/g' | tr 'A-Z' 'a-z'
   [ -z "$l_ext" ] && prt_msg "unknown file type, using extension .dat" && l_ext="dat"
   o_outfile="`echo $l_title | tr ' :!\"' '_' | tr 'A-Z' 'a-z'`_[youtube,_${l_id}_@${l_qualityname#*_}].$l_ext"
 }
 
 # == URL / ID processing ====================================================
-trap 'prt_err "BREAK (exit forced)"; prt_warn "Skipped $(($cnt_max-$cnt+1)) link(s)/ID(s): $rest"; exit 1' INT TERM SIGTERM
+trap 'prt_err "BREAK (exit forced)"; prt_warn "Skipped $(($cnt_max-$cnt+1)) link(s)/ID(s): $rest"; [ $KEEP_COOKIEFILE -eq 1 ] || rm -f "$COOKIE_FILE"; exit 1' INT TERM SIGTERM
+
+if [ $USE_COOKIES -eq 1 ]; then
+  touch "$COOKIE_FILE"
+fi
 
 cnt=0
 cnt_max=$#
@@ -803,9 +960,10 @@ while [ -n "$1" ]; do
     case "$obj" in
       *"youtube.com"*)          service="youtube";;
       *"3sat.de/mediathek/"*)   service="3sat";;
-      *"ardmediathek.de/ard/"|*"mediathek.daserste.de"*) service="ard";;
+      *"ardmediathek.de"*|*"mediathek.daserste.de"*) service="ard";;
       *"videos.arte.tv/"*)      service="arte";;
       *"zdf.de/ZDFmediathek/"*) service="zdf";;
+      *"vimeo.com/"*)           service="vimeo";;
       *) prt_warn "can't resolve service from '$obj'" \
                "\n  if this is an id, use -s to select a specific service" \
                "\nSKIPPING ..." \
@@ -816,5 +974,8 @@ while [ -n "$1" ]; do
   prt_dbg 1 "obj | calling: process_$service(\"$obj\")"
   core_processor "$service" "$obj" || prt_err "error while processing ($o_service): $obj"
 done
+
+# final cleanup
+[ $KEEP_COOKIEFILE -eq 1 ] || rm -f "$COOKIE_FILE"
 
 exit $EXIT_STATUS
