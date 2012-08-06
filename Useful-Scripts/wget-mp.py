@@ -31,7 +31,7 @@ from threading import Timer
 # constants
 # ----------------------------------------------------------------------
 PROGNAME = "wget multi process"
-VERSION = "20120109"
+VERSION = "20120802"
 # http user agent used for identifiaction
 UAGENT = "Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517 Mozilla Firebird/0.6"
 # max concurrent processes
@@ -168,6 +168,10 @@ def main():
     aparse.add_argument('-s', '--skipifexists', action='store_true', default=False \
                         , help="skip if the output file already exists, instead of"
                              + " continuing (only in combination with --dynname)")
+    aparse.add_argument('-nc', '--nocontinue', action='store_true', default=False \
+                        , help="if file already exists, don\'t try to continue"
+                             + " (default) but refetch and overwrite")
+
     aparse.add_argument('url', nargs='+', help='url to fetch')
     args = aparse.parse_args() #sys.argv[1:]
 
@@ -183,7 +187,9 @@ def main():
         # time.sleep(20)
         ppool = ProcessPool(process_timeout=args.process_timeout, max_processes=args.maxproc)
 
-        cmd_base = ['wget', '--quiet', '-c', '-U', UAGENT]
+        cmd_base = ['wget', '--quiet', '-U', UAGENT]
+        if (not args.nocontinue):
+            cmd_base = cmd_base + ['-c']
         if (args.referer):
             cmd_base = cmd_base + ['--referer', args.referer]
         if (args.timeout):
