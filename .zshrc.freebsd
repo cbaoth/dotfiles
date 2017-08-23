@@ -1,0 +1,8 @@
+# ~/.zshrc.freebsd: Executed by ~/.zshrc on FreeBSD systems
+
+# Author:   cbaoth <dev@cbaoth.de>
+# Keywords: zshrc shell-script freebsd
+
+# == VARIABLES ==========================================================
+# -- SYSTEM -------------------------------------------------------------
+export PACKAGEROOT="http://ftp.de.freebsd.org/"
