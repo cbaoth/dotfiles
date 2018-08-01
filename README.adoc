@@ -1,0 +1,83 @@
+= SonarQube Usage
+Andreas Weyer <dev@cbaoth.de>
+v1.0, 2018-08-01
+:toc:
+:toc-placement: auto
+//:sectnums:
+//:sectnumlevels: 3
+:source-highlighter: prettify
+//:source-highlighter: highlight.js
+//:imagesdir: images
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+
+:icon-x: image:https://png.icons8.com/color/50/000000/close-window.png[,24]
+:icon-ok: image:https://png.icons8.com/color/50/000000/ok.png[,24]
+:icon-warn: image:https://png.icons8.com/color/50/000000/error.png[,24]
+:icon-help: image:https://png.icons8.com/color/50/000000/help.png[,24]
+
+:icon-shell: image:https://png.icons8.com/material/50/000000/console.png[,22]
+:icon-edit: image:https://png.icons8.com/metro/50/000000/edit.png[,20]
+:icon-video: image:https://png.icons8.com/windows/50/000000/tv-show.png[,24]
+
+== Summary
+
+My core configuration (dot) files.
+
+=== Dot-files
+
+[%header,cols="1,1,4"]
+|===
+|File / Folder|App|Description
+|.config/mpv/|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|MPV configuration and key bindings
+|.mplayer/|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|MPlayer configuration and key bindings
+|link:.aliases[]|{icon-shell} https://en.wikipedia.org/wiki/Shell_(computing)[Shells]|Core shell aliases
+|link:.aliases.freebsd[]
+ link:.aliases.linux[]
+ link:.aliases.motoko[]
+ link:.aliases.motoko.linux[]
+ link:.aliases.puppet[]
+ link:.aliases.saito[]
+ link:.aliases.yav.in[]|{icon-shell} Shells|OS, distirbution, and/or host specific specific aliases
+|link:.bashrc[]|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Core Bash config
+|link:.bashrc.freebsd[]
+ link:.bashrc.linux[]
+ link:.bashrc.motoko[]
+ link:.bashrc.motoko.linux[]
+ link:.bashrc.puppet[]
+ link:.bashrc.saito[]
+ link:.bashrc.yav.in[]|{icon-shell} Bash|OS, distirbution, and/or host specific shell Bash configs
+|link:.functions[]|{icon-shell} Shells|Core shell functions
+|link:.functions.freebsd[]|{icon-shell} Shells|OS, distirbution, and/or host specific shell aliases
+|link:.vimrc[]|{icon-edit} https://www.vim.org/[VIM]|OS, distirbution, and/or host specific shell aliases
+|link:.zlogout[]|{icon-shell} https://en.wikipedia.org/wiki/Z_shell[ZSH]|Core ZSH logout cleanup
+|link:.zshenv[]|{icon-shell} ZSH|Core ZSH environment variables
+|link:.zshrc[]|{icon-shell} ZSH|Core ZSH config
+|link:.zshrc.freebsd[]
+ link:.zshrc.linux[]
+ link:.zshrc.motoko[]
+ link:.zshrc.motoko.linux[]
+ link:.zshrc.puppet[]
+ link:.zshrc.saito[]
+ link:.zshrc.yav.in[]|{icon-shell} ZSH|OS, distirbution, and/or host specific shell ZSH configs
+|===
+
+=== Other files
+
+[%header,cols="1,5"]
+|===
+|File|Description
+|link:link.sh[]|Scipt to symlink all dot files into the current user's home directory
+|README.adoc|This file
+|===
+
+//include::.aliases[lines=1..2]
+
+== Appendix
+
+Icon pack by https://icons8.com/[Icons8]
