@@ -51,7 +51,7 @@ My core configuration (dot) files.
  link:.bashrc.motoko.linux[] +
  link:.bashrc.puppet[] +
  link:.bashrc.saito[] +
- link:.bashrc.yav.in[]|{icon-shell} Bash|OS, distirbution, and/or host specific shell Bash configs
+ link:.bashrc.yav.in[]|{icon-shell} Bash|OS, distirbution, and/or host specific Bash configs
 |link:.functions[]|{icon-shell} Shells|Core shell functions
 |link:.functions.freebsd[]|{icon-shell} Shells|OS, distirbution, and/or host specific shell aliases
 |link:.vimrc[]|{icon-edit} https://www.vim.org/[VIM]|OS, distirbution, and/or host specific shell aliases
@@ -64,7 +64,7 @@ My core configuration (dot) files.
  link:.zshrc.motoko.linux[] +
  link:.zshrc.puppet[] +
  link:.zshrc.saito[] +
- link:.zshrc.yav.in[]|{icon-shell} ZSH|OS, distirbution, and/or host specific shell ZSH configs
+ link:.zshrc.yav.in[]|{icon-shell} ZSH|OS, distirbution, and/or host specific ZSH configs
 |===
 
 === Other files
