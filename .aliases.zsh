@@ -20,11 +20,12 @@ alias -g urlclean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi; s/%3d/
 alias -g urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/gi'"
 
 # no spelling correction (if correct / correctall is active)
-alias -g rm='nocorrect rm'
-alias -g cp='nocorrect cp'
-alias -g mv='nocorrect mv'
-alias -g zmv='nocorrect zmv'
-alias -g mkdir='nocorrect mkdir'
+# can result in ussues when used with sudo
+#alias -g rm='nocorrect rm'
+#alias -g cp='nocorrect cp'
+#alias -g mv='nocorrect mv'
+#alias -g zmv='nocorrect zmv'
+#alias -g mkdir='nocorrect mkdir'
 
 # http://grml.org/zsh/zsh-lovers.html
 #alias -g ...='../..'

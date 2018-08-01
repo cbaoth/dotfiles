@@ -1,0 +1,142 @@
+# Write your default config options here!
+
+#=====
+# Core
+#=====
+
+# cache
+cache=20000 # kb
+cache-min=50 # %
+
+# always on top
+ontop=1
+
+# fullscreen
+#fs=1
+
+# set window position
+#geometry=50%:50% # center
+#geometry=0%:0% # top left
+#geometry=100%:100% # bottom right
+
+# set window width (height depends on aspec)
+#xy=600
+
+#======
+# Video
+#======
+
+# Set video driver.
+vo=xv
+#vo=sdl
+
+# Use double-buffering. (Recommended for xv with SUB/OSD usage)
+double=yes
+
+#vf=pp=de,hqdn3d
+
+#======
+# Audio
+#======
+
+# Set audio driver.
+#ao=alsa
+#ao=pulse
+
+# Set mixer channel
+mixer-channel=Master
+
+# Dynamic Range Compression level for AC-3 audio
+#a52drc=1
+
+# Fix A/V sync problems
+#mc=0.2
+#autosync=30
+#delay=0.5
+
+alang=en,eng,de,ger
+
+# normalize: https://www.commandlinefu.com/commands/view/8893/normalize-volume-output-in-mplayer
+#af-add=volnorm=2:0.25 # (multi-sample)
+af-add=volnorm # default: 1:0.25 (single-sample)
+
+#==========
+# Subtitles
+#==========
+
+# VobSubs
+#========
+
+# Align subs. (-1: as they want to align themselves)
+spualign=-1
+
+# Anti-alias subs. (4: best and slowest)
+spuaa=4
+
+# Set language.
+slang=en,eng,de,ger
+
+# Text-based subtitles
+#=====================
+
+# Find subtitle files. (1: load all subs containing movie name)
+sub-fuzziness=1
+
+# Set font.
+font=/home/osmo/.fonts/microsoft/vista/Calibri.ttf
+
+# Set font encoding.
+subfont-encoding=unicode
+
+# Set subtitle file encoding.
+unicode=yes
+utf8=yes
+
+# Resample the font alphamap. (1: narrow black outline)
+ffactor=1
+
+# Set subtitle position. (100: as low as possible)
+subpos=100
+
+# Set subtitle alignment at its position. (2: bottom)
+subalign=2
+
+# Set font size. (2: proportional to movie width)
+subfont-autoscale=2
+
+# Set font blur radius. (default: 2)
+subfont-blur=2.0
+
+# Set font outline thickness. (default: 2)
+subfont-outline=2.0
+
+# Set autoscale coefficient. (default: 5)
+subfont-text-scale=4.4
+
+# OSD
+#====
+
+# Set autoscale coefficient. (default: 6)
+#subfont-osd-scale=4.4
+subfont-osd-scale=2
+
+#===========
+# Appearance
+#===========
+
+# Disable screensaver.
+stop-xscreensaver=yes
+
+# Position window. (50%:50%: center of screen)
+geometry=50%:50%
+
+# Skin
+#skin=Glider
+
+# Set the default OSD mode (0-3)
+osdlevel=1
+
+# MPLAYER1: OSD progress bar vertical alignment (percent)
+#progbar-align=50
+progbar-align=95
+

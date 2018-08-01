@@ -24,6 +24,12 @@ p_dbg() { [ $1 -ge $2 ] && shift 2 && echo -e "DEBUG: $*"; return 0; }
 p_usg() { echo -e "usage: $*"; return 0; }
 # print a message "usage: [msg].."
 p_msg() { echo -e "> $*"; return 0; }
+file-suffix() {
+  [ "$#" -ne 2 ] && p_usg "$0 file suffix" && return 1
+  [[ "$1" == *"."* ]] \
+    && echo "${1%.*}$2.${1##*.}" \
+    || echo "$1$2"
+}
 rpm-extract() { rpm2cpio "$1" | cpio -ivd; }
 replace-infile() {
   [ -z "$2" ] &&\
@@ -109,7 +115,7 @@ overwriteP() {
   if [ -e "$1" ]; then
     echo "file '$1' exists!"
     if yesnoP "overwrite?"; then
-      rm -rf "$1"
+      rm -rf -- "$1"
       return 0
     fi
     return 1
@@ -183,7 +189,7 @@ USAGE
   done
   [ -z "$1" ] && p_err "missing command" && return 1
   while ((1)); do
-    c="`xclip -o -l`"
+    c="`xclip -selection clip-board -o -l`"
     if [ "$c" != "$cprev" ]; then
       if [ -z "$regex" ] || [ -n "`echo $c | grep -Ei \"$regex\"`" ]; then
         echo $c | while read e; do
@@ -505,7 +511,7 @@ USAGE
     return 1
   fi
   MODE="g"
-  [ "$1" == "-n" ] && \
+  [ "$1" = "-n" ] && \
     MODE="" && \
     shift
   pattern="$1"
@@ -523,7 +529,7 @@ USAGE
     return 1
   fi
   MODE="g"
-  [ "$1" == "-n" ] && \
+  [ "$1" = "-n" ] && \
     MODE="" && \
     shift
   pattern="$1"
@@ -732,13 +738,14 @@ url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
 # {{{ moving
 # ----------------------------------------------------------------------------
 mergedir () {
-  [ -z "$2" ] && p_usg "mergedir target source..\nmerge content of all source directories into the given target directory" && return 2
-  tar="$1"
-  [ ! -d "$tar" ] && mkdir -p "$tar" || (echo "error creating target directory '$tar'"; return 2)
-  shift
-  for d in $*; do
-    mv -- "$d"/* "$tar"/
-    mv -- "$d"/.* "$tar"/
+  [ -z "$1" ] && p_usg "mergedir target [source..]\nmerge content of all source directories into the given target directory\nif no source is provided target* will be matched instead" && return 2
+  tar="$1"; shift
+  [ -n "$1" ] && src=("$@") || src=("${tar}"*)
+  mkdir -p "$tar"
+  [ ! -d "$tar" ] && echo "error creating target directory: $tar" && return 2
+  for d in "${src[@]}"; do
+    [ "$d" -ef "$tar" ] && echo "skipping, source same as target: $d" && continue
+    find "$d" -mindepth 1 -maxdepth 1 -exec /bin/mv -t "$tar" -- {} +
     rmdir "$d"
   done
 }
@@ -767,7 +774,7 @@ git-truncate () {
   [ -n "$1" ] && msg="$*"
   p_msg "The history prior to the hash-id/tag '$id' will be DELETED !!!"
   if ! yesnoP "> Delete history?"; then
-    return 0  
+    return 0
   fi
   git checkout --orphan temp "$id" \
     && git commit --allow-empty -m "$msg" \
@@ -790,7 +797,7 @@ tomp3 () {
     out="`basename $in`"
     out="`dirname $in`/${out%.*}-audio.mp3"
   fi
-  avconv -i "$in" -ab "$brate" "$out"
+  ffmpeg -i "$in" -ab "$brate" "$out"
 }
 id3-cover-replace () {
   [ -z "$1" ] && \
@@ -953,7 +960,7 @@ mplayer-bookmark-split() {
     idx=$((idx+1))
     [ "$pos" != "" ] && pos_prev="$pos"
     pos="`cut -d \| -f 3 <<< $b`"
-    outfile="${infile%.*}_bmsplit_`zerofill $idx 3`.${infile##*.}"
+    outfile="$(file-suffix \"$infile\" \"_bmsplit_`zerofill $idx 3`\")"
     cmd=(ffmpeg)
     cmd+=(-ss $pos_prev -i "$infile" -to $pos)
     cmd+=(-sn -vcodec copy -acodec copy -y "$outfile")
@@ -971,7 +978,7 @@ mplayer-bookmark-split() {
     return
   fi
   idx=$((idx+1))
-  outfile="${infile%.*}_bmsplit_`zerofill $idx 3`.${infile##*.}"
+  outfile="$(file-suffix \"$infile\" \"_bmsplit_`zerofill $idx 3`\")"
   cmd=(ffmpeg)
   cmd+=(-ss $pos -i "$infile")
   cmd+=(-sn -vcodec copy -acodec copy -y "$outfile")
@@ -979,13 +986,116 @@ mplayer-bookmark-split() {
   #sed -r 's/ (-sn|-ss)/\n \1/g' <<< ${cmd[@]}
   ${cmd[@]}
 }
+mpv-find() {
+  trap 'exit 1' INT TERM SIGTERM
+  local dir regex=".*\.\(avi\|mkv\|mp4\|webm\)"
+  local tailn=0 recursive=false sort=-g noact=false
+  while [ -n "$1" ]; do
+    case $1; in
+      -i|--index)
+        [ -z "$2" ] && p_err "missing value for argument --index" \
+          && return 1
+        tailn=$(($2+1)); shift 2
+        ;;
+      -r|--recursive)
+        recursive=true; shift
+        ;;
+      -m|--match)
+        [ -z "$2" ] && p_err "missing value for argument --match" \
+          && return 1
+        regex="$2"; shift 2
+        ;;
+      -s|--sort)
+        [ -z "$2" ] && p_err "missing value for argument --sort" \
+          && return 1
+        sort=$2; shift 2
+        ;;
+      -n|--noact)
+        noact=true; shift
+        ;;
+      -a|--mpv-args)
+        shift; break # all args after this are treated as mpv args
+        ;;
+      -h|--help)
+        p_usg "$0 dir [args] [-a mvp-arg..]"
+        cat<<EOF
+
+args:
+  -m --match P    match given regex pattern to find videos
+                  (default: ".*\.\(avi\|mkv\|mp4\|webm\)")
+  -s --sort A     sort arg, e.g. -R for random (default: -g, see: "man sort")
+  -r --recursive  find videos in subdirectories (default: off)
+  -i --index X    skip the first X search results (default: 0)
+  -n --noact      don't play the search result, send it to stdout instead
+
+  -a --mpv-args   all arguments after this one are forwarded to mpv
+
+  -h --help       show this help
+
+examples:
+  # play all videos found in . and below in random order
+  $1 -r -s -R
+  # play all webm files found in /video starting skipping the first 10
+  # not using mpv's resume playback feature
+  $1 /video -m ".*\.webm" -i 10 -a --no-resume-playback
+EOF
+        return 1
+        ;;
+      *)
+        [ -n "$dir" ] \
+          && p_err "unknown argument: $1" && return 1
+        [ -z "$1" ] \
+          && p_usg "$0 dir [args] [-a mvp-arg..]" && return 1
+        [ ! -d "$1" ] \
+          && p_err "no such directory or unknown argument: $1" && return 1
+        dir="$1"; shift
+        ;;
+    esac
+  done
+  [ -z "$dir" ] && dir=.
+
+  local parallel=true
+  if ! which parallel 2>&1 >/dev/null; then
+     parallel=false
+     cat<<EOF
+warning: gnu parallel not found, switching to compatibility mode (using xargs)
+note that in compatibility mode some player functions may not work
+consider installing parallel (e.g. "apt-get install parallel" on debian/ubuntu)
+EOF
+  fi
+
+  find "$dir" `$recursive && echo --max-depth 1` \
+       -regex "$regex" \
+    | sort $sort \
+    | tail -n +${tailn} \
+    | ($noact && cat \
+              || ($parallel && parallel --tty -Xj1 mpv "${@}" \
+                            || xargs -I'{}' mpv "${@}" '{}'))
+}
 fixidx() {
   [ -z "$1" ] && p_usg "fixidx avifile [outfile]" && return -1
   infile="$1"
   [ ! -f "$infile" ] && p_err "file not found" && return -1
-  [ -n "$2" ] && outfile="$2" || outfile="${infile%.*}_FIXED.${infile##*.}"
+  [ -n "$2" ] && outfile="$2" || outfile="$(file-suffix \"$infile\" _FIXED)"
   echo "> output file: $outfile"
   mencoder -forceidx -oac copy -ovc copy "$infile" -o "$outfile"
+}
+toopus() {
+  opusenc_args=()
+  if [ "$1" = "-b" ]; then
+    opusenc_args+=(-b)
+    [ -z "$2" ] && p_err "no bitrate provided" && return -1
+    ! isint $2 && p_err "bitrate must be a valid integer"
+    opusenc_args+=($2)
+    shift 2
+  fi
+  [ -z "$1" ] && p_usg "toopus [-b bitrate] infile [opusenc-arg..]" \
+    && return -1
+  infile="$1"; shift
+  [ ! -f "$infile" ] && p_err "no such file: $infile" && return -1
+  outfile="${infile%.*}.opus"
+  p_msg "outfile: $outfile"
+  opusenc "${opusenc_args[@]}" "$@" "$infile" "$outfile"
 }
 merge-media() {
   [ -z "$2" ] &&\
@@ -1001,7 +1111,7 @@ video-crop() {
     return -1
   infile="$1"; crop="$2"
   [ -f "$infile" ] && p_err "file not found: $infile" && return -1
-  [ -n "$3" ] && outfile="$3" || outfile="${infile%.*}_CROP.${infile##*.}"
+  [ -n "$3" ] && outfile="$3" || outfile="$(file-suffix \"$infile\" _CROP)"
   echo "> output file: $outfile"
   ffmpeg -i "$infile" -vf crop=$crop -codec:a copy "$outfile"
 }
@@ -1028,9 +1138,7 @@ mediathek () {
     mplayer -dumpstream -dumpfile "$outfile" "$url"
   done
 }
-mplayer-rnd () {
-  echo "${@}" | shuf | tr '\n' '\0' | xargs -0 mplayer
-}
+
 image-dimensions () {
   [ -z "$1" ] && p_usg "image-dimensions file.." && return 1
   for f in $*; do
@@ -1127,7 +1235,7 @@ flv2mp4 () {
 fixaspectratio () {
   [ -z "$1" ] && p_usg "$0 infile [outfile{infile_FIX.ext}] [ratio{16:9}]" && return 1
   infile="$1"
-  [ -n "$2" ] && outfile="$2" || outfile="${1%.*}_FIX.${1##*.}"
+  [ -n "$2" ] && outfile="$2" || outfile="$(file-suffix \"$1\" _FIX)"
   [ -n "$3" ] && ratio="$3" || ratio="16:9"
   ffmpeg -i "$infile" -aspect "$ratio" -c copy "$outfile"
 }
@@ -1151,7 +1259,78 @@ EOF
   [ -z "$1" ] && p_err "no gif infile provided" && return 1
   identify -verbose "$1" | grep Delay | head -n 10 | grep -Eo '[0-9]+x[0-9]+'
 }
-
+ffmpeg-split-screen () {
+  [ -z "$3" ] && p_usg "$0 infile1 infile2 outfile [v|h]" && return 1
+  infile1="$1"; shift
+  infile2="$1"; shift
+  outfile="$1"; shift
+  filter='[0:v]pad=iw*2:ih[int];[int][1:v]overlay=W/2:0[vid]'
+  [ -n "$1" ] && case $1 in
+    v)
+       shift; # default
+    ;;
+    h)
+       filter='[0:v]pad=iw:ih*2[int];[int][1:v]overlay=0:H/2[vid]'
+       shift
+    ;;
+    *)
+       m_err "unknown arg: $1, only v (vertical, default) and h (horizontal) mode are supported"
+       return 1
+    ;;
+  esac
+  echo ffmpeg -i \"$infile1\" -i \"$infile2\" -filter_complex "'$filter'" -map "'[vid]'" \"$outfile\"
+  ffmpeg -i "$infile1" -i "$infile2" -filter_complex "$filter" -map '[vid]' "$outfile"
+}
+image-concat() {
+  MAX=3840
+  local mode=default
+  local tile=""
+  local outfile=""
+  while true; do
+    case $1 in
+      -[hwn])
+        mode="$1"; shift
+        ;;
+      -x1)
+        tile="x1"; shift
+        ;;
+      -o)
+        [ -z "$2" ] && p_err "missing file name after -o" && return 1
+        outfile="$2"; shift 2
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+  [ -z "$2" ] && p_usg "$0 [-w|-h|-n] [-x1] [-o outfile] infile.." && return 1
+  [ -z "$outfile" ] && outfile="$(file-suffix "$1" "-concat`date +%s`")" && echo "outfile: $outfile"
+  overwriteP "$outfile" || return 1
+  local min_height=$(identify -format '%h\n' "${@}" | sort -n | head -n 1)
+  #min_height=`echo -e "$min_height\n$((MAX/$#))" | sort -n | head -n 1`
+  local min_width=$(identify -format '%w\n' "${@}" | sort -n | head -n 1)
+  #min_width=`echo -e "$min_width\n$((MAX/$#))" | sort -n | head -n 1`
+  local -a args=(-background black -mode Concatenate)
+  #args+=(-limit memory 100mb)
+  [ "$tile" = "x1" ] && args+=(-tile x1)
+  #args+=(-gravity center) # default
+  case $mode in
+    -n)
+      args+=(-geometry +0+0)
+      ;;
+    -w)
+      args+=(-geometry "$(echo $min_width\n$MAX | sort -n | head -n 1)x")
+      ;;
+    -h)
+      args+=(-geometry "x${min_height}")
+      ;;
+    *)
+      args+=(-geometry x${min_height} -extent "${min_width}>x")
+      ;;
+  esac
+  montage $args "${@}" "$outfile"
+set +v
+}
 # ----------------------------------------------------------------------------
 # }}} multimeda
 # ----------------------------------------------------------------------------
@@ -1343,7 +1522,7 @@ mount-crypted () {
   [ -z "$1" ] && \
     p_usg "mount-crypted <container>" && return 1
   fs=ext2
-  [ "${1##*.}" == "iso" ] && fs=iso9660
+  [ "${1##*.}" = "iso" ] && fs=iso9660
   SUDO=""
   ! issuperuser && SUDO="sudo" && \
     echo "> you might be asked to enter your sudo password"

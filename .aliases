@@ -74,6 +74,7 @@ alias ssh-tunnel-yavin-proxy='ssh -f yav.in -p 8090 -L 23128:127.0.0.1:3128 -N'
 #alias ssh-tunnel-hetznerbak='ssh -f yav.in -p 8090 -L 24021:u13368.your-backup.de:21 -N'
 alias vncap='vncviewer -autopass'
 alias wake-saito='wakeonlan bc:5f:f4:9f:08:dc'
+alias wake-motoko='wakeonlan 1C:1B:0D:E7:BE:B3'
 
 # -- xorg --------------------------------------------------------------------
 alias xerrorlog-tail='tail -f ~/.x11startlog ~/.xsession-errors ~/.xmonad/xmonad.errors'
@@ -90,6 +91,7 @@ alias mplayer-cropdetect='mplayer -vo null -vf cropdetect'
 #alias mencoder-dvd2mpeg2='echo mencoder -nocache dvd://[track] -mc 0 -ovc copy -oac copy -of mpeg -mpegopts format=dvd:tsaf -noskip -o [outfile]'
 alias mplayer-streamdump='mplayer -dumpstream -dumpfile'
 #alias mplayer-tv='DISPLAY=:1 && mplayer -zoom -ao oss:/dev/dsp2'
+alias mpv-nr='mpv --no-resume-playback'
 # http://askubuntu.com/a/634655
 alias yt="youtube-dl -f 'bestvideo[vcodec=vp9]+bestaudio[acodec=opus]/bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]/bestvideo[vcodec=vp8]+bestaudio[acodec=opus]/bestvideo[vcodec=vp8]+bestaudio[acodec=vorbis]/bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=webm]+bestaudio[ext=ogg]/best[ext=webm]/bestvideo+bestaudio/best' -o '%(title)s [%(id)s].%(ext)s'"
 alias yta="youtube-dl -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]/best[ext=webm]/best[ext=ogg]/best' -x -o '%(title)s [%(id)s].ogg'"
@@ -141,7 +143,8 @@ alias urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/g
 alias gnucash='env LANG=de_DE.UTF-8 gnucash'
 alias usbsleep='sudo ~/bin/scsi-idle 900&'
 alias rename-p2u="rename 's/\./_/g;s/_([^_]{1,5})$/.\$1/'"
-alias rename-stripspecial="rename \"s/[^\w()\[\]~&%#@.,+'-]/_/g\""
+alias rename-stripspecial="rename \"s/[^ \w()\[\]~&%#@.,+'-]/_/g\""
+alias rename-stripspecial-rec="find . -type f -execdir rename \"s/^\.\///g;s/[^ \w()\[\]~&%#@.,+'-]/_/g;s/^/\.\//\" '{}' +"
 alias rename-titlecase="rename 's/(^|[\s_-])([a-z])/\1\u\2/g'"
 alias rename-camelcase="rename 's/(^|[\s_-])([a-z])/\u\2/g'"
 alias sed-titlecase="sed -r 's/(^|[\s_-])([a-z])/\1\u\2/g'"
@@ -156,3 +159,4 @@ alias urldecode="sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | while read l; do
 alias cat-utf16-to-utf8='iconv -f utf-16 -t utf-8'
 alias cat-utf16-to-iso-8859-1='iconv -f utf-16 -t ISO-8859-1'
 alias cat-utf8-to-iso-8859-1='iconv -f utf-8 -t ISO-8859-1'
+alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'

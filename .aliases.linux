@@ -23,7 +23,7 @@ alias route-newdefault='sudo route delete default; sudo route add default gw'
 # -- MULTIMEDIA --------------------------------------------------------------
 #alias tvrec-kill='pkill -f "cat /dev/video0"'
 #alias burndvd='growisofs -Z /dev/dvd -R -J'
-#alias midi-keyboard-output="aconnect \`aconnect -i | grep -E 'client.*Keystation Mini 32'| sed -r 's/^client ([0-9]+).*/\1/'\` \`aconnect -o | grep -E 'client.*FLUID Synth'| sed -r 's/^client ([0-9]+).*/\1/'\`"
+alias midi-keyboard-output="aconnect \`aconnect -i | grep -E 'client.*Keystation Mini 32'| sed -r 's/^client ([0-9]+).*/\1/'\` \`aconnect -o | grep -E 'client.*FLUID Synth'| sed -r 's/^client ([0-9]+).*/\1/'\`"
 
 # -- MISC --------------------------------------------------------------------
 #alias incoming="xterm -fn edges -fb edges -T isdn-incoming -g 100x8+0-63 -e socket bateau 9444 &"

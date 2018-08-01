@@ -94,9 +94,9 @@ include_ifex \
 # {{{ EXECUTION
 # ----------------------------------------------------------------------------
 # ubuntu default: go-w
-#umask 022
+umask 022
 # multi user system umask: g-w, o-rwx
-umask 027
+#umask 027
 # multi user system umask: o-rwx
 #umask 007
 

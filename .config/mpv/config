@@ -1,0 +1,202 @@
+# https://mpv.io/manual/master/#configuration-files
+
+# ======
+#  Core
+# ======
+no-border                               # no window title bar
+msg-module                              # prepend module name to log messages
+msg-color                               # color log messages on terminal
+term-osd-bar                            # display progress bar in terminal
+#term-osd-bar-chars='[-+-]'              # terminal progress bar chars
+#use-filedir-conf                        # look for additional config files in the directory of the opened file
+#pause                                   # start the player in paused state.
+#keep-open=yes                           # keep the player open when a file's end is reached (no|yes|always)
+autofit-larger=50%x50%                  # resize window in case it's larger than W%xH% of the screen
+cursor-autohide-fs-only                 # don't autohide the cursor in window mode, only fullscreen
+#input-media-keys=no                     # enable/disable OSX media keys
+cursor-autohide=1000                    # autohide the curser after 1s
+prefetch-playlist=yes
+force-seekable=yes
+
+screenshot-format=png
+screenshot-png-compression=8
+screenshot-template='~/%F @%P %#n'
+
+ytdl-format=bestvideo[vcodec=vp9]+bestaudio[acodec=opus]/bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]/bestvideo[vcodec=vp8]+bestaudio[acodec=opus]/bestvideo[vcodec=vp8]+bestaudio[acodec=vorbis]/bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=webm]+bestaudio[ext=ogg]/best[ext=webm]/bestvideo+bestaudio/best
+
+[default]
+
+# =======
+#  Cache
+# =======
+
+cache=yes
+cache-default=5000000                   # size in KB (default: 75000)
+#cache-backbuffer=75000                  # size in KB (default: 75000)
+#cache-initial=0                         # start playback when your cache is filled up with x KB (default: 0)
+cache-secs=10                           # how many seconds of audio/video to prefetch if the cache is active
+
+
+# =====
+#  OSD
+# =====
+
+osd-level=1                             # enable osd and display --osd-status-msg on interaction
+osd-duration=2500                       # hide the osd after x ms
+#osd-status-msg='${time-pos} / ${duration}${?percent-pos:　(${percent-pos}%)}${?frame-drop-count:${!frame-drop-count==0:　Dropped: ${frame-drop-count}}}\n${?chapter:Chapter: ${chapter}}'
+osd-playing-msg='> ${filename}'         # osd message when playing starts
+
+#osd-font='DerjaVu Sans'
+osd-font-size=24
+osd-color='#CCFFFFFF'                   # osd color (in ARGB format)
+osd-border-color='#DD322640'            # osd border color (in ARGB format)
+#osd-shadow-offset=1                     # osd progress bar shadow offset
+osd-bar-align-y=1                       # y alignment of osd progress bar (-1 top, 0 centered, 1 bottom)
+osd-border-size=1                       # border size of osd progress bar
+osd-bar-h=2                             # height of osd progress bar (% of screen height)
+osd-bar-w=60                            # width of osd progress bar (% of screen width)
+
+
+# ===========
+#  Subtitles
+# ===========
+
+sub-auto=fuzzy                          # external subs don't have to match the file name exactly to autoload
+sub-file-paths-append=ass               # search for external subs in these relative subdirectories
+sub-file-paths-append=srt
+sub-file-paths-append=sub
+sub-file-paths-append=subs
+sub-file-paths-append=subtitles
+
+demuxer-mkv-subtitle-preroll            # try to correctly show embedded subs when seeking
+embeddedfonts=yes                       # use embedded fonts for SSA/ASS subs
+#sub-fix-timing=no                       # do not try to fix gaps (which might make it worse in some cases)
+sub-ass-force-style=Kerning=yes         # allows you to override style parameters of ASS scripts
+sub-use-margins
+sub-ass-force-margins
+
+# the following options only apply to subtitles without own styling (i.e. not ASS but e.g. SRT)
+#sub-font="DejaVu Sans"
+sub-font-size=36
+sub-color="#FFFFFFFF"
+sub-border-color="#FF262626"
+sub-border-size=3.2
+sub-shadow-offset=1
+sub-shadow-color="#33000000"
+sub-spacing=0.5
+
+
+# ===========
+#  Languages
+# ===========
+
+# https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes
+alang=ja,jp,jpn,cn,zh,zho,chi,en,eng,de,deu,ger
+slang=en,eng,de,deu,ger
+
+
+# =======
+#  Audio
+# =======
+
+volume-max=200                          # maximum volume in %, everything above 100 results in amplification
+volume=100                              # default volume, 100 = unchanged
+#https://ffmpeg.org/ffmpeg-filters.html#acompressor
+#af=acompressor                          # use audio filter to normalize volume
+#https://ffmpeg.org/ffmpeg-filters.html#dynaudnorm
+af=lavfi=dynaudnorm
+#af-pre=lavfi="compand=attacks=1.5:decays=0.2:gain=-18"
+#audio-channels=5.1,stereo
+#audio-spdif=dts-hd,ac3
+audio-file-auto=fuzzy                   # external audio doesn't has to match the file name exactly to autoload
+
+# =======
+#  Video
+# =======
+
+# Defaults for all profiles
+# mpv vo=help for a list of supported outputs
+#vo=opengl                                # video output driver (default: gpu)
+vo=sdl
+#vo=wayland
+#tscale=oversample                        # [sharp] oversample <-> linear (triangle) <-> catmull_rom <-> mitchell (default) <-> gaussian <-> bicubic [smooth]
+#opengl-early-flush=no
+#opengl-pbo=yes
+#sigmoid-slope=10                         # (default: 6.5)
+#framedrop=vo                             # (default: vo, options: no|vo|decoder|decoder+vo)
+
+[high-quality]
+profile-desc=cond:is_desktop() and get('width', math.huge) < 3840
+#scale=ewa_hanning
+#scale-radius=3.2383154841662362 hanning with this radius is broken on OSX due to OpenGL driver bug
+scale=ewa_lanczossharp
+cscale=ewa_lanczossoft
+dscale=mitchell
+scale-antiring=0
+cscale-antiring=0
+dither-depth=auto
+correct-downscaling=yes
+sigmoid-upscaling=yes
+deband=yes
+hwdec=no
+
+[mid-quality]
+profile-desc=cond:(is_laptop() and not on_battery() and get('width', math.huge) < 1920) or (is_desktop() and get('width', math.huge) >= 3840)
+scale=spline36
+cscale=bilinear
+dscale=mitchell
+scale-antiring=1.0
+cscale-antiring=1.0
+dither-depth=auto
+correct-downscaling=yes
+sigmoid-upscaling=yes
+deband=yes
+hwdec=no
+
+[low-quality]
+profile-desc=cond:is_laptop() and (on_battery() or get('width', math.huge) >= 1920)
+scale=bilinear
+cscale=bilinear
+dscale=bilinear
+scale-antiring=0
+cscale-antiring=0
+dither-depth=no
+correct-downscaling=no
+sigmoid-upscaling=no
+deband=no
+hwdec=auto
+
+[60FPS]
+profile-desc=cond:is_laptop() and get('container-fps', 0) >= 59
+scale=bilinear
+cscale=bilinear
+
+[4K]
+profile-desc=cond:get('width', -math.huge) >= 3840
+vd-lavc-threads=32
+
+[4K-inverted]
+profile-desc=cond:get('width', math.huge) < 3840
+vd-lavc-threads=0
+
+[default]
+
+
+# ===========
+#  Protocols
+# ===========
+
+[protocol.https]
+#cache=yes
+#cache-default=500000                    # size in KB
+#cache-backbuffer=250000                 # size in KB
+cache-secs=100                           # how many seconds of audio/video to prefetch
+user-agent='Mozilla/5.0 (X11; Linux x86_64; rv:57.0) Gecko/20100101 Firefox/57.0'
+
+[protocol.http]
+#cache=yes
+#cache-default=500000                    # size in KB
+#cache-backbuffer=250000                 # size in KB
+cache-secs=100                           # how many seconds of audio/video to prefetch
+user-agent='Mozilla/5.0 (X11; Linux x86_64; rv:57.0) Gecko/20100101 Firefox/57.0'
+
