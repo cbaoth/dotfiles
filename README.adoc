@@ -31,26 +31,26 @@ My core configuration (dot) files.
 
 === Dot-files
 
-[%header,cols="1,1,4"]
+[%header,cols="1,1,4",options="header"]
 |===
 |File / Folder|App|Description
 |.config/mpv/|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|MPV configuration and key bindings
 |.mplayer/|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|MPlayer configuration and key bindings
 |link:.aliases[]|{icon-shell} https://en.wikipedia.org/wiki/Shell_(computing)[Shells]|Core shell aliases
-|link:.aliases.freebsd[]
- link:.aliases.linux[]
- link:.aliases.motoko[]
- link:.aliases.motoko.linux[]
- link:.aliases.puppet[]
- link:.aliases.saito[]
+|link:.aliases.freebsd[] +
+ link:.aliases.linux[] +
+ link:.aliases.motoko[] +
+ link:.aliases.motoko.linux[] +
+ link:.aliases.puppet[] +
+ link:.aliases.saito[] +
  link:.aliases.yav.in[]|{icon-shell} Shells|OS, distirbution, and/or host specific specific aliases
 |link:.bashrc[]|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Core Bash config
-|link:.bashrc.freebsd[]
- link:.bashrc.linux[]
- link:.bashrc.motoko[]
- link:.bashrc.motoko.linux[]
- link:.bashrc.puppet[]
- link:.bashrc.saito[]
+|link:.bashrc.freebsd[] +
+ link:.bashrc.linux[] +
+ link:.bashrc.motoko[] +
+ link:.bashrc.motoko.linux[] +
+ link:.bashrc.puppet[] +
+ link:.bashrc.saito[] +
  link:.bashrc.yav.in[]|{icon-shell} Bash|OS, distirbution, and/or host specific shell Bash configs
 |link:.functions[]|{icon-shell} Shells|Core shell functions
 |link:.functions.freebsd[]|{icon-shell} Shells|OS, distirbution, and/or host specific shell aliases
@@ -58,12 +58,12 @@ My core configuration (dot) files.
 |link:.zlogout[]|{icon-shell} https://en.wikipedia.org/wiki/Z_shell[ZSH]|Core ZSH logout cleanup
 |link:.zshenv[]|{icon-shell} ZSH|Core ZSH environment variables
 |link:.zshrc[]|{icon-shell} ZSH|Core ZSH config
-|link:.zshrc.freebsd[]
- link:.zshrc.linux[]
- link:.zshrc.motoko[]
- link:.zshrc.motoko.linux[]
- link:.zshrc.puppet[]
- link:.zshrc.saito[]
+|link:.zshrc.freebsd[] +
+ link:.zshrc.linux[] +
+ link:.zshrc.motoko[] +
+ link:.zshrc.motoko.linux[] +
+ link:.zshrc.puppet[] +
+ link:.zshrc.saito[] +
  link:.zshrc.yav.in[]|{icon-shell} ZSH|OS, distirbution, and/or host specific shell ZSH configs
 |===
 
