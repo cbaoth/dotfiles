@@ -57,39 +57,45 @@ alias ftp="ftp -p"
 #alias nfs_reshare='sudo pkill -HUP mountd'
 #alias nfs_reshare='sudo service nfs-kernel-server restart; sudo service idmapd restart'
 alias nfs-reexport='exportfs -ra'
-alias ssx='ssh -X'
-alias tor="export http_proxy=http://localhost:8118"
-alias wget-m='wget -U "Mozilla/5.0" -m -k -K -E -np -N'
-alias vncsrv='tightvncserver -geometry 1024x768 -depth 24 :1'
-alias vncsrv16='tightvncserver -geometry 1024x768 -depth 16 :1'
-alias vncsrv-desktop='sudo x11vnc -display :0 -noxdamage -forever -usepw -ncache 10'
+alias proxy-set-tor="export http_proxy=http://localhost:8118"
+alias wget-m="wget -U \"$UAGENT\" -m -k -K -E -np -N"
+#alias vncsrv='tightvncserver -geometry 1024x768 -depth 24 :1'
+#alias vncsrv16='tightvncserver -geometry 1024x768 -depth 16 :1'
+#alias vncsrv-desktop='sudo x11vnc -display :0 -noxdamage -forever -usepw -ncache 10'
 alias scp2='scp -P 8090'
 alias ssh2='ssh -p 8090'
 #alias fh='echo sudo pw:; sudo ssh -f -L 25:wien.fh-trier.de:25 weyera@dublin.fh-trier.de "sleep 86400"'
-alias ssh-tunnel-yavin-mysql='ssh -f yav.in -p 8090 -L 23306:127.0.0.1:3306 -N'
-alias ssh-tunnel-yavin-oracle='ssh -f yav.in -p 8090 -L 21521:127.0.0.1:1521 -N'
-alias ssh-tunnel-yavin-pgsql='ssh -f yav.in -p 8090 -L 25432:127.0.0.1:5432 -N'
-alias ssh-tunnel-yavin-vnc='ssh -f yav.in -p 8090 -L 25901:127.0.0.1:5901 -N'
-alias ssh-tunnel-yavin-proxy='ssh -f yav.in -p 8090 -L 23128:127.0.0.1:3128 -N'
+#alias ssh-tunnel-yavin-mysql='ssh -f yav.in -p 8090 -L 23306:127.0.0.1:3306 -N'
+#alias ssh-tunnel-yavin-oracle='ssh -f yav.in -p 8090 -L 21521:127.0.0.1:1521 -N'
+#alias ssh-tunnel-yavin-pgsql='ssh -f yav.in -p 8090 -L 25432:127.0.0.1:5432 -N'
+#alias ssh-tunnel-yavin-vnc='ssh -f yav.in -p 8090 -L 25901:127.0.0.1:5901 -N'
+#alias ssh-tunnel-yavin-proxy='ssh -f yav.in -p 8090 -L 23128:127.0.0.1:3128 -N'
 #alias ssh-tunnel-hetznerbak='ssh -f yav.in -p 8090 -L 24021:u13368.your-backup.de:21 -N'
-alias vncap='vncviewer -autopass'
+#alias vncap='vncviewer -autopass'
 alias wake-saito='wakeonlan bc:5f:f4:9f:08:dc'
 alias wake-motoko='wakeonlan 1C:1B:0D:E7:BE:B3'
 
 # -- xorg --------------------------------------------------------------------
 alias xerrorlog-tail='tail -f ~/.x11startlog ~/.xsession-errors ~/.xmonad/xmonad.errors'
+alias xpropc="xprop | awk '/WM_CLASS/{print \$4\".\"\$3}' | sed 's/[,\"]//g'"
+alias xprop-class='xprop WM_CLASS | cut -d\" -f2'
+alias xprop-name='xprop WM_CLASS | cut -d\" -f4'
+alias xprop-type='xprop _NET_WM_WINDOW_TYPE | cut -d_ -f10'
+alias xprop-title='xprop WM_NAME | cut -d\" -f2'
+alias xprop-role='xprop WM_WINDOW_ROLE | cut -d\" -f2'
+alias xprop2="xprop|grep -E '^(WM_CLASS|WM_NAME|WM_WINDOW_ROLE)' | sed -r 's/^WM_(WINDOW_)?([^_(\s]+)(\([^)]*\))?/\2/g ; s/^NAME/TITLE/g ; s/\s*=\s*/\t/g ; s/CLASS\t\"(.*)\", \"(.*)\"/CLASS\t"\1"\nNAME\t"\2"/g'"
 
 # -- multimedia --------------------------------------------------------------
 #alias alevt='alevt -vbi /dev/v4l/vbi0 -parent 100'
 #alias esound='esddsp -s togusa'
 #alias mplayer-esd='mplayer -ao esd:togusa'
-alias mplayer-de='mplayer -vf pp=lb'
-alias mplayer-cache='mplayer -cache 15000'
-alias mplayer-cropdetect='mplayer -vo null -vf cropdetect'
+#alias mplayer-de='mplayer -vf pp=lb'
+#alias mplayer-cache='mplayer -cache 15000'
+#alias mplayer-cropdetect='mplayer -vo null -vf cropdetect'
 #alias mplayer-webcam='mplayer tv:// -tv driver=v4l2:width=640:height=480:device=/dev/video0 -fps 15 -nosound'
 #alias mplayer-slowcpu='mplayer -framedrop -ni -vfm ffmpeg -lavdopts lowres=1:fast:skiploopfilter=all'
 #alias mencoder-dvd2mpeg2='echo mencoder -nocache dvd://[track] -mc 0 -ovc copy -oac copy -of mpeg -mpegopts format=dvd:tsaf -noskip -o [outfile]'
-alias mplayer-streamdump='mplayer -dumpstream -dumpfile'
+#alias mplayer-streamdump='mplayer -dumpstream -dumpfile'
 #alias mplayer-tv='DISPLAY=:1 && mplayer -zoom -ao oss:/dev/dsp2'
 alias mpv-nr='mpv --no-resume-playback'
 # http://askubuntu.com/a/634655
@@ -136,11 +142,8 @@ alias cal-m='ncal -wM -m'
 alias cal-y='ncal -ywM'
 alias tr-tolower="tr '[A-Z]' '[a-z]'"
 alias tr-toupper="tr '[a-z]' '[A-Z]'"
-#alias replace-infile="perl -p -i -e"
-#alias tvbrowser='cd $HOME/tvbrowser; ./tvbrowser.sh'
 alias urlclean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/gi'"
 alias urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/gi'"
-alias gnucash='env LANG=de_DE.UTF-8 gnucash'
 alias usbsleep='sudo ~/bin/scsi-idle 900&'
 alias rename-p2u="rename 's/\./_/g;s/_([^_]{1,5})$/.\$1/'"
 alias rename-stripspecial="rename \"s/[^ \w()\[\]~&%#@.,+'-]/_/g\""
@@ -160,3 +163,4 @@ alias cat-utf16-to-utf8='iconv -f utf-16 -t utf-8'
 alias cat-utf16-to-iso-8859-1='iconv -f utf-16 -t ISO-8859-1'
 alias cat-utf8-to-iso-8859-1='iconv -f utf-8 -t ISO-8859-1'
 alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'
+alias rpm-extract='rpm2cpio "$1" | cpio -ivd'

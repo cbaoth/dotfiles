@@ -1,4 +1,4 @@
-= SonarQube Usage
+= My Dot-Files
 Andreas Weyer <dev@cbaoth.de>
 v1.0, 2018-08-01
 :toc:
@@ -78,6 +78,10 @@ My core configuration (dot) files.
 
 //include::.aliases[lines=1..2]
 
+== TODO
+* Make link.sh skip exsting links that already point to the right destination
+
 == Appendix
 
 Icon pack by https://icons8.com/[Icons8]
+

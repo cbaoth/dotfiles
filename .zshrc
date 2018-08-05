@@ -23,7 +23,7 @@ export LESSCHARSET="utf-8"
 #export BREAK_CHARS="\"#'(),;\`\\|\!?[]{}"
 
 # -- SHELL -------------------------------------------------------------------
-export TERM=xterm-color # rxvt, xterm-color
+export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 export COLORTERM=xterm
 [ -n "`echo $TERMCAP|grep -i screen`" ] && TERM=screen
 
@@ -41,13 +41,77 @@ export IRCNAME="Jorus C'Baoth"
 #export UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517 Mozilla Firebird/0.6"
 export UAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.104 Safari/537.36"
 
+# -- UMASK -------------------------------------------------------------------
+# ubuntu default: go-w
+umask 022
+# multi user system umask: g-w, o-rwx
+#umask 027
+# multi user system umask: o-rwx
+#umask 007
+
+# == INCLUDE: FUNCTIONS ======================================================
+OS=`uname | tr '[A-Z]' '[a-z]'`
+[ ! $HOST ] && export HOST=$HOSTNAME
+
+source_ifex () {
+  while [ -n "$1" ]; do
+    [ -f "$1" ] && source "$1"
+    shift
+  done
+}
+
+source_ifex \
+  $HOME/.functions \
+  $HOME/.functions.$OS \
+  $HOME/.functions.$HOST \
+  $HOME/.functions.$HOST.$OS
+
 # == ZSH SPECIFICS ===========================================================
 # -- PROMPT THEME ------------------------------------------------------------
+# load colors, alternative: tput https://stackoverflow.com/a/20983251/7393995
+#autoload colors && colors
+# activate basic prompt (fallback if powerlevel9k is not availlable)
 # load prompt theme from /usr/share/zsh/functions/Prompts/
 autoload -U promptinit
 promptinit
 #prompt yasuo 0 >/dev/null || prompt fade 0
 prompt fade 0
+# fonts: fira code, deb: fonts-powerline fonts-inconsolata
+# sudo fc-cache -vf ~/.local/share/fonts
+
+# == ZPLUG ===================================================================
+# apt: zplug - https://github.com/zplug/zplug
+# dummy if zplug is not installed
+if [ -f "/usr/share/zplug/init.zsh" ]; then
+  # init (load) zplug
+  source /usr/share/zplug/init.zsh
+  alias zplug_cmd=zplug
+#elif
+else
+  echo "$(tput setaf 3)WARNING: $(tput setaf 1)zplug $(tput setaf 3)doesn't seem to be installed ..."
+  # create temporary dummy zplug alias so all commannds below will succeed
+  alias zplug_cmd=:
+fi
+
+# -- OH-MY-ZSH ---------------------------------------------------------------
+# https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins
+zplug_cmd "plugins/git", from:oh-my-zsh
+
+# -- OTHERS ------------------------------------------------------------------
+# load pewerlevel9k (if availlable)
+# apt: zsh-theme-powerlevel9k - https://github.com/bhilburn/powerlevel9k
+#source_ifex /usr/share/powerlevel9k/powerlevel9k.zsh-theme
+zplug_cmd "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme
+
+zplug_cmd check --verbose || { yesno_p "Install missing zplug packages" && zplug install }
+
+# load local plugins
+zplug_cmd "~/.zsh.d", from:local
+
+zplug_cmd load
+
+# remove temporary alias
+unalias zplug_cmd
 
 # -- MODULES -----------------------------------------------------------------
 # load zmv extension (http://zshwiki.org/home/builtin/functions/zmv)
@@ -64,7 +128,7 @@ autoload zmv
 # allow regex in glob (e.g. 'cp ^*.(tar|bz2|gz) /tmp/')
 setopt extendedglob
 # remove non-matching globs from command instead of failing
-#setopt -o nullglob 
+#setopt -o nullglob
 # same as nullglob but still fails if none of the globs has a match
 #setopt -o cshnullglob
 
@@ -203,46 +267,21 @@ if [ "$TERM" = "xterm" ] || [ "$TERM" = "xterm-color" ]; then
 fi
 
 # == INCLUDES ================================================================
-OS=`uname | tr '[A-Z]' '[a-z]'`
-[ ! $HOST ] && export HOST=$HOSTNAME
-
-include_ifex () {
-  while [ -n "$1" ]; do
-    [ -f "$1" ] && . "$1"
-    shift
-  done
-}
-
-# load aliases
-include_ifex \
+# own aliases
+source_ifex \
   $HOME/.aliases \
   $HOME/.aliases.$OS \
   $HOME/.aliases.$HOST \
   $HOME/.aliases.$HOST.$OS \
   $HOME/.aliases.zsh
-#  `cat .aliases | grep -Ev '^\s*#' | sed 's/^alias/alias -g/'`
-
-# load functions
-include_ifex \
-  $HOME/.functions \
-  $HOME/.functions.$OS \
-  $HOME/.functions.$HOST \
-  $HOME/.functions.$HOST.$OS
 
 # load system/host specific config file (eg: ~/.zshrc.freebsd)
-include_ifex \
+source_ifex \
   $HOME/.zshrc.$OS \
   $HOME/.zshrc.$HOST \
   $HOME/.zshrc.$HOST.$OS
 
 # == EXECUTE =================================================================
-# ubuntu default: go-w
-umask 022
-# multi user system umask: g-w, o-rwx
-#umask 027
-# multi user system umask: o-rwx
-#umask 007
-
 # remove core dump files
 rm -f ~/*.core(N) ~/*.dump(N) &!
 
@@ -283,3 +322,10 @@ if [[ $SHLVL -eq 1 ]]; then
    #print -P "\e[1;32m It is:\e[1;34m %D{%r}\e[1;32m on \e[1;34m%D{%A %b %f %G}"
    print -P "\e[1;32mWelcome to \e[1;34m%m\e[1;32m running \e[1;34m`uname -srm`\e[1;32m on \e[1;34m%l"
 fi
+
+# == FINAL STEPS =============================================================
+# activate syntax highlighting, load last to affect everything loaded before
+# apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
+[ -f "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ] \
+  && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+zplug "zsh-users/zsh-syntax-highlighting"
