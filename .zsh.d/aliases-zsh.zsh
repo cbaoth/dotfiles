@@ -1,4 +1,4 @@
-# ~/.aliases.zsh: ZSH specific shell aliases importet by .zshrc
+# ~/.zsh/aliases-zsh.zsh: ZSH specific aliases
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zshrc bashrc shell-script

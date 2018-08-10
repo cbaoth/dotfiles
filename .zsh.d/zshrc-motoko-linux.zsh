@@ -1,4 +1,4 @@
-# ~/.zshrc.motoko.linux: Local zsh startup file (executed by ~/.zshrc)
+# ~/.zsh/zshrc-freebsd.zsh: Linux zshrc for host [motoko]
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zshrc shell-script

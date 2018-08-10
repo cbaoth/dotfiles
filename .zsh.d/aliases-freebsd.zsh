@@ -1,4 +1,4 @@
-# ~/.aliases.freebsd: Executed by ~/.zshrc or ~/.bashrc on FreeBSD systems
+# ~/.zsh/aliases-freebsd.zsh: FreeBSD aliases
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zshrc bashrc shell-script freebsd
@@ -36,4 +36,3 @@ alias burn-blankrw='sudo cdrecord -v dev=0,0,0 blank=fast -eject'
 
 # -- LINUX SUBSYSTEM ----------------------------------------------------------
 alias linuxabi='brandelf -t Linux'
-

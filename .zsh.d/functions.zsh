@@ -1,4 +1,4 @@
-# ~/.functions: A few shell functions (executed by .zshrc and .bashrc)
+# ~/.zsh/functions: Common functions
 # all functions are written in way that they work on both, zsh and bash
 
 # Author:   cbaoth <dev@cbaoth.de>
@@ -14,7 +14,8 @@
 
 # {{{ general
 # ----------------------------------------------------------------------------
-# print usage in format, usage: p_usg [msg]..
+# print usage in format (could use ${1?"Usage: $0 [msg]"} but style is bad)
+# usage: p_usg [msg]..
 p_usg() {
   [ -z "$1" ] && printf "usage: %s\n" "$0 args.." && return 1
   printf "usage: %s\n" "$*"
@@ -26,6 +27,13 @@ p_msg() {
   printf "> %s\n" "$*"
 }
 
+# https://stackoverflow.com/a/677212/7393995
+# predicate: is command $1 available?
+cmd_p() {
+  [ -z "$1" ] && p_usg "$0 command" && return 1
+  command -v "$1" 2>&1 > /dev/null && return 0 || return 1
+}
+
 # join array by separator (on zsh ${(j:/:)1} could be used)
 # example: join_by / 1 2 3 4 -> 1/2/3/4
 join_by() {
@@ -35,15 +43,17 @@ join_by() {
 }
 
 # join array with newlines after each element (including last one)
-# usg: join_by_n 1 2 3 4 -> 1\n2\n3\n4\n
+# usage: join_by_n 1 2 3 4 -> 1\n2\n3\n4\n
 join_by_n() {
   [ -z "$1" ] && p_usg "$0 array.." && return 1
   IFS=$'\n' printf "%s\n" "$@"
 }
 
-# colors and styles
+# execute multiple tput commands at once, return gracefully if tput not
+# available
 tputs() {
   [ -z "$1" ] && p_usg "tputs arg.." && return 1
+  cmd_p tput || return 0
   join_by_n "$@" | tput -S
 }
 
@@ -64,24 +74,22 @@ p_war() {
 }
 
 # print debug message in format "> DEBUG({lvl}): [msg].."
-# esage: p_dbg [dbg_lvl] [show_at_lvl] [msg]..
+# env DBG_LVL supercedes [dbg_lvl] (first arg.) if DBG_LVL > dbg_lvl
+# set dbg_lvl to 0 if DBG_LVL should be used exclusively
+# usage: p_dbg [dbg_lvl] [show_at_lvl] [msg]..
 p_dbg() {
-  [ -z "$3" ] && p_usg "$0 dkg_lvl show_at_lvl message" && return 1
-  local log_lvl=$1 show_at_lvl=$2; shift 2
-  [ $log_lvl -le $show_at_lvl ] || return 0
+  [ -z "$3" ] && p_usg "$0 dbg_lvl show_at_lvl message" && return 1
+  local dbg_lvl=$(( ${DBG_LVL-0} > $1 ? ${DBG_LVL-0} : $1 )); shift
+  local show_at_lvl=$1; shift
+  [ $dbg_lvl -lt $show_at_lvl ] && return 0
   printf "%s> DEBUG(%s):%s %s\n" \
-    "$(tputs 'setaf 0' 'setab 6')" "$log_lvl" "$(tput sgr0)" \
+    "$(tputs 'setaf 0' 'setab 6')" "$show_at_lvl" "$(tput sgr0)" \
     "$*"
 }
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ some tests
 # ----------------------------------------------------------------------------
-# https://stackoverflow.com/a/677212/7393995
-cmd_p() { # check if executable is available
-  [ -z "$1" ] && p_usg "$0 command" && return 1
-  command -v "$1" 2>&1 > /dev/null && return 0 || return 1
-}
 issu() { # is current user superuse
   touch /tmp/sutest$$
   chown root /tmp/sutest$$ >& /dev/null

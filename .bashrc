@@ -63,32 +63,32 @@ OS=`uname | tr '[A-Z]' '[a-z]'`
 
 include_ifex () {
   while [ -n "$1" ]; do
-    [ -f "$1" ] && . "$1"
+    [ -f "$1" ] && source "$1"
     shift
   done
 }
 
 # load aliases
 include_ifex \
-  $HOME/.aliases \
-  $HOME/.aliases.$OS \
-  $HOME/.aliases.$HOST \
-  $HOME/.aliases.$HOST.$OS \
-  $HOME/.aliases.bash
+  $HOME/.zsh/aliases.zsh \
+  $HOME/.zsh/aliases.$OS.zsh \
+  $HOME/.zsh/aliases.$HOST.zsh \
+  $HOME/.zsh/aliases.$HOST.$OS.zsh \
+  $HOME/.bash/aliases-bash.sh
 #  `cat .aliases | grep -Ev '^\s*#' | sed 's/^alias/alias -g/'`
 
 # load functions
 include_ifex \
-  $HOME/.functions \
-  $HOME/.functions.$OS \
-  $HOME/.functions.$HOST \
-  $HOME/.functions.$HOST.$OS
+  $HOME/.zsh/functions.zsh \
+  $HOME/.zsh/functions.$OS.zsh \
+  $HOME/.zsh/functions.$HOST.zsh \
+  $HOME/.zsh/functions.$HOST.$OS.zsh
 
 # load system/host specific config file (eg: ~/.bashrc.freebsd)
 include_ifex \
-  $HOME/.bashrc.$OS \
-  $HOME/.bashrc.$HOST \
-  $HOME/.bashrc.$HOST.$OS
+  $HOME/.bash/bashrc.$OS.sh \
+  $HOME/.bash/bashrc.$HOST.sh \
+  $HOME/.bash/bashrc.$HOST.$OS.sh
 # ----------------------------------------------------------------------------
 # }}} INCLUDES
 # {{{ EXECUTION
@@ -147,4 +147,3 @@ if [[ $SHLVL -eq 1 ]]; then
 fi
 # ----------------------------------------------------------------------------
 # }}} MOTD
-
