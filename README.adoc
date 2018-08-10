@@ -29,42 +29,43 @@ endif::[]
 
 My core configuration (dot) files.
 
+* `ZSH` configs are current, `Bash` configs are usually outdated (rarely updated).
+* If not clearly `ZSH` related, all alias, function, etc. file should be `Bash` compatible _(if forced to use bash)_ but not usually not POSIX compliant.
+* All files use the " \{\{\{( .*)?$" _(or {{{ }}} in short)_ folding comment pattern _(use e.g. in https://www.emacswiki.org/emacs/FoldingMode[emacs], https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS Code], https://stackoverflow.com/a/6947590[eclipse])_
+
+
 === Dot-files
 
-[%header,cols="1,1,4",options="header"]
+[%header,cols="2,1,4",options="header"]
 |===
 |File / Folder|App|Description
+|link:.zshenv[]|{icon-shell} https://en.wikipedia.org/wiki/Z_shell[ZSH]|Common ZSH login shell environment
+|link:.zshrc[]|{icon-shell} ZSH|Common ZSH config
+|link:.zlogout[]|{icon-shell} ZSH|Common ZSH logout cleanup
+|link:.zsh.d/zshrc-freebsd.zsh[] +
+ link:.zsh.d/zshrc-linux.zsh[] +
+ link:.zsh.d/zshrc-motoko.zsh[] +
+ link:.zsh.d/zshrc-motoko-linux.zsh[] +
+ link:.zsh.d/zshrc-puppet.zsh[] +
+ link:.zsh.d/zshrc-saito.zsh[] +
+ link:.zsh.d/zshrc-yav_in.zsh[]|{icon-shell} ZSH|OS, distirbution, and/or host specific ZSH configs
+|link:.zsh.d/aliases.zsh[]|{icon-shell} SH|Common aliases
+|link:.zsh.d/aliases-freebsd.zsh[] +
+ link:.zsh.d/aliases-linux.zsh[] +
+ link:.zsh.d/aliases-zsh.zsh[]|{icon-shell} SH|OS, distirbution, and/or host specific specific aliases
+|link:.zsh.d/functions.zsh[]|{icon-shell} SH|Common shell functions
+|link:.zsh.d/functions-freebsd.zsh[]|{icon-shell} SH|OS, distirbution, and/or host specific shell aliases
+|link:.bash.d/bashrc[]|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Common Bash config _(rarely maintained)_
+|link:.bash.d/bashrc-freebsd.sh[] +
+ link:.bash.d/bashrc-linux.sh[] +
+ link:.bash.d/bashrc-motoko.sh[] +
+ link:.bash.d/bashrc-motoko-linux.sh[] +
+ link:.bash.d/bashrc-puppet.sh[] +
+ link:.bash.d/bashrc-saito.sh[] +
+ link:.bash.d/bashrc-yav_in.sh[]|{icon-shell} Bash|OS, distirbution, and/or host specific Bash configs _(rarely maintained)_
+|link:.vimrc[]|{icon-edit} https://www.vim.org/[VIM]|VIM configuration
 |.config/mpv/|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|MPV configuration and key bindings
 |.mplayer/|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|MPlayer configuration and key bindings
-|link:.aliases[]|{icon-shell} https://en.wikipedia.org/wiki/Shell_(computing)[Shells]|Core shell aliases
-|link:.aliases.freebsd[] +
- link:.aliases.linux[] +
- link:.aliases.motoko[] +
- link:.aliases.motoko.linux[] +
- link:.aliases.puppet[] +
- link:.aliases.saito[] +
- link:.aliases.yav.in[]|{icon-shell} Shells|OS, distirbution, and/or host specific specific aliases
-|link:.bashrc[]|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Core Bash config
-|link:.bashrc.freebsd[] +
- link:.bashrc.linux[] +
- link:.bashrc.motoko[] +
- link:.bashrc.motoko.linux[] +
- link:.bashrc.puppet[] +
- link:.bashrc.saito[] +
- link:.bashrc.yav.in[]|{icon-shell} Bash|OS, distirbution, and/or host specific Bash configs
-|link:.functions[]|{icon-shell} Shells|Core shell functions
-|link:.functions.freebsd[]|{icon-shell} Shells|OS, distirbution, and/or host specific shell aliases
-|link:.vimrc[]|{icon-edit} https://www.vim.org/[VIM]|OS, distirbution, and/or host specific shell aliases
-|link:.zlogout[]|{icon-shell} https://en.wikipedia.org/wiki/Z_shell[ZSH]|Core ZSH logout cleanup
-|link:.zshenv[]|{icon-shell} ZSH|Core ZSH environment variables
-|link:.zshrc[]|{icon-shell} ZSH|Core ZSH config
-|link:.zshrc.freebsd[] +
- link:.zshrc.linux[] +
- link:.zshrc.motoko[] +
- link:.zshrc.motoko.linux[] +
- link:.zshrc.puppet[] +
- link:.zshrc.saito[] +
- link:.zshrc.yav.in[]|{icon-shell} ZSH|OS, distirbution, and/or host specific ZSH configs
 |===
 
 === Other files
@@ -84,4 +85,3 @@ My core configuration (dot) files.
 == Appendix
 
 Icon pack by https://icons8.com/[Icons8]
-
