@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# TODO
+# - Skip existing links that already point to the right destination
+
 LINK_FILE=`realpath $0`
 DOTFILES=`dirname $LINK_FILE`
 BAKDIR=$HOME/dofile_bak_`date +%s`
