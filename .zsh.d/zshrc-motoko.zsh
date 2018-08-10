@@ -1,4 +1,4 @@
-# ~/.zshrc.motoko: Local zsh startup file (executed by ~/.zshrc)
+# ~/.zsh/zshrc-freebsd.zsh: Common zshrc for host [motoko]
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zshrc shell-script
@@ -13,14 +13,11 @@
 # -- SYSTEM ------------------------------------------------------------------
 #export LIBGL_DEBUG="verbose"
 
+# -- JAPANESE ----------------------------------------------------------------
+#export XMODIFIERS="@im=kinput2"
+#export LANG="ja_JP"
+
 # == ZSH SPECIFICS ===========================================================
 # -- PROMPT THEME ------------------------------------------------------------
 # load prompt theme from /usr/share/zsh/functions/Prompts/
-prompt fade 3
-
-# == MOTD ====================================================================
-# print welcome message
-if [[ $SHLVL -eq 1 ]]; then
-   #echo
-   print -P "\e[1;32mUptime:\e[1;34muptime\e[1;32m"
-fi
+prompt fade 4

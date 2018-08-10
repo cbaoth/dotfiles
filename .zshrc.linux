@@ -1,8 +1,0 @@
-# ~/.zshrc.linux: Executed by ~/.zshrc on Linux systems
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc shell-script linux
-
-# == EXECUTE =================================================================
-# -- SHELL -------------------------------------------------------------------
-#setterm -blength 0

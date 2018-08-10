@@ -1,4 +1,4 @@
-# ~/.zshrc.freebsd: Executed by ~/.zshrc on FreeBSD systems
+# ~/.zsh/zshrc-freebsd.zsh: FreeBSD zshrc
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zshrc shell-script freebsd

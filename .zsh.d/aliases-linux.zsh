@@ -1,4 +1,4 @@
-# ~/.aliases.linux: Executed by ~/.zshrc or ~/.bashrc on Linux systems
+# ~/.zsh/aliases-linux.zsh: Linux aliases
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zshrc bashrc shell-script linux
@@ -69,4 +69,3 @@ if [ -n "`which pacman 2>/dev/null`" ]; then
   alias auri="sudo pacman -U"
   alias aurbui="makepkg && sudo pacman -U *.pkg.tar.xz"
 fi
-
