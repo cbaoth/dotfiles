@@ -29,14 +29,50 @@ endif::[]
 
 My core configuration (dot) files.
 
-* `ZSH` configs are current, `Bash` configs are usually outdated (rarely updated).
-* If not clearly `ZSH` related, all alias, function, etc. files should be `Bash`
-compatible _(not always POSIX compliant)_.
-* All files use the `" \{\{\{( .*)?$"` _(or `{{{ }}}` in short)_ folding comment
-pattern _(use e.g. https://www.emacswiki.org/emacs/FoldingMode[emacs],
-https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS Code],
- https://stackoverflow.com/a/6947590[eclipse])_
+* `ZSH` is the leading shell.
+* `Bash` configs exist for rare cases in which zsh is not availlable, they are not regularly maintained and usually outdated.
+* If not clearly `ZSH` related, all alias, function, etc. files should be `Bash` compatible _(but not always POSIX compliant)_.
+* All files use the `" \{\{\{( .*)?$"` _(or `{{{ }}}` in short)_ folding comment pattern _(use e.g. https://www.emacswiki.org/emacs/FoldingMode[emacs], https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS Code], https://stackoverflow.com/a/6947590[eclipse])_
 
+=== OS & Host specific configurations
+
+Custom OS and host specific ZSH configurtaions, aliases and function files can be created and they are automatically loaded. This provides a simple way to prepare the environment of a specific host without the need of messing around with the core files.
+
+This function is used to load the files:
+
+[source,bash]
+----
+include::.zshrc[lines=120..137]
+----
+
+This is the sequence in which the files are loaded:
+
+[source,bash]
+----
+ # top of zshrc
+ .zsh.d/functions.zsh  # always loaded
+ .zsh.d/aliases.zsh    # always loaded
+
+ # bottom of zshrc (just before MOTD)
+ .zsh.d/functions-${OS}.zsh
+ .zsh.d/functions-${HOST}.zsh
+ .zsh.d/functions-${HOST}-${OS}.zsh
+ .zsh.d/functions-${HOST}-${OS}_wsl.zsh
+
+ .zsh.d/aliases-${OS}.zsh
+ .zsh.d/aliases-${HOST}.zsh
+ .zsh.d/aliases-${HOST}-${OS}.zsh
+ .zsh.d/aliases-${HOST}-${OS}_wsl.zsh
+
+ .zsh.d/zshrc-${OS}.zsh
+ .zsh.d/zshrc-${HOST}.zsh
+ .zsh.d/zshrc-${HOST}-${OS}.zsh
+ .zsh.d/zshrc-${HOST}-${OS}_wsl.zsh
+----
+
+The special suffix `_wsl` is used on https://en.wikipedia.org/wiki/Windows_Subsystem_for_Linux[Windows Subsystem Linux], this allows the `-linux` files to be loaded in addition to (followed by) a WSL specific `-linux_wsl` file.
+
+Examples can be seen in the <<Dot-files>> list below.
 
 === Dot-files
 
@@ -48,36 +84,20 @@ https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS 
 |link:.zshrc[]|{icon-shell} ZSH|Common ZSH config
 |link:.zlogout[]|{icon-shell} ZSH|Common ZSH logout cleanup
 |link:.zsh.d/zshrc-freebsd.zsh[] +
- link:.zsh.d/zshrc-linux.zsh[] +
  link:.zsh.d/zshrc-motoko.zsh[] +
  link:.zsh.d/zshrc-motoko-linux.zsh[] +
  link:.zsh.d/zshrc-puppet.zsh[] +
  link:.zsh.d/zshrc-saito.zsh[] +
- link:.zsh.d/zshrc-yav_in.zsh[]|{icon-shell} ZSH|OS, distirbution, and/or host
-  specific ZSH configs
+ link:.zsh.d/zshrc-yav_in.zsh[]|{icon-shell} ZSH|OS, distirbution, and/or host   specific ZSH configs
 |link:.zsh.d/aliases.zsh[]|{icon-shell} SH|Common aliases
 |link:.zsh.d/aliases-freebsd.zsh[] +
- link:.zsh.d/aliases-linux.zsh[] +
- link:.zsh.d/aliases-zsh.zsh[]|{icon-shell} SH|OS, distirbution, and/or host
-  specific specific aliases
+ link:.zsh.d/aliases-linux.zsh[]|{icon-shell} SH|OS, distirbution, and/or host   specific specific aliases
 |link:.zsh.d/functions.zsh[]|{icon-shell} SH|Common shell functions
-|link:.zsh.d/functions-freebsd.zsh[]|{icon-shell} SH|OS, distirbution, and/or
- host specific shell aliases
-|link:.bash.d/bashrc[]|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|
- Common Bash config _(rarely maintained)_
-|link:.bash.d/bashrc-freebsd.sh[] +
- link:.bash.d/bashrc-linux.sh[] +
- link:.bash.d/bashrc-motoko.sh[] +
- link:.bash.d/bashrc-motoko-linux.sh[] +
- link:.bash.d/bashrc-puppet.sh[] +
- link:.bash.d/bashrc-saito.sh[] +
- link:.bash.d/bashrc-yav_in.sh[]|{icon-shell} Bash|OS, distirbution, and/or
- host specific Bash configs _(rarely maintained)_
+|link:.zsh.d/functions-freebsd.zsh[]|{icon-shell} SH|OS, distirbution, and/or  host specific shell aliases
+|link:.bash.d/bashrc[]|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Common Bash config _(rarely maintained)_
 |link:.vimrc[]|{icon-edit} https://www.vim.org/[VIM]|VIM configuration
-|.config/mpv/|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|
- MPV configuration and key bindings
-|.mplayer/|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|
- MPlayer configuration and key bindings
+|.config/mpv/|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|MPV configuration and key bindings
+|.mplayer/|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|MPlayer configuration and key bindings
 |===
 
 === Other files
@@ -85,8 +105,9 @@ https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS 
 [%header,cols="1,5"]
 |===
 |File|Description
-|link:link.sh[]|Scipt to symlink all dot files into the current user's home directory
 |README.adoc|This file
+|link:link.sh[]|Creates missing folders in user's home directory and links to all dot-files. _Currently moves existing files / links to a backup location._
+|link:permissions.sh[]|Updates the file's permissions.
 |===
 //include::.aliases[lines=1..2]
 

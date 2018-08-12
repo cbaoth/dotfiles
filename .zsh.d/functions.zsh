@@ -2,18 +2,17 @@
 # all functions are written in way that they work on both, zsh and bash
 
 # Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc bashrc shell-script functions
+# Keywords: zsh zshrc shell-script functions
 
-# {{{ Commentary
-# ----------------------------------------------------------------------------
+# TODO some refactoring and clean-up has to be done
+
 # To view this file correctly use fold-mode for emacs and add the following
 # line to your .emacs:
 #   (folding-add-to-marks-list 'shell-script-mode "# {{{ " "# }}}" nil t)
-# ----------------------------------------------------------------------------
-# }}}
 
-# {{{ general
-# ----------------------------------------------------------------------------
+# {{{ - CORE -----------------------------------------------------------------
+# Some basic stuff ...
+
 # print usage in format (could use ${1?"Usage: $0 [msg]"} but style is bad)
 # usage: p_usg [msg]..
 p_usg() {
@@ -27,14 +26,14 @@ p_msg() {
   printf "> %s\n" "$*"
 }
 
-# https://stackoverflow.com/a/677212/7393995
 # predicate: is command $1 available?
 cmd_p() {
   [ -z "$1" ] && p_usg "$0 command" && return 1
+  # https://stackoverflow.com/a/677212/7393995
   command -v "$1" 2>&1 > /dev/null && return 0 || return 1
 }
 
-# join array by separator (on zsh ${(j:/:)1} could be used)
+# join array by separator (on zsh ${(j:/:)1} can be used instead)
 # example: join_by / 1 2 3 4 -> 1/2/3/4
 join_by() {
   [ -z "$2" ] && p_usg "$0 separator array.." && return 1
@@ -49,8 +48,8 @@ join_by_n() {
   IFS=$'\n' printf "%s\n" "$@"
 }
 
-# execute multiple tput commands at once, return gracefully if tput not
-# available
+# execute multiple tput commands at once, ignore and return gracefully if tput
+# not available
 tputs() {
   [ -z "$1" ] && p_usg "tputs arg.." && return 1
   cmd_p tput || return 0
@@ -86,49 +85,118 @@ p_dbg() {
     "$(tputs 'setaf 0' 'setab 6')" "$show_at_lvl" "$(tput sgr0)" \
     "$*"
 }
-# ----------------------------------------------------------------------------
-# }}}
-# {{{ some tests
-# ----------------------------------------------------------------------------
-issu() { # is current user superuse
-  touch /tmp/sutest$$
-  chown root /tmp/sutest$$ >& /dev/null
-  ec=$?
-  rm -f /tmp/sutest$$
-  [ $ec -ne 0 ] && return 1
+
+# print 'yes' in green color
+p_yes() {
+  #print -P "%F{green}yes%f";
+  printf "%s" "$(tputs 'setaf ')"
+}
+
+# print 'no' in red color
+p_no() { print -P "%F{red}no%f"; }
+
+# print 256 colors colortable
+p_colortable() {
+  for i in {0..255}; do
+    printf '\e[1m\e[37m\e[48;5;%dm%03d\e[0m ' $i $i
+    [ $i -ge 16 ] && [ $((i%6)) -eq 3 ] \
+      || [ $i -eq 15 ] \
+      && printf '\n'
+  done
+}
+
+# execute python3's print function with the given [code] argument(s)
+# examples:
+#   py_print "192,168,0,1,sep='.'""
+#   py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"
+py_print() {
+  if [[ $1 = (-i|--import) ]]; then
+    [ -z "$2" ] && p_err "missing value for argument -i" && return 1
+    local _py_import="$2"; shift 2
+  fi
+  [ -z "$1" ] && p_usg "$0 [-i import] code.." && return 1
+  python3<<<"${_py_import+import ${_py_import}}
+print($@)"
+}
+# - }}} - CORE ---------------------------------------------------------------
+
+# - {{{ - PREDICATES ---------------------------------------------------------
+# predicate: is current shell zsh?
+is_zsh() { [[ $SHELL = *zsh ]]; }
+
+# predicate: is current shell bash?
+is_bash() { [[ $SHELL = *bash ]]; }
+
+# predicate: is current user superuse?
+is_su() {
+  #touch /tmp/sutest$$
+  #chown root /tmp/sutest$$ >& /dev/null
+  #ec=$?
+  #rm -f /tmp/sutest$$
+  #[ $ec -ne 0 ] && return 1
+  [[ $UID != 0 || $EUID != 0 ]] && return 1
   return 0
 }
-isdecimal() { # may contain .
-  [ -z "$1" ] && p_usg "$0 decimal" && return 1
-  echo $1 | egrep '^[+-]?([0-9]+|[0-9]*\.[0-9]+|[0-9]+\.[0-9]*)$' > /dev/null || return 1
+
+# predicate: is given [number] an integer?
+# number may NOT contain decimal separator "."
+is_int() {
+  [ -z "$1" ] && p_usg "$0 number.." && return 1
+  while [ -n $1 ]; do
+    [[ $1 =~ ^[+-]?[0-9]+$ ]] || return 1
+    shift
+  done
   return 0
 }
-isint() { # may not contain .
-  [ -z "$1" ] && p_usg "$0 integer" && return 1
-  echo $1 | egrep '^[+-]?[0-9]+$' > /dev/null || return 1
+
+# predicate: is given [number] a decimal number?
+# number MUST contain decimal separator "." (optional, scale can be 0)
+is_decimal() {
+  [ -z "$1" ] && p_usg "$0 number.." && return 1
+    while [ -n $1 ]; do
+    [[ $1 =~ ^[+-]?([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)$ ]] || return 1
+    shift
+  done
   return 0
 }
-areints() { for arg in $*; do ! isint $arg && return 1; done; return 0; }
-ispositive() { # can contain .
-  isdecimal "$1" || return 1
-  echo $1 | egrep '^-' > /dev/null && return 1
+
+# predicate: is given [number] positive?
+# number MAY contain decimal separator "." (optional, can be integer)
+is_positive() {
+  [ -z "$1" ] && p_usg "$0 number.." && return 1
+  while [ -n $1 ]; do
+    [[ $1 =~ ^- ]] || return 1
+    shift
+  done
   return 0
 }
-isfloat() { # must contain .
-  [ -n "$(echo $1 | egrep \"^[-]?([0-9]*[.][0-9]+|[0-9]+[.][0-9]*)$\")" ] && \
-    return 0
-  return 1
-arefloats() { for arg in $*; do ! isfloat $arg && return 1; done; return 0; }
+
+# predicate: is given [value] a number? (either integer or decimal)
+# number MAY contain decimal separator "." (optional, scale can be 0)
+is_number() { # may contain .
+  [ -z "$1" ] && p_usg "$0 number.." && return 1
+    while [ -n $1 ]; do
+    [[ $1 =~ ^[+-]?([0-9]+|[0-9]*\.[0-9]+|[0-9]+\.[0-9]*)$ ]] || return 1
+    shift
+  done
+  return 0
 }
-isnumber() { # may contain .
-  #[ -n "$(echo $1 | egrep \"^[-]?([0-9]*[.])?[0-9]+$\")" ] &&
-  [ -n "$(echo $1 | egrep \"^[-]?(([0-9]*[.])?[0-9]+|[0-9]+([.]?[0-9]*))$\")" ] && \
-    return 0
-  return 1
+# }}} - PREDICATES -----------------------------------------------------------
+
+# {{{ - COMMAND EXECUTION ----------------------------------------------------
+# execute command [cmd] with a [delay] (sleep syntax)
+cmd_delay() {
+  [ -z "$2" ] && p_usg echo "$0 delay cmd.." && return 1
+  local delay="$1"; shift
+  sleep $dealy
+  $*
 }
-arenumbers() { for arg in $*; do ! isnumber $arg && return 1; done; return 0; }
-yesno_p() {
-  [ -z "$1" ] && p_err "usage: yesno_p question" && return 1
+# }}} - COMMAND EXECUTION ----------------------------------------------------
+
+# {{{ - QUERIES --------------------------------------------------------------
+# query (yes/no): ask any question (no: return 1)
+q_yesno() {
+  [ -z "$1" ] && p_usg "$0 question" && return 1
   sh="$(basename $SHELL)"
   key=""
   printf "$* (y/n) "
@@ -145,27 +213,23 @@ yesno_p() {
   fi
   return 1
 }
-overwriteP() {
-  if [ -e "$1" ]; then
-    echo "file '$1' exists!"
-    if yesno_p "overwrite?"; then
-      rm -rf -- "$1"
+
+# query (yes/no): overwrite given file? (no: return 1)
+# return 0, without asking a thing, if [file] doesn't exist
+q_overwrite() {
+  [ -z "$1" ] && p_usg "$0 file" && return 1
+  local file="$1"
+  if [ -e "$file" ]; then
+    p_war "file '$file' exists!"
+    if q_yesno "overwrite?"; then
+      rm -rf -- "$file"
       return 0
     fi
     return 1
   fi
 }
-delaycmd() {
-  [ -z "$2" ] &&\
-    echo "usage: $(basename $0) delay cmd" &&\
-    exit 1
-  sleep "$1"
-  shift
-  $*
-}
+# }}} - QUERIES ---------------------------------------------------------------
 
-# ----------------------------------------------------------------------------
-# }}}
 # {{{ loop
 # ----------------------------------------------------------------------------
 while-read () { while ((1)); do read x; p_msg "exec: $* \"$x\"" && $* "$x"; done; }
@@ -257,7 +321,7 @@ done
 # {{{ find files
 # ----------------------------------------------------------------------------
 find-greater-than () {
-  [ -z $2 ] || ! isint $1 && \
+  [ -z $2 ] || ! is_int $1 && \
     p_usg "find-greater-than <max> <dir>...\nmax (bytes)" && return 1
   min=$1; shift
   for dir in $*; do
@@ -267,7 +331,7 @@ find-greater-than () {
   done
 }
 find-between () {
-  [ -z $3 ] || ! areints $1 $2 && \
+  [ -z $3 ] || ! is_int $1 $2 && \
     p_usg "find-less-than <min> <max> <dir>...\nmin|max (bytes)" && \
     return 1
   min=$1; max=$2; shift 2
@@ -279,7 +343,7 @@ find-between () {
   done
 }
 find-less-than () {
-  [ -z $2 ] || ! isint $1 && \
+  [ -z $2 ] || ! is_int $1 && \
     p_usg "find-less-than <max> <dir>...\nmax (bytes)" && \
     return 1
   max=$1; shift
@@ -321,7 +385,7 @@ stringrepeat() {
   [ -z "$2" ] && \
     p_usg "stringrepeat count str" && \
     return 1
-  ! isint $1 && p_err "$1 is not an integer" && return 1
+  ! is_int $1 && p_err "$1 is not an integer" && return 1
   #echo $(printf "%0$1d" | sed "s/0/$2/g")
   awk 'BEGIN{$'$1'=OFS="'$2'";print}'
 }
@@ -331,14 +395,13 @@ stringrepeat() {
 # ----------------------------------------------------------------------------
 calc() { echo $*| bc; }
 calcd() { echo "scale=4; $*"| bc; }
-pycalc() { echo "print $*"| python; } #usage example: pycalc 2.3*71
 dice () { echo -e "import random\nrandom.seed()\nprint random.randint(1, $1)" | python; }
 hex2dec() { echo "ibase=16; $(echo ${1##0x} | tr '[a-f]' '[A-F]')" | bc; }
 # TODO: fix overflow (eg. 125 @ 2 digits)
 zerofill () { #inserts leading zeros (number, digits)
   [ -z $2 ] && \
     p_usg "zerofill value digits" && return 1
-  ! isint $1 || ! isint $2 && p_err "$i is not an integer" && return 1
+  ! is_int $1 || ! is_int $2 && p_err "$i is not an integer" && return 1
     echo $(printf "%0$2d" $1)
 }
 calcSum() {
@@ -350,7 +413,7 @@ calcSum() {
         break
         ;;
       *)
-        if isnumber $line; then
+        if is_number $line; then
           arg="$arg"+"$line"
         else
           echo "not a number"
@@ -653,7 +716,7 @@ rename-dir-filecount () {
         ;;
       -d)
         [ -z "$2" ] && p_err "digit count missing for argument $1" && return 2
-        if ! isint $2 || ! ispositive $2; then
+        if ! is_int $2 || ! is_positive $2; then
           p_err "digit count is not a positive int value: $2" && return 2
         fi
         digits=$2; shift 2
@@ -816,7 +879,7 @@ git-truncate () {
   msg="Truncated history"
   [ -n "$1" ] && msg="$*"
   p_msg "The history prior to the hash-id/tag '$id' will be DELETED !!!"
-  if ! yesno_p "> Delete history?"; then
+  if ! q_yesno "> Delete history?"; then
     return 0
   fi
   git checkout --orphan temp "$id" \
@@ -900,7 +963,7 @@ ts2ps() {
   else
     outfile="${1%.*}".m2p
   fi
-  overwriteP "$outfile" &&\
+  q_overwrite "$outfile" &&\
     mencoder -ovc copy -oac copy -of mpeg -o "$outfile" "$1"
 }
 mplayer-wavdump () {
@@ -1070,7 +1133,7 @@ toopus() {
   if [ "$1" = "-b" ]; then
     opusenc_args+=(-b)
     [ -z "$2" ] && p_err "no bitrate provided" && return -1
-    ! isint $2 && p_err "bitrate must be a valid integer"
+    ! is_int $2 && p_err "bitrate must be a valid integer"
     opusenc_args+=($2)
     shift 2
   fi
@@ -1110,7 +1173,7 @@ wmv2avi() {
   else
     outfile="${1%.*}".avi
   fi
-  overwriteP "$outfile" &&\
+  q_overwrite "$outfile" &&\
     mencoder -ofps 23.976 -ovc lavc -oac copy -o "$outfile" "$1"
 }
 mma-timidity () {
@@ -1139,27 +1202,27 @@ image-dimensions-min () {
     local dim=$(identify $f | cut -d \  -f 3)
     [ -z "$dim" ] && p_err "unable to read dimensions, skipping ..." && continue
     x=${dim%x*}; y=${dim##*x}
-    ! isint $x && p_err "unable to identify x axis pixel count (not numeric: '$x')" && return 1
-    ! isint $y && p_err "unable to identify y axis pixel count (not numeric: '$y')" && return 1
+    ! is_int $x && p_err "unable to identify x axis pixel count (not numeric: '$x')" && return 1
+    ! is_int $y && p_err "unable to identify y axis pixel count (not numeric: '$y')" && return 1
     min=$(($x>$y?$y:$x))
     [ -z "$min" ] && p_err "unable to calculate minimum, skipping ..." && continue
-    ! isint $min && p_err "unable to identify min (not numeric: '$min')" && return 1
+    ! is_int $min && p_err "unable to identify min (not numeric: '$min')" && return 1
     echo "$f\t$min"
   done
 }
 image-has-min-dimension () {
   [ -z "$2" ] && p_usg "image-has-low-dimension minpixel file...\n  returns a list of only those images that have <= minpixel on one axis" && return 1
   local minpixel=$1; shift
-  ! isint $minpixel && p_err "no valid pixel count '$minpixel'" && return 1
+  ! is_int $minpixel && p_err "no valid pixel count '$minpixel'" && return 1
   for f in $*; do
     local dim=$(identify $f | cut -d \  -f 3)
     [ -z "$dim" ] && p_err "unable to read dimensions, skipping ..." && continue
     local x=${dim%x*}; y=${dim##*x}
-    ! isint $x && p_err "unable to identify x axis pixel count (not numeric: '$x')" && return 1
-    ! isint $y && p_err "unable to identify y axis pixel count (not numeric: '$y')" && return 1
+    ! is_int $x && p_err "unable to identify x axis pixel count (not numeric: '$x')" && return 1
+    ! is_int $y && p_err "unable to identify y axis pixel count (not numeric: '$y')" && return 1
     local min=$(($x>$y?$y:$x))
     [ -z "$min" ] && p_err "unable to calculate minimum, skipping ..." && continue
-    ! isint $min && p_err "unable to identify min (not numeric: '$min')" && return 1
+    ! is_int $min && p_err "unable to identify min (not numeric: '$min')" && return 1
     [ $min -le $minpixel ] && echo "$f"
   done
 }
@@ -1290,7 +1353,7 @@ image-concat() {
   done
   [ -z "$2" ] && p_usg "$0 [-w|-h|-n] [-x1] [-o outfile] infile.." && return 1
   [ -z "$outfile" ] && outfile="$(file-suffix "$1" "-concat$(date +%s)")" && echo "outfile: $outfile"
-  overwriteP "$outfile" || return 1
+  q_overwrite "$outfile" || return 1
   local min_height=$(identify -format '%h\n' "${@}" | sort -n | head -n 1)
   #min_height=$(echo -e "$min_height\n$((MAX/$#))" | sort -n | head -n 1)
   local min_width=$(identify -format '%w\n' "${@}" | sort -n | head -n 1)
@@ -1328,7 +1391,7 @@ pnice () {
   [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
   p_msg "niceness of the following processes/threads will be changed:"
   echo "$p"
-  if yesno_p "> process?"; then
+  if q_yesno "> process?"; then
     echo $p|cut -d \  -f 2|xargs sudo renice -n 19 -p
   fi
 }
@@ -1338,7 +1401,7 @@ pniceio () {
   [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
   p_msg "niceness of the following processes/threads will be changed:"
   echo "$p"
-  if yesno_p "> process?"; then
+  if q_yesno "> process?"; then
     echo $p|cut -d \  -f 2|xargs sudo ionice -c 3 -p
   fi
 }
@@ -1349,7 +1412,7 @@ pniceloop () {
     [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
     p_msg "niceness of the following processes/threads will be changed:"
     echo "$p"
-  #if  yesno_p "> process"; then
+  #if  q_yesno "> process"; then
     echo $p|cut -d \  -f 2|xargs sudo renice -n 19 -p
     echo $p|cut -d \  -f 2|xargs sudo ionice -c 3 -p
   #fi
@@ -1436,7 +1499,7 @@ create-crypto-containe () { # file, size, fstype [, files]
   local dir=$(dirname "$1"); shift # dirname
   [ ! -d "$dir" ] && p_err "no such dir '$dir'" && return 1
   local size="$1"; shift # container size (mb)
-  ! isint $size && p_err "no valid size '$size'" && return 1
+  ! is_int $size && p_err "no valid size '$size'" && return 1
   local blocks=$(($size*1024)) # container size (blocks)
   local space=$(df "$dir" | grep -v Filesystem | awk '{print $3}')
   [ $space -lt $blocks ] && \
@@ -1446,7 +1509,7 @@ create-crypto-containe () { # file, size, fstype [, files]
 
   # check superuser status
   local sudo=""
-  ! issuperuser && sudo="sudo" && \
+  ! is_su && sudo="sudo" && \
     p_msg "you might be asked to enter your sudo password"
   #seed=$(head -c 15 /dev/random | uuencode -m - | head -2 | tail -1)
   #muli key mode !!! CBC
@@ -1510,7 +1573,7 @@ mount-crypted () {
   local fs=ext2
   [ "${1##*.}" = "iso" ] && fs=iso9660
   local sudo=""
-  ! issuperuser && sudo="sudo" && \
+  ! is_su && sudo="sudo" && \
     p_msg "you might be asked to enter your sudo password"
   $sudo mount "$1" /mnt/crypted -t $fs \
     -o loop=/dev/loop2,encryption=aes256,gpgkey="$file",offset=8192
@@ -1527,5 +1590,3 @@ apt-key-import () {
 }
 # ----------------------------------------------------------------------------
 # }}}
-
-#EOF

@@ -3,26 +3,31 @@
 # login shell: .zshenv > .zprofile > zlogin / .zlogout
 
 # Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc shell-script
+# Keywords: zsh zshrc shell-script
 
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 # For login shell / general variable like PATH see ~/.zshenv
 
-# {{{ - BASICS ---------------------------------------------------------------
-export OS=`uname | tr '[A-Z]' '[a-z]'`
+# {{{ - CORE -----------------------------------------------------------------
+export OS=${$(uname):l}
 [ ! $HOST ] && export HOST=$HOSTNAME
 
 export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 export COLORTERM=xterm
 #[ -n "`echo $TERMCAP|grep -i screen`" ] && TERM=screen
 
+# globally raise (but never lower) the default debug level of p_dbg
+export DBG_LVL=0
+# }}} - CORE -----------------------------------------------------------------
+
+# {{{ - UMASK ----------------------------------------------------------------
 # single user system (ubuntu default): go-w
 umask 022
 # multi user system umask: g-w, o-rwx
 #umask 027
 # multi user system umask: o-rwx
 #umask 007
-# }}} - BASICS ---------------------------------------------------------------
+# }}} - UMASK ----------------------------------------------------------------
 
 # {{{ - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
 export IS_WSL=false
@@ -33,17 +38,12 @@ if [[ $(uname -r) = *Microsoft* ]]; then
 fi
 # }}} - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
 
-# {{{ - IRC ------------------------------------------------------------------
-export IRCNICK="cbaoth"
-export IRCNAME="Jorus C'Baoth"
-#export IRCUSER="cbaoth"
-# }}} - IRC ------------------------------------------------------------------
-
 # {{{ - DEV ------------------------------------------------------------------
 export CLASSPATH=".:$HOME/.class:$CLASSPATH"
 export PYTHONPATH="$PYTHONPATH:$HOME/lib/python/site-packages"
 export SCALA_HOME="$HOME/scala"
-command -v java && export JAVA_HOME=${$(realpath $(command -v java))/bin\/java/}
+command -v java 2>&1 >/dev/null \
+  && export JAVA_HOME=${$(realpath $(command -v java))/bin\/java/}
 export ARCH=$(uname -m)
 
 # Check if we are in the 32bit chroot
@@ -86,27 +86,28 @@ export ARCH=$(uname -m)
 #export PATH="$PATH:$ORACLE_HOME/bin"
 # }}} - DBMS -----------------------------------------------------------------
 
+# {{{ - IRC ------------------------------------------------------------------
+export IRCNICK="cbaoth"
+export IRCNAME="Jorus C'Baoth"
+#export IRCUSER="cbaoth"
+# }}} - IRC ------------------------------------------------------------------
+
 # {{{ - MISC -----------------------------------------------------------------
 #UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517"
 #UAGENT+=" Mozilla Firebird/0.6"
 UAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
 UAGENT+=" Chrome/59.0.3071.104 Safari/537.36"
 export UAGENT
-
-# {{{ - MISC -----------------------------------------------------------------
-# globally raise (but never lower) the default debug level of p_dbg
-export DBG_LVL=0
 # }}} - MISC -----------------------------------------------------------------
-
 # }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 
-# {{{ = INCLUDE FUNCTIONS ====================================================
+# {{{ = CORE FUNCTIONS & ALIASES =============================================
 # include core functions, must simply be there (used everywhere)
 source $HOME/.zsh.d/functions.zsh
 
-# include given file(s) if they exist,
+# include given source file(s) if they exist,
 source_ifex () {
-  [ -z "$1" ] && printf "usage: %s" "$0 file.." && return 1
+  [ -z "$1" ] && p_usg "$0 source-file.." && return 1
   while [ -n "$1" ]; do
     p_dbg 0 2 "potential source: $1"
     [ -r "$1" ] && { p_dbg 0 1 "loading source: $1"; source "$1" }
@@ -115,28 +116,30 @@ source_ifex () {
   return 0
 }
 
-# include given base_file(s) and all matching os/host specific versions if
-# they exist
+# include all matching os/host specific source files having the given
+# [source-file-prefix] file name prefix(s)
 source_ifex_custom () {
-  [ -z "$1" ] && printf "usage: %s" "$0 base_file.." && return 1
+  [ -z "$1" ] && printf "usage: %s" "$0 source-file-prefix.." && return 1
   local host=${${HOST:l}//./_}
   local os=${OS:l}
   while [ -n "$1" ]; do
     local base_file=$1
     source_ifex \
       "${base_file}-${os}.zsh" \
-      "${base_file}-${os}-wsl.zsh" \
+      $($IS_WSL && print "${base_file}-${os}_wsl.zsh") \
       "${base_file}-${host}.zsh" \
-      "${base_file}-${os}.zsh" \
-      "${base_file}-${host}.${os}-wsl.zsh"
+      "${base_file}-${host}-${os}.zsh" \
+      $($IS_WSL && print "${base_file}-${host}-${os}_wsl.zsh")
     shift
   done
   return 0
 }
 
-# include .functions and matching os/host specific versions of .functions
-source_ifex_custom $HOME/.zsh.d/functions
-# }}} = INCLUDE FUNCTIONS ====================================================
+# include core aliases
+source_ifex $HOME/.zsh.d/aliases
+
+isme() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
+# }}} = CORE FUNCTIONS & ALIASES =============================================
 
 # {{{ = ZPLUG PREPARE ========================================================
 # apt: zplug - https://github.com/zplug/zplug
@@ -149,8 +152,8 @@ if [ -r "/usr/share/zplug/init.zsh" ]; then
 #  curl -sL --proto-redir -all,https https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
 else
   p_war "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')not found, skipping ..."
-  # create temporary dummy zplug alias so all commannds below will succeed
-  alias zplug_cmd=:
+  # temporary dummy zplug alias so all commannds below will exit gracefully
+  alias zplug_cmd=false
 fi
 
 # https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins
@@ -173,25 +176,34 @@ autoload -U promptinit
 promptinit
 #prompt yasuo 0 >/dev/null || prompt fade 0
 prompt fade 0
+# }}} - BASIC ----------------------------------------------------------------
+
+# {{{ - PL9K -----------------------------------------------------------------
+#https://github.com/bhilburn/powerlevel9k/wiki/About-Fonts
+#POWERLEVEL9K_MODE=awesome-fontconfig
 # fonts: fira code, deb: fonts-powerline fonts-inconsolata
 # sudo fc-cache -vf ~/.local/share/fonts
-# }}} - BASIC ----------------------------------------------------------------
-# {{{ - PL9K -----------------------------------------------------------------
+
 # load pewerlevel9k (if availlable)
 # apt: zsh-theme-powerlevel9k - https://github.com/bhilburn/powerlevel9k
 #source_ifex /usr/share/powerlevel9k/powerlevel9k.zsh-theme
-zplug_cmd "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme
+zplug_cmd "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme \
+  && POWERLEVEL9K_ISACTIVE=true || POWERLEVEL9K_ISACTIVE=false
+
 # {{{ - - General ------------------------------------------------------------
-POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable)
-#POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(disk_usage)
-POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline user custom_prompt)
-POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status vcs background_jobs docker_machine)
+POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable) # disk_usage
+POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline context) # root_indicator
+POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(vcs newline status command_execution_time \
+                                    background_jobs docker_machine)
 [[ "$HOST:l" =~ ^(puppet|weyera).*$ ]] \
   && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 
+#export DEFAULT_USER="$USER"
+POWERLEVEL9K_CONTEXT_TEMPLATE="$(isme || printf '%n ')\u03bb"
+#POWERLEVEL9K_USER_TEMPLATE="%n"
 #POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
-POWERLEVEL9K_SHORTEN_DIR_LENGTH=4
+POWERLEVEL9K_SHORTEN_DIR_LENGTH=3
 POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
 POWERLEVEL9K_PROMPT_ON_NEWLINE=false
 POWERLEVEL9K_RPROMPT_ON_NEWLINE=true
@@ -199,19 +211,38 @@ POWERLEVEL9K_TIME_FORMAT="%D{%H:%M}"
 #POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX="\u256D"
 #POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="\u2570[$USER]\u03bb"
 POWERLEVEL9K_STATUS_VERBOSE=false
+#POWERLEVEL9K_BACKGROUND_JOBS_VERBOSE=false # default: true
+#POWERLEVEL9K_BACKGROUND_JOBS_VERBOSE_ALWAYS=true # default: false
+#POWERLEVEL9K_COMMAND_EXECUTION_TIME_THRESHOLD=0 # default: 3
+POWERLEVEL9K_COMMAND_EXECUTION_TIME_PRECISION=0 # default: 2
 POWERLEVEL9K_DISK_USAGE_ONLY_WARNING=true
-# hide username if current user
-export DEFAULT_USER="$USER"
+# hide user/context if current user
+#POWERLEVEL9K_VCS_GIT_HOOKS=(vcs-detect-changes git-untracked git-aheadbehind \
+#  git-stash git-remotebranch git-tagname)
 # }}} - - General ------------------------------------------------------------
 # {{{ - - Colors -------------------------------------------------------------
-POWERLEVEL9K_USER_DEFAULT_BACKGROUND="black"
-POWERLEVEL9K_USER_DEFAULT_FOREGROUND="249"
-POWERLEVEL9K_USER_SUDO_FOREGROUND="yellow"
-POWERLEVEL9K_USER_ROOT_FOREGROUND="red"
+#POWERLEVEL9K_USER_DEFAULT_BACKGROUND="black"
+#POWERLEVEL9K_USER_DEFAULT_FOREGROUND="249"
+#POWERLEVEL9K_USER_SUDO_BACKGROUND="black"
+#POWERLEVEL9K_USER_SUDO_FOREGROUND="yellow"
+#POWERLEVEL9K_USER_ROOT_BACKGROUND="black"
+#POWERLEVEL9K_USER_ROOT_FOREGROUND="red"
+
 POWERLEVEL9K_HOST_LOCAL_BACKGROUND="249"
 POWERLEVEL9K_HOST_LOCAL_FOREGROUND="black"
 POWERLEVEL9K_HOST_REMOTE_BACKGROUND="yellow"
 POWERLEVEL9K_HOST_REMOTE_FOREGROUND="black"
+
+POWERLEVEL9K_CONTEXT_DEFAULT_BACKGROUND="white"
+POWERLEVEL9K_CONTEXT_DEFAULT_FOREGROUND="black"
+POWERLEVEL9K_CONTEXT_SUDO_BACKGROUND="yellow"
+POWERLEVEL9K_CONTEXT_SUDO_FOREGROUND="black"
+POWERLEVEL9K_CONTEXT_ROOT_BACKGROUND="red"
+POWERLEVEL9K_CONTEXT_ROOT_FOREGROUND="white"
+#POWERLEVEL9K_CONTEXT_REMOTE_BACKGROUND=""
+#POWERLEVEL9K_CONTEXT_REMOTE_FOREGROUND=""
+#POWERLEVEL9K_CONTEXT_REMOTE_SUDO_BACKGROUND=""
+#POWERLEVEL9K_CONTEXT_REMOTE_SUDO_FOREGROUND=""
 
 POWERLEVEL9K_DIR_DEFAULT_FOREGROUND="249"
 POWERLEVEL9K_DIR_DEFAULT_BACKGROUND="blue"
@@ -224,15 +255,17 @@ POWERLEVEL9K_DIR_ETC_BACKGROUND="cyan"
 POWERLEVEL9K_DIR_WRITABLE_FORBIDDEN_FOREGROUND="249"
 POWERLEVEL9K_DIR_WRITABLE_FORBIDDEN_BACKGROUND="red"
 
-POWERLEVEL9K_ROOT_INDICATOR_BACKGROUND="red"
-POWERLEVEL9K_ROOT_INDICATOR_FOREGROUND="white"
+#POWERLEVEL9K_ROOT_INDICATOR_BACKGROUND="red"
+#POWERLEVEL9K_ROOT_INDICATOR_FOREGROUND="white"
 
 POWERLEVEL9K_TIME_BACKGROUND="clear"
 POWERLEVEL9K_TIME_FOREGROUND="249"
 
-POWERLEVEL9K_CUSTOM_PROMPT="print '\u03bb'"
-POWERLEVEL9K_CUSTOM_PROMPT_FOREGROUND="249"
-POWERLEVEL9K_CUSTOM_PROMPT_BACKGROUND="black"
+POWERLEVEL9K_COMMAND_EXECUTION_TIME_FOREGROUND="white"
+
+#POWERLEVEL9K_CUSTOM_PROMPT="printf '%s\u03bb' '%($(issu)-%B%F{red}-%F{white})%F'"
+#POWERLEVEL9K_CUSTOM_PROMPT_FOREGROUND="black"
+#POWERLEVEL9K_CUSTOM_PROMPT_BACKGROUND="249"
 
 POWERLEVEL9K_BACKGROUND_JOBS_FOREGROUND="yellow"
 
@@ -414,7 +447,24 @@ fi
 # }}} - MISC -----------------------------------------------------------------
 # }}} = ZSH SETTINGS =========================================================
 
-# {{{ = MISC =================================================================
+# {{{ = INCLUDES =============================================================
+# include os/host specific functon files
+source_ifex_custom $HOME/.zsh.d/functions
+# include os/host specific aliase files
+source_ifex_custom $HOME/.zsh.d/aliases
+# include os/host specific zshrc files
+source_ifex_custom $HOME/.zsh.d/zshrc
+# }}} = INCLUDES =============================================================
+
+# {{{ = ZSH SETTINGS - HIGHLIGHTING ==========================================
+# activate syntax highlighting, load last to affect everything loaded before
+# apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
+[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ] \
+  && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+zplug "zsh-users/zsh-syntax-highlighting"
+# }}} = ZSH SETTINGS - HIGHLIGHTING ==========================================
+
+# {{{ = FINAL EXECUTIONS =====================================================
 # remove core dump files
 rm -f ~/*.core(N) ~/*.dump(N) &!
 
@@ -445,29 +495,12 @@ if [ "$DISPLAY" ]; then
   xmodmap -e 'keycode 0x6B = Print Sys_Req Print Terminate_Server Print Sys_Req' 2>/dev/null &!
 fi
 # }}} - X STUFF --------------------------------------------------------------
-# {{{ - INCLUDES -------------------------------------------------------------
-# include comman aliases and os/host specific aliase files
-source_ifex $HOME/.zsh.d/aliases
-source_ifex_custom $HOME/.zsh.d/aliases
-
-# include os/host specific zshrc files
-source_ifex_custom $HOME/.zsh.d/zshrc
-# }}} - INCLUDES -------------------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
-# print welcome message
+# print welcome message (if top-level shell)
 if [[ $SHLVL -eq 1 ]]; then
-   #echo
-   #print -P "\e[1;32m Welcome to: \e[1;34m%m"
-   #print -P "\e[1;32m Running: \e[1;34m`uname -srm`\e[1;32m on \e[1;34m%l"
-   #print -P "\e[1;32m It is:\e[1;34m %D{%r}\e[1;32m on \e[1;34m%D{%A %b %f %G}"
-   print -P "\e[1;32mWelcome to \e[1;34m%m\e[1;32m running \e[1;34m`uname -srm`\e[1;32m on \e[1;34m%l"
+   print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
+   # on %F{green}#%l%f%b"
+   print -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"
 fi
 # }}} - MOTD -----------------------------------------------------------------
-# {{{ - FINAL STEPS ----------------------------------------------------------
-# activate syntax highlighting, load last to affect everything loaded before
-# apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
-[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ] \
-  && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-zplug "zsh-users/zsh-syntax-highlighting"
-# }}} - FINAL STEPS ----------------------------------------------------------
-# }}} = MISC =================================================================
+# }}} = FINAL EXECUTIONS =====================================================

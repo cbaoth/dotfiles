@@ -1,9 +1,10 @@
 # ~/.zsh/aliases-linux.zsh: Linux aliases
 
 # Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc bashrc shell-script linux
+# Keywords: zsh zshrc  shell-script linux
 
-# -- GENERAL -----------------------------------------------------------------
+# {{{ = COMMON ===============================================================
+# {{{ - GENERAL --------------------------------------------------------------
 # LC_COLLATE=C will sort all uppercase before all lowercase
 alias ls='LC_COLLATE=C ls --color --all -F --group-directories-first'
 alias lsa='LC_COLLATE=C ls --color -all -F --group-directories-first'
@@ -12,30 +13,36 @@ alias lsah='LC_COLLATE=C ls --color -all -F -h'
 alias ls.='LC_COLLATE=C ls -ld --group-directories-first .*'
 alias lsg='LC_COLLATE=C ls | grep -Ei --color'
 alias lsag='LC_COLLATE=C ls --all | grep -Ei --color'
+# }}} - GENERAL --------------------------------------------------------------
 
-# -- SYSTEM ------------------------------------------------------------------
+# {{{ - SYSTEM ---------------------------------------------------------------
 alias fontcache-refresh="sudo fc-cache -f -v"
 alias remount-exec="sudo mount -o remount,exec"
+# }}} - SYSTEM ---------------------------------------------------------------
 
-# -- NETWORK -----------------------------------------------------------------
+# {{{ - NETWORK --------------------------------------------------------------
 alias route-newdefault='sudo route delete default; sudo route add default gw'
+# }}} - NETWORK --------------------------------------------------------------
 
-# -- MULTIMEDIA --------------------------------------------------------------
+# {{{ - MULTIMEDIA -----------------------------------------------------------
 #alias tvrec-kill='pkill -f "cat /dev/video0"'
 #alias burndvd='growisofs -Z /dev/dvd -R -J'
 alias midi-keyboard-output="aconnect \`aconnect -i | grep -E 'client.*Keystation Mini 32'| sed -r 's/^client ([0-9]+).*/\1/'\` \`aconnect -o | grep -E 'client.*FLUID Synth'| sed -r 's/^client ([0-9]+).*/\1/'\`"
+# }}} - MULTIMEDIA -----------------------------------------------------------
 
-# -- MISC --------------------------------------------------------------------
+# {{{ - MISC -----------------------------------------------------------------
 #alias incoming="xterm -fn edges -fb edges -T isdn-incoming -g 100x8+0-63 -e socket bateau 9444 &"
+# }}} - MISC -----------------------------------------------------------------
+# }}} = COMMON ===============================================================
 
-# == DISTRIBUTION SPECIFIC ===================================================
-# -- DEB ---------------------------------------------------------------------
-if [ -n "`which dpkg 2>/dev/null`" ]; then
+# {{{ = DISTRIBUTION SPECIFIC ================================================
+# {{{ - DEB ------------------------------------------------------------------
+if [ -n "`command -v dpkg 2>/dev/null`" ]; then
   alias dgs="dpkg --get-selections"
   alias dca="dpkg --configure -a"
 fi
 
-if [ -n "`which apt-get 2>/dev/null`" ]; then
+if [ -n "`command -v apt-get 2>/dev/null`" ]; then
   alias ag="sudo apt-get"
   alias agi="sudo apt-get -y install"
   alias agr="sudo apt-get remove"
@@ -48,18 +55,19 @@ if [ -n "`which apt-get 2>/dev/null`" ]; then
   alias agsm="comm -23 <(apt-mark showmanual | sort -u) <(gzip -dc /var/log/installer/initial-status.gz | sed -n 's/^Package: //p' | sort -u)"
 fi
 
-if [ -n "`which apt-cache 2>/dev/null`" ]; then
+if [ -n "`command -v apt-cache 2>/dev/null`" ]; then
   alias ac="apt-cache"
   alias acs="apt-cache search"
   alias aci="apt-cache show"
 fi
 
-if [ -n "`which apt-key 2>/dev/null`" ]; then
+if [ -n "`command -v apt-key 2>/dev/null`" ]; then
   alias apt-key-add="sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys"
 fi
+# {{{ - DEB ------------------------------------------------------------------
 
-# -- PACMAN ------------------------------------------------------------------
-if [ -n "`which pacman 2>/dev/null`" ]; then
+# {{{ - PACMAN ---------------------------------------------------------------
+if [ -n "`command -v pacman 2>/dev/null`" ]; then
   alias pmi="sudo pacman -S"
   alias pms="sudo pacman -Ss"
   alias pmr="sudo pacman -Rs"
@@ -69,3 +77,5 @@ if [ -n "`which pacman 2>/dev/null`" ]; then
   alias auri="sudo pacman -U"
   alias aurbui="makepkg && sudo pacman -U *.pkg.tar.xz"
 fi
+# }}} - PACMAN ---------------------------------------------------------------
+# }}} = DISTRIBUTION SPECIFIC ================================================

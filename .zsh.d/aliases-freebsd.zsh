@@ -1,15 +1,16 @@
 # ~/.zsh/aliases-freebsd.zsh: FreeBSD aliases
 
 # Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc bashrc shell-script freebsd
+# Keywords: zsh zshrc  shell-script freebsd
 
-# -- GENERAL -----------------------------------------------------------------
+# {{{ - GENERAL --------------------------------------------------------------
 alias ls='ls -aFG'
 alias lsa='ls -alFG'
 alias lsh='ls -aFG -h'
 alias lsah='ls -alFG -h'
+# }}} - GENERAL --------------------------------------------------------------
 
-# -- SYSTEM ------------------------------------------------------------------
+# {{{ - SYSTEM ---------------------------------------------------------------
 alias freebsd-term='TERM="cons25"'
 alias ports-list='find /usr/ports -type d -d 2|sed "s/\/usr\/ports\///g"'
 alias ports-search='whereis -sa'
@@ -26,13 +27,17 @@ alias ports-clean-distfiles='sudo portmaster --clean-distfiles-all'
 alias ports-list-installed-bycat='portmaster -l'
 
 alias pkg-search-installed='pkg_info | grep -iE'
+# }}} - SYSTEM ---------------------------------------------------------------
 
-# -- MULTIMEDIA --------------------------------------------------------------
+# {{{ - MULTIMEDIA -----------------------------------------------------------
 alias burn='sudo cdrecord -v -pad speed=24 dev=0,0,0 -eject'
 alias burn-blankrw='sudo cdrecord -v dev=0,0,0 blank=fast -eject'
+# }}} - MULTIMEDIA -----------------------------------------------------------
 
-# -- NETWORK ------------------------------------------------------------------
+# {{{ - NETWORK --------------------------------------------------------------
 #alias route-newdefault='sudo route delete default; sudo route add default'
+# }}} - NETWORK --------------------------------------------------------------
 
-# -- LINUX SUBSYSTEM ----------------------------------------------------------
+# {{{ - LINUX SUBSYSTEM ------------------------------------------------------
 alias linuxabi='brandelf -t Linux'
+# }}} - LINUX SUBSYSTEM ------------------------------------------------------

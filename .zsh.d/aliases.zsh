@@ -1,9 +1,12 @@
 # ~/.zsh/aliases: Common aliases
 
 # Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc bashrc shell-script
+# Keywords: zsh zshrc shell-script
 
-# -- GENERAL -----------------------------------------------------------------
+# {{{ = COMMON ===============================================================
+# The following aliases will wirk in zsh, bash, etc.
+
+# {{{ - GENERAL --------------------------------------------------------------
 alias cpi='cp -i'
 alias mvi='mv -i'
 alias vim='vim -N'
@@ -21,16 +24,18 @@ alias rsync-merge='rsync -abviuzP'
 alias rsync-local='rsync -vurpl'
 alias rsync-local-del='rsync -vurpl --delete'
 alias rsync-local-sizeonly='rsync -vurpl --size-only'
+# }}} - GENERAL --------------------------------------------------------------
 
-# -- SYSTEM ------------------------------------------------------------------
+# {{{ - SYSTEM ---------------------------------------------------------------
 #alias mount-nas='mount | grep "/media/nas[12]" && echo "ERROR: At least one of /media/nas[12] is already mounted! Use remount-nas to force remount." >&2 || (mount /media/nas1; mount /media/nas2)'
 #alias remount-nas='sudo umount -f -l /media/nas1; sudo umount -f -l /media/nas2; mount /media/nas1; mount /media/nas2'
 #alias mount-yavin='mount | grep "/media/yavin" && echo "ERROR: /media/yavin is already mounted! Use remount-yavin to force remount." >&2 || mount /media/yavin'
 #alias remount-yavin='sudo umount -f /media/yavin && mount /media/yavin || losof '
 #alias remount-yavin='sudo umount -f -l /media/yavin; mount /media/yavin'
 alias disk-uuid-list='sudo blkid -c /dev/null'
+# }}} - SYSTEM ---------------------------------------------------------------
 
-# -- SECURITY ----------------------------------------------------------------
+# {{{ - SECURITY -------------------------------------------------------------
 alias authlog-ssh-ip+user='sudo grep "Failed" /var/log/auth.log | sed "s/.*for\( invalid user\)* \([^ ]*\) from \([^ ]*\) .*/\3\t\2/" | grep -v sudo: | sort | uniq -c'
 alias authlog-ssh-ip-all='sudo zcat /var/log/auth.log.* | grep "Failed" | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v sudo: | sort | uniq -c | sort -r'
 alias authlog-ssh-ip='sudo grep "Failed" /var/log/auth.log | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v sudo: | sort | uniq -c'
@@ -38,17 +43,20 @@ alias authlog-ssh-user='sudo grep "Failed" /var/log/auth.log | sed "s/.*for\( in
 alias authlog-proxy-ip='sudo cat /var/log/oops/access.log | egrep "TCP_DENIED/555.*NULL/AUTH_MOD" | sed "s/.* \(.*\) TCP_DENIED\/555.*NULL\/AUTH_MOD.*/\1/g" | grep -v sudo: | sort | uniq -c'
 #alias authlog-ftp-ip='sudo grep "Failed" /var/log/auth.log | ...'
 # sudo egrep "ftpd.*authentication failure" /var/log/auth.log | sed "s/.*ftpd:.*authentication failure.*rhost=\(([0-9]{1,3}\.){3}[0-9]{1,3}\).*/\1/g"
+# }}} - SECURITY -------------------------------------------------------------
 
-# -- MAIL --------------------------------------------------------------------
+# {{{ - MAIL -----------------------------------------------------------------
 #alias fetchmail='fetchmail --mda "formail -s procmail" -f $HOME/.fetchmailrc'
 alias fetchmail='fetchmail --mda "/usr/bin/spamc -e /usr/lib/dovecot/deliver" -f $HOME/.fetchmailrc --bad-header accept'
+# }}} - MAIL -----------------------------------------------------------------
 
-# -- DEV ---------------------------------------------------------------------
+# {{{ - DEV ------------------------------------------------------------------
 alias ocamli='ledit ocaml'
 alias cmucl="rlwrap -b \$BREAK_CHARS cmucl"
 alias python-profile="python -m cProfile -s time"
+# }}} - DEV ------------------------------------------------------------------
 
-# -- NETWORK -----------------------------------------------------------------
+# {{{ - NETWORK --------------------------------------------------------------
 alias wget="wget -U \"$UAGENT\""
 alias axel="axel -U \"$UAGENT\" -a"
 #alias epic='TERM=rxvt && su yasuo -c '\''epic4 yasuo irc.tu-ilmenau.de'\'''
@@ -74,8 +82,9 @@ alias ssh2='ssh -p 8090'
 #alias vncap='vncviewer -autopass'
 alias wake-saito='wakeonlan bc:5f:f4:9f:08:dc'
 alias wake-motoko='wakeonlan 1C:1B:0D:E7:BE:B3'
+# }}} - NETWORK --------------------------------------------------------------
 
-# -- xorg --------------------------------------------------------------------
+# {{{ - XORG -----------------------------------------------------------------
 alias xerrorlog-tail='tail -f ~/.x11startlog ~/.xsession-errors ~/.xmonad/xmonad.errors'
 alias xpropc="xprop | awk '/WM_CLASS/{print \$4\".\"\$3}' | sed 's/[,\"]//g'"
 alias xprop-class='xprop WM_CLASS | cut -d\" -f2'
@@ -84,8 +93,9 @@ alias xprop-type='xprop _NET_WM_WINDOW_TYPE | cut -d_ -f10'
 alias xprop-title='xprop WM_NAME | cut -d\" -f2'
 alias xprop-role='xprop WM_WINDOW_ROLE | cut -d\" -f2'
 alias xprop2="xprop|grep -E '^(WM_CLASS|WM_NAME|WM_WINDOW_ROLE)' | sed -r 's/^WM_(WINDOW_)?([^_(\s]+)(\([^)]*\))?/\2/g ; s/^NAME/TITLE/g ; s/\s*=\s*/\t/g ; s/CLASS\t\"(.*)\", \"(.*)\"/CLASS\t"\1"\nNAME\t"\2"/g'"
+# }}} - XORG -----------------------------------------------------------------
 
-# -- multimedia --------------------------------------------------------------
+# {{{ - MULTIMEDIA -----------------------------------------------------------
 #alias alevt='alevt -vbi /dev/v4l/vbi0 -parent 100'
 #alias esound='esddsp -s togusa'
 #alias mplayer-esd='mplayer -ao esd:togusa'
@@ -131,13 +141,9 @@ alias exif-date-rename='exiv2 -v -F -k -r %Y-%m-%d_%H%M%S_:basename:'
 #alias dvdburn='growisofs -Z /dev/dvd -r -J'
 #alias dvdburn='echo "growisofs -dvd-compat -Z /dev/dvd2=file.iso"'
 #alias cdisoburn='sudo cdrecord dev=ATAPI:/dev/hdc driveropts=burnfree -dao'
+# }}} - MULTIMEDIA -----------------------------------------------------------
 
-# -- games -------------------------------------------------------------------
-#alias wolfsp='wolfsp +setsv_cheats 1'
-#alias cstrike-net='cd /data/WineX/Counter-Strike && winex cstrike.exe -console -noipx +connect'
-#alias cstrike='cd /data/WineX/Counter-Strike && winex cstrike.exe -console -noipx'
-
-# -- misc --------------------------------------------------------------------
+# {{{ - MISC -----------------------------------------------------------------
 alias cal-m='ncal -wM -m'
 alias cal-y='ncal -ywM'
 alias tr-tolower="tr '[A-Z]' '[a-z]'"
@@ -164,3 +170,77 @@ alias cat-utf16-to-iso-8859-1='iconv -f utf-16 -t ISO-8859-1'
 alias cat-utf8-to-iso-8859-1='iconv -f utf-8 -t ISO-8859-1'
 alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'
 alias rpm-extract='rpm2cpio "$1" | cpio -ivd'
+# }}} - MISC -----------------------------------------------------------------
+# }}} = COMMON ===============================================================
+
+# {{{ = ZSH ONLY =============================================================
+# The following aliases are intended for ZSH only, skip if not in ZSH shell.
+# Why? So this aliases file can be borrowed by other shells such as bash.
+[[ ! $SHELL = *zsh ]] || return 0
+
+# {{{ - SUFFIX ALIASES -------------------------------------------------------
+# e.g. 'alias -s txt=vim', now 'foo.txt' will open foo.txt in vim
+alias -s {txt,ini,conf,html,htm,xml}='vim -N'
+#alias -s {com,net,org,de,in}='links2'
+# }}} - SUFFIX ALIASES -------------------------------------------------------
+
+# {{{ - GLOBAL ALIASES -------------------------------------------------------
+alias -g wget="wget -U \"$UAGENT\""
+alias -g axel="axel -U \"$UAGENT\" -a"
+alias -g tr-tolower="tr '[A-Z]' '[a-z]'"
+alias -g tr-toupper="tr '[a-z]' '[A-Z]'"
+alias -g mp3gain-track='mp3gain -k -d 93.5 -r'
+alias -g mp3gain-album='mp3gain -k -d 93.5 -a'
+alias -g urlclean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/gi'"
+alias -g urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/gi'"
+
+# no spelling correction (if correct / correctall is active)
+# can result in ussues when used with sudo
+#alias -g rm='nocorrect rm'
+#alias -g cp='nocorrect cp'
+#alias -g mv='nocorrect mv'
+#alias -g zmv='nocorrect zmv'
+#alias -g mkdir='nocorrect mkdir'
+
+# http://grml.org/zsh/zsh-lovers.html
+#alias -g ...='../..'
+#alias -g ....='../../..'
+#alias -g .....='../../../..'
+#alias -g CA="2>&1 | cat -A"
+#alias -g C='| wc -l'
+#alias -g D="DISPLAY=:0.0"
+#alias -g DN=/dev/null
+#alias -g ED="export DISPLAY=:0.0"
+#alias -g EG='|& egrep'
+#alias -g EH='|& head'
+#alias -g EL='|& less'
+#alias -g ELS='|& less -S'
+#alias -g ETL='|& tail -20'
+#alias -g ET='|& tail'
+#alias -g F=' | fmt -'
+#alias -g G='| egrep'
+#alias -g H='| head'
+#alias -g HL='|& head -20'
+#alias -g Sk="*~(*.bz2|*.gz|*.tgz|*.zip|*.z)"
+#alias -g LL="2>&1 | less"
+#alias -g L="| less"
+#alias -g LS='| less -S'
+#alias -g MM='| most'
+#alias -g M='| more'
+#alias -g NE="2> /dev/null"
+#alias -g NS='| sort -n'
+#alias -g NUL="> /dev/null 2>&1"
+#alias -g PIPE='|'
+#alias -g R=' > /c/aaa/tee.txt '
+#alias -g RNS='| sort -nr'
+#alias -g S='| sort'
+#alias -g TL='| tail -20'
+#alias -g T='| tail'
+#alias -g US='| sort -u'
+#alias -g VM=/var/log/messages
+#alias -g X0G='| xargs -0 egrep'
+#alias -g X0='| xargs -0'
+#alias -g XG='| xargs egrep'
+#alias -g X='| xargs'
+# }}} - GLOBAL ALIASES -------------------------------------------------------
+# }}} = ZSH ONLY =============================================================

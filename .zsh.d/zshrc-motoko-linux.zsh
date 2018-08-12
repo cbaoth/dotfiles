@@ -1,9 +1,8 @@
 # ~/.zsh/zshrc-freebsd.zsh: Linux zshrc for host [motoko]
 
 # Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc shell-script
+# Keywords: zsh zshrc shell-script linux
 
-# == START X =================================================================
 # start up x if it is not allready running
 #if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
 #  exec startx
