@@ -143,17 +143,21 @@ isme() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 
 # {{{ = ZPLUG PREPARE ========================================================
 # apt: zplug - https://github.com/zplug/zplug
-if [ -r "/usr/share/zplug/init.zsh" ]; then
-  p_dbg 0 2 zpug found, loading ...
-  # init (load) zplug
+alias zplug_cmd=zplug
+if [ -f "/usr/share/zplug/init.zsh" ]; then
+  p_dbg 0 2 'zplug found in /usr/share/zplug, loading ...'
   source /usr/share/zplug/init.zsh
-  alias zplug_cmd=zplug
-#elif
-#  curl -sL --proto-redir -all,https https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
+elif [ -f "$HOME/.zplug/init.zsh" ]; then
+  p_dbg 0 2 'zplug found in ~/.zplug, loading ...'
+  source "$HOME/.zplug/init.zsh"
 else
-  p_war "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')not found, skipping ..."
-  # temporary dummy zplug alias so all commannds below will exit gracefully
-  alias zplug_cmd=false
+  p_msg 'zplug not found in either /usr/share/zplug or ~/.zplug, downloading ...'
+  curl -sL --proto-redir -all,https https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
+  if [ $? -ne 0 ]; then
+    p_war "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')download failed, skipping ..."
+    # temporary dummy zplug alias so all commannds below will exit gracefully
+    alias zplug_cmd=false
+  fi
 fi
 
 # https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins
@@ -200,7 +204,7 @@ POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(vcs newline status command_execution_time \
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 
 #export DEFAULT_USER="$USER"
-POWERLEVEL9K_CONTEXT_TEMPLATE="$(isme || printf '%n ')\u03bb"
+POWERLEVEL9K_CONTEXT_TEMPLATE="$(isme || print -P '%n ')\u03bb"
 #POWERLEVEL9K_USER_TEMPLATE="%n"
 #POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
 POWERLEVEL9K_SHORTEN_DIR_LENGTH=3
@@ -235,14 +239,14 @@ POWERLEVEL9K_HOST_REMOTE_FOREGROUND="black"
 
 POWERLEVEL9K_CONTEXT_DEFAULT_BACKGROUND="white"
 POWERLEVEL9K_CONTEXT_DEFAULT_FOREGROUND="black"
+POWERLEVEL9K_CONTEXT_REMOTE_BACKGROUND="white"
+POWERLEVEL9K_CONTEXT_REMOTE_FOREGROUND="black"
 POWERLEVEL9K_CONTEXT_SUDO_BACKGROUND="yellow"
 POWERLEVEL9K_CONTEXT_SUDO_FOREGROUND="black"
-POWERLEVEL9K_CONTEXT_ROOT_BACKGROUND="red"
+POWERLEVEL9K_CONTEXT_REMOTE_SUDO_BACKGROUND="yellow"
+POWERLEVEL9K_CONTEXT_REMOTE_SUDO_FOREGROUND="black"
 POWERLEVEL9K_CONTEXT_ROOT_FOREGROUND="white"
-#POWERLEVEL9K_CONTEXT_REMOTE_BACKGROUND=""
-#POWERLEVEL9K_CONTEXT_REMOTE_FOREGROUND=""
-#POWERLEVEL9K_CONTEXT_REMOTE_SUDO_BACKGROUND=""
-#POWERLEVEL9K_CONTEXT_REMOTE_SUDO_FOREGROUND=""
+POWERLEVEL9K_CONTEXT_ROOT_BACKGROUND="red"
 
 POWERLEVEL9K_DIR_DEFAULT_FOREGROUND="249"
 POWERLEVEL9K_DIR_DEFAULT_BACKGROUND="blue"
@@ -281,7 +285,7 @@ POWERLEVEL9K_VCS_MODIFIED_BACKGROUND='yellow'
 
 # {{{ = ZPLUG LOAD ===========================================================
 zplug_cmd check --verbose \
-  || { yesno_p "Install missing zplug packages" && zplug install }
+  || { q_yesno "Install missing zplug packages" && zplug install }
 
 # load local plugins
 #zplug_cmd "~/.zsh.d", from:local
