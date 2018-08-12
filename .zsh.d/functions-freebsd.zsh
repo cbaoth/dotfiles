@@ -1,7 +1,7 @@
 # ~/.zsh/functions-freebsd.zsh: FreeBSD functions
 
 # Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc bashrc shell-script freebsd
+# Keywords: zsh zshrc shell-script freebsd
 
 rpm-extract () {
   [ -z "$1" ] &&\
