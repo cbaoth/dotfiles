@@ -38,12 +38,12 @@ My core configuration (dot) files.
 
 Custom OS and host specific ZSH configurtaions, aliases and function files can be created and they are automatically loaded. This provides a simple way to prepare the environment of a specific host without the need of messing around with the core files.
 
-This function is used to load the files:
-
-[source,bash]
-----
-include::.zshrc[lines=120..137]
-----
+//This function is used to load the files:
+//
+//[source,bash]
+//----
+//include::.zshrc[lines=120..137]
+//----
 
 This is the sequence in which the files are loaded:
 
