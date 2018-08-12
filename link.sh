@@ -1,4 +1,6 @@
 #!/bin/bash
+# Author:   cbaoth <dev@cbaoth.de>
+# Keywords: bash shell-script
 
 # TODO
 # - Skip existing links that already point to the right destination
