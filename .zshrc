@@ -5,6 +5,9 @@
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zsh zshrc shell-script
 
+# TODO:
+# look into https://github.com/clvv/fasd
+
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 # For login shell / general variable like PATH see ~/.zshenv
 
@@ -30,11 +33,18 @@ umask 022
 # }}} - UMASK ----------------------------------------------------------------
 
 # {{{ - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
-export IS_WSL=false
+# Are we in a Windows Subsystem Linux?
+IS_WSL=false
 if [[ $(uname -r) = *Microsoft* ]]; then
   IS_WSL=true
   # See https://github.com/Microsoft/BashOnWindows/issues/1887
   unsetopt BG_NICE
+fi
+
+# Is X available?
+IS_X=false
+if [ ! xset q &>/dev/null ]; then
+  IS_X=true
 fi
 # }}} - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
 
@@ -92,6 +102,14 @@ export IRCNAME="Jorus C'Baoth"
 #export IRCUSER="cbaoth"
 # }}} - IRC ------------------------------------------------------------------
 
+# {{{ - ZSH ------------------------------------------------------------------
+# Default apps
+$IS_X && export EDITOR=code || export EDITOR=vim
+$IS_X && export BROWSER=google-chrome || export BROWSER=links
+$IS_X && export IMGVIEWER=xnview || export IMGVIEWER=catimg
+$IS_X && export MPLAYER=mpv || export MPLAYER=mpv
+# }}} - ZSH ------------------------------------------------------------------
+
 # {{{ - MISC -----------------------------------------------------------------
 #UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517"
 #UAGENT+=" Mozilla Firebird/0.6"
@@ -144,24 +162,28 @@ isme() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # {{{ = ZPLUG PREPARE ========================================================
 # apt: zplug - https://github.com/zplug/zplug
 alias zplug_cmd=zplug
-if [ -f "/usr/share/zplug/init.zsh" ]; then
-  p_dbg 0 2 'zplug found in /usr/share/zplug, loading ...'
-  source /usr/share/zplug/init.zsh
-elif [ -f "$HOME/.zplug/init.zsh" ]; then
+#if [ -f "/usr/share/zplug/init.zsh" ]; then
+#  p_dbg 0 2 'zplug found in /usr/share/zplug, loading ...'
+#  source /usr/share/zplug/init.zsh
+if [ -f "$HOME/.zplug/init.zsh" ]; then
   p_dbg 0 2 'zplug found in ~/.zplug, loading ...'
   source "$HOME/.zplug/init.zsh"
 else
-  p_msg 'zplug not found in either /usr/share/zplug or ~/.zplug, downloading ...'
+  p_war 'init.zsh not found in ~/.zplug'
+  if [ -d "$HOME/.zplug" ]; then
+    q_yesno "zplug not found but $HOME/.zplug exist, should I delete it?" \
+      && rm -rf ~/.zplug
+  fi
   curl -sL --proto-redir -all,https https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
   if [ $? -ne 0 ]; then
-    p_war "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')download failed, skipping ..."
+    p_war "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')download failed."
     # temporary dummy zplug alias so all commannds below will exit gracefully
     alias zplug_cmd=false
   fi
 fi
 
-# https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins
-zplug_cmd "plugins/git", from:oh-my-zsh
+# self-manage zplug (zplug update will upldate zplug itself)
+zplug 'zplug/zplug', hook-build:'zplug --self-manage'
 # }}} = ZPLUG PREPARE ========================================================
 
 # {{{ = PROMPT ===============================================================
@@ -284,6 +306,49 @@ POWERLEVEL9K_VCS_MODIFIED_BACKGROUND='yellow'
 # }}} - PL9K -----------------------------------------------------------------
 # }}} = PROMPT ===============================================================
 
+# {{{ = ZPLUG PLUGINS ========================================================
+#https://github.com/zsh-users/zsh-autosuggestions
+zplug_cmd "zsh-users/zsh-autosuggestions"
+ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=25
+
+# https://github.com/zsh-users/zaw
+zplug_cmd "zsh-users/zaw"
+
+# {{{ - OH MY ZSH ------------------------------------------------------------
+# https://github.com/robbyrussell/oh-my-zsh/wiki/Plugins
+
+zplug_cmd "plugins/catimg", from:oh-my-zsh
+#plugins/common-aliases
+zplug_cmd "plugins/command-not-found", from:oh-my-zsh
+#plugins/debian
+zplug_cmd "plugins/dircycle", from:oh-my-zsh # alt-left/right
+#zplug_cmd "plugins/dirhistory", from:oh-my-zsh # ctrl-shift-left/right
+zplug_cmd "plugins/docker", from:oh-my-zsh # docker autocompletion
+zplug_cmd "plugins/encode64", from:oh-my-zsh # encode64/decode64
+#https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
+zplug_cmd "plugins/git", from:oh-my-zsh
+zplug_cmd "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
+zplug_cmd "plugins/httpie", from:oh-my-zsh # completion for apt:httpie (http)
+zplug_cmd "plugins/jsontools", from:oh-my-zsh # *_json
+zplug_cmd "plugins/mvn", from:oh-my-zsh # maven completion
+zplug_cmd "plugins/sudo", from:oh-my-zsh # add sudo via 2xESC
+zplug_cmd "plugins/systemd", from:oh-my-zsh # systemd sc-* aliases
+zplug_cmd "plugins/tmux", from:oh-my-zsh
+#zplug_cmd "plugins/", from:oh-my-zsh
+#zplug_cmd "plugins/", from:oh-my-zsh
+#zplug_cmd "plugins/", from:oh-my-zsh
+#zplug_cmd "plugins/", from:oh-my-zsh
+#zplug_cmd "plugins/", from:oh-my-zsh
+#zplug_cmd "plugins/", from:oh-my-zsh
+# }}} - OH MY ZSH ------------------------------------------------------------
+
+# activate syntax highlighting, load last to affect everything loaded before
+# apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
+[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ] \
+  && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+  || zplug "zsh-users/zsh-syntax-highlighting"
+# }}} = ZPLUG PLUGINS ========================================================
+
 # {{{ = ZPLUG LOAD ===========================================================
 zplug_cmd check --verbose \
   || { q_yesno "Install missing zplug packages" && zplug install }
@@ -295,6 +360,42 @@ zplug_cmd load
 # remove temporary alias
 unalias zplug_cmd
 # }}} = ZPLUG LOAD ===========================================================
+
+# {{{ = ZPLUG SETTINGS =======================================================
+# zsh-autosuggestions
+bindkey '^ ' autosuggest-accept
+
+# {{{ - ZAW ------------------------------------------------------------------
+bindkey '^[r' zaw # alt-r
+bindkey '^r' zaw-history # ctrl-r
+bindkey -M filterselect '^r' down-line-or-history
+bindkey -M filterselect '^w' up-line-or-history
+bindkey -M filterselect '^ ' accept-search
+bindkey -M filterselect '\e' send-break # esc
+bindkey -M filterselect '^[' send-break # esc
+
+zstyle ':filter-select:highlight' matched fg=green
+zstyle ':filter-select' max-lines 5
+zstyle ':filter-select' case-insensitive yes
+zstyle ':filter-select' extended-search yes
+# }}} - ZAW ------------------------------------------------------------------
+
+# dircycle
+# TODO fix bindings, don't work
+# https://github.com/robbyrussell/oh-my-zsh/blob/master/plugins/dircycle/dircycle.plugin.zsh
+bindkey "^[\e[1;3D" insert-cycledleft # alt-left
+bindkey "^[\e[1;3C" insert-cycledright # alt-right
+
+# sudo
+bindkey "^[^[" sudo-command-line # esc, esc (if \e\e doesn't work)
+
+# tmux
+#ZSH_TMUX_AUTOSTART # default: false, auto start tmux on login
+#ZSH_TMUX_AUTOSTART_ONCE # default: true, start for ever (nested) zsh session
+#ZSH_TMUX_AUTOCONNECT # default: true, try connect to existing else new
+#ZSH_TMUX_AUTOQUIT # default: ZSH_TMUX_AUTOSTART, close session if tmux exits
+#ZSH_TMUX_FIXTERM # default: true, set TERM=screen(256color)
+# }}} = ZPLUG SETTINGS =======================================================
 
 # {{{ ZSH SETTINGS ===========================================================
 # load zmv extension (http://zshwiki.org/home/builtin/functions/zmv)
@@ -424,6 +525,10 @@ bindkey -e
 # lookup spaces
 bindkey ' ' magic-space
 
+# input navigation
+bindkey "^[[1;5D" backward-word # ctrl-left
+bindkey "^[[1;5C" forward-word # ctrl-right
+
 if [[ "$TERM" = *xterm* ]]; then
   #bindkey "\e[1~" beginning-of-line  # Home
   bindkey "\e[7~" beginning-of-line  # Home rxvt
@@ -460,14 +565,6 @@ source_ifex_custom $HOME/.zsh.d/aliases
 # include os/host specific zshrc files
 source_ifex_custom $HOME/.zsh.d/zshrc
 # }}} = INCLUDES =============================================================
-
-# {{{ = ZSH SETTINGS - HIGHLIGHTING ==========================================
-# activate syntax highlighting, load last to affect everything loaded before
-# apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
-[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ] \
-  && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-zplug "zsh-users/zsh-syntax-highlighting"
-# }}} = ZSH SETTINGS - HIGHLIGHTING ==========================================
 
 # {{{ = FINAL EXECUTIONS =====================================================
 # remove core dump files
