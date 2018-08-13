@@ -178,9 +178,12 @@ alias rpm-extract='rpm2cpio "$1" | cpio -ivd'
 # Why? So this aliases file can be borrowed by other shells such as bash.
 [[ ! $SHELL = *zsh ]] || return 0
 
+alias h='history'
+alias hs='history | grep -Ei'
+
 # {{{ - SUFFIX ALIASES -------------------------------------------------------
 # e.g. 'alias -s txt=vim', now 'foo.txt' will open foo.txt in vim
-alias -s {txt,ini,conf,html,htm,xml}='vim -N'
+#alias -s {txt,ini,conf,html,htm,xml}='vim -N'
 #alias -s {com,net,org,de,in}='links2'
 # }}} - SUFFIX ALIASES -------------------------------------------------------
 
