@@ -7,19 +7,31 @@
 # The following aliases will wirk in zsh, bash, etc.
 
 # {{{ - GENERAL --------------------------------------------------------------
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ~='cd ~'
+
 alias cpi='cp -i'
 alias mvi='mv -i'
+
+alias e='emacs -nw'
 alias vim='vim -N'
 alias vi='vim -N'
-alias grep='grep --color'
+
+for c in '' e f r; do
+  alias ${c}grep="${c}grep --color"
+done
+
 #alias sws='echo 4 > /proc/acpi/sleep'
-alias ps-all='ps uxaw --cols 64000'
-alias ps-forest='ps aw --forest --cols 64000'
+alias psa='ps uxaw --cols 64000'
+alias psf='ps aw --forest --cols 64000'
 alias killall9='pkill -9 -x'
 alias xdefaults-reload='xrdb -load ~/.Xdefaults'
-alias blank-screen-x='xset dpms force off'
+#alias blank-screen-x='xset dpms force off'
 #alias screen='export TERM=xterm-debian; screen'
-#alias ssh-ignorekeychange='ssh -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no'
+#alias ssh-ignorekeychange='ssh -oUserKnownHostsFile=/dev/null
+#  -oStrictHostKeyChecking=no'
+
 alias rsync-merge='rsync -abviuzP'
 alias rsync-local='rsync -vurpl'
 alias rsync-local-del='rsync -vurpl --delete'
@@ -27,27 +39,47 @@ alias rsync-local-sizeonly='rsync -vurpl --size-only'
 # }}} - GENERAL --------------------------------------------------------------
 
 # {{{ - SYSTEM ---------------------------------------------------------------
-#alias mount-nas='mount | grep "/media/nas[12]" && echo "ERROR: At least one of /media/nas[12] is already mounted! Use remount-nas to force remount." >&2 || (mount /media/nas1; mount /media/nas2)'
-#alias remount-nas='sudo umount -f -l /media/nas1; sudo umount -f -l /media/nas2; mount /media/nas1; mount /media/nas2'
-#alias mount-yavin='mount | grep "/media/yavin" && echo "ERROR: /media/yavin is already mounted! Use remount-yavin to force remount." >&2 || mount /media/yavin'
-#alias remount-yavin='sudo umount -f /media/yavin && mount /media/yavin || losof '
+#alias mount-nas='mount | grep "/media/nas[12]"
+#  && echo "ERROR: At least one of /media/nas[12] is already mounted! Use remount-nas to force remount." >&2
+#  || (mount /media/nas1; mount /media/nas2)'
+#alias remount-nas='sudo umount -f -l /media/nas1;
+#  sudo umount -f -l /media/nas2; mount /media/nas1;
+#  mount /media/nas2'
+#alias mount-yavin='mount | grep "/media/yavin"
+#  && echo "ERROR: /media/yavin is already mounted! Use remount-yavin to force remount." >&2
+#  || mount /media/yavin'
+#alias remount-yavin='sudo umount -f /media/yavin && mount /media/yavin
+#  || losof '
 #alias remount-yavin='sudo umount -f -l /media/yavin; mount /media/yavin'
 alias disk-uuid-list='sudo blkid -c /dev/null'
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - SECURITY -------------------------------------------------------------
-alias authlog-ssh-ip+user='sudo grep "Failed" /var/log/auth.log | sed "s/.*for\( invalid user\)* \([^ ]*\) from \([^ ]*\) .*/\3\t\2/" | grep -v sudo: | sort | uniq -c'
-alias authlog-ssh-ip-all='sudo zcat /var/log/auth.log.* | grep "Failed" | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v sudo: | sort | uniq -c | sort -r'
-alias authlog-ssh-ip='sudo grep "Failed" /var/log/auth.log | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v sudo: | sort | uniq -c'
-alias authlog-ssh-user='sudo grep "Failed" /var/log/auth.log | sed "s/.*for\( invalid user\)* \([^ ]*\) .*/\2/" | grep -v sudo: | sort | uniq -c'
-alias authlog-proxy-ip='sudo cat /var/log/oops/access.log | egrep "TCP_DENIED/555.*NULL/AUTH_MOD" | sed "s/.* \(.*\) TCP_DENIED\/555.*NULL\/AUTH_MOD.*/\1/g" | grep -v sudo: | sort | uniq -c'
+alias authlog-ssh-ip+user='sudo grep "Failed" /var/log/auth.log
+  | sed "s/.*for\( invalid user\)* \([^ ]*\) from \([^ ]*\) .*/\3\t\2/"
+  | grep -v sudo: | sort | uniq -c'
+alias authlog-ssh-ip-all='sudo zcat /var/log/auth.log.*
+  | grep "Failed" | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}"
+  | grep -v sudo: | sort | uniq -c | sort -r'
+alias authlog-ssh-ip='sudo grep "Failed" /var/log/auth.log
+  | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}"
+  | grep -v sudo: | sort | uniq -c'
+alias authlog-ssh-user='sudo grep "Failed" /var/log/auth.log
+  | sed "s/.*for\( invalid user\)* \([^ ]*\) .*/\2/"
+  | grep -v sudo: | sort | uniq -c'
+alias authlog-proxy-ip='sudo cat /var/log/oops/access.log
+  | egrep "TCP_DENIED/555.*NULL/AUTH_MOD"
+  | sed "s/.* \(.*\) TCP_DENIED\/555.*NULL\/AUTH_MOD.*/\1/g"
+  | grep -v sudo: | sort | uniq -c'
 #alias authlog-ftp-ip='sudo grep "Failed" /var/log/auth.log | ...'
-# sudo egrep "ftpd.*authentication failure" /var/log/auth.log | sed "s/.*ftpd:.*authentication failure.*rhost=\(([0-9]{1,3}\.){3}[0-9]{1,3}\).*/\1/g"
+# sudo egrep "ftpd.*authentication failure" /var/log/auth.log
+#  | sed "s/.*ftpd:.*authentication failure.*rhost=\(([0-9]{1,3}\.){3}[0-9]{1,3}\).*/\1/g"
 # }}} - SECURITY -------------------------------------------------------------
 
 # {{{ - MAIL -----------------------------------------------------------------
 #alias fetchmail='fetchmail --mda "formail -s procmail" -f $HOME/.fetchmailrc'
-alias fetchmail='fetchmail --mda "/usr/bin/spamc -e /usr/lib/dovecot/deliver" -f $HOME/.fetchmailrc --bad-header accept'
+alias fetchmail='fetchmail --mda "/usr/bin/spamc -e /usr/lib/dovecot/deliver"
+  -f $HOME/.fetchmailrc --bad-header accept'
 # }}} - MAIL -----------------------------------------------------------------
 
 # {{{ - DEV ------------------------------------------------------------------
@@ -63,7 +95,8 @@ alias axel="axel -U \"$UAGENT\" -a"
 #alias bx='bitchx -b -l .bitchxrc cbaoth irc.openprojects.net'
 alias ftp="ftp -p"
 #alias nfs_reshare='sudo pkill -HUP mountd'
-#alias nfs_reshare='sudo service nfs-kernel-server restart; sudo service idmapd restart'
+#alias nfs_reshare='sudo service nfs-kernel-server restart;
+#  sudo service idmapd restart'
 alias nfs-reexport='exportfs -ra'
 alias proxy-set-tor="export http_proxy=http://localhost:8118"
 alias wget-m="wget -U \"$UAGENT\" -m -k -K -E -np -N"
@@ -92,7 +125,9 @@ alias xprop-name='xprop WM_CLASS | cut -d\" -f4'
 alias xprop-type='xprop _NET_WM_WINDOW_TYPE | cut -d_ -f10'
 alias xprop-title='xprop WM_NAME | cut -d\" -f2'
 alias xprop-role='xprop WM_WINDOW_ROLE | cut -d\" -f2'
-alias xprop2="xprop|grep -E '^(WM_CLASS|WM_NAME|WM_WINDOW_ROLE)' | sed -r 's/^WM_(WINDOW_)?([^_(\s]+)(\([^)]*\))?/\2/g ; s/^NAME/TITLE/g ; s/\s*=\s*/\t/g ; s/CLASS\t\"(.*)\", \"(.*)\"/CLASS\t"\1"\nNAME\t"\2"/g'"
+alias xprop2="xprop|grep -E '^(WM_CLASS|WM_NAME|WM_WINDOW_ROLE)'
+  | sed -r 's/^WM_(WINDOW_)?([^_(\s]+)(\([^)]*\))?/\2/g ; s/^NAME/TITLE/g ;
+      s/\s*=\s*/\t/g ; s/CLASS\t\"(.*)\", \"(.*)\"/CLASS\t"\1"\nNAME\t"\2"/g'"
 # }}} - XORG -----------------------------------------------------------------
 
 # {{{ - MULTIMEDIA -----------------------------------------------------------
