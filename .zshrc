@@ -156,7 +156,8 @@ source_ifex_custom () {
 # include core aliases
 source_ifex $HOME/.zsh.d/aliases
 
-isme() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
+is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
+is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
 # }}} = CORE FUNCTIONS & ALIASES =============================================
 
 # {{{ = ZPLUG PREPARE ========================================================
@@ -221,14 +222,16 @@ POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable) # disk_usage
 POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline context) # root_indicator
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(vcs newline status command_execution_time \
                                     background_jobs docker_machine)
-[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]] \
-  && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
+#[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]]
+$IS_WSL || POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 
 #export DEFAULT_USER="$USER"
-POWERLEVEL9K_CONTEXT_TEMPLATE="$(isme || print -P '%n ')\u03bb"
+POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
 #POWERLEVEL9K_USER_TEMPLATE="%n"
-#POWERLEVEL9K_HOST_TEMPLATE="%2m"
+POWERLEVEL9K_HOST_TEMPLATE="$(is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
+POWERLEVEL9K_HOST_ICON="🖳"
+POWERLEVEL9K_SSH_ICON="🖧"
 #POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
 POWERLEVEL9K_SHORTEN_DIR_LENGTH=3
 POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
@@ -602,7 +605,7 @@ fi
 if [[ $SHLVL -eq 1 ]]; then
    print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
    # on %F{green}#%l%f%b"
-   print -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"
+   print -P "%B%F{white}Uptime:%b%F{green}$(uptime)%f"
 fi
 # }}} - MOTD -----------------------------------------------------------------
 # }}} = FINAL EXECUTIONS =====================================================
