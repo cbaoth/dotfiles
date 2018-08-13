@@ -154,7 +154,7 @@ source_ifex_custom () {
 }
 
 # include core aliases
-source_ifex $HOME/.zsh.d/aliases.zsh
+source_ifex $HOME/.zsh.d/aliases
 
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
@@ -233,7 +233,7 @@ POWERLEVEL9K_HOST_TEMPLATE="$(is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -
 POWERLEVEL9K_HOST_ICON="🖳"
 POWERLEVEL9K_SSH_ICON="🖧"
 #POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
-POWERLEVEL9K_SHORTEN_DIR_LENGTH=3
+POWERLEVEL9K_SHORTEN_DIR_LENGTH=4
 POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
 POWERLEVEL9K_PROMPT_ON_NEWLINE=false
 POWERLEVEL9K_RPROMPT_ON_NEWLINE=true
@@ -369,14 +369,23 @@ unalias zplug_cmd
 bindkey '^ ' autosuggest-accept
 
 # {{{ - ZAW ------------------------------------------------------------------
+# https://github.com/zsh-users/zaw
 bindkey '^[r' zaw # alt-r
 bindkey '^r' zaw-history # ctrl-r
+
+# git bindings
+bindkey '^[v^[l' zaw-git-log # alt-v, alt-l
+bindkey '^[v^[r' zaw-git-reflog # alt-v, alt-r
+bindkey '^[v^[s' zaw-git-status # alt-v, alt-s
+
+# filterlist bindings
 bindkey -M filterselect '^r' down-line-or-history
 bindkey -M filterselect '^w' up-line-or-history
 bindkey -M filterselect '^ ' accept-search
 bindkey -M filterselect '\e' send-break # esc
 bindkey -M filterselect '^[' send-break # esc
 
+# filterlist style
 zstyle ':filter-select:highlight' matched fg=green
 zstyle ':filter-select' max-lines 5
 zstyle ':filter-select' case-insensitive yes
