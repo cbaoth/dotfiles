@@ -232,11 +232,11 @@ q_overwrite() {
 
 # {{{ loop
 # ----------------------------------------------------------------------------
-while-read () { while ((1)); do read x; p_msg "exec: $* \"$x\"" && $* "$x"; done; }
-while-read-bg () { while ((1)); do read x; p_msg "exec: $* \"$x\" &" && ($* "$x" &); done; }
+while-read () { while true; do read x; p_msg "exec: $* \"$x\"" && $* "$x"; done; }
+while-read-bg () { while true; do read x; p_msg "exec: $* \"$x\" &" && ($* "$x" &); done; }
 while-read-xclip () {
-  if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    cat <<!
+  local USG
+  IFS='' read -r -d '' USG <<"EOF"
 $0 regex command..
 
  Reads x clipboard every 0.2 sec and executes the given command with the
@@ -254,7 +254,9 @@ $0 regex command..
    # don't filter, echo the string into a file named 'foo' and execute
    # a second command
    $0 -b echo {} \>\> foo \; cmd-foo {}
-!
+EOF
+  if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    printf "%s" "$USG"
     return 1
   fi
   bg=0
@@ -286,7 +288,7 @@ $0 regex command..
     esac
   done
   [ -z "$1" ] && p_err "missing command" && return 1
-  while ((1)); do
+  while true; do
     c="$(xclip -selection clip-board -o -l)"
     if [ "$c" != "$cprev" ]; then
       if [ -z "$regex" ] || [ -n "$(echo $c | grep -Ei \"$regex\")" ]; then
@@ -406,7 +408,7 @@ zerofill () { #inserts leading zeros (number, digits)
 }
 calcSum() {
   line=""; arg=""
-  while ((1)); do
+  while true; do
     read line
     case $line in
       q|Q|=)
@@ -1407,7 +1409,7 @@ pniceio () {
 }
 pniceloop () {
   [ -z "$1" ] && p_usg "$0 process-name-regexp" && return 1
-  while ((1)); do
+  while true; do
     local p="$(ps ax -T|grep -iE $*|grep -vE '0:00.*grep')"
     [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
     p_msg "niceness of the following processes/threads will be changed:"
