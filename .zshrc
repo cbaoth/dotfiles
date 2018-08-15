@@ -165,6 +165,7 @@ alias zplug_cmd=zplug
 #if [ -f "/usr/share/zplug/init.zsh" ]; then
 #  p_dbg 0 2 'zplug found in /usr/share/zplug, loading ...'
 #  source /usr/share/zplug/init.zsh
+# TODO clean this up, much too complicate (separate functions or don't cover all unlikely cases)
 if [ -f "$HOME/.zplug/init.zsh" ]; then
   p_dbg 0 2 'zplug found in ~/.zplug, loading ...'
   source "$HOME/.zplug/init.zsh"
@@ -175,8 +176,14 @@ else
       && rm -rf ~/.zplug
   fi
   curl -sL --proto-redir -all,https https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
-  if [ $? -ne 0 ]; then
-    p_war "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')download failed."
+  if [ $? -eq 0 ]; then
+    if [ -f "$HOME/.zplug/init.zsh" ]; then
+      source "$HOME/.zplug/init.zsh"
+    else
+      p_err "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')installation seem to have faild, $HOME/.zplug not found."
+    fi
+  else
+    p_err "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')download failed."
     # temporary dummy zplug alias so all commannds below will exit gracefully
     alias zplug_cmd=false
   fi
