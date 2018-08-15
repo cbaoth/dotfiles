@@ -157,7 +157,6 @@ source_ifex_custom () {
 source_ifex $HOME/.zsh.d/aliases.zsh
 
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
-is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
 # }}} = CORE FUNCTIONS & ALIASES =============================================
 
 # {{{ = ZPLUG PREPARE ========================================================
@@ -236,6 +235,7 @@ POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 #export DEFAULT_USER="$USER" # not an options, lambda should always be shown
 POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
 #POWERLEVEL9K_USER_TEMPLATE="%n"
+#POWERLEVEL9K_HOST_TEMPLATE="%2m"
 POWERLEVEL9K_HOST_TEMPLATE="$(is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
 POWERLEVEL9K_HOST_ICON="🖳"
 POWERLEVEL9K_SSH_ICON="🖧"
@@ -331,8 +331,7 @@ zplug_cmd "plugins/catimg", from:oh-my-zsh
 #plugins/common-aliases
 zplug_cmd "plugins/command-not-found", from:oh-my-zsh
 #plugins/debian
-#zplug_cmd "plugins/dircycle", from:oh-my-zsh # ctrl-shift-left/right
-zplug_cmd "plugins/dirhistory", from:oh-my-zsh # alt-left/right
+zplug_cmd "plugins/dirhistory", from:oh-my-zsh # ctrl-shift-left/right
 zplug_cmd "plugins/docker", from:oh-my-zsh # docker autocompletion
 zplug_cmd "plugins/encode64", from:oh-my-zsh # encode64/decode64
 #https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
@@ -344,12 +343,11 @@ zplug_cmd "plugins/mvn", from:oh-my-zsh # maven completion
 zplug_cmd "plugins/sudo", from:oh-my-zsh # add sudo via 2xESC
 zplug_cmd "plugins/systemd", from:oh-my-zsh # systemd sc-* aliases
 zplug_cmd "plugins/tmux", from:oh-my-zsh
-#zplug_cmd "plugins/", from:oh-my-zsh
-#zplug_cmd "plugins/", from:oh-my-zsh
-#zplug_cmd "plugins/", from:oh-my-zsh
-#zplug_cmd "plugins/", from:oh-my-zsh
-#zplug_cmd "plugins/", from:oh-my-zsh
-#zplug_cmd "plugins/", from:oh-my-zsh
+zplug_cmd "plugins/urltools", from:oh-my-zsh # urlencode/-decode
+zplug_cmd "plugins/vagrant", from:oh-my-zsh
+zplug_cmd "plugins/vscode", from:oh-my-zsh # vs* aliases
+zplug_cmd "plugins/web-search", from:oh-my-zsh
+zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
 # }}} - OH MY ZSH ------------------------------------------------------------
 
 # activate syntax highlighting, load last to affect everything loaded before
