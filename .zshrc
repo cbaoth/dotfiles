@@ -154,7 +154,7 @@ source_ifex_custom () {
 }
 
 # include core aliases
-source_ifex $HOME/.zsh.d/aliases
+source_ifex $HOME/.zsh.d/aliases.zsh
 
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
