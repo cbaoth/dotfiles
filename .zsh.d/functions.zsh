@@ -128,15 +128,13 @@ is_zsh() { [[ $SHELL = *zsh ]]; }
 is_bash() { [[ $SHELL = *bash ]]; }
 
 # predicate: is current user superuse?
-is_su() {
-  #touch /tmp/sutest$$
-  #chown root /tmp/sutest$$ >& /dev/null
-  #ec=$?
-  #rm -f /tmp/sutest$$
-  #[ $ec -ne 0 ] && return 1
-  [[ $UID != 0 || $EUID != 0 ]] && return 1
-  return 0
-}
+is_su() { [[ $UID -eq 0 && $EUID -eq 0 ]]; }
+
+# predicate: is this a sudo envionment?
+is_sudo() { [ -n "$SUDO_USER" ]; }
+
+# predicate: is this a ssh session we are in?
+is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
 
 # predicate: is given [number] an integer?
 # number may NOT contain decimal separator "."
