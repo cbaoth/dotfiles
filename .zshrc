@@ -154,9 +154,10 @@ source_ifex_custom () {
 }
 
 # include core aliases
-source_ifex $HOME/.zsh.d/aliases
+source_ifex $HOME/.zsh.d/aliases.zsh
 
-isme() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
+is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
+is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
 # }}} = CORE FUNCTIONS & ALIASES =============================================
 
 # {{{ = ZPLUG PREPARE ========================================================
@@ -228,16 +229,18 @@ POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable) # disk_usage
 POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline context) # root_indicator
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(vcs newline status command_execution_time \
                                     background_jobs docker_machine)
-[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]] \
-  && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
+#[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]]
+$IS_WSL || POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 
-#export DEFAULT_USER="$USER"
-POWERLEVEL9K_CONTEXT_TEMPLATE="$(isme || print -P '%n ')\u03bb"
+#export DEFAULT_USER="$USER" # not an options, lambda should always be shown
+POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
 #POWERLEVEL9K_USER_TEMPLATE="%n"
-#POWERLEVEL9K_HOST_TEMPLATE="%2m"
+POWERLEVEL9K_HOST_TEMPLATE="$(is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
+POWERLEVEL9K_HOST_ICON="🖳"
+POWERLEVEL9K_SSH_ICON="🖧"
 #POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
-POWERLEVEL9K_SHORTEN_DIR_LENGTH=3
+POWERLEVEL9K_SHORTEN_DIR_LENGTH=4
 POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
 POWERLEVEL9K_PROMPT_ON_NEWLINE=false
 POWERLEVEL9K_RPROMPT_ON_NEWLINE=true
@@ -328,8 +331,8 @@ zplug_cmd "plugins/catimg", from:oh-my-zsh
 #plugins/common-aliases
 zplug_cmd "plugins/command-not-found", from:oh-my-zsh
 #plugins/debian
-zplug_cmd "plugins/dircycle", from:oh-my-zsh # alt-left/right
-#zplug_cmd "plugins/dirhistory", from:oh-my-zsh # ctrl-shift-left/right
+#zplug_cmd "plugins/dircycle", from:oh-my-zsh # ctrl-shift-left/right
+zplug_cmd "plugins/dirhistory", from:oh-my-zsh # alt-left/right
 zplug_cmd "plugins/docker", from:oh-my-zsh # docker autocompletion
 zplug_cmd "plugins/encode64", from:oh-my-zsh # encode64/decode64
 #https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
@@ -373,25 +376,28 @@ unalias zplug_cmd
 bindkey '^ ' autosuggest-accept
 
 # {{{ - ZAW ------------------------------------------------------------------
+# https://github.com/zsh-users/zaw
 bindkey '^[r' zaw # alt-r
 bindkey '^r' zaw-history # ctrl-r
+
+# git bindings
+bindkey '^[v^[l' zaw-git-log # alt-v, alt-l
+bindkey '^[v^[r' zaw-git-reflog # alt-v, alt-r
+bindkey '^[v^[s' zaw-git-status # alt-v, alt-s
+
+# filterlist bindings
 bindkey -M filterselect '^r' down-line-or-history
 bindkey -M filterselect '^w' up-line-or-history
 bindkey -M filterselect '^ ' accept-search
 bindkey -M filterselect '\e' send-break # esc
 bindkey -M filterselect '^[' send-break # esc
 
+# filterlist style
 zstyle ':filter-select:highlight' matched fg=green
 zstyle ':filter-select' max-lines 5
 zstyle ':filter-select' case-insensitive yes
 zstyle ':filter-select' extended-search yes
 # }}} - ZAW ------------------------------------------------------------------
-
-# dircycle
-# TODO fix bindings, don't work
-# https://github.com/robbyrussell/oh-my-zsh/blob/master/plugins/dircycle/dircycle.plugin.zsh
-bindkey "^[\e[1;3D" insert-cycledleft # alt-left
-bindkey "^[\e[1;3C" insert-cycledright # alt-right
 
 # sudo
 bindkey "^[^[" sudo-command-line # esc, esc (if \e\e doesn't work)
@@ -526,24 +532,29 @@ compctl -K _userlist finger
 set COMPLETE_ALIASES
 # }}} - COMPLETION -----------------------------------------------------------
 # {{{ - KEY BINDINGS ---------------------------------------------------------
+#http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Standard-Widgets
 # emacs key bindings
 bindkey -e
+bindkey "^x^x" execute-named-cmd # in addition to alt-x (if alt not working)
+bindkey "^x^z" execute-last-named-cmd # in addition to alt-x (if alt not working)
 
 # lookup spaces
 bindkey ' ' magic-space
 
-# input navigation
+# input navigation using arrow keys (plus emacs: ctrl-a/e, alt-b/f)
 bindkey "^[[1;5D" backward-word # ctrl-left
 bindkey "^[[1;5C" forward-word # ctrl-right
+bindkey "^[[1;5A" beginning-of-line # ctrl-up
+bindkey "^[[1;5B" end-of-line # ctrl-down
 
 if [[ "$TERM" = *xterm* ]]; then
-  #bindkey "\e[1~" beginning-of-line  # Home
-  bindkey "\e[7~" beginning-of-line  # Home rxvt
-  bindkey "\e[2~" overwrite-mode     # Ins
-  bindkey "\e[3~" delete-char        # Delete
-  bindkey "^?" backward-delete-char  # Backspace
-  #bindkey "\e[4~" end-of-line        # End
-  bindkey "\e[8~" end-of-line        # End rxvt
+  #bindkey "\e[1~" beginning-of-line # HOME
+  bindkey "\e[7~" beginning-of-line  # HOME also: rxvt (ctrl-a)
+  bindkey "\e[2~" overwrite-mode # INS (also: ctrl-x,ctrl-o)
+  bindkey "\e[3~" delete-char # DEL (also: ctrl-d -> delete-char-or-list)
+  bindkey "^?" backward-delete-char # BS (also: ctrl-h and ctrl-w -> word)
+  #bindkey "\e[4~" end-of-line # END
+  bindkey "\e[8~" end-of-line # END rxvt (also: ctrl-e)
 fi
 # }}} - KEY BINDINGS ---------------------------------------------------------
 # {{{ - MISC -----------------------------------------------------------------
@@ -609,7 +620,7 @@ fi
 if [[ $SHLVL -eq 1 ]]; then
    print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
    # on %F{green}#%l%f%b"
-   print -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"
+   print -P "%B%F{white}Uptime:%b%F{green}$(uptime)%f"
 fi
 # }}} - MOTD -----------------------------------------------------------------
 # }}} = FINAL EXECUTIONS =====================================================
