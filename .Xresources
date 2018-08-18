@@ -88,6 +88,12 @@ XTerm*colorUL:		white
 
 rxvt*colorBD:		white
 
+!-- Rofi --------------------------------------------------------------------
+rofi.combi-modi:    drun,window,run,ssh,keys
+rofi.theme:         glue_pro_blue
+rofi.font:          Fira Code 10
+rofi.modi:          combi
+
 !== Emacs ===================================================================
 !-- Misc --------------------------------------------------------------------
 !Emacs*Frame.geometry:	84x63+0+0
@@ -120,4 +126,3 @@ Emacs*toolBarShadowThickness:	0
 !============================================================================
 
 Xft.dpi: 120
-
