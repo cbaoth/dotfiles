@@ -1,0 +1,198 @@
+#!/bin/sh
+# ~/.xsession.d/default: common session executed by .xinitrc
+
+# Author:   cbaoth <dev@cbaoth.de>
+# Keywords: dotfile xorg
+
+# PATH
+#export PATH="$HOME/bin:/opt/bin:$PATH"
+
+# run if availlable
+runbg() {
+  [ -z "$1" ] && return -1
+  CMD="$1"; shift
+  (which $CMD >/dev/null && $CMD $* &) || return -1
+  return 0
+}
+
+# log startup
+exec 1>$HOME/.x11startlog 2>$HOME/.x11startlog
+
+# add fontpath
+xset fp+ /home/cbaoth/fonts
+xset fp rehash
+
+# turn off screen blacking
+#xset s off
+# turn on screen blacking
+xset s blank
+xset s $((30*60))
+# turn on energy star features (standby/suspend/off)
+xset +dpms
+xset dpms $((15*60)) $((30*60)) $((30*60))
+
+# change default mouse pointer
+xsetroot -cursor_name top_left_arrow
+
+# allow other users to connecto to this x session
+#xhost +
+
+# swicth terminal bell off
+xset b off
+#esd -b -nobeeps &
+
+# set mouse speed (acceleration/threshold/)
+#xset m 3 1
+xset m default
+
+# repeat caps lock (colemak backspace)
+xset r 66
+# don't repeat tilde
+xset -r 49
+
+# load x-property file
+xrdb -merge ~/.Xdefaults
+# merge host specific properties
+[ -f "$HOME/.Xresources.d/$(hostname)" ] \
+  && xrdb -merge $HOME/.Xresources.d/$(hostname)
+
+# load default keyboard layout
+setxkbmap us -variant colemak
+
+# set custom keyboard/mouse mapping
+#xmodmap ~/.xmodmap
+
+# disable stupid ubuntu shift+backspace -> x terminate
+xmodmap -e 'keycode 0x16 = BackSpace BackSpace BackSpace BackSpace'
+# and add terminate via print button (seldom used) + shift + mod
+xmodmap -e 'keycode 0x6B = Print Sys_Req Print Terminate_Server Print Sys_Req'
+
+# set background color
+#runbg xsetroot -solid \#400040
+#runbg fbsetroot -solid black
+runbg xsetroot -solid black
+
+# set background pattern
+#runbg fbsetroot -mod 4 4 -bg rgb:10/18/20 -fg rgb:30/28/40
+#runbg fbsetroot -mod 4 4 -bg rgb:12/40/55 -fg rgb:0a/29/38
+#runbg fbsetroot -mod 4 4 -bg rgb:30/40/60 -fg rgb:20/30/50
+#runbg fbsetroot -gradient interlacedgradient -from black -to gray
+#runbg fbsetroot -gradient interlacedgradient -from rgb:10/18/20 -to rgb:30/28/40
+#runbg fbsetroot -gradient interlacedgradient -from rgb:30/28/40 -to rgb:10/18/20
+#runbg fbsetroot -mod 4 4 -bg rgb:40/40/40 -fg rgb:25/25/2
+# workaround, to set after gnome wall is set
+#(sleep 15 && fbsetroot -mod 4 4 -bg rgb:10/18/20 -fg rgb:30/28/40) &
+#(sleep 30 && fbsetroot -mod 4 4 -bg rgb:10/18/20 -fg rgb:30/28/40) &
+#(sleep 1m && fbsetroot -mod 4 4 -bg rgb:10/18/20 -fg rgb:30/28/40) &
+
+# run tray for xmonad
+#trayer --edge top --align right --SetDockType true --SetPartialStrut true \
+# --expand true --width 10 --transparent true --tint 0x191970 --height 12 &
+#trayer --edge top --align right --SetDockType true --expand true --width 10 \
+#  --transparent true --alpha 0 --tint 0x333333 --height 5 &
+# and xscreensaver
+#xscreensaver -no-splash &
+
+# network + gnome applets
+#runbg indicator-weather
+#runbg gnome-keyring-daemon --start --components=secrets
+if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
+  export $(gnome-keyring-daemon --start)
+  # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+  export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+fi
+#runbg nm-applet
+#runbg bluetooth-applet
+#runbg printer-applet
+runbg blueman-applet
+
+# set wallpaper
+#runbg fbsetbg ~/wallpaper.jpg
+#XLIB_SKIP_ARGB_VISUALS=1 qiv -x ~/.wallpaper.jpg
+#runbg xli -onroot ~/wallpaper-1920.jpg
+#runbg xli -display :0.1 -onroot ~/wallpaper-1280.jpg
+#runbg xli -onroot ~/.wallpaper.jpg
+#runbg feh --bg-scale ~/.wallpaper.jpg
+
+# japanese support
+#runbg kinput2 -canna
+#export XMODIFIERS="@im=scim"
+#export GTK_IM_MODULE="scim"
+#export QT_IM_MODULE="scim"
+##export LC_CTYPE="ja_JP.utf8"
+#export LC_CTYPE="en_US.utf8"
+#export LANG="en_US.UTF8"
+#runbg scim -d
+
+# run dockapps
+#cd ~/bin/dockapps/
+#./wmtime -digital &
+#sleep 0.3 && ./awmcpuload &
+#sleep 0.6 && ./wmnd &
+#sleep 0.9 && ./wmbattery &
+#sleep 1.2 && ./wmsmixer -l rgb:40/70/f0 -w &
+#sleep 1.5 && ./wmusic &
+#cd ~/
+
+# run blackbox apps
+#runbg bbpager
+#runbg bbkeys -i
+#runbg bbkeys -m -geom +-100+-100
+
+# run misc apps
+#(plwm || /home/cbaoth/bin/evilwm -run grun || blackbox ) &
+#xterm -fn edges -fb edges -T isdn-incoming -g 100x8+0-63 -e hose bateau 9444 -i cat &
+#xterm -fn edges -fb edges -T isdn-incoming -g 100x8+0-0 -e socket bateau 9444 &
+#runbg xclock -digital -padding 2 -update 1 -g -0+0 -fn edges -fg white -bg rgb:33/33/33
+#aterm -sh 90 -tr -tint rgb:60/60/c0 -T centericq -g 80x50+30+45 -e ssh yav.in &
+#runbg xclock -digital -strftime "%a %d.%m.%y / %H:%M:%S" -padding 2 -update 1 -g -0+0 -fg white -bg rgb:33/33/33
+#runbg gkrellm --display :0.1 & # --geometry -0-100 & #-0-82
+runbg osdsh -c lightblue
+
+#runbg psi -display :0.1
+#runbg pidgin --display :0.1
+#(sleep 30s && skype) &
+#runbg pidgin
+#runbg ekiga
+#runbg vidalia
+#runbg gwibber
+#runbg gajim
+#runbg pidgin
+runbg nextcloud
+
+#aterm -display :0.1 -fade 65 -sh 50 -tr -tint rgb:60/60/c0 -fn 6x10 -fb 6x10 -g 100x10+0-21 -T syslog -e sudo tail -f /var/log/syslog &
+#runbg xmms2tray
+
+#runbg conky -p 30 -o -c ~/.conky/conkyrc-syslog
+#runbg conky -p 32 -o -c ~/.conky/conkyrc-xlog &
+#runbg conky -p 34 -o -c ~/.conky/conkyrc-sysmon1 &
+
+#runbg pulseaudio
+#runbg synergys
+#runbg synergyc puppet
+# run imwheel (~/.imwheel) to imcrease mouse scrall wheel speed
+runbg imwheel
+
+# gnome desktop
+#runbg nautilus --browser
+#runbg nautilus
+#runbg gnome-panel
+#runbg gnome-cups-icon
+
+# load gnome settings daemon (designs etc)
+#runbg gnome-settings-daemon
+#runbg gnome-keyring-daemon --start --components=ssh
+# workaround (hack)
+# XXX #(sleep 30s; killall gnome-settings-daemon; sleep 1; gnome-settings-daemon) &
+
+# trackball middleklick workaround
+#xinput set-button-map "Logitech USB Trackball" 1 8 3 4 5 6 7 2 9 &
+#runbg ~/bin/logitech-marble.sh
+#runbg ~/bin/wacom-set-monitor.sh
+
+#(sleep 20; autocutsel -f &)&
+#(sleep 25; autocutsel -s PRIMARY &) &
+runbg autocutsel -f
+
+# default dir: home
+cd ~/
