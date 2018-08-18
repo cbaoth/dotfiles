@@ -13,10 +13,9 @@
 
 # {{{ - CORE -----------------------------------------------------------------
 export OS=${$(uname):l}
-[ ! $HOST ] && export HOST=$HOSTNAME
-
+export HOST=${$(hostname):l}
 export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
-export COLORTERM=xterm
+#export COLORTERM=xterm
 #[ -n "`echo $TERMCAP|grep -i screen`" ] && TERM=screen
 
 # globally raise (but never lower) the default debug level of p_dbg
@@ -235,7 +234,6 @@ POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 #export DEFAULT_USER="$USER" # not an options, lambda should always be shown
 POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
 #POWERLEVEL9K_USER_TEMPLATE="%n"
-#POWERLEVEL9K_HOST_TEMPLATE="%2m"
 POWERLEVEL9K_HOST_TEMPLATE="$(is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
 POWERLEVEL9K_HOST_ICON="🖳"
 POWERLEVEL9K_SSH_ICON="🖧"
@@ -331,7 +329,7 @@ zplug_cmd "plugins/catimg", from:oh-my-zsh
 #plugins/common-aliases
 zplug_cmd "plugins/command-not-found", from:oh-my-zsh
 #plugins/debian
-zplug_cmd "plugins/dirhistory", from:oh-my-zsh # ctrl-shift-left/right
+zplug_cmd "plugins/dirhistory", from:oh-my-zsh
 zplug_cmd "plugins/docker", from:oh-my-zsh # docker autocompletion
 zplug_cmd "plugins/encode64", from:oh-my-zsh # encode64/decode64
 #https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
@@ -539,6 +537,8 @@ bindkey "^x^z" execute-last-named-cmd # in addition to alt-x (if alt not working
 # lookup spaces
 bindkey ' ' magic-space
 
+bindkey '^ ' globalias
+
 # input navigation using arrow keys (plus emacs: ctrl-a/e, alt-b/f)
 bindkey "^[[1;5D" backward-word # ctrl-left
 bindkey "^[[1;5C" forward-word # ctrl-right
@@ -594,24 +594,8 @@ rm -f ~/*.core(N) ~/*.dump(N) &!
 #) &!
 # }}} - DTAG -----------------------------------------------------------------
 # {{{ - X STUFF --------------------------------------------------------------
-# this should normally not be here, but ... this way its always executed when
-# opening a term
-
-# no perfect check since we could e.g. be in an ssh session without
-# working / running x, so we start everything in the background
-# stupid messages but better timeouts in bg thatn in fg (delay at login)
-
-# TODO: FIND A BETTER SOLUTION< MOVE TO INPUTRC / XINITRC
-if [ "$DISPLAY" ]; then
-  # repeat caps lock (colemak backspace)
-  xset r 66 2>/dev/null &!
-  # don't repeat tilde
-  #xset -r 49 &
-  # ubuntu hack: disable stupid ubuntu shift+backspace -> x terminate
-  xmodmap -e 'keycode 0x16 = BackSpace BackSpace BackSpace BackSpace' 2>/dev/null &!
-  # and add terminate via print button (seldom used) + shift + mod
-  xmodmap -e 'keycode 0x6B = Print Sys_Req Print Terminate_Server Print Sys_Req' 2>/dev/null &!
-fi
+#if [ -n "$DESKTOP_SESSION" ]; then
+#fi
 # }}} - X STUFF --------------------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # print welcome message (if top-level shell)

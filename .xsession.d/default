@@ -1,0 +1,30 @@
+#!/bin/sh
+# ~/.xsession.d/default: default session executed by .xinitrc
+
+# activate xorg composite shadow and transparence stuff
+#runbg xcompmgr -cCfF -D6
+#runbg xcompmgr -cCfF -t-5 -l-5 -r4.2 -o.55 -D6
+#runbg compton -cCfF -D6
+
+# run windowmanager
+exec i3 -V >> ~/i3.log 2>&1
+#exec fluxbox
+## or if you want to keep a log:
+# exec fluxbox -log "~/.fluxbox/log"
+
+#pwm ion3 openbox metacity gnome-session enlightenment fluxbox
+#blackbox evilwm wmiiwm
+#exec ssh-agent sh -c "ssh-add </dev/null && exec fluxbox"
+#exec ssh-agent sh -c "ssh-add </dev/null && exec lxsession"
+#exec ssh-agent sh -c "ssh-add </dev/null && exec xmonad"
+#ssh-agent sh -c "ssh-add </dev/null && exec fluxbox" & wmpid=$!
+#exec ssh-agent sh -c "ssh-add </dev/null && exec pwm"
+#exec ssh-agent sh -c "ssh-add </dev/null && exec ion3"
+#exec ssh-agent sh -c "ssh-add </dev/null && exec fluxbox"
+#exec ssh-agent sh -c "ssh-add </dev/null && exec gnome-session"
+
+# hang point (wait for wm to exit)
+#wait $wmpid
+
+# restore fontpath
+#xset fp default

@@ -78,7 +78,8 @@ include_ifex () {
     shift
   done
 }
-include_ifex $HOME/.zsh.d/functions.zsh
+# FIXME currently not fully bash compatible
+#include_ifex $HOME/.zsh.d/functions.zsh
 include_ifex $HOME/.zsh.d/aliases.zsh
 
 # load aliases
