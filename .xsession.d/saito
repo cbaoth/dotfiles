@@ -1,0 +1,12 @@
+#!/bin/sh
+# ~/.xsession.d/saito: custom xsession for host saito
+
+# Author:   cbaoth <dev@cbaoth.de>
+# Keywords: dotfile xorg
+
+# turn off screen blacking
+# since tv will switches to cable mode, has its own energy save timer
+xset s off
+xset -dpms
+xset dpms 0 0 0
+

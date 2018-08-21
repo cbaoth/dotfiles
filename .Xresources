@@ -1,128 +1,140 @@
-*noAboutSplash:	True
-*scrollBar:		False
-*transparent:	True
-*shading:		50
-!*tinting:		Blue
+! ~/.Xresources: x resource configuration
 
-!-- XTerm -------------------------------------------------------------------
-XTerm*background:		black
-XTerm*foreground:		grey85
-XTerm*boldFont:			terminus-*-12*
-XTerm*font:				terminus-*-12*
-XTerm*backarrowKeyIsErase:	False
-!*ttyModes: erase ^?
-Xterm*saveLines:		1000
+! {{{ = General ==============================================================
+! font resolution
+Xft.dpi: 120
 
-!*termName:		xterm-color
+*noAboutSplash:    True
+*scrollBar:        False
+*transparent:    True
+*shading:        50
+!*tinting:        Blue
+! }}} = General ==============================================================
 
-! -- Tango (gnome-terminal) colors ------------------------------------------
+! {{{ = Terminal =============================================================
+! {{{ - XTerm ----------------------------------------------------------------
+XTerm*background:            black
+XTerm*foreground:            grey85
+XTerm*boldFont:              Fira Code 12
+XTerm*font:                  Fira Code Bold 12
+!XTerm*boldFont:              terminus-*-12*
+!XTerm*font:                  terminus-*-12*
+XTerm*backarrowKeyIsErase:   False
+!*ttyModes:                   erase ^?
+Xterm*saveLines:             10000
+
+XTerm*colorBDMode:           on
+XTerm*colorBD:               white
+XTerm*colorULMode:           on
+XTerm*colorUL:               white
+rxvt*colorBD:                white
+
+!*termName:                   xterm-256color
+! }}} - XTerm ----------------------------------------------------------------
+! {{{ - Tango (gnome-terminal) colors ----------------------------------------
 !black
-XTerm*color0:		rgb:2E/34/36
-XTerm*color8:		rgb:55/57/53
+XTerm*color0:      rgb:2E/34/36
+XTerm*color8:      rgb:55/57/53
 
 !red
-XTerm*color1:		rgb:cc/00/00
-XTerm*color9:		rgb:ef/29/29
+XTerm*color1:      rgb:cc/00/00
+XTerm*color9:      rgb:ef/29/29
 
 !green
-XTerm*color2:		rgb:4e/9a/06
-XTerm*color10:		rgb:8a/e2/34
+XTerm*color2:      rgb:4e/9a/06
+XTerm*color10:     rgb:8a/e2/34
 
 !yellow
-XTerm*color3:		rgb:c4/a0/00
-XTerm*color11:		rgb:fc/e9/4f
+XTerm*color3:      rgb:c4/a0/00
+XTerm*color11:     rgb:fc/e9/4f
 
 !blue
-XTerm*color4:		rgb:34/65/a4
-XTerm*color12:		rgb:72/9f/cf
+XTerm*color4:      rgb:34/65/a4
+XTerm*color12:     rgb:72/9f/cf
 
 !magenta
-XTerm*color5:		rgb:75/50/5b
-XTerm*color13:		rgb:ad/7f/a8
+XTerm*color5:      rgb:75/50/5b
+XTerm*color13:     rgb:ad/7f/a8
 
 !cyan
-XTerm*color6:		rgb:06/98/9a
-XTerm*color14:		rgb:34/e2/e2
+XTerm*color6:      rgb:06/98/9a
+XTerm*color14:     rgb:34/e2/e2
 
 !rgb:ff/ff/ff
-XTerm*color7:		rgb:d3/d7/cf
-XTerm*color15:		rgb:ee/ee/ec
-
-! -- artwiz colores ---------------------------------------------------------
+XTerm*color7:      rgb:d3/d7/cf
+XTerm*color15:     rgb:ee/ee/ec
+! }}} - Tango (gnome-terminal) colors ----------------------------------------
+! {{{ - artwiz colores -------------------------------------------------------
 !!black
-!XTerm*color0:		rgb:00/00/00
-!XTerm*color8:		rgb:70/74/78
+!XTerm*color0:      rgb:00/00/00
+!XTerm*color8:      rgb:70/74/78
 !
 !!red
-!XTerm*color1:		rgb:b0/70/50
-!XTerm*color9:		rgb:d0/90/70
+!XTerm*color1:      rgb:b0/70/50
+!XTerm*color9:      rgb:d0/90/70
 !
 !!green
-!XTerm*color2:		rgb:50/b0/70
-!XTerm*color10:		rgb:70/d0/90
+!XTerm*color2:      rgb:50/b0/70
+!XTerm*color10:     rgb:70/d0/90
 !
 !!yellow
-!XTerm*color3:		rgb:a0/a0/70
-!XTerm*color11:		rgb:c0/c0/90
+!XTerm*color3:      rgb:a0/a0/70
+!XTerm*color11:     rgb:c0/c0/90
 !
 !!blue
-!XTerm*color4:		rgb:50/70/b0
-!XTerm*color12:		rgb:70/90/d0
+!XTerm*color4:      rgb:50/70/b0
+!XTerm*color12:     rgb:70/90/d0
 !
 !!magenta
-!XTerm*color5:		rgb:a0/70/a0
-!XTerm*color13:		rgb:c0/90/c0
+!XTerm*color5:      rgb:a0/70/a0
+!XTerm*color13:     rgb:c0/90/c0
 !
 !!cyan
-!XTerm*color6:		rgb:70/a0/a0
-!XTerm*color14:		rgb:90/c0/c0
+!XTerm*color6:      rgb:70/a0/a0
+!XTerm*color14:     rgb:90/c0/c0
 !
 !!white
-!XTerm*color7:		rgb:a0/a4/a8
-!XTerm*color15:		rgb:ff/ff/ff
+!XTerm*color7:      rgb:a0/a4/a8
+!XTerm*color15:     rgb:ff/ff/ff
+! {{{ - artwiz colores -------------------------------------------------------
+! }}} = Terminal =============================================================
 
-XTerm*colorBDMode:	on
-XTerm*colorBD:		white
-XTerm*colorULMode:	on
-XTerm*colorUL:		white
+! {{{ = Rofi =================================================================
+rofi.combi-modi:   window,drun,run,ssh,keys
+rofi.theme:        glue_pro_blue
+rofi.font:         Fira Code Medium 10
+rofi.modi:         combi
+! }}} = Rofi =================================================================
 
-rxvt*colorBD:		white
-
-!-- Rofi --------------------------------------------------------------------
-rofi.combi-modi:    drun,window,run,ssh,keys
-rofi.theme:         glue_pro_blue
-rofi.font:          Fira Code 10
-rofi.modi:          combi
-
-!== Emacs ===================================================================
-!-- Misc --------------------------------------------------------------------
-!Emacs*Frame.geometry:	84x63+0+0
-!-- Fonts -------------------------------------------------------------------
-Emacs*font:			-xos4-terminus-medium-r-normal--12-*-iso8859-15
-!Emacs*font:		-misc-fixed-medium-r-normal--13-*-iso8859-1
-Emacs*menubar*Font:	-adobe-helvetica-medium-r-normal--12-*-iso8859-1
-Emacs*Dialog*Font:	-adobe-helvetica-medium-r-normal--12-*-iso8859-1
-Emacs*popup*Font:	-adobe-helvetica-medium-r-normal--12-*-iso8859-1
-Emacs.default.attributeFont: -misc-fixed-medium-r-normal--10-*-iso8859-1
-!-- Colors ------------------------------------------------------------------
-Emacs*pointerColor:	white
-Emacs*cursorColor:	white
-Emacs*Foreground:	#ffffff
-Emacs*Background:	#000000
-Emacs*Dialog*background:	#c0c0c0
-Emacs*Dialog*foreground:	#000000
-Emacs*XlwScrollBar.Background:	#c0c0c0
-Emacs*XlwScrollBar.Foreground:	#000000
-Emacs*backgroundToolBarColor:	#c0c0c0
-Emacs*bottomToolBarShadowColor:	#c0c0c0
-Emacs*menubar*background:	#c0c0c0
-Emacs*menubar*foreground:	#000000
-Emacs*popup*Background:	#c0c0c0
-Emacs*popup*Foreground:	#000000
-Emacs*toolBarShadowThickness:	0
-!Emacs*topToolBarShadowColor:	#c0c0c0
-!Emacs.default.attributeBackground:	#ffffff
-!Emacs.default.attributeForeground:	#000000
-!============================================================================
-
-Xft.dpi: 120
+! {{{ = Emacs ================================================================
+!Emacs*Frame.geometry:    84x63+0+0
+! {{{ - Fonts ----------------------------------------------------------------
+Emacs*font:        Fira Code 10
+!Emacs*font:        -xos4-terminus-medium-r-normal--12-*-iso8859-15
+!Emacs*font:        -misc-fixed-medium-r-normal--13-*-iso8859-1
+!Emacs*menubar*Font: -adobe-helvetica-medium-r-normal--12-*-iso8859-1
+!Emacs*Dialog*Font:   -adobe-helvetica-medium-r-normal--12-*-iso8859-1
+!Emacs*popup*Font:    -adobe-helvetica-medium-r-normal--12-*-iso8859-1
+!Emacs.default.attributeFont: -misc-fixed-medium-r-normal--10-*-iso8859-1
+! }}} - Fonts ----------------------------------------------------------------
+! {{{ - Colors ---------------------------------------------------------------
+Emacs*pointerColor:    white
+Emacs*cursorColor:    white
+Emacs*Foreground:    #ffffff
+Emacs*Background:    #000000
+Emacs*Dialog*background:    #c0c0c0
+Emacs*Dialog*foreground:    #000000
+Emacs*XlwScrollBar.Background:    #c0c0c0
+Emacs*XlwScrollBar.Foreground:    #000000
+Emacs*backgroundToolBarColor:    #c0c0c0
+Emacs*bottomToolBarShadowColor:    #c0c0c0
+Emacs*menubar*background:    #c0c0c0
+Emacs*menubar*foreground:    #000000
+Emacs*popup*Background:    #c0c0c0
+Emacs*popup*Foreground:    #000000
+Emacs*toolBarShadowThickness:    0
+!Emacs*topToolBarShadowColor:    #c0c0c0
+!Emacs.default.attributeBackground:    #ffffff
+!Emacs.default.attributeForeground:    #000000
+! }}} - Colors ---------------------------------------------------------------
+! }}} = Emacs ================================================================
