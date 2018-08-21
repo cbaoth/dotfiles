@@ -28,6 +28,7 @@ osd_playstatus() {
 while [ -n "$1" ]; do
   case "$1" in
     vol+|volume-up)
+      pactl set-sink-mute 0 false 
       pactl set-sink-volume 0 +5%
       $osd && osd_volume
       shift
