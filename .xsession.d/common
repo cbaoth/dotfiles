@@ -26,10 +26,13 @@ xset fp rehash
 #xset s off
 # turn on screen blacking
 xset s blank
-xset s $((30*60))
-# turn on energy star features (standby/suspend/off)
+xset s $((20*60))
+# turn off screen standby
+#xset -dpms
+#xset dpms 0 0 0
+# turn on energy star features (standby, suspend, off)
 xset +dpms
-xset dpms $((15*60)) $((30*60)) $((30*60))
+xset dpms $((30*60)) $((30*60)) $((60*60))
 
 # change default mouse pointer
 xsetroot -cursor_name top_left_arrow
