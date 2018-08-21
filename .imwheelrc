@@ -1,0 +1,28 @@
+# {{{ = GLOBAL RULES =========================================================
+".*"
+
+# increase scroll rate
+#None,       Up,     Up,     5
+#None,       Down,   Down,   5
+
+# re-enable zooming (disabled by running imwheel) for some apps
+Control_L,   Up,     Control_L|KP_Add,       1
+Control_L,   Down,   Control_L|KP_Subtract,  1
+
+# shift + wheel: page up/down
+Shift_L,     Up,     Page_Up,    1
+Shift_L,     Down,   Page_Down,  1
+
+# alt + wheel: increased scroll rate (x5)
+Alt_L,       Up,     Left,       5
+Alt_L,       Down,   Right,      5
+
+# thum buttons: page up/down
+None,        Thumb1, Page_Down,  1
+None,        Thumb2, Page_Up,    1
+# }}} = GLOBAL RULES =========================================================
+
+# {{{ = APP SPECIFIC RULES ===================================================
+"^(google-chrome|Navigator|google-chrome)$"
+# }}} = APP SPECIFIC RULES ===================================================
+
