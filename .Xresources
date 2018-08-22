@@ -100,7 +100,7 @@ XTerm*color15:     rgb:ee/ee/ec
 ! }}} = Terminal =============================================================
 
 ! {{{ = Rofi =================================================================
-rofi.combi-modi:   window,drun,run,ssh,keys
+rofi.combi-modi:   drun,window,run,ssh,keys
 rofi.theme:        glue_pro_blue
 rofi.font:         Fira Code Medium 10
 rofi.modi:         combi
