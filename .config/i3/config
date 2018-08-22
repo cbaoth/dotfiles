@@ -1,0 +1,271 @@
+# ~/.config/i3/config: i3 window manager configuration
+# see https://i3wm.org/docs/userguide.html for a complete reference
+
+# {{{ = Styles ===============================================================
+# default font
+#font pango:monospace 8
+#font pango:Terminus 8
+font pango:Fira Code 9
+#font pango:DejaVu Sans Mono 8
+#font -misc-fixed-medium-r-normal--13-120-75-75-C-70-iso10646-1
+
+workspace_layout tabbed
+#new_window pixel
+focus_follows_mouse yes
+#popup_during_fullscreen leave_fullscreen
+#workspace_auto_back_and_forth yes
+#force_display_urgency_hint 500 ms
+
+# {{{ - Status Bar -----------------------------------------------------------
+bar {
+    font              pango:Fira Code 8
+    mode              hide
+    workspace_buttons yes
+    tray_output       none
+    status_command    i3status
+    separator_symbol "~"
+    # colors {
+    #     background #000000
+    #     statusline #ffffff
+
+    #     focused_workspace  #ffffff #285577
+    #     active_workspace   #ffffff #333333
+    #     inactive_workspace #888888 #222222
+    #     urgent_workspace   #ffffff #900000
+    # }
+}
+# }}} - Status Bar -----------------------------------------------------------
+
+# {{{ - Colors ---------------------------------------------------------------
+# class                 border  backgr. text    indicator child_border
+#client.focused          #4c7899 #285577 #ffffff #2e9ef4   #285577
+#client.focused_inactive #333333 #5f676a #ffffff #484e50   #5f676a
+#client.unfocused        #333333 #222222 #888888 #292d2e   #222222
+#client.urgent           #2f343a #900000 #ffffff #900000   #900000
+#client.placeholder      #000000 #0c0c0c #ffffff #000000   #0c0c0c
+#client.background       #ffffff
+# }}} - Colors ---------------------------------------------------------------
+# }}} = Styles ===============================================================
+
+# {{{ = Key Bindings =========================================================
+# default mod key
+set $mod Mod4
+
+# Mouse+$mod: drag floating windows
+floating_modifier $mod
+
+# mod-(Shift-)b: toggle bar mode and hidden state
+bindsym $mod+b bar mode toggle
+bindsym $mod+Shift+b bar hidden_state toggle
+
+# mod-return: run terminal
+bindsym $mod+Return exec i3-sensible-terminal
+
+# mod-r: run ROFI (program launcher)
+bindsym $mod+r exec rofi -show combi
+#bindsym $mod+r exec --no-startup-id i3-dmenu-desktop
+# mod-Shift-r: start dmenu (program launcher)
+bindsym $mod+Shift+r exec dmenu_run
+
+# alt-F4: close/kill focused window
+bindsym Mod1 F4 kill
+
+# mod-(Shift-)tab/grave: change focus (left/right/up/down)
+bindsym $mod+Shift+Tab focus left
+bindsym $mod+Tab focus right
+bindsym $mod+grave focus down
+bindsym $mod+Shift+grave focus up
+
+# mod-left/right/up/down: change focus (same as above)
+bindsym $mod+Left focus left
+bindsym $mod+Right focus right
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+
+# move focused window
+bindsym $mod+Shift+N move left
+bindsym $mod+Shift+E move down
+bindsym $mod+Shift+I move up
+bindsym $mod+Shift+O move right
+
+# alternatively, you can use the cursor keys:
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+# split in horizontal orientation
+bindsym $mod+h split h
+
+# split in vertical orientation
+bindsym $mod+v split v
+
+# enter fullscreen mode for the focused container
+bindsym $mod+t fullscreen toggle
+
+# mod-q/w/W change container layout (toggle-split/tabbed/stacked)
+bindsym $mod+q layout toggle split
+bindsym $mod+w layout tabbed
+bindsym $mod+Shift+W layout stacking
+# mod-F: toggle floating
+bindsym $mod+Shift+f floating toggle
+# mod-f: focus between tiling / floating windows
+bindsym $mod+f focus mode_toggle
+
+# focus the parent container
+bindsym $mod+a focus parent
+
+# focus the child container
+#bindsym $mod+d focus child
+
+# switch to workspace
+bindsym $mod+1 workspace 1
+bindsym $mod+2 workspace 2
+bindsym $mod+3 workspace 3
+bindsym $mod+4 workspace 4
+bindsym $mod+5 workspace 5
+bindsym $mod+6 workspace 6
+bindsym $mod+7 workspace 7
+bindsym $mod+8 workspace 8
+bindsym $mod+9 workspace 9
+bindsym $mod+0 workspace 10
+
+# move focused container to workspace
+bindsym $mod+Shift+1 move container to workspace 1; workspace 1
+bindsym $mod+Shift+2 move container to workspace 2; workspace 2
+bindsym $mod+Shift+3 move container to workspace 3; workspace 3
+bindsym $mod+Shift+4 move container to workspace 4; workspace 4
+bindsym $mod+Shift+5 move container to workspace 5; workspace 5
+bindsym $mod+Shift+6 move container to workspace 6; workspace 6
+bindsym $mod+Shift+7 move container to workspace 7; workspace 7
+bindsym $mod+Shift+8 move container to workspace 8; workspace 8
+bindsym $mod+Shift+9 move container to workspace 9; workspace 9
+bindsym $mod+Shift+0 move container to workspace 10; workspace 10
+
+# mod-x: meta mode
+set $mode_meta Meta: (c)lose window
+bindsym $mod+x mode "$mode_meta"
+mode "$mode_meta" {
+    # c: close/kill focused window
+    bindsym c kill, mode "default"
+
+    # enter/esc: back to normal
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+
+# mod-p: resize window mode
+set $mode_resize Resize: n/e/i/o or arraw keys
+bindsym $mod+p mode "$mode_resize"
+mode "$mode_resize" {
+    # Pressing left will shrink the window’s width.
+    # Pressing right will grow the window’s width.
+    # Pressing up will shrink the window’s height.
+    # Pressing down will grow the window’s height.
+    bindsym n resize shrink width 10 px or 10 ppt
+    bindsym e resize grow height 10 px or 10 ppt
+    bindsym i resize shrink height 10 px or 10 ppt
+    bindsym o resize grow width 10 px or 10 ppt
+
+    # same bindings, but for the arrow keys
+    bindsym Left resize shrink width 10 px or 10 ppt
+    bindsym Down resize grow height 10 px or 10 ppt
+    bindsym Up resize shrink height 10 px or 10 ppt
+    bindsym Right resize grow width 10 px or 10 ppt
+
+    # enter/esc: back to normal
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+
+# mod-BackSpace: system mode
+set $mode_system i3: (l)ock, re-(c)onfigure, (r)e-start, (e)xit -c System: (S)uspend, (H)ibernate, re(B)oot, Shut(D)own
+bindsym $mod+BackSpace mode "$mode_system"
+mode "$mode_system" {
+    # l: lock screen
+    #bindsym l exec i3lock, mode "default"
+    bindsym l exec dm-tool lock, mode "default"
+    # c: reload the configuration file
+    bindsym c reload, mode "default"
+    # r: restart i3 inplace (preserves your layout/session, can be used to upgrade i3)
+    bindsym r restart, mode "default"
+    # e: exit i3 (logs you out of your X session)
+    bindsym e exec "i3-nagbar -t warning -m 'Do you really want to exit i3?' -b 'Exit i3' 'i3-msg exit'"
+
+    # S: lock screen + suspend system
+    bindsym Shift+s mode "default"; exec dm-tool lock; exec systemctl suspend
+    # H: lock screen + hibernate system
+    bindsym Shift+h mode "default"; exec dm-tool lock; exec systemctl hibernate
+    # B: reboot system
+    bindsym Shift+b exec "i3-nagbar -t warning -m 'Do you really want to reboot the system?' -b 'Hibernate' 'systemctl reboot'"
+    # X: power down system
+    bindsym Shift+x exec "i3-nagbar -t warning -m 'Do you really want to shut down the system?' -b 'Shutdown' 'systemctl poweroff'"
+
+    # back to normal: Enter or Escape
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+
+# mod-ESC: run htop
+bindsym $mod Escape exec i3-sensible-terminal -r i3float -e htop
+
+# mod-F1: open ssh session to yav.in
+bindsym $mod F1 exec i3-sensible-terminal -e ssh -p 8090 yav.in
+
+# volume media keys: volume up/down/topple-mute (req.: pulseaudio, osdsh)
+bindsym XF86AudioRaiseVolume exec --no-startup-id media-keys.sh -o vol+
+bindsym XF86AudioLowerVolume exec --no-startup-id media-keys.sh -o vol-
+bindsym XF86AudioMute exec --no-startup-id media-keys.sh -o mute
+# mod4-mod1-=/-/0: alternative keys (same as above)
+bindsym Mod4 Mod1 equal exec --no-startup-id media-keys.sh -o vol+
+bindsym Mod4 Mod1 minus exec --no-startup-id media-keys.sh -o vol-
+bindsym Mod4 Mod1 0 exec --no-startup-id media-keys.sh -o mute
+
+# media player keys (req.: https://github.com/acrisci/playerctl)
+bindsym XF86AudioPlay exec --no-startup-id media-keys.sh -o play-pause
+bindsym XF86AudioPrev exec --no-startup-id media-keys.sh -o previous
+bindsym XF86AudioNext exec --no-startup-id media-keys.sh -o next
+# mod4-mod1-7/8/9: alternative keys (same as above)
+bindsym Mod4 Mod1 7 exec --no-startup-id media-keys.sh -o play-pause
+bindsym Mod4 Mod1 8 exec --no-startup-id media-keys.sh -o previous
+bindsym Mod4 Mod1 9 exec --no-startup-id media-keys.sh -o next
+
+# Sreen brightness controls (req.: xbacklight)
+bindsym XF86MonBrightnessUp exec --no-startup-id xbacklight -inc 20
+bindsym XF86MonBrightnessDown exec --no-startup-id xbacklight -dec 20
+
+# tools button: start music player
+#bindsym XF86Tools exec quodlibet
+#bindsym XF86Tools exec gmusicbrowser
+bindsym XF86Tools exec spotify
+
+# home button: start browser
+bindsym XF86HomePage exec google-chrome
+
+# {{{ = Window Rules =========================================================
+# {{{ - Default Workspaces ---------------------------------------------------
+# window rules: default workspaces
+#for_window [class="^evil-app$"] floating enable, move container to workspace 4
+for_window [class=".*chrome"], move container to workspace 2; workspace 2
+for_window [class="(?i)code$"], move container to workspace 3; workspace 3
+for_window [class="(?i)XnView(MP)?"], move container to workspace 5; workspace 5
+for_window [class="spotify$"], move container to workspace 0; workspace 0
+# assign
+# }}} - Default Workspaces ---------------------------------------------------
+for_window [window_role="i3float"] floating enable
+# }}} = Window Rules =========================================================
+
+# {{{ = Launch Apps ==========================================================
+# activate xorg composite shadow and transparence stuff
+#exec --no-startup-id xcompmgr -cCfF -t-5 -l-5 -r4.2 -o.55 -D6
+#exec_always --no-startup-id pkill -9 compton
+#exec_always --no-startup-id compton -cCfF -D6
+
+# desktop background
+exec --no-startup-id xsetroot -solid black
+exec --no-startup-id feh --bg-scale ~/.wallpaper.jpg
+
+# conky system monitor
+exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-syslog
+exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-sysmon2
+# }}} = Launch Apps ==========================================================
