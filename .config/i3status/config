@@ -1,0 +1,93 @@
+# ~/.config/i3status/config: i3 window manager status configuration
+# see https://i3wm.org/i3status/manpage.html for a complete reference
+
+general {
+    #output_format = "dzen2"
+    #color_separator = "#999999"
+    colors = true
+    color_good = "#66b3ff" #"#3399ff"
+    color_degraded = "#ff9900"
+    color_bad = "#ff0066"
+    interval = 5
+}
+
+order += "disk /"
+order += "wireless wlan0"
+order += "ethernet eth0"
+#order += "ipv6"
+#order += "run_watch DHCP"
+#order += "run_watch OPENVPN"
+order += "path_exists VPN"
+#order += "cpu_temperature 0"
+order += "load"
+order += "battery 0"
+order += "volume master"
+order += "tztime local"
+
+disk "/" {
+    format = "/ %percentage_avail"
+    format_below_threshold = "/ %percentage_avail (LOW)"
+    low_threshold = 10
+}
+
+wireless wlan0 {
+    format_up = "📶 %ip (%quality @ %essid, %bitrate)"
+    format_down = ""
+    #separator = false
+    #separator_block_width = 1
+}
+
+ethernet eth0 {
+    # if you use %speed, i3status requires the cap_net_admin capability
+    #format_up = "E: %ip (%speed)"
+    format_up = "🖧 %ip"
+    format_down = ""
+}
+
+path_exists VPN {
+    # path exists when a VPN tunnel is active
+    path = "/proc/sys/net/ipv4/conf/tun0"
+    format = "VPN"
+    format_down = "NO VPN"
+}
+
+#run_watch DHCP {
+#    pidfile = "/var/run/dhclient*.pid"
+#}
+
+#run_watch OPENVPN {
+#    # file containing the PID of a openvpn process
+#    pidfile = "/var/run/openvpn/*.pid"
+#}
+
+#cpu_temperature 0 {
+#    format = "T: %degrees °C"
+#    path = "/sys/devices/platform/coretemp.0/temp1_input"
+#}
+
+load {
+    format = "%5min"
+}
+
+battery 0 {
+    format = "%status %percentage %remaining %emptytime"
+    format_down = ""
+    status_chr = "⚡"
+    status_bat = "🔋"
+    status_unk = "?"
+    status_full = "☻"
+    path = "/sys/class/power_supply/BAT%d/uevent"
+    low_threshold = 20
+}
+
+volume master {
+    format = "🔊 %volume"
+    format_muted = "🔇"
+    device = "pulse:0"
+}
+
+tztime local {
+    #format = "%Y-%m-%d %H:%M:%S %Z"
+    format = "🕓 %H:%M"
+    timezone = "Europe/Berlin"
+}
