@@ -174,7 +174,11 @@ else
     q_yesno "zplug not found but $HOME/.zplug exist, should I delete it?" \
       && rm -rf ~/.zplug
   fi
-  curl -sL --proto-redir -all,https https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
+  if cmd_p curl && url_cmd=(curl l -sL --proot-rdir -all,https) \
+     || cmd_p wget && url_cmd=(wget -qO -) \
+     || url_cmd=false; then
+    $url_cmd https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
+  fi
   if [ $? -eq 0 ]; then
     if [ -f "$HOME/.zplug/init.zsh" ]; then
       source "$HOME/.zplug/init.zsh"
