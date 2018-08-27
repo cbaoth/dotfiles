@@ -7,17 +7,24 @@
 # The following aliases will wirk in zsh, bash, etc.
 
 # {{{ - GENERAL --------------------------------------------------------------
-alias ..='cd ..'
-alias ...='cd ../..'
-alias ~='cd ~'
+# change directory shortcuts
+#alias ..='cd ..'
+#alias ...='cd ../..'
+#alias ....='cd ../../..'
+alias h='cd ~'
+alias /='cd /'
 
+# file operations
 alias cpi='cp -i'
 alias mvi='mv -i'
 
+# editors
 alias e='emacs -nw'
 alias vim='vim -N'
 alias vi='vim -N'
+alias v='vim -N'
 
+# add --color option to all grep commands
 for c in '' e f r; do
   alias ${c}grep="${c}grep --color"
 done
@@ -51,25 +58,25 @@ alias rsync-local-sizeonly='rsync -vurpl --size-only'
 #alias remount-yavin='sudo umount -f /media/yavin && mount /media/yavin
 #  || losof '
 #alias remount-yavin='sudo umount -f -l /media/yavin; mount /media/yavin'
-alias disk-uuid-list='sudo blkid -c /dev/null'
+alias disk-uuid='sudo blkid -c /dev/null'
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - SECURITY -------------------------------------------------------------
-alias authlog-ssh-ip+user='sudo grep "Failed" /var/log/auth.log
-  | sed "s/.*for\( invalid user\)* \([^ ]*\) from \([^ ]*\) .*/\3\t\2/"
+alias authlog-ssh-ip+user='sudo grep "Failed" /var/log/auth.log \
+  | sed "s/.*for\( invalid user\)* \([^ ]*\) from \([^ ]*\) .*/\3\t\2/" \
   | grep -v sudo: | sort | uniq -c'
-alias authlog-ssh-ip-all='sudo zcat /var/log/auth.log.*
-  | grep "Failed" | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}"
+alias authlog-ssh-ip-all='sudo zcat /var/log/auth.log.* \
+  | grep "Failed" | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" \
   | grep -v sudo: | sort | uniq -c | sort -r'
-alias authlog-ssh-ip='sudo grep "Failed" /var/log/auth.log
-  | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}"
+alias authlog-ssh-ip='sudo grep "Failed" /var/log/auth.log \
+  | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" \
   | grep -v sudo: | sort | uniq -c'
-alias authlog-ssh-user='sudo grep "Failed" /var/log/auth.log
-  | sed "s/.*for\( invalid user\)* \([^ ]*\) .*/\2/"
+alias authlog-ssh-user='sudo grep "Failed" /var/log/auth.log \
+  | sed "s/.*for\( invalid user\)* \([^ ]*\) .*/\2/" \
   | grep -v sudo: | sort | uniq -c'
-alias authlog-proxy-ip='sudo cat /var/log/oops/access.log
-  | egrep "TCP_DENIED/555.*NULL/AUTH_MOD"
-  | sed "s/.* \(.*\) TCP_DENIED\/555.*NULL\/AUTH_MOD.*/\1/g"
+alias authlog-proxy-ip='sudo cat /var/log/oops/access.log \
+  | egrep "TCP_DENIED/555.*NULL/AUTH_MOD" \
+  | sed "s/.* \(.*\) TCP_DENIED\/555.*NULL\/AUTH_MOD.*/\1/g" \
   | grep -v sudo: | sort | uniq -c'
 #alias authlog-ftp-ip='sudo grep "Failed" /var/log/auth.log | ...'
 # sudo egrep "ftpd.*authentication failure" /var/log/auth.log
@@ -78,7 +85,7 @@ alias authlog-proxy-ip='sudo cat /var/log/oops/access.log
 
 # {{{ - MAIL -----------------------------------------------------------------
 #alias fetchmail='fetchmail --mda "formail -s procmail" -f $HOME/.fetchmailrc'
-alias fetchmail='fetchmail --mda "/usr/bin/spamc -e /usr/lib/dovecot/deliver"
+alias fetchmail='fetchmail --mda "/usr/bin/spamc -e /usr/lib/dovecot/deliver" \
   -f $HOME/.fetchmailrc --bad-header accept'
 # }}} - MAIL -----------------------------------------------------------------
 
@@ -124,9 +131,10 @@ alias xprop-name='xprop WM_CLASS | cut -d\" -f4'
 alias xprop-type='xprop _NET_WM_WINDOW_TYPE | cut -d_ -f10'
 alias xprop-title='xprop WM_NAME | cut -d\" -f2'
 alias xprop-role='xprop WM_WINDOW_ROLE | cut -d\" -f2'
-alias xprop2="xprop|grep -E '^(WM_CLASS|WM_NAME|WM_WINDOW_ROLE)'
-  | sed -r 's/^WM_(WINDOW_)?([^_(\s]+)(\([^)]*\))?/\2/g ; s/^NAME/TITLE/g ;
-      s/\s*=\s*/\t/g ; s/CLASS\t\"(.*)\", \"(.*)\"/CLASS\t"\1"\nNAME\t"\2"/g'"
+alias xprop2="xprop | egrep '^(WM_CLASS|WM_NAME|WM_WINDOW_ROLE)' \
+  | sed -r 's/^WM_(WINDOW_)?([^_(\s]+)(\([^)]*\))?/\2/g;
+            s/^NAME/TITLE/g; s/\s*=\s*/\t/g;
+            s/CLASS\t\"(.*)\", \"(.*)\"/CLASS\t"\1"\nNAME\t"\2"/g'"
 # }}} - XORG -----------------------------------------------------------------
 
 # {{{ - MULTIMEDIA -----------------------------------------------------------
@@ -214,7 +222,7 @@ alias usbsleep='sudo ~/bin/scsi-idle 900&'
 alias rename-p2u="rename 's/\./_/g;s/_([^_]{1,5})$/.\$1/'"
 alias rename-stripspecial="rename \"s/[^ \w()\[\]~&%#@.,+'-]/_/g\""
 alias rename-stripspecial-rec="find . -type f -execdir rename \"s/^\.\///g;
-  s/[^ \w()\[\]~&%#@.,+'-]/_/g;s/^/\.\//\" '{}' +"
+  s/[^ \w()\[\]~&%#@.,+'-]/_/g; s/^/\.\//\" '{}' +"
 alias rename-titlecase="rename 's/(^|[\s_-])([a-z])/\1\u\2/g'"
 alias rename-camelcase="rename 's/(^|[\s_-])([a-z])/\u\2/g'"
 alias sed-titlecase="sed -r 's/(^|[\s_-])([a-z])/\1\u\2/g'"
@@ -276,44 +284,44 @@ alias -g urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
 #alias -g mkdir='nocorrect mkdir'
 
 # http://grml.org/zsh/zsh-lovers.html
-#alias -g ...='../..'
-#alias -g ....='../../..'
-#alias -g .....='../../../..'
+alias -g ...='../..'
+alias -g ....='../../..'
+alias -g .....='../../../..'
 #alias -g CA="2>&1 | cat -A"
 #alias -g C='| wc -l'
 #alias -g D="DISPLAY=:0.0"
 #alias -g DN=/dev/null
 #alias -g ED="export DISPLAY=:0.0"
-#alias -g EG='|& egrep'
-#alias -g EH='|& head'
-#alias -g EL='|& less'
+alias -g EG='|& egrep'
+alias -g EH='|& head'
+alias -g EL='|& less'
 #alias -g ELS='|& less -S'
 #alias -g ETL='|& tail -20'
-#alias -g ET='|& tail'
+alias -g ET='|& tail'
 #alias -g F=' | fmt -'
-#alias -g G='| egrep'
-#alias -g H='| head'
+alias -g G='| egrep'
+alias -g H='| head'
 #alias -g HL='|& head -20'
 #alias -g Sk="*~(*.bz2|*.gz|*.tgz|*.zip|*.z)"
 #alias -g LL="2>&1 | less"
-#alias -g L="| less"
+alias -g L="| less"
 #alias -g LS='| less -S'
 #alias -g MM='| most'
 #alias -g M='| more'
 #alias -g NE="2> /dev/null"
 #alias -g NS='| sort -n'
-#alias -g NUL="> /dev/null 2>&1"
+alias -g NUL="> /dev/null 2>&1"
 #alias -g PIPE='|'
 #alias -g R=' > /c/aaa/tee.txt '
 #alias -g RNS='| sort -nr'
-#alias -g S='| sort'
+alias -g S='| sort'
 #alias -g TL='| tail -20'
-#alias -g T='| tail'
+alias -g T='| tail'
 #alias -g US='| sort -u'
 #alias -g VM=/var/log/messages
 #alias -g X0G='| xargs -0 egrep'
 #alias -g X0='| xargs -0'
 #alias -g XG='| xargs egrep'
-#alias -g X='| xargs'
+alias -g X='| xargs'
 # }}} - GLOBAL ALIASES -------------------------------------------------------
 # }}} = ZSH ONLY =============================================================
