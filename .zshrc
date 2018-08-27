@@ -103,7 +103,7 @@ export IRCNAME="Jorus C'Baoth"
 
 # {{{ - ZSH ------------------------------------------------------------------
 # Default apps
-$IS_X && export EDITOR=code || export EDITOR=vim
+$IS_X && export EDITOR=code || export EDITOR='vim -N'
 $IS_X && export BROWSER=google-chrome || export BROWSER=links
 $IS_X && export IMGVIEWER=xnview || export IMGVIEWER=catimg
 $IS_X && export MPLAYER=mpv || export MPLAYER=mpv
@@ -346,6 +346,7 @@ zplug_cmd "plugins/vagrant", from:oh-my-zsh
 zplug_cmd "plugins/vscode", from:oh-my-zsh # vs* aliases
 zplug_cmd "plugins/web-search", from:oh-my-zsh
 zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
+zplug_cmd "zsh-users/zsh-history-substring-search"
 # }}} - OH MY ZSH ------------------------------------------------------------
 
 # activate syntax highlighting, load last to affect everything loaded before
@@ -368,36 +369,6 @@ unalias zplug_cmd
 # }}} = ZPLUG LOAD ===========================================================
 
 # {{{ = ZPLUG SETTINGS =======================================================
-# zsh-autosuggestions
-bindkey '^ ' autosuggest-accept
-
-# {{{ - ZAW ------------------------------------------------------------------
-# https://github.com/zsh-users/zaw
-bindkey '^[r' zaw # alt-r
-bindkey '^r' zaw-history # ctrl-r
-
-# git bindings
-bindkey '^[v^[l' zaw-git-log # alt-v, alt-l
-bindkey '^[v^[r' zaw-git-reflog # alt-v, alt-r
-bindkey '^[v^[s' zaw-git-status # alt-v, alt-s
-
-# filterlist bindings
-bindkey -M filterselect '^r' down-line-or-history
-bindkey -M filterselect '^w' up-line-or-history
-bindkey -M filterselect '^ ' accept-search
-bindkey -M filterselect '\e' send-break # esc
-bindkey -M filterselect '^[' send-break # esc
-
-# filterlist style
-zstyle ':filter-select:highlight' matched fg=green
-zstyle ':filter-select' max-lines 5
-zstyle ':filter-select' case-insensitive yes
-zstyle ':filter-select' extended-search yes
-# }}} - ZAW ------------------------------------------------------------------
-
-# sudo
-bindkey "^[^[" sudo-command-line # esc, esc (if \e\e doesn't work)
-
 # tmux
 #ZSH_TMUX_AUTOSTART # default: false, auto start tmux on login
 #ZSH_TMUX_AUTOSTART_ONCE # default: true, start for ever (nested) zsh session
@@ -527,34 +498,6 @@ compctl -K _userlist finger
 
 set COMPLETE_ALIASES
 # }}} - COMPLETION -----------------------------------------------------------
-# {{{ - KEY BINDINGS ---------------------------------------------------------
-#http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Standard-Widgets
-# emacs key bindings
-bindkey -e
-bindkey "^x^x" execute-named-cmd # in addition to alt-x (if alt not working)
-bindkey "^x^z" execute-last-named-cmd # in addition to alt-x (if alt not working)
-
-# lookup spaces
-bindkey ' ' magic-space
-
-bindkey '^ ' globalias
-
-# input navigation using arrow keys (plus emacs: ctrl-a/e, alt-b/f)
-bindkey "^[[1;5D" backward-word # ctrl-left
-bindkey "^[[1;5C" forward-word # ctrl-right
-bindkey "^[[1;5A" beginning-of-line # ctrl-up
-bindkey "^[[1;5B" end-of-line # ctrl-down
-
-if [[ "$TERM" = *xterm* ]]; then
-  #bindkey "\e[1~" beginning-of-line # HOME
-  bindkey "\e[7~" beginning-of-line  # HOME also: rxvt (ctrl-a)
-  bindkey "\e[2~" overwrite-mode # INS (also: ctrl-x,ctrl-o)
-  bindkey "\e[3~" delete-char # DEL (also: ctrl-d -> delete-char-or-list)
-  bindkey "^?" backward-delete-char # BS (also: ctrl-h and ctrl-w -> word)
-  #bindkey "\e[4~" end-of-line # END
-  bindkey "\e[8~" end-of-line # END rxvt (also: ctrl-e)
-fi
-# }}} - KEY BINDINGS ---------------------------------------------------------
 # {{{ - MISC -----------------------------------------------------------------
 # cd ... completes cd ../../../ etc.
 #rationalise-dot() {
@@ -572,6 +515,82 @@ fi
 #alias $com="noglob $com"
 # }}} - MISC -----------------------------------------------------------------
 # }}} = ZSH SETTINGS =========================================================
+# {{{ = ZSH KEYBINDINGS ======================================================
+# zsh-autosuggestions
+bindkey '^ ' autosuggest-accept
+
+#http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Standard-Widgets
+# emacs key bindings
+#bindkey -e
+# vi key bindings
+bindkey -v
+
+bindkey '^x^x' execute-named-cmd # in addition to alt-x (if alt not working)
+bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working)
+
+# {{{ - COMPLETION -----------------------------------------------------------
+# lookup spaces
+bindkey ' ' magic-space
+#bindkey '^ ' globalias
+
+if zplug check "zsh-users/zsh-history-substring-search"; then
+  bindkey '^[OA' history-substring-search-up # up key substring history
+  bindkey '^[OB' history-substring-search-down # down key substring history
+fi
+# }}} - COMPLETION -----------------------------------------------------------
+# {{{ - CURSOR NAVIGATION ----------------------------------------------------
+# input navigation using arrow keys (plus emacs: ctrl-a/e, alt-b/f)
+bindkey '^[[1;5D' backward-word # ctrl-left
+bindkey '^[[1;5C' forward-word # ctrl-right
+bindkey '^[[1;5A' beginning-of-line # ctrl-up
+bindkey '^[[1;5B' end-of-line # ctrl-down
+
+if [[ "$TERM" = *xterm* ]]; then
+  #bindkey "\e[1~" beginning-of-line # HOME
+  bindkey '^[[7~' beginning-of-line  # HOME also: rxvt (ctrl-a)
+  bindkey '^[[2~' overwrite-mode # INS (also: ctrl-x,ctrl-o)
+  bindkey '^[[3~' delete-char # DEL (also: ctrl-d -> delete-char-or-list)
+  bindkey '^?' backward-delete-char # BS (also: ctrl-h and ctrl-w -> word)
+  #bindkey '\e[4~' end-of-line # END
+  bindkey '^[[8~' end-of-line # END rxvt (also: ctrl-e)
+fi
+# }}} - CURSOR NAVIGATON -----------------------------------------------------
+# {{{ - VI MODE --------------------------------------------------------------
+# vi mode
+# open command line in vim
+bindkey -M vicmd '^v' edit-command-line
+# }}} - VI MODE --------------------------------------------------------------
+# {{{ - ZAW ------------------------------------------------------------------
+# https://github.com/zsh-users/zaw
+if zplug check "zsh-users/zaw"; then
+  bindkey '^[r' zaw # alt-r
+  bindkey '^r' zaw-history # ctrl-r
+
+  # git bindings
+  bindkey '^[v^[l' zaw-git-log # alt-v, alt-l
+  bindkey '^[v^[r' zaw-git-reflog # alt-v, alt-r
+  bindkey '^[v^[s' zaw-git-status # alt-v, alt-s
+
+  # filterlist bindings
+  bindkey -M filterselect '^r' down-line-or-history
+  bindkey -M filterselect '^w' up-line-or-history
+  bindkey -M filterselect '^ ' accept-search
+  bindkey -M filterselect '\e' send-break # esc
+  bindkey -M filterselect '^[' send-break # esc
+
+  # filterlist style
+  zstyle ':filter-select:highlight' matched fg=green
+  zstyle ':filter-select' max-lines 5
+  zstyle ':filter-select' case-insensitive yes
+  zstyle ':filter-select' extended-search yes
+fi
+# }}} - ZAW ------------------------------------------------------------------
+# }}} = ZSH KEYBINDINGS ======================================================
+
+# sudo
+bindkey "^[^[" sudo-command-line # esc, esc (if \e\e doesn't work)
+
+
 
 # {{{ = INCLUDES =============================================================
 # include os/host specific functon files
