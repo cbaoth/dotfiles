@@ -6,6 +6,8 @@
 #runbg xcompmgr -cCfF -t-5 -l-5 -r4.2 -o.55 -D6
 #runbg compton -cCfF -D6
 
+# delete previous log file
+rm -f ~/i3.log 2>&1 >/dev/null
 # run windowmanager
 exec i3 -V >> ~/i3.log 2>&1
 #exec fluxbox

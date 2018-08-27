@@ -1,102 +1,284 @@
 ! ~/.Xresources: x resource configuration
 
 ! {{{ = General ==============================================================
-! font resolution
-Xft.dpi: 120
+Xft.dpi:                120
+Xft.antialias:          true
+Xft.rgba:               rgb
+Xft.hinting:            true
+Xft.hintstyle:          hintslight
 
-*noAboutSplash:    True
-*scrollBar:        False
-*transparent:    True
-*shading:        50
-!*tinting:        Blue
+*noAboutSplash:         True
+*scrollBar:             False
+*transparent:           True
+*shading:               10
+!*tinting:               Blue
 ! }}} = General ==============================================================
 
 ! {{{ = Terminal =============================================================
-! {{{ - XTerm ----------------------------------------------------------------
-XTerm*background:            black
-XTerm*foreground:            grey85
-XTerm*boldFont:              Fira Code 12
-XTerm*font:                  Fira Code Bold 12
-!XTerm*boldFont:              terminus-*-12*
-!XTerm*font:                  terminus-*-12*
-XTerm*backarrowKeyIsErase:   False
-!*ttyModes:                   erase ^?
-Xterm*saveLines:             10000
+! {{{ - General --------------------------------------------------------------
+XTerm*termName:         xterm-256color
+*locale:                true
+*saveLines:             10000
 
-XTerm*colorBDMode:           on
-XTerm*colorBD:               white
-XTerm*colorULMode:           on
-XTerm*colorUL:               white
-rxvt*colorBD:                white
+XTerm*selectToClipboard:     true
+URxvt.perl-ext-common:  selection-to-clipboard
+URxvt.iso14755:         false
+URxvt.iso14755_52:      false
+URxvt.keysym.Shift-Control-V: eval:paste_clipboard
+URxvt.keysym.Shift-Control-C: eval:selection_to_clipboard
 
-!*termName:                   xterm-256color
-! }}} - XTerm ----------------------------------------------------------------
-! {{{ - Tango (gnome-terminal) colors ----------------------------------------
-!black
-XTerm*color0:      rgb:2E/34/36
-XTerm*color8:      rgb:55/57/53
+!XTerm*boldFont:         terminus-*-12*
+!XTerm*font:             terminus-*-12*
+!*boldFont:              xft:Fira Code:size=8:style=bold
+*font:                  xft:Fira Code:size=8:style=medium,\
+                        xft:Symbola,\
+                        -*-unifont-*-*-*-*-*-*-*-*-*-*-*-*
+*.faceName:             Fira Code
+*.faceSize:             9
+!URxvt*letterSpace:      -1
+URxvt*letterSpace:      0
 
-!red
-XTerm*color1:      rgb:cc/00/00
-XTerm*color9:      rgb:ef/29/29
+*.backarrowKeyIsErase:   False
+!*ttyModes:              erase ^?
 
-!green
-XTerm*color2:      rgb:4e/9a/06
-XTerm*color10:     rgb:8a/e2/34
-
-!yellow
-XTerm*color3:      rgb:c4/a0/00
-XTerm*color11:     rgb:fc/e9/4f
-
-!blue
-XTerm*color4:      rgb:34/65/a4
-XTerm*color12:     rgb:72/9f/cf
-
-!magenta
-XTerm*color5:      rgb:75/50/5b
-XTerm*color13:     rgb:ad/7f/a8
-
-!cyan
-XTerm*color6:      rgb:06/98/9a
-XTerm*color14:     rgb:34/e2/e2
-
-!rgb:ff/ff/ff
-XTerm*color7:      rgb:d3/d7/cf
-XTerm*color15:     rgb:ee/ee/ec
-! }}} - Tango (gnome-terminal) colors ----------------------------------------
-! {{{ - artwiz colores -------------------------------------------------------
+*.background:           black
+*.foreground:           grey85
+!XTerm*colorBDMode:      on
+!XTerm*colorBD:          white
+!XTerm*colorULMode:      on
+!XTerm*colorUL:          white
+!rxvt*colorBD:           white
+xterm*dynamicColors:    true
+urxvt*dynamicColors:    on
+! }}} - URxvt ----------------------------------------------------------------
+! {{{ - Tango (gnometerm) colors -----------------------------------------------
+!! special
+!*.foreground:   #babdb6
+!*.background:   #000000
+!*.cursorColor:  #babdb6
+!
 !!black
-!XTerm*color0:      rgb:00/00/00
-!XTerm*color8:      rgb:70/74/78
+!*color0:      rgb:2E/34/36
+!*color8:      rgb:55/57/53
 !
 !!red
-!XTerm*color1:      rgb:b0/70/50
-!XTerm*color9:      rgb:d0/90/70
+!*color1:      rgb:cc/00/00
+!*color9:      rgb:ef/29/29
 !
 !!green
-!XTerm*color2:      rgb:50/b0/70
-!XTerm*color10:     rgb:70/d0/90
+!*color2:      rgb:4e/9a/06
+!*color10:     rgb:8a/e2/34
 !
 !!yellow
-!XTerm*color3:      rgb:a0/a0/70
-!XTerm*color11:     rgb:c0/c0/90
+!*color3:      rgb:c4/a0/00
+!*color11:     rgb:fc/e9/4f
 !
 !!blue
-!XTerm*color4:      rgb:50/70/b0
-!XTerm*color12:     rgb:70/90/d0
+!*color4:      rgb:34/65/a4
+!*color12:     rgb:72/9f/cf
 !
 !!magenta
-!XTerm*color5:      rgb:a0/70/a0
-!XTerm*color13:     rgb:c0/90/c0
+!*color5:      rgb:75/50/5b
+!*color13:     rgb:ad/7f/a8
 !
 !!cyan
-!XTerm*color6:      rgb:70/a0/a0
-!XTerm*color14:     rgb:90/c0/c0
+!*color6:      rgb:06/98/9a
+!*color14:     rgb:34/e2/e2
 !
 !!white
-!XTerm*color7:      rgb:a0/a4/a8
-!XTerm*color15:     rgb:ff/ff/ff
-! {{{ - artwiz colores -------------------------------------------------------
+!*color7:      rgb:d3/d7/cf
+!*color15:     rgb:ee/ee/ec
+! }}} - Tango (gnometerm) colos ------------------------------------------------
+! {{{ - artwiz colors --------------------------------------------------------
+!!black
+!*color0:      rgb:00/00/00
+!*color8:      rgb:70/74/78
+!
+!!red
+!*color1:      rgb:b0/70/50
+!*color9:      rgb:d0/90/70
+!
+!!green
+!*color2:      rgb:50/b0/70
+!*color10:     rgb:70/d0/90
+!
+!!yellow
+!*color3:      rgb:a0/a0/70
+!*color11:     rgb:c0/c0/90
+!
+!!blue
+!*color4:      rgb:50/70/b0
+!*color12:     rgb:70/90/d0
+!
+!!magenta
+!*color5:      rgb:a0/70/a0
+!*color13:     rgb:c0/90/c0
+!
+!!cyan
+!*color6:      rgb:70/a0/a0
+!*color14:     rgb:90/c0/c0
+!
+!!white
+!*color7:      rgb:a0/a4/a8
+!*color15:     rgb:ff/ff/ff
+! }}} - artwiz colors --------------------------------------------------------
+! {{{ - hybrid colors --------------------------------------------------------
+!! https://terminal.sexy
+!! special
+!*.foreground:   #c5c8c6
+!*.background:   #1d1f21
+!*.cursorColor:  #c5c8c6
+!
+!! black
+!*.color0:       #282a2e
+!*.color8:       #373b41
+!
+!! red
+!*.color1:       #a54242
+!*.color9:       #cc6666
+!
+!! green
+!*.color2:       #8c9440
+!*.color10:      #b5bd68
+!
+!! yellow
+!*.color3:       #de935f
+!*.color11:      #f0c674
+!
+!! blue
+!*.color4:       #5f819d
+!*.color12:      #81a2be
+!
+!! magenta
+!*.color5:       #85678f
+!*.color13:      #b294bb
+!
+!! cyan
+!*.color6:       #5e8d87
+!*.color14:      #8abeb7
+!
+!! white
+!*.color7:       #707880
+!*.color15:      #c5c8c6
+! }}} - hybrid colors --------------------------------------------------------
+! {{{ - dotshare colors ------------------------------------------------------
+!! https://terminal.sexy
+!! special
+!*.foreground:   #a2a2a2
+!*.background:   #282828
+!*.cursorColor:  #a2a2a2
+!
+!! black
+!*.color0:       #555555
+!*.color8:       #888888
+!
+!! red
+!*.color1:       #9c3528
+!*.color9:       #d64937
+!
+!! green
+!*.color2:       #61bc3b
+!*.color10:      #86df5d
+!
+!! yellow
+!*.color3:       #f3b43a
+!*.color11:      #fdd75a
+!
+!! blue
+!*.color4:       #0d68a8
+!*.color12:      #0f75bd
+!
+!! magenta
+!*.color5:       #744560
+!*.color13:      #9e5e83
+!
+!! cyan
+!*.color6:       #288e9c
+!*.color14:      #37c3d6
+!
+!! white
+!*.color7:       #a2a2a2
+!*.color15:      #f9f9f9
+! }}} - dotshare colors ------------------------------------------------------
+! {{{ - NumixDarkest colors --------------------------------------------------
+!! https://terminal.sexy
+!! special
+!! special
+!*.foreground:   #a2a2a2
+!*.background:   #282828
+!*.cursorColor:  #a2a2a2
+!
+!! black
+!*.color0:       #555555
+!*.color8:       #888888
+!
+!! red
+!*.color1:       #9c3528
+!*.color9:       #d64937
+!
+!! green
+!*.color2:       #61bc3b
+!*.color10:      #86df5d
+!
+!! yellow
+!*.color3:       #f3b43a
+!*.color11:      #fdd75a
+!
+!! blue
+!*.color4:       #0d68a8
+!*.color12:      #0f75bd
+!
+!! magenta
+!*.color5:       #744560
+!*.color13:      #9e5e83
+!
+!! cyan
+!*.color6:       #288e9c
+!*.color14:      #37c3d6
+!
+!! white
+!*.color7:       #a2a2a2
+!*.color15:      #f9f9f9
+! }}} - NumixDarkest colors --------------------------------------------------
+! {{{ - C'Baoth Custom colors ------------------------------------------------
+! special
+*.foreground:   #c0c0c0
+*.background:   #000000
+*.cursorColor:  #00ff00
+
+! black
+*.color0:       #2e2e2e
+*.color8:       #606060
+
+! red
+*.color1:       #9c3528
+*.color9:       #d64937
+
+! green
+*.color2:       #61bc3b
+*.color10:      #86df5d
+
+! yellow
+*.color3:       #f3b43a
+*.color11:      #fdd75a
+
+! blue
+*.color4:       #0d68a8
+!*.color12:      #729fcf
+*.color12:      #4F8dce
+
+! magenta
+*.color5:       #744560
+*.color13:      #9e5e83
+
+! cyan
+*.color6:       #288e9c
+*.color14:      #37c3d6
+
+! white
+*.color7:       #a2a2a2
+*.color15:      #f9f9f9
+! }}} - C'Baoth Custom colors ------------------------------------------------
 ! }}} = Terminal =============================================================
 
 ! {{{ = Rofi =================================================================
