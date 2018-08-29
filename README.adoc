@@ -186,7 +186,7 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 |Function|Description
 |`*p_colortable*`|Print 256 ansi color table. +
  image:func_p_colortable_1.png[]
-|`*tputs* _STYLE.._*`|Execute multiple `tput` commands in sequcen. _Exapmle:_ +
+|`*tputs* _STYLE.._`|Execute multiple `tput` commands in sequcen. _Exapmle:_ +
  image:func_tputs_1.png[]
 |`*tp* _STYLE.._`|Set one or more tput colors and text effects by (short) name. All values are looked up from a map _(no need to run an external process)_. +
  image:func_tp_1.png[]
@@ -212,10 +212,10 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 |`*is_su*`|`true` if root (super user) session, else: `false`
 |`*is_sudo*`|`true` if in sudo mode, else: `false`
 |`*is_ssh*`|`true` if ssh session, else: `false`
-|`*is_int* _number.._`|`true` if all given numbers are integers _(only digits)_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
-|`*is_decimal* _number.._`|`true` if all given numbers are decimals _(only digits, MUST contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
-|`*is_number* _number.._`|`true` if all given numbers a either integers or decimals _(only digits, CAN contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
-|`*is_positive* _number.._`|`true` if all numbers do _NOT_ start with a `-`, else: `false`. Ignores leading/trailing spaces. _Note: This doesn't check if the arguments are numbers (it simply checks for a leading `-`, should always be used in combination with `is_int/decimal/number`)._
+|`*is_int* _NUMBER.._`|`true` if all given numbers are integers _(only digits)_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`*is_decimal* _NUMBER.._`|`true` if all given numbers are decimals _(only digits, MUST contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`*is_number* _NUMBER.._`|`true` if all given numbers a either integers or decimals _(only digits, CAN contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`*is_positive* _NUMBER.._`|`true` if all numbers do _NOT_ start with a `-`, else: `false`. Ignores leading/trailing spaces. _Note: This doesn't check if the arguments are numbers (it simply checks for a leading `-`, should always be used in combination with `is_int/decimal/number`)._
 |===
 
 
@@ -224,9 +224,9 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,3",options="header"]
 |===
 |Function|Description
-|`*while_read* _cmd_`|Monitor input and execute command in foreground using input as command argument. _Example: `while_read wget` to download all entered urls._
-|`*while_read_bg* _cmd_`|Monitor input and execute command in background _(job)_ using input as command argument. _Example: `while_read_bg wget` to download all entered urls._
-|`*while_read_xclip* [options] _cmd_`|Monitor X clipboard and execute command using clipboard content as command argument. _Example:_ +
+|`*while_read* _COMMAND.._`|Monitor input and execute command in foreground using input as command argument. _Example: `while_read wget` to download all entered urls._
+|`*while_read_bg* _COMMAND.._`|Monitor input and execute command in background _(job)_ using input as command argument. _Example: `while_read_bg wget` to download all entered urls._
+|`*while_read_xclip* [OPTION..] _COMMAND.._`|Monitor X clipboard and execute command using clipboard content as command argument. _Example:_ +
  `while_read_xclip -b -m '^https?://.*' echo \'{}\' \>\> links.txt \; wget --quiet -c \'{}\'` +
  _to append all clipboard http(s) links to `links.txt` and download them using wget_
 |===
@@ -236,8 +236,8 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,4",options="header"]
 |===
 |Function|Description
-|`*q_yesno* _question_`|Print the `questions` and asks for (y)es/(n)o input. Returns true if `yes`, else: `false`.
-|`*q_yesno* _file_`|Checks if the given file exists, if so asks wether to overwrite it via (y)es/(n)o input. Returns `false` if ansere is `no`, else: `true` _(also if file doesn't exist)_.
+|`*q_yesno* _QUESTION_`|Print the `QUESTION` and asks for (y)es/(n)o input. Returns true if answer is `yes`, else: `false`.
+|`*q_overwrite* _FILE_`|Checks if the given file exists, if so asks wether to overwrite it via (y)es/(n)o input. Returns `true` only if `FILE` exists AND if answer is `yes`, else: `false`.
 |===
 
 
@@ -288,11 +288,11 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,3",options="header"]
 |===
 |Function|Description
-|`*mpv_find* _dir [arg..] [-a mpv-arg..]_`|Find any media file _(default: `.avi,.mkv,.mp4,.webm`, regex match can be changed)_ and play them using `mpv`. Allows sorting, fs tree recursion, list-only _(stdout, no playback)_, 'resuming' _(from a given index)_, and passing additional arguments to `mpv`. _Example: `mpv_find -r -s -R -a --no-resume-playback` will play all videos in the current, and all subfolders, in random order, ignoring mpv's `remsue-playback` function._
-|`*to_mp3* _infile [brate] [outfile]_`|Convert the given `infile` to mp3 using `ffmpeg` (infile may be any media file containing audio readable by `ffmpeg`). A bitrate of `160k` and default output file name `{infilename}-audio.mp3` ise used if no specific options are provided.
-|`*to_opus* _[-b brate] infile [opusenc-arg..]_`|Convert the given `infile` to opus using `opusenc` (infile may be any media file containing audio readable by `opusenc`). If no arguments are provided it uses the default `opusenc` vbr bitrate of _"64kbps per mono stream, 96kbps per coupled pair". The output file is `{infilename}.opus` _(currently not changeable)_.
-|`*media_concat* _outfile infile.._`|Concatenates all `infile..` media files into `outfile` using `ffmpeg`.
-|`*video_crop* _infile crop [outfile]_`|Crop `infile` video using the given `ffmpeg crop` format _(e.g. `640:352:0:64`)_ to the default outfil `{infilename}_CROP.{infileext}`. Requires imagemagick's `identify`.
+|`*mpv_find* _DIR [OPTION..] [-a MPV-ARG..]_`|Find any media file _(default: `.avi,.mkv,.mp4,.webm`, regex match can be changed)_ and play them using `https://mpv.io/[mpv]`. Allows sorting, fs tree recursion, list-only _(stdout, no playback)_, 'resuming' _(from a given index)_, and passing additional arguments to `mpv`. _Example: `mpv_find -r -s -R -a --no-resume-playback` will play all videos in the current, and all subfolders, in random order, ignoring mpv's `remsue-playback` function._
+|`*to_mp3* _INFILE [BITRATE [OUTFILE]]_`|Convert the given `INFILE` to mp3 using `https://www.ffmpeg.org/[ffmpeg]` (infile may be any media file containing audio readable by `ffmpeg`). A bitrate of `160k` and default output file name `{infilename}-audio.mp3` ise used if no specific options are provided.
+|`*to_opus* _[-b BITRATE] INFILE [OPUSENC_ARG..]_`|Convert the given `INFILE` to opus using `https://opus-codec.org[opusenc]` (infile may be any media file containing audio readable by `opusenc`). If no arguments are provided it uses the default `opusenc` vbr bitrate of _"64kbps per mono stream, 96kbps per coupled pair". The output file is `{infilename}.opus` _(currently not changeable)_.
+|`*ff_concat* _OUTFILE INFILE.._`|Concatenates all `INFILEs` into `OUTFILE` using `ffmpeg`.
+|`*ff_crop* _INFILE CROP [OUTFILE]_`|Crop `INFILE` video using the given `ffmpeg crop` format _(e.g. `640:352:0:64`)_ to the default outfil `{infilename}_CROP.{infileext}`. Requires imagemagick's `identify`.
 |===
 
 ==== Images
@@ -300,10 +300,10 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,3",options="header"]
 |===
 |Function|Description
-|`*gif_delay* _file_`|Returns the first 10 frame delays (speed) of a given gif file and provides examples on how to change the speed using imagemagick's `convert`. Requires imagemagick's `identify`.
+|`*gif_delay* _FILE_`|Returns the first 10 frame delays (speed) of a given gif file and provides examples on how to change the speed using imagemagick's `https://www.imagemagick.org/script/convert.php[convert]`. Requires imagemagick's `https://www.imagemagick.org/script/identify.php[identify]`.
 |`*image_concat* _FILE.._`|Concatenate images. +
  _TODO: Needs further improvement._
-|`*image_dimensions* _file.._`|Returns dimensions given images in format: `{file-name}&#124;{w}&#124;{h}&#124;{w}x{h}&#124;{w*x}&#124;{min(w,h)}&#124;{max(w,h)}` (width, height, pixels, shortest/longest edge, etc.). The delimiter `&#124;` can be changed. Requires imagemagick's `identify`.
+|`*image_dimensions* _FILE.._`|Returns dimensions given images in format: `{file-name}&#124;{w}&#124;{h}&#124;{w}x{h}&#124;{w*x}&#124;{min(w,h)}&#124;{max(w,h)}` (width, height, pixels, shortest/longest edge, etc.). The delimiter `&#124;` can be changed. Requires imagemagick's `identify`.
 |===
 
 
