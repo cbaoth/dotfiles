@@ -350,7 +350,7 @@ zplug_cmd "plugins/vagrant", from:oh-my-zsh
 zplug_cmd "plugins/vscode", from:oh-my-zsh # vs* aliases
 zplug_cmd "plugins/web-search", from:oh-my-zsh
 zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
-zplug_cmd "zsh-users/zsh-history-substring-search"
+#zplug_cmd "zsh-users/zsh-history-substring-search"
 # }}} - OH MY ZSH ------------------------------------------------------------
 
 # activate syntax highlighting, load last to affect everything loaded before
@@ -537,10 +537,14 @@ bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working
 bindkey ' ' magic-space
 #bindkey '^ ' globalias
 
-if zplug check "zsh-users/zsh-history-substring-search"; then
-  bindkey '^[OA' history-substring-search-up # up key substring history
-  bindkey '^[OB' history-substring-search-down # down key substring history
-fi
+#if zplug check "zsh-users/zsh-history-substring-search"; then
+#  bindkey '^[OA' history-substring-search-up # up (vs. up-line-or-history)
+#  bindkey '^[OB' history-substring-search-down # down (vs. down-line-or-history)
+#fi
+#bindkey '^[[A' history-beginning-search-backward # up (vs. up-line-or-history)
+#bindkey '^[OA' history-beginning-search-backward # up (vs. up-line-or-history)
+#bindkey '^[[B' history-beginning-search-forward # down (vs. down-line-or-history)
+#bindkey '^[OB' history-beginning-search-forward # down (vs. down-line-or-history)
 # }}} - COMPLETION -----------------------------------------------------------
 # {{{ - CURSOR NAVIGATION ----------------------------------------------------
 # input navigation using arrow keys (plus emacs: ctrl-a/e, alt-b/f)

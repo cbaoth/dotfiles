@@ -22,21 +22,61 @@ endif::[]
 :icon-help: image:https://png.icons8.com/color/50/000000/help.png[,24]
 
 :icon-shell: image:https://png.icons8.com/material/50/000000/console.png[,22]
+:icon-xwin: image:https://png.icons8.com/ios-glyphs/50/000000/delete-sign.png[,22]
 :icon-edit: image:https://png.icons8.com/metro/50/000000/edit.png[,20]
 :icon-video: image:https://png.icons8.com/windows/50/000000/tv-show.png[,24]
 
+
 == Summary
 
-My core configuration (dot) files.
+My core configuration (dot) files, shell functions and utility scripts.
 
 * `ZSH` is the leading shell.
 * `Bash` configs exist for rare cases in which zsh is not availlable, they are not regularly maintained and usually outdated.
 * If not clearly `ZSH` related, all alias, function, etc. files should be `Bash` compatible _(but not always POSIX compliant)_.
 * All files use the `" \{\{\{( .*)?$"` _(or `{{{ }}}` in short)_ folding comment pattern _(use e.g. https://www.emacswiki.org/emacs/FoldingMode[emacs], https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS Code], https://stackoverflow.com/a/6947590[eclipse])_
 
-=== OS & Host specific configurations
 
-Custom OS and host specific ZSH configurtaions, aliases and function files can be created and they are automatically loaded. This provides a simple way to prepare the environment of a specific host without the need of messing around with the core files.
+=== Dot-files
+
+[%header,cols="2,1,4",options="header"]
+|===
+|File / Folder|App|Description
+|`link:.zshenv[]`|{icon-shell} https://en.wikipedia.org/wiki/Z_shell[ZSH]|Common
+ ZSH login shell environment (variables).
+|`link:.zlogout[]`|{icon-shell} ZSH|Common ZSH logout cleanup
+|`link:.zshrc[]`|{icon-shell} ZSH|Common ZSH config
+|`link:.zsh.d/zshrc-freebsd.zsh[]` +
+ `link:.zsh.d/zshrc-motoko.zsh[]` +
+ `link:.zsh.d/zshrc-puppet.zsh[]` +
+ `link:.zsh.d/zshrc-saito.zsh[]` +
+ `link:.zsh.d/zshrc-yav_in.zsh[]`|{icon-shell} ZSH|OS, distirbution, and/or host specific ZSH configs.
+|`link:.zsh.d/aliases.zsh[]`|{icon-shell} SH|Common aliases
+|`link:.zsh.d/aliases-freebsd.zsh[]` +
+ `link:.zsh.d/aliases-linux.zsh[]`|{icon-shell} SH|OS, distirbution, and/or host specific specific aliases.
+|`link:.zsh.d/functions.zsh[]`|{icon-shell} SH|Common shell functions.
+|`link:.zsh.d/functions-freebsd.zsh[]`|{icon-shell} SH|OS, distirbution, and/or  host specific shell aliases.
+|`link:.bash.d/bashrc[]`|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Common Bash config _(rarely maintained)_.
+|`link:.profile[]`|{icon-shell}{icon-xwin}|Currently only loaded from insicede `.xsession` to prepare the enviroment (variables) without a login shell. It's basically a copy of `.zshenv` though the latter can contain `zsh` specific stuff.
+|`link:.xsession[]`|{icon-xwin} X, Wayland|Used by the display manager. Currently only loades `.profile` and `.xinitrc`.
+|`link:.xinitrc[]`|{icon-xwin} https://en.wikipedia.org/wiki/X_Window_System[X], https://en.wikipedia.org/wiki/Wayland_(display_server_protocol)[Wayland]|Loaded from inside `.xsession` or when starting `xinit`.
+|`link:.xession/common[]` +
+ `link:.xession/default[]` +
+ `link:.xession/saito[]`|{icon-xwin} X, Wayland|Common, default and host specific xsession initialization scripts loaded from inside `.xinitrc`. The `common` script is always loaded, the host specific script `.xsession.d/{hostname}` (e.g. `.xsession.d/saito`) is loaded if existing, else the fallback default is loaded `.xsession.d/default`.
+|`link:.Xresources[]` +
+ `link:.Xresources.d/saito[]`|{icon-xwin} X, Wayland|Common and host specific https://en.wikipedia.org/wiki/X_resources[X Resources]. The `.Xresources` file is loaded from inside `.xsession.d/common`. If a host specific Xresources `.Xresources.d/{hostname}` (e.g. `Xresources.d/saito`) exists, it is merged into the common resources.
+|`link:.imwheelrc[]`|{icon-xwin} http://imwheel.sourceforge.net/[IMWheel]|General and app specific mouse button/wheel mappings.
+|`link:.vimrc[]`|{icon-edit} https://www.vim.org/[VIM]|VIM configuration
+|`link:.config/mpv/config[]` +
+ `link:.config/mpv/input.conf[]`|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|MPV configuration and key bindings.
+|`link:.mplayer/config[]` +
+ `link:.mplayer/input.conf[]`|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|Old MPlayer configuration and key bindings (switched to `mpv`).
+|===
+
+
+==== Host / OS specific zsh files
+
+Custom host / OS  specific ZSH configurtaions, aliases, functions, xsessions and xresources can be created and they are dynamically loaded in case of a match. This provides a conveniant way to enrich the envoronment in case of a spicific host / os without messing around with the core files.
 
 //This function is used to load the files:
 //
@@ -45,15 +85,15 @@ Custom OS and host specific ZSH configurtaions, aliases and function files can b
 //include::.zshrc[lines=120..137]
 //----
 
-This is the sequence in which the files are loaded:
+This is the sequence in which zshrc's, aleases and functions are loaded from within `.zshrc`:
 
 [source,bash]
 ----
- # top of zshrc
- .zsh.d/functions.zsh  # always loaded
- .zsh.d/aliases.zsh    # always loaded
+ # top of zshrc (always loaded)
+ .zsh.d/functions.zsh
+ .zsh.d/aliases.zsh
 
- # bottom of zshrc (just before MOTD)
+ # bottom of zshrc (loaded in given sequence if host/os matches)
  .zsh.d/functions-${OS}.zsh
  .zsh.d/functions-${HOST}.zsh
  .zsh.d/functions-${HOST}-${OS}.zsh
@@ -72,44 +112,177 @@ This is the sequence in which the files are loaded:
 
 The special suffix `_wsl` is used on https://en.wikipedia.org/wiki/Windows_Subsystem_for_Linux[Windows Subsystem Linux], this allows the `-linux` files to be loaded in addition to (followed by) a WSL specific `-linux_wsl` file.
 
-Examples can be seen in the <<Dot-files>> list below.
+Some examples can be seen in the <<Dot-files>> list above.
 
-=== Dot-files
 
-[%header,cols="2,1,4",options="header"]
-|===
-|File / Folder|App|Description
-|link:.zshenv[]|{icon-shell} https://en.wikipedia.org/wiki/Z_shell[ZSH]|Common
- ZSH login shell environment
-|link:.zshrc[]|{icon-shell} ZSH|Common ZSH config
-|link:.zlogout[]|{icon-shell} ZSH|Common ZSH logout cleanup
-|link:.zsh.d/zshrc-freebsd.zsh[] +
- link:.zsh.d/zshrc-motoko.zsh[] +
- link:.zsh.d/zshrc-motoko-linux.zsh[] +
- link:.zsh.d/zshrc-puppet.zsh[] +
- link:.zsh.d/zshrc-saito.zsh[] +
- link:.zsh.d/zshrc-yav_in.zsh[]|{icon-shell} ZSH|OS, distirbution, and/or host   specific ZSH configs
-|link:.zsh.d/aliases.zsh[]|{icon-shell} SH|Common aliases
-|link:.zsh.d/aliases-freebsd.zsh[] +
- link:.zsh.d/aliases-linux.zsh[]|{icon-shell} SH|OS, distirbution, and/or host   specific specific aliases
-|link:.zsh.d/functions.zsh[]|{icon-shell} SH|Common shell functions
-|link:.zsh.d/functions-freebsd.zsh[]|{icon-shell} SH|OS, distirbution, and/or  host specific shell aliases
-|link:.bash.d/bashrc[]|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Common Bash config _(rarely maintained)_
-|link:.vimrc[]|{icon-edit} https://www.vim.org/[VIM]|VIM configuration
-|.config/mpv/|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|MPV configuration and key bindings
-|.mplayer/|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|MPlayer configuration and key bindings
-|===
+=== Scripts
 
-=== Other files
-
-[%header,cols="1,5"]
+[%header,cols="1,3"]
 |===
 |File|Description
-|README.adoc|This file
-|link:link.sh[]|Creates missing folders in user's home directory and links to all dot-files. _Currently moves existing files / links to a backup location._
-|link:permissions.sh[]|Updates the file's permissions.
+|`link:bin/media-keys.sh[]`|Script to be used from within X (e.g. media key mappings) for media player control (play/pause, perv/next song) and pulse audio volume control (+/-5% and toggle mute) optionally showing an OSD.
 |===
 //include::.aliases[lines=1..2]
+
+
+=== Other repository files
+
+[%header,cols="1,3"]
+|===
+|File|Description
+|`link:link.sh[]`|Link all dotfile repo files (except for loacl scripts and documentation) to the user's home directory. Missing directories are created in the process. _It currently moves existing files / links, that would be overwritten in the process, to a backup location inside the home directory._
+|`link:permissions.sh[]`|Updates the dotfile repo file permissions.
+|README.adoc|This file
+|===
+//include::.aliases[lines=1..2]
+
+
+== Shell Functions
+
+Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be described in the following chapters.
+
+*_[red]#TODO: Onyl a fraction, most non-listed functions need a review first (cleanup, partially pretty old).#_*
+
+=== Print
+
+[%header,cols="1,2,2",options="header"]
+|===
+|Function|Example|Description
+|`[blue]#p_usg# _text.._`|`$ p_usg $0 arg1 arg2` +
+ -> `usage: _$0_ arg1 arg2`| Print a _usage_ text.
+|`[blue]#p_msg# _text.._`|`$ p_msg some info message ...` +
+ -> `>  some info text ...` | Print an info message.
+|`[blue]#p_war# text..`|`$ p_war some warning message ...` +
+ -> `> *[white yellow-background]#WARNING:#* some warning message ...` | Print a warning message.
+|`[blue]#p_err# text..`|`$ p_err some error text ...` +
+ _(stderr)_ -> `> *[white red-background]#ERROR:#* some error message ...`| Print an error message _(stderr)_.
+|`[blue]#p_dbg# _dbg_lvl show_at_lvl text.._`|`$ DEBUG=3` +
+ `$ p_dbg _$DEBUG_ 2 some debug message ...` +
+ -> `> *[teal-background]#DEBUG(2):#* some debug message ...` +
+ `$ p_dbg _$DEBUG_ 4 some debug message ...` +
+ -> _null_ +
+ +
+ `$ DBG_LVL=2` +
+ `$ p_dbg 0 2 some debug message ...` +
+ -> `> *[teal-background]#DEBUG(2):#* some debug message ...` +
+ `$ p_dbg 0 1 some other debug message ...` +
+ -> _null_
+ | Print debug msg. in case the given debug level is reached: `dbg_lvl >= show_at_level`. A global level can be set via `DBG_LVL`. The global level is considered only in case `DBG_LVL` > `dbg_lvl`. To always only consider the global level set `dbg_lvl` to `0`.
+|`[blue]#p_yes#` +
+ `[blue]#p_no#`|`$ p_yes` -> `[green]#yes#` +
+ `$ p_no` -> `[red]#no#`|Print _yes_ in green or _no_ in red color. _Example usage:_ `[ $x -ge 2 ] && p_yes &#124;&#124; p_no`
+|`[blue]#p_colortable#`|-|Print 256 ansi color table.
+|`[blue]#py_print# [-i import] code..`|`$ py_print "192,168,0,1,sep='.'"` +
+ -> `192.168.0.1` +
+ `$ py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"` +
+ -> `SQRT(1.3) = 1.140175425099138`
+ |Uses the given `code` as argument of python's `print` function and evaluates the latter using `python3`. Use `-i` to import required package(s).
+|===
+
+
+=== Predicates
+
+[%header,cols="1,3",options="header"]
+|===
+|Function|Description
+|`[blue]#is_zsh#`|`true` if `zsh` session, else: `false`
+|`[blue]#is_bash#`|`true` if `bash` session, else: `false`
+|`[blue]#is_su#`|`true` if root (super user) session, else: `false`
+|`[blue]#is_sudo#`|`true` if in sudo mode, else: `false`
+|`[blue]#is_ssh#`|`true` if ssh session, else: `false`
+|`[blue]#is_int# _number.._`|`true` if all given numbers are integers _(only digits)_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`[blue]#is_decimal# _number.._`|`true` if all given numbers are decimals _(only digits, MUST contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`[blue]#is_number# _number.._`|`true` if all given numbers a either integers or decimals _(only digits, CAN contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`[blue]#is_positive# _number.._`|`true` if all numbers do _NOT_ start with a `-`, else: `false`. Ignores leading/trailing spaces. _Note: This doesn't check if the arguments are numbers (it simply checks for a leading `-`, should always be used in combination with `is_int/decimal/number`)._
+|===
+
+
+=== Clipboard
+
+[%header,cols="1,3",options="header"]
+|===
+|Function|Description
+|`[blue]#while_read# _cmd_`|Monitor input and execute command in foreground using input as command argument. _Example: `while_read wget` to download all entered urls._
+|`[blue]#while_read_bg# _cmd_`|Monitor input and execute command in background _(job)_ using input as command argument. _Example: `while_read_bg wget` to download all entered urls._
+|`[blue]#while_read_xclip# [options] _cmd_`|Monitor X clipboard and execute command using clipboard content as command argument. _Example:_ +
+ `while_read_xclip -b -m '^https?://.*' echo \'{}\' \>\> links.txt \; wget --quiet -c \'{}\'` +
+ _to append all clipboard http(s) links to `links.txt` and download them using wget_
+|===
+
+=== Queries
+
+[%header,cols="1,4",options="header"]
+|===
+|Function|Description
+|`[blue]#q_yesno# _question_`|Print the `questions` and asks for (y)es/(n)o input. Returns true if `yes`, else: `false`.
+|`[blue]#q_yesno# _file_`|Checks if the given file exists, if so asks wether to overwrite it via (y)es/(n)o input. Returns `false` if ansere is `no`, else: `true` _(also if file doesn't exist)_.
+|===
+
+
+=== Arrays
+
+[%header,cols="2,2,3",options="header"]
+|===
+|Function|Example|Description
+|`[blue]#join_by# _del array.._`|`$ join_by : (a b c d)` +
+ -> `a:b:c:d` +
+ `join_by ' - ' 1 2 3 4` +
+  -> `1 - 2 - 3 - 4` | Join array/args by delimiter. +
+  _ZSH variant:_ `${(j:del:)array}` +
+   `a=(a b c) print ${(j:/:)a}` +
+   -> `a/b/c`
+|`[blue]#join_by_n# _array.._`|`$ join_by_n (a b c d)` +
+ -> `a` +
+ `b` +
+ `c` +
+ `d` | Join array/args by newline. Adds newline after last item too.
+|===
+
+
+=== Math
+
+[%header,cols="1,2,3",options="header"]
+|===
+|Function|Example|Description
+|`[blue]#calc# _expr_`|`$ calc 1+2` +
+ -> `3` +
+ `$ calc -s 4 'sqrt(17)^3'` +
+ -> `70.0925` +
+ |Send `expr` to `dc` calculator and return the result. Also consider using `py_print -i math _{code}_`.
+|===
+
+
+=== Command
+
+[%header,cols="1,2",options="header"]
+|===
+|Function|Description
+|`[blue]#cmd_delay# _delay cmd.._`|Execute a command with a delay (sleep format, e.g. `3m` for 3 minutes). _Sleep timer example:_ `cmd_delay 45m systemctl suspend`.
+|===
+
+
+=== Internet
+
+[%header,cols="1,3",options="header"]
+|===
+|Function|Description
+|`[blue]#ytp# _url.._`|Download `url..` using `youtube-dl` and `aria2c` _(4 concurrent downloads, 4 threads per host)_ using the same output file names as `youtube-dl` would use. _Note that this is basically the same as the alias `yt` but using aria2c for parallel download instead. When multiple formats are available, youtube-dl will favor free codecs starting with the best vp9/opus/vp8/vorbis/webm/ogg streams finally falling back to the best available streams (no matter the format)._
+|`[blue]#ytap# _url.._`|Same as `ytp` above, but only downloading the audio stream _(no video)_. _Note that this is basically the same as the alias `yta` but using aria2c for parallel download instead._
+|===
+
+=== Multimedia
+
+[%header,cols="1,3",options="header"]
+|===
+|Function|Description
+|`[blue]#mpv_find# _dir [arg..] [-a mpv-arg..]_`|Find any media file _(default: `.avi,.mkv,.mp4,.webm`, regex match can be changed)_ and play them using `mpv`. Allows sorting, fs tree recursion, list-only _(stdout, no playback)_, 'resuming' _(from a given index)_, and passing additional arguments to `mpv`. _Example: `mpv_find -r -s -R -a --no-resume-playback` will play all videos in the current, and all subfolders, in random order, ignoring mpv's `remsue-playback` function._
+|`[blue]#to_mp3# _infile [brate] [outfile]_`|Convert the given `infile` to mp3 using `ffmpeg` (infile may be any media file containing audio readable by `ffmpeg`). A bitrate of `160k` and default output file name `{infilename}-audio.mp3` ise used if no specific options are provided.
+|`[blue]#to_opus# _[-b brate] infile [opusenc-arg..]_`|Convert the given `infile` to opus using `opusenc` (infile may be any media file containing audio readable by `opusenc`). If no arguments are provided it uses the default `opusenc` vbr bitrate of _"64kbps per mono stream, 96kbps per coupled pair". The output file is `{infilename}.opus` _(currently not changeable)_.
+|`[blue]#media_concat# _outfile infile.._`|Concatenates all `infile..` media files into `outfile` using `ffmpeg`.
+|`[blue]#video_crop# _infile crop [outfile]_`|Crop `infile` video using the given `ffmpeg crop` format _(e.g. `640:352:0:64`)_ to the default outfil `{infilename}_CROP.{infileext}`. Uses imagemagick's `identify`.
+|`[blue]#image_dimensions# _file.._`|Returns dimensions given images in format: `{file-name}&#124;{w}&#124;{h}&#124;{w}x{h}&#124;{w*x}&#124;{min(w,h)}&#124;{max(w,h)}` (width, height, pixels, shortest/longest edge, etc.). The delimiter `&#124;` can be changed. Uses imagemagick's `identify`.
+|===
+
 
 == Appendix
 
