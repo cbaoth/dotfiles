@@ -1512,36 +1512,80 @@ Usage: $USG
 
 $(tput bold)About:$(tput sgr0)
   This is a simple wrapper for 'identify' (imagemagic) that will return the
-  delay (speed) of the first 10 frames of a given gif file.
+  delay (speed) in 100th of a second of all frames in a given gif file.
 
+$(tput bold)Options:$(tput sgr0)
+    -d|--delay-only   print the delay ony (default: print frame index + delay)
+    -a|--average      print the average (rounded) delay of all frames
+
+$(tput bold)Examples:$(tput sgr0)
+  # print frame index + delay in 1/100 sec
   $ $(tput bold)$(func_name)$(tput sgr0) infile.gif
-$(tput setaf 4)
-8x100
-8x100
-8x100
-7x100
-8x100
-...
-$(tput sgr0)
-  A delay of 8x100 would mean a 8/100 sec delay between frames
+$(tput setaf 4)#1 8
+#2 8
+#3 8
+#4 7
+#5 8
+...$(tput sgr0)
+
+  # print delay in 1/100 sec only (omit the "#x " frame index prefix)
+  $ $(tput bold)$(func_name)$(tput sgr0) -d infile.gif
+$(tput setaf 4)8
+8
+8
+7
+8
+...$(tput sgr0)
+
+  # the average delay in 1/100 for all frames
+  $ $(tput bold)$(func_name)$(tput sgr0) -a infile.gif
+$(tput setaf 4)8$(tput sgr0)
 
 $(tput bold)Convert:$(tput sgr0)
   One can change the speed of a given gif file using 'convert' (imagemagick).
 
   # Change the speed of the above mentioned infile.gif (8x100 average) ..
-  # .. to 5/10 sec. delay (speed up)
+  # .. to 5/100 sec. delay (speed up)
   $ $(tput bold)convert$(tput sgr0) -delay 10x100 infile.gif outfile.gif
 
-  # .. to 15/10 sec. delay (slow down), the 'x100' can be omitted (default)
+  # .. to 15/100 sec. delay (slow down), the 'x100' can be omitted (default)
   $ $(tput bold)convert$(tput sgr0) -delay 15 infile.gif outfile.gif
 EOF
   readonly HELP
   # parse arguments
   [ -z "$1" ] && { p_usg "$USG"; return 1; }
-  [[ $1 =~ ^(-h|--help)$ ]] && { printf "%s" "$HELP"; return 1; }
-  [ ! -f "$1" ] && p_err "file not found: $1" && return 1
-  # print first 10 gif delays
-  identify -verbose "$1" | grep Delay | head -n 10 | grep -Eo '[0-9]+x[0-9]+'
+  local format="#%s %T" average=false
+  while [ -n "$1" ]; do
+    case $1 in
+      -d|--delay-only)
+        format="%T"; shift
+        ;;
+      -a|--average)
+        average=true; shift
+        ;;
+      -h|--help)
+        printf "%s" "$HELP"; return 1;
+        ;;
+      -*)
+        p_err "unknown argument: $1"; return 1
+        ;;
+      *)
+        break;
+        ;;
+    esac
+  done
+  [ -z "$1" ] && { p_err "missing file argument"; return 1; }
+  [ ! -f "$1" ] && { p_err "file not found: $1"; return 1; }
+  # print delays or average
+  if $average; then
+    delay_sum=$(identify -format "%T+" "$1")
+    [ $? -ne 0 ] && { p_err "error processing gif file"; return 1; }
+    pluses=${delay_sum//[^+]}
+    frame_count=${#pluses}
+    printf "%s\n" "$(((${delay_sum}0)/frame_count))"
+  else
+    identify -format "$format\n" "$1"
+  fi
 }
 
 video-split-screen () {
