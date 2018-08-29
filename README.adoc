@@ -7,7 +7,7 @@ v1.0, 2018-08-01
 //:sectnumlevels: 3
 :source-highlighter: prettify
 //:source-highlighter: highlight.js
-//:imagesdir: images
+:imagesdir: ./adoc_assets
 ifdef::env-github[]
 :tip-caption: :bulb:
 :note-caption: :information_source:
@@ -36,6 +36,10 @@ My core configuration (dot) files, shell functions and utility scripts.
 * If not clearly `ZSH` related, all alias, function, etc. files should be `Bash` compatible _(but not always POSIX compliant)_.
 * All files use the `" \{\{\{( .*)?$"` _(or `{{{ }}}` in short)_ folding comment pattern _(use e.g. https://www.emacswiki.org/emacs/FoldingMode[emacs], https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS Code], https://stackoverflow.com/a/6947590[eclipse])_
 
+== TODO
+
+* Review `functions.zsh` and aliases _(update ancient code, remove obsolete code, maybe modularize)_
+* Include additional shell and python scripts
 
 === Dot-files
 
@@ -72,6 +76,11 @@ My core configuration (dot) files, shell functions and utility scripts.
 |`link:.mplayer/config[]` +
  `link:.mplayer/input.conf[]`|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|Old MPlayer configuration and key bindings (switched to `mpv`).
 |===
+
+ip=(192 168 100 18)
+printf "ip: %s\n" $(join_by . $ip)
+exp=$(join_by + $(seq 1 10))
+printf "%s = %s\n" $exp $((exp))
 
 
 ==== Host / OS specific zsh files
@@ -141,59 +150,72 @@ Some examples can be seen in the <<Dot-files>> list above.
 
 Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be described in the following chapters.
 
-*_[red]#TODO: Onyl a fraction, most non-listed functions need a review first (cleanup, partially pretty old).#_*
-
 === Print
 
-[%header,cols="1,2,2",options="header"]
+[%header,cols="1,3",options="header"]
 |===
-|Function|Example|Description
-|`[blue]#p_usg# _text.._`|`$ p_usg $0 arg1 arg2` +
- -> `usage: _$0_ arg1 arg2`| Print a _usage_ text.
-|`[blue]#p_msg# _text.._`|`$ p_msg some info message ...` +
- -> `>  some info text ...` | Print an info message.
-|`[blue]#p_war# text..`|`$ p_war some warning message ...` +
- -> `> *[white yellow-background]#WARNING:#* some warning message ...` | Print a warning message.
-|`[blue]#p_err# text..`|`$ p_err some error text ...` +
- _(stderr)_ -> `> *[white red-background]#ERROR:#* some error message ...`| Print an error message _(stderr)_.
-|`[blue]#p_dbg# _dbg_lvl show_at_lvl text.._`|`$ DEBUG=3` +
- `$ p_dbg _$DEBUG_ 2 some debug message ...` +
- -> `> *[teal-background]#DEBUG(2):#* some debug message ...` +
- `$ p_dbg _$DEBUG_ 4 some debug message ...` +
- -> _null_ +
- +
- `$ DBG_LVL=2` +
- `$ p_dbg 0 2 some debug message ...` +
- -> `> *[teal-background]#DEBUG(2):#* some debug message ...` +
- `$ p_dbg 0 1 some other debug message ...` +
- -> _null_
- | Print debug msg. in case the given debug level is reached: `dbg_lvl >= show_at_level`. A global level can be set via `DBG_LVL`. The global level is considered only in case `DBG_LVL` > `dbg_lvl`. To always only consider the global level set `dbg_lvl` to `0`.
-|`[blue]#p_yes#` +
- `[blue]#p_no#`|`$ p_yes` -> `[green]#yes#` +
- `$ p_no` -> `[red]#no#`|Print _yes_ in green or _no_ in red color. _Example usage:_ `[ $x -ge 2 ] && p_yes &#124;&#124; p_no`
-|`[blue]#p_colortable#`|-|Print 256 ansi color table.
-|`[blue]#py_print# [-i import] code..`|`$ py_print "192,168,0,1,sep='.'"` +
- -> `192.168.0.1` +
- `$ py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"` +
- -> `SQRT(1.3) = 1.140175425099138`
- |Uses the given `code` as argument of python's `print` function and evaluates the latter using `python3`. Use `-i` to import required package(s).
+|Function|Description
+|`*p_usg* _USAGE.._`|Print a _Usage_ text. +
+ image:func_p_usg_1.png[]
+|`*p_msg* _MSG.._`|Print an info message. +
+ image:func_p_msg_1.png[]
+|`*p_war* MSG..`|Print a warning message. +
+ image:func_p_war_1.png[]
+|`*p_err* MSG..`|Print an error message _(stderr)_. +
+ image:func_p_err_1.png[]
+|`*p_dbg* _DBG_LVL SHOW_AT_LVL MSG.._`|Print a debug msg if the given debug level is reached. +
+ image:func_p_dbg_1.png[] +
+ A global debug level can be set via the `DBG_LVL` variable, in this case `p_dbg` will use the higher level `max(arg-level, global-level)`, meaning whichever is larger. As a result the global level can be used to globally raise, but never to lower the locally used debug level. +
+ image:func_p_dbg_2.png[] +
+ So simply set the `DBG_LVL` argument to `0` if only the global level should be considered.
+ image:func_p_dbg_3.png[] +
+ image:func_p_dbg_4.png[] +
+|`*p_yes*` +
+ `*p_no*`|Print _yes_ in green and _no_ in red color. +
+ image:func_p_yes-no_1.png[]
+|`*py_print* [-i import] PY_CODE..`|Route the given `code` through the _python3_ `print` function. +
+ image:func_py_print_1.png[] +
+ Use `-i` to import additional packages. +
+ image:func_py_print_2.png[]
 |===
 
+==== Colors
+
+[%header,cols="1,3",options="header"]
+|===
+|Function|Description
+|`*p_colortable*`|Print 256 ansi color table. +
+ image:func_p_colortable_1.png[]
+|`*tputs* _STYLE.._*`|Execute multiple `tput` commands in sequcen. _Exapmle:_ +
+ image:func_tputs_1.png[]
+|`*tp* _STYLE.._`|Set one or more tput colors and text effects by (short) name. All values are looked up from a map _(no need to run an external process)_. +
+ image:func_tp_1.png[]
+|===
+
+
+=== Shell Functions
+
+[%header,cols="1,3",options="header"]
+|===
+|Function|Description
+|`*func_name*`|Returns the current function's name: `${FUNCNAME[0]}` on `bash`, `${funcstack[1]}` on `zsh`.
+|`*func_caller*`|Returns the function's caller name _(if caller is a function)_: `${FUNCNAME[1]}` on `bash`, `${funcstack[2]}` on `zsh`.
+|===
 
 === Predicates
 
 [%header,cols="1,3",options="header"]
 |===
 |Function|Description
-|`[blue]#is_zsh#`|`true` if `zsh` session, else: `false`
-|`[blue]#is_bash#`|`true` if `bash` session, else: `false`
-|`[blue]#is_su#`|`true` if root (super user) session, else: `false`
-|`[blue]#is_sudo#`|`true` if in sudo mode, else: `false`
-|`[blue]#is_ssh#`|`true` if ssh session, else: `false`
-|`[blue]#is_int# _number.._`|`true` if all given numbers are integers _(only digits)_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
-|`[blue]#is_decimal# _number.._`|`true` if all given numbers are decimals _(only digits, MUST contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
-|`[blue]#is_number# _number.._`|`true` if all given numbers a either integers or decimals _(only digits, CAN contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
-|`[blue]#is_positive# _number.._`|`true` if all numbers do _NOT_ start with a `-`, else: `false`. Ignores leading/trailing spaces. _Note: This doesn't check if the arguments are numbers (it simply checks for a leading `-`, should always be used in combination with `is_int/decimal/number`)._
+|`*is_zsh*`|`true` if `zsh` session, else: `false`
+|`*is_bash*`|`true` if `bash` session, else: `false`
+|`*is_su*`|`true` if root (super user) session, else: `false`
+|`*is_sudo*`|`true` if in sudo mode, else: `false`
+|`*is_ssh*`|`true` if ssh session, else: `false`
+|`*is_int* _number.._`|`true` if all given numbers are integers _(only digits)_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`*is_decimal* _number.._`|`true` if all given numbers are decimals _(only digits, MUST contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`*is_number* _number.._`|`true` if all given numbers a either integers or decimals _(only digits, CAN contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
+|`*is_positive* _number.._`|`true` if all numbers do _NOT_ start with a `-`, else: `false`. Ignores leading/trailing spaces. _Note: This doesn't check if the arguments are numbers (it simply checks for a leading `-`, should always be used in combination with `is_int/decimal/number`)._
 |===
 
 
@@ -202,9 +224,9 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,3",options="header"]
 |===
 |Function|Description
-|`[blue]#while_read# _cmd_`|Monitor input and execute command in foreground using input as command argument. _Example: `while_read wget` to download all entered urls._
-|`[blue]#while_read_bg# _cmd_`|Monitor input and execute command in background _(job)_ using input as command argument. _Example: `while_read_bg wget` to download all entered urls._
-|`[blue]#while_read_xclip# [options] _cmd_`|Monitor X clipboard and execute command using clipboard content as command argument. _Example:_ +
+|`*while_read* _cmd_`|Monitor input and execute command in foreground using input as command argument. _Example: `while_read wget` to download all entered urls._
+|`*while_read_bg* _cmd_`|Monitor input and execute command in background _(job)_ using input as command argument. _Example: `while_read_bg wget` to download all entered urls._
+|`*while_read_xclip* [options] _cmd_`|Monitor X clipboard and execute command using clipboard content as command argument. _Example:_ +
  `while_read_xclip -b -m '^https?://.*' echo \'{}\' \>\> links.txt \; wget --quiet -c \'{}\'` +
  _to append all clipboard http(s) links to `links.txt` and download them using wget_
 |===
@@ -214,41 +236,31 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,4",options="header"]
 |===
 |Function|Description
-|`[blue]#q_yesno# _question_`|Print the `questions` and asks for (y)es/(n)o input. Returns true if `yes`, else: `false`.
-|`[blue]#q_yesno# _file_`|Checks if the given file exists, if so asks wether to overwrite it via (y)es/(n)o input. Returns `false` if ansere is `no`, else: `true` _(also if file doesn't exist)_.
+|`*q_yesno* _question_`|Print the `questions` and asks for (y)es/(n)o input. Returns true if `yes`, else: `false`.
+|`*q_yesno* _file_`|Checks if the given file exists, if so asks wether to overwrite it via (y)es/(n)o input. Returns `false` if ansere is `no`, else: `true` _(also if file doesn't exist)_.
 |===
 
 
 === Arrays
 
-[%header,cols="2,2,3",options="header"]
+[%header,cols="1,3",options="header"]
 |===
-|Function|Example|Description
-|`[blue]#join_by# _del array.._`|`$ join_by : (a b c d)` +
- -> `a:b:c:d` +
- `join_by ' - ' 1 2 3 4` +
-  -> `1 - 2 - 3 - 4` | Join array/args by delimiter. +
-  _ZSH variant:_ `${(j:del:)array}` +
-   `a=(a b c) print ${(j:/:)a}` +
-   -> `a/b/c`
-|`[blue]#join_by_n# _array.._`|`$ join_by_n (a b c d)` +
- -> `a` +
- `b` +
- `c` +
- `d` | Join array/args by newline. Adds newline after last item too.
+|Function|Description
+|`*join_by* _DELIMITER ARRAY.._`|Join array / arguments using the given delimiter. On ZSH consider using `${(j:del:)array}`. +
+ image:func_join_by_1.png[] +
+ Note that on `zsh` the same can be achived via `${(j:.:)ip}`.
+ image:func_join_by_2.png[]
 |===
 
 
 === Math
 
-[%header,cols="1,2,3",options="header"]
+[%header,cols="1,3",options="header"]
 |===
-|Function|Example|Description
-|`[blue]#calc# _expr_`|`$ calc 1+2` +
- -> `3` +
- `$ calc -s 4 'sqrt(17)^3'` +
- -> `70.0925` +
- |Send `expr` to `dc` calculator and return the result. Also consider using `py_print -i math _{code}_`.
+|Function|Description
+|`*calc* _EXPR_`|A simple wrapper for `dc`. Set the decimal scale using the `-s` option (default: 0). +
+ image:func_calc_1.png[] +
+ Also consider using `py_print -i math PY_CODE..`.
 |===
 
 
@@ -257,7 +269,7 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,2",options="header"]
 |===
 |Function|Description
-|`[blue]#cmd_delay# _delay cmd.._`|Execute a command with a delay (sleep format, e.g. `3m` for 3 minutes). _Sleep timer example:_ `cmd_delay 45m systemctl suspend`.
+|`*cmd_delay* _DELAY COMMAND.._`|Execute a command with a delay (sleep format, e.g. `3m` for 3 minutes). _Sleep timer example:_ `cmd_delay 45m systemctl suspend`.
 |===
 
 
@@ -266,8 +278,9 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,3",options="header"]
 |===
 |Function|Description
-|`[blue]#ytp# _url.._`|Download `url..` using `youtube-dl` and `aria2c` _(4 concurrent downloads, 4 threads per host)_ using the same output file names as `youtube-dl` would use. _Note that this is basically the same as the alias `yt` but using aria2c for parallel download instead. When multiple formats are available, youtube-dl will favor free codecs starting with the best vp9/opus/vp8/vorbis/webm/ogg streams finally falling back to the best available streams (no matter the format)._
-|`[blue]#ytap# _url.._`|Same as `ytp` above, but only downloading the audio stream _(no video)_. _Note that this is basically the same as the alias `yta` but using aria2c for parallel download instead._
+|`*ytp* _URL.._`|Download media files using `https://rg3.github.io/youtube-dl/[youtube-dl]` and `https://aria2.github.io/[aria2c]` _(4 concurrent downloads, 4 threads per host)_ using the same output file names provide by `youtube-dl` using the following pattern: `%(title)s [%(id)s].%(ext)s`. +
+ _Note that this is basically the same as the alias `yt` but using `aria2c` for parallel download instead of the integrated, single threaded downloader. When multiple formats are available, all `yt*` commands will favor free codecs starting with the highest quality streams _(rough codec/format priority: vp9/opus/vp8/vorbis/webm/ogg/*)_.
+|`*ytap* _URL.._`|The same as `ytp` above, but downloads audio stream only preferably to a ogg(opus/vorbis) file. _Note that this is basically the same as the alias `yta` but using `aria2c` for parallel download._
 |===
 
 === Multimedia
@@ -275,12 +288,22 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,3",options="header"]
 |===
 |Function|Description
-|`[blue]#mpv_find# _dir [arg..] [-a mpv-arg..]_`|Find any media file _(default: `.avi,.mkv,.mp4,.webm`, regex match can be changed)_ and play them using `mpv`. Allows sorting, fs tree recursion, list-only _(stdout, no playback)_, 'resuming' _(from a given index)_, and passing additional arguments to `mpv`. _Example: `mpv_find -r -s -R -a --no-resume-playback` will play all videos in the current, and all subfolders, in random order, ignoring mpv's `remsue-playback` function._
-|`[blue]#to_mp3# _infile [brate] [outfile]_`|Convert the given `infile` to mp3 using `ffmpeg` (infile may be any media file containing audio readable by `ffmpeg`). A bitrate of `160k` and default output file name `{infilename}-audio.mp3` ise used if no specific options are provided.
-|`[blue]#to_opus# _[-b brate] infile [opusenc-arg..]_`|Convert the given `infile` to opus using `opusenc` (infile may be any media file containing audio readable by `opusenc`). If no arguments are provided it uses the default `opusenc` vbr bitrate of _"64kbps per mono stream, 96kbps per coupled pair". The output file is `{infilename}.opus` _(currently not changeable)_.
-|`[blue]#media_concat# _outfile infile.._`|Concatenates all `infile..` media files into `outfile` using `ffmpeg`.
-|`[blue]#video_crop# _infile crop [outfile]_`|Crop `infile` video using the given `ffmpeg crop` format _(e.g. `640:352:0:64`)_ to the default outfil `{infilename}_CROP.{infileext}`. Uses imagemagick's `identify`.
-|`[blue]#image_dimensions# _file.._`|Returns dimensions given images in format: `{file-name}&#124;{w}&#124;{h}&#124;{w}x{h}&#124;{w*x}&#124;{min(w,h)}&#124;{max(w,h)}` (width, height, pixels, shortest/longest edge, etc.). The delimiter `&#124;` can be changed. Uses imagemagick's `identify`.
+|`*mpv_find* _dir [arg..] [-a mpv-arg..]_`|Find any media file _(default: `.avi,.mkv,.mp4,.webm`, regex match can be changed)_ and play them using `mpv`. Allows sorting, fs tree recursion, list-only _(stdout, no playback)_, 'resuming' _(from a given index)_, and passing additional arguments to `mpv`. _Example: `mpv_find -r -s -R -a --no-resume-playback` will play all videos in the current, and all subfolders, in random order, ignoring mpv's `remsue-playback` function._
+|`*to_mp3* _infile [brate] [outfile]_`|Convert the given `infile` to mp3 using `ffmpeg` (infile may be any media file containing audio readable by `ffmpeg`). A bitrate of `160k` and default output file name `{infilename}-audio.mp3` ise used if no specific options are provided.
+|`*to_opus* _[-b brate] infile [opusenc-arg..]_`|Convert the given `infile` to opus using `opusenc` (infile may be any media file containing audio readable by `opusenc`). If no arguments are provided it uses the default `opusenc` vbr bitrate of _"64kbps per mono stream, 96kbps per coupled pair". The output file is `{infilename}.opus` _(currently not changeable)_.
+|`*media_concat* _outfile infile.._`|Concatenates all `infile..` media files into `outfile` using `ffmpeg`.
+|`*video_crop* _infile crop [outfile]_`|Crop `infile` video using the given `ffmpeg crop` format _(e.g. `640:352:0:64`)_ to the default outfil `{infilename}_CROP.{infileext}`. Requires imagemagick's `identify`.
+|===
+
+==== Images
+
+[%header,cols="1,3",options="header"]
+|===
+|Function|Description
+|`*gif_delay* _file_`|Returns the first 10 frame delays (speed) of a given gif file and provides examples on how to change the speed using imagemagick's `convert`. Requires imagemagick's `identify`.
+|`*image_concat* _FILE.._`|Concatenate images. +
+ _TODO: Needs further improvement._
+|`*image_dimensions* _file.._`|Returns dimensions given images in format: `{file-name}&#124;{w}&#124;{h}&#124;{w}x{h}&#124;{w*x}&#124;{min(w,h)}&#124;{max(w,h)}` (width, height, pixels, shortest/longest edge, etc.). The delimiter `&#124;` can be changed. Requires imagemagick's `identify`.
 |===
 
 
