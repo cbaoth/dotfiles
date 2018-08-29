@@ -20,6 +20,13 @@ p_usg() {
   printf "usage: %s\n" "$*"
 }
 
+# TODO
+#p_usg_p() {
+#  [ -z "$1" ] && printf "usage: %s\n" "$0 args.." && return 1
+#  printf "usage: %s\n" "$*"
+#}
+#  p_usg_p "$2" "$0 args.." || return 1
+
 # print an info message, usage: p_msg [msg]..
 p_msg() {
   [ -z "$1" ] && p_usg "$0 message" && return 1
@@ -33,12 +40,12 @@ cmd_p() {
   command -v "$1" 2>&1 > /dev/null && return 0 || return 1
 }
 
-# join array by separator (on zsh ${(j:/:)1} can be used instead)
+# join array by delimiter (on zsh ${(j:/:)1} can be used instead)
 # example: join_by / 1 2 3 4 -> 1/2/3/4
 join_by() {
-  [ -z "$2" ] && p_usg "$0 separator array.." && return 1
-  local sep=$1 first=$2; shift 2
-  printf "%s" "$first${@/#/$d}"
+  [ -z "$2" ] && p_usg "$0 del array.." && return 1
+  local del=$1 first=$2; shift 2
+  printf "%s%s" "$first" "${@/#/$del}"
 }
 
 # join array with newlines after each element (including last one)
@@ -87,11 +94,7 @@ p_dbg() {
 }
 
 # print 'yes' in green color
-p_yes() {
-  #print -P "%F{green}yes%f";
-  printf "%s" "$(tputs 'setaf ')"
-}
-
+p_yes() { print -P "%F{green}yes%f"; }
 # print 'no' in red color
 p_no() { print -P "%F{red}no%f"; }
 
@@ -107,7 +110,7 @@ p_colortable() {
 
 # execute python3's print function with the given [code] argument(s)
 # examples:
-#   py_print "192,168,0,1,sep='.'""
+#   py_print "192,168,0,1,sep='.'"
 #   py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"
 py_print() {
   if [[ $1 = (-i|--import) ]]; then
@@ -140,8 +143,8 @@ is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
 # number may NOT contain decimal separator "."
 is_int() {
   [ -z "$1" ] && p_usg "$0 number.." && return 1
-  while [ -n $1 ]; do
-    [[ $1 =~ ^[+-]?[0-9]+$ ]] || return 1
+  for n in $*; do
+    [[ $n =~ ^\ *[+-]?[0-9]+\ *$ ]] || return 1
     shift
   done
   return 0
@@ -151,8 +154,8 @@ is_int() {
 # number MUST contain decimal separator "." (optional, scale can be 0)
 is_decimal() {
   [ -z "$1" ] && p_usg "$0 number.." && return 1
-    while [ -n $1 ]; do
-    [[ $1 =~ ^[+-]?([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)$ ]] || return 1
+  for n in $*; do
+    [[ $n =~ ^\ *[+-]?([0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] || return 1
     shift
   done
   return 0
@@ -162,8 +165,8 @@ is_decimal() {
 # number MAY contain decimal separator "." (optional, can be integer)
 is_positive() {
   [ -z "$1" ] && p_usg "$0 number.." && return 1
-  while [ -n $1 ]; do
-    [[ $1 =~ ^- ]] || return 1
+  for n in $*; do
+    [[ ! $n =~ ^\ *- ]] || return 1
     shift
   done
   return 0
@@ -173,8 +176,8 @@ is_positive() {
 # number MAY contain decimal separator "." (optional, scale can be 0)
 is_number() { # may contain .
   [ -z "$1" ] && p_usg "$0 number.." && return 1
-    while [ -n $1 ]; do
-    [[ $1 =~ ^[+-]?([0-9]+|[0-9]*\.[0-9]+|[0-9]+\.[0-9]*)$ ]] || return 1
+  for n in $*; do
+    [[ $n =~ ^\ *[+-]?([0-9]+|[0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] || return 1
     shift
   done
   return 0
@@ -225,25 +228,27 @@ q_overwrite() {
     fi
     return 1
   fi
+  return 0
 }
 # }}} - QUERIES ---------------------------------------------------------------
 
 # {{{ loop
 # ----------------------------------------------------------------------------
-while-read () { while true; do read x; p_msg "exec: $* \"$x\"" && $* "$x"; done; }
-while-read-bg () { while true; do read x; p_msg "exec: $* \"$x\" &" && ($* "$x" &); done; }
-while-read-xclip () {
+while_read () { while true; do read x; p_msg "exec: $* \"$x\"" && $* "$x"; done; }
+while_read_bg () { while true; do read x; p_msg "exec: $* \"$x\" &" && ($* "$x" &); done; }
+while_read_xclip () {
   local USG
   IFS='' read -r -d '' USG <<"EOF"
 $0 regex command..
 
  Reads x clipboard every 0.2 sec and executes the given command with the
- clipboard's content as last argument, every time the content changes.
+ clipboard's content as argument whenever the clipboard content changes.
  The argument can be placed at a specific position within the command
- by using {} (see examples below).
+ by using {} (see examples below). All commands are redirected to bash.
 
- -m REGEX  the clipboard content must match the given regex (ignored otherw.)
+ -m REGEX  the clipboard content must match the given regex (else: skip)
  -b        execute command in background
+ -v        verbose output (print command before execution)
 
  examples:
    # filter for strings starting with 'https?://' and just echo them
@@ -257,8 +262,7 @@ EOF
     printf "%s" "$USG"
     return 1
   fi
-  bg=0
-  regex=""
+  local bg=false regex="" verbose=false
   #delim=''  #  -d DELIM  split by delimiter (e.g. \n), execute separately for each entry
 
   while [ -n "$1" ]; do
@@ -269,14 +273,13 @@ EOF
         shift 2
         ;;
       "-b")
-        bg=1
+        bg=true
         shift
         ;;
-      # "-d")
-      #  [ -z "$2" ] && p_err "error parsing args, missing regex" && return 1
-      #  delim="$2"
-      #  shift 2
-      # ;;
+      "-v")
+        verbose=true
+        shift
+        ;;
       -*)
         p_err "error parsing args, unknown option $1" && return 1
         ;;
@@ -289,32 +292,23 @@ EOF
   while true; do
     c="$(xclip -selection clip-board -o -l)"
     if [ "$c" != "$cprev" ]; then
-      if [ -z "$regex" ] || [ -n "$(echo $c | grep -Ei \"$regex\")" ]; then
-        echo $c | while read e; do
-          if [ -n "$(echo $* | grep {})" ]; then
-            if [ $bg -eq 0 ]; then
-              echo "$@" | sed "s/\{\}/'$e'/g"
-              echo "$@" | sed "s/\{\}/'$e'/g" | bash
-            else
-              echo "$@" \& | sed "s/\{\}/'$e'/g"
-              echo "$@" | sed "s/\{\}/'$e'/g" | bash &
-            fi
+      if [ -z "$regex" ] || [[ $c =~ $regex ]]; then
+        while read -r e; do
+          local cmd=${@/{}/$e}
+          if $bg; then
+            $verbose && echo "$ ${cmd[@]}"
+            echo "${cmd[@]}" | bash
           else
-            if [ $bg -eq 0 ]; then
-              echo "$@" "$e"
-              "$@" "$e"
-            else
-              echo "$@" "$e" \&
-              "$@" "$e" &
-            fi
+            $verbose && echo "$ ${cmd[@]} &"
+            echo "${cmd[@]}" \& | bash
           fi
-        done
+        done <<<"$c"
       fi
     else
       sleep .2
     fi
-  cprev="$c"
-done
+    cprev="$c"
+  done
 }
 # ----------------------------------------------------------------------------
 # }}}
@@ -393,9 +387,37 @@ stringrepeat() {
 # }}}
 # {{{ math
 # ----------------------------------------------------------------------------
-calc() { echo $*| bc; }
-calcd() { echo "scale=4; $*"| bc; }
-dice () { echo -e "import random\nrandom.seed()\nprint random.randint(1, $1)" | python; }
+calc() {
+  [ -z "$1" ] && p_usg "$0 [-d] exp" && return 1
+  local scale
+  while [ -n "$1" ]; do
+    case $1 in
+      -s|--scale)
+        [ -z "$2" ] && p_err "missing value for argument -s" && return 1
+        is_int $2 || p_err "value [$2] for argument -s must be an integer" && return 1
+        scale="scale=$2;"; shift 2
+        ;;
+      -h|--help)
+        cat<<!
+usage: $0 [options] exp
+
+options:
+  -s|--scale X     decimal scale (default: 0)
+!
+        return 0
+        ;;
+      -*)
+        p_err "unknown argument: $1" && return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+  bc <<<"$*"
+}
+rnd () {
+   printf "%s" "$((($RANDOM % $1)+1))"; }
 hex2dec() { echo "ibase=16; $(echo ${1##0x} | tr '[a-f]' '[A-F]')" | bc; }
 # TODO: fix overflow (eg. 125 @ 2 digits)
 zerofill () { #inserts leading zeros (number, digits)
@@ -891,8 +913,35 @@ git-truncate () {
 # ----------------------------------------------------------------------------
 # {{{ multimedia
 # ----------------------------------------------------------------------------
-tomp3 () {
-  brate=160k
+# youtube-dl download using aria2 (4 concurrent downloades, 4 threads per host)
+# use output filenames generated by youtube-dl
+ytp() {
+  [ -z "$1" ] && p_usg "$0 url.." && return 1
+  youtube-dl -f 'bestvideo[vcodec=vp9]+bestaudio[acodec=opus]
+                 /bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]
+                 /bestvideo[vcodec=vp8]+bestaudio[acodec=opus]
+                 /bestvideo[vcodec=vp8]+bestaudio[acodec=vorbis]
+                 /bestvideo[ext=webm]+bestaudio[ext=webm]
+                 /bestvideo[ext=webm]+bestaudio[ext=ogg]
+                 /best[ext=webm]/bestvideo+bestaudio/best' \
+             -o '%(title)s [%(id)s].%(ext)s' \
+             -g --get-filename "${@}" \
+   | sed '$!N;s/\n/\n  out=/' \
+   | aria2c -x 4 -j 4 -i -
+}
+# same as ytp but download audio only
+ytap() {
+  [ -z "$1" ] && p_usg "$0 url.." && return 1
+  youtube-dl -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]
+                 /best[ext=webm]/best[ext=ogg]/best' \
+             -x -o '%(title)s [%(id)s].ogg' \
+             -g --get-filename "${@}" \
+    | sed '$!N;s/\n/\n  out=/' \
+    | aria2c -x 4 -j 4 -i -
+}
+# convert infile to mp3 audio file
+to_mp3 () {
+  local brate=160k
   [ -z "$1" ] && \
     p_usg "youtube-audio-extract infile [bitrate] [outfile]\n  bitrate   audio bitrate in bit/s (default: ${brate})\n  requirements: avconv (ffmpeg), libavcodec-*" && return 1
   local in="$1"
@@ -1014,7 +1063,7 @@ mplayer-bookmark-split() {
     idx=$((idx+1))
     [ "$pos" != "" ] && pos_prev="$pos"
     pos="$(cut -d \| -f 3 <<< $b)"
-    outfile="$(file-suffix \"$infile\" \"_bmsplit_$(zerofill $idx 3)\")"
+    outfile=$(file-suffix "$infile" "_bmsplit_$(zerofill $idx 3)")
     cmd=(ffmpeg)
     cmd+=(-ss $pos_prev -i "$infile" -to $pos)
     cmd+=(-sn -vcodec copy -acodec copy -y "$outfile")
@@ -1026,7 +1075,7 @@ mplayer-bookmark-split() {
     return
   fi
   idx=$((idx+1))
-  outfile="$(file-suffix \"$infile\" \"_bmsplit_$(zerofill $idx 3)\")"
+  outfile=$(file-suffix "$infile" "_bmsplit_$(zerofill $idx 3)")
   cmd=(ffmpeg)
   cmd+=(-ss $pos -i "$infile")
   cmd+=(-sn -vcodec copy -acodec copy -y "$outfile")
@@ -1034,7 +1083,9 @@ mplayer-bookmark-split() {
   #sed -r 's/ (-sn|-ss)/\n \1/g' <<< ${cmd[@]}
   ${cmd[@]}
 }
-mpv-find() {
+
+# finds media files, optionally sorts them and plays them using mpv
+mpv_find() {
   trap 'exit 1' INT TERM SIGTERM
   local dir regex=".*\.\(avi\|mkv\|mp4\|webm\)"
   local tailn=0 recursive=false sort=-g noact=false
@@ -1065,7 +1116,7 @@ mpv-find() {
         shift; break # all args after this are treated as mpv args
         ;;
       -h|--help)
-        p_usg "$0 dir [args] [-a mvp-arg..]"
+        p_usg "$0 dir [arg..] [-a mvp-arg..]"
         cat <<!
 
 args:
@@ -1120,15 +1171,20 @@ consider installing parallel (e.g. "apt-get install parallel" on debian/ubuntu)
               || ($parallel && parallel --tty -Xj1 mpv "${@}" \
                             || xargs -I'{}' mpv "${@}" '{}'))
 }
+
+# fixes index in avi files using mencoder
 fixidx() {
   [ -z "$1" ] && p_usg "fixidx avifile [outfile]" && return -1
   local infile="$1"
   [ ! -f "$infile" ] && p_err "file not found" && return -1
-  [ -n "$2" ] && outfile="$2" || outfile="$(file-suffix \"$infile\" _FIXED)"
+  [ -n "$2" ] && outfile="$2" || outfile=$(file-suffix "$infile" _FIXED)
   p_msg "output file: $outfile"
   mencoder -forceidx -oac copy -ovc copy "$infile" -o "$outfile"
 }
-toopus() {
+
+# convert file to opus using opusenc
+# TODO add argument for output filename
+to_opus() {
   local opusenc_args=()
   if [ "$1" = "-b" ]; then
     opusenc_args+=(-b)
@@ -1145,7 +1201,9 @@ toopus() {
   p_msg "outfile: $outfile"
   opusenc "${opusenc_args[@]}" "$@" "$infile" "$outfile"
 }
-merge-media() {
+
+# concatenate media files using ffmpeg
+media_concat() {
   [ -z "$2" ] &&\
     p_usg "$0 outfile infile.." &&\
     return -1
@@ -1153,16 +1211,19 @@ merge-media() {
   #mencoder -ovc copy -oac copy -o "$outfile" $*
   ffmpeg -f concat -safe 0 -i <(for f in "$@"; do echo "file '$PWD/$f'"; done) -c copy "$outfile"
 }
-video-crop() {
+
+# crop video using ffmpeg
+video_crop() {
   [ -z "$2" ] &&
     p_usg "$0 infile crop [outfile]\nexample: $0 video.webm 640:352:0:64" &&
     return -1
   local infile="$1"; crop="$2"
   [ -f "$infile" ] && p_err "file not found: $infile" && return -1
-  [ -n "$3" ] && outfile="$3" || outfile="$(file-suffix \"$infile\" _CROP)"
+  [ -n "$3" ] && outfile="$3" || outfile=$(file-suffix "$infile" _CROP)
   p_msg "output file: $outfile"
   ffmpeg -i "$infile" -vf crop=$crop -codec:a copy "$outfile"
 }
+
 wmv2avi() {
   [ -z "$1" ] &&\
     p_usg "$0 infile [outfile]" &&\
@@ -1188,46 +1249,67 @@ mediathek () {
   done
 }
 
-image-dimensions () {
-  [ -z "$1" ] && p_usg "image-dimensions file.." && return 1
-  for f in $*; do
-    local dim=$(identify $f | cut -d \  -f 3)
-    [ -z "$dim" ] && p_err "unable to read dimensions, skipping ..." && continue
-    echo "$f\t$dim"
+# list dimensions of all given image files
+image_dimensions () {
+  [ -z "$1" ] && p_usg "$0 [option..] +format file.." && return 1
+  local d='|'
+  while [ -n "$1" ]; do
+    case $1 in
+      -d|--delimiter)
+        [ -z "$2" ] && p_err "missing value for argument $1" && return 1
+        d=$2; shift 2
+        ;;
+      -h|--help)
+        cat <<!
+usage: $0 [options] [filter..] file..
+
+options:
+  -d|--delimiter D    output column delimiter (default: '|')
+
+output format:
+  index:   1          |2   |3  |4       |5     |6         |7
+  fields:  {file-name}|{w} |{h}|{w}x{h} |{w*x} |{min(w,h)}|{max(w,h)}
+  example: test.jpg   |1024|768|1024x768|786432|768       |1024
+
+examples:
+  # list all dimension information for *.jpg, use delimiter ; instead of |
+  image_dimensions -d \; *.jpg
+  # get only the WxH dimension string (4) for test.jpg
+  image_dimensions test.jpg | cut -d \| -f 4
+  # get all file names (1) of *.jpg files with a min dimension (6) <= 1000
+  image_dimensions *.jpg|awk -F '|' 'BEGIN {OFS="|"}{if($6 <= 1000) print $1}'
+!
+        return 0
+        ;;
+      -*)
+        p_err "unknown argument: $1"; return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  for f in "$@"; do
+    [ ! -f "$f" ] && p_err "file not found [$f], skipping ..." && continue
+    local ident=$(identify -format '%w|%h\n' $f)
+    IFS='|' read -r w h <<<"$ident"
+    [ -z "$w" ] || [ -z "$h" ] && p_err "unable to identify the dimensions of [$f], skipping ..." && continue
+    is_int $w || { p_err "width w = [$w] doesn't seemt to be an integer" && return 1; }
+    is_int $h || { p_err "height h = [$h] doesn't seemt to be an integer" && return 1; }
+    local dim="$wx$h"
+    local pixels=$(($w*$h))
+    local min=$(($w>$h?$h:$w))
+    local max=$(($w<$h?$h:$w))
+    [ -n "$min_comp" ] && [ ! $min -$min_comp $filter_min_pixel ] && continue
+    printf "%s%s%s%s%s%s%s%s%s%s%s%s%s\n" "$f" "$d" "$w" "$d" "$h" "$d" \
+           "$dim" "$d" "$pixels" "$d" "$min" "$d" "$max"
   done
 }
-image-dimensions-min () {
-  [ -z "$1" ] && p_usg "image-dimensions-min file.." && return 1
-  for f in $*; do
-    local dim=$(identify $f | cut -d \  -f 3)
-    [ -z "$dim" ] && p_err "unable to read dimensions, skipping ..." && continue
-    x=${dim%x*}; y=${dim##*x}
-    ! is_int $x && p_err "unable to identify x axis pixel count (not numeric: '$x')" && return 1
-    ! is_int $y && p_err "unable to identify y axis pixel count (not numeric: '$y')" && return 1
-    min=$(($x>$y?$y:$x))
-    [ -z "$min" ] && p_err "unable to calculate minimum, skipping ..." && continue
-    ! is_int $min && p_err "unable to identify min (not numeric: '$min')" && return 1
-    echo "$f\t$min"
-  done
-}
-image-has-min-dimension () {
-  [ -z "$2" ] && p_usg "image-has-low-dimension minpixel file...\n  returns a list of only those images that have <= minpixel on one axis" && return 1
-  local minpixel=$1; shift
-  ! is_int $minpixel && p_err "no valid pixel count '$minpixel'" && return 1
-  for f in $*; do
-    local dim=$(identify $f | cut -d \  -f 3)
-    [ -z "$dim" ] && p_err "unable to read dimensions, skipping ..." && continue
-    local x=${dim%x*}; y=${dim##*x}
-    ! is_int $x && p_err "unable to identify x axis pixel count (not numeric: '$x')" && return 1
-    ! is_int $y && p_err "unable to identify y axis pixel count (not numeric: '$y')" && return 1
-    local min=$(($x>$y?$y:$x))
-    [ -z "$min" ] && p_err "unable to calculate minimum, skipping ..." && continue
-    ! is_int $min && p_err "unable to identify min (not numeric: '$min')" && return 1
-    [ $min -le $minpixel ] && echo "$f"
-  done
-}
-image-pixelcount () {
-  [ -z "$1" ] && p_usg "$0 imagefile" && return 1
+
+# get pixel count of the given image file
+image_pixelcount () {
+  [ -z "$1" ] && p_usg "$0 file" && return 1
   [ ! -f "$1" ] && p_err "not a file: $1" && return 1
   [ -z "$(file -bi $1|grep image)" ] && p_err "this doesn't seem to be an image file: $1" && return 1
   #for f in $*; do
@@ -1283,7 +1365,7 @@ flv2mp4 () {
 fixaspectratio () {
   [ -z "$1" ] && p_usg "$0 infile [outfile{infile_FIX.ext}] [ratio{16:9}]" && return 1
   local infile="$1"
-  [ -n "$2" ] && outfile="$2" || outfile="$(file-suffix \"$1\" _FIX)"
+  [ -n "$2" ] && outfile="$2" || outfile=$(file-suffix "$1" _FIX)
   [ -n "$3" ] && ratio="$3" || ratio="16:9"
   ffmpeg -i "$infile" -aspect "$ratio" -c copy "$outfile"
 }
@@ -1352,7 +1434,7 @@ image-concat() {
     esac
   done
   [ -z "$2" ] && p_usg "$0 [-w|-h|-n] [-x1] [-o outfile] infile.." && return 1
-  [ -z "$outfile" ] && outfile="$(file-suffix "$1" "-concat$(date +%s)")" && echo "outfile: $outfile"
+  [ -z "$outfile" ] && outfile=$(file-suffix "$1" "-concat$(date +%s)") && echo "outfile: $outfile"
   q_overwrite "$outfile" || return 1
   local min_height=$(identify -format '%h\n' "${@}" | sort -n | head -n 1)
   #min_height=$(echo -e "$min_height\n$((MAX/$#))" | sort -n | head -n 1)

@@ -51,10 +51,6 @@ alias midi-keyboard-output="aconnect \$(aconnect -i \
 
 # {{{ = DISTRIBUTION SPECIFIC ================================================
 # {{{ - DEB ------------------------------------------------------------------
-if [ -n "`command -v dpkg 2>/dev/null`" ]; then
-  alias dgs="dpkg --get-selections"
-  alias dca="dpkg --configure -a"
-fi
 
 if [ -n "`command -v apt 2>/dev/null`" ]; then
   # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
@@ -71,15 +67,20 @@ if [ -n "`command -v apt 2>/dev/null`" ]; then
   alias apli='sudo apt list --installed'
 fi
 
+if [ -n "`command -v dpkg 2>/dev/null`" ]; then
+  alias dgs="dpkg --get-selections" # see "apt list --installed" too
+  alias dca="dpkg --configure -a"
+fi
+
 if [ -n "`command -v apt-get 2>/dev/null`" ]; then
   alias ag="sudo apt-get"
-  #alias agi="sudo apt-get -y install"
-  #alias agr="sudo apt-get remove"
-  #alias agu="sudo apt-get update"
-  #alias agar="sudo apt-get autoremove"
+  #alias agi="sudo apt-get -y install" # apt install
+  #alias agr="sudo apt-get remove" # apt remove
+  #alias agu="sudo apt-get update" # apt update
+  #alias agar="sudo apt-get autoremove" # apt auto-remove
   alias agma="sudo apt-mark markauto"
-  #alias agug="sudo apt-get update; sudo apt-get -y upgrade; sudo apt-get autoremove"
-  #alias agdu="sudo apt-get update; sudo apt-get -y dist-upgrade; sudo apt-get autoremove"
+  #alias agug="sudo apt-get update; sudo apt-get -y upgrade; sudo apt-get autoremove" # apt upgrade
+  #alias agdu="sudo apt-get update; sudo apt-get -y dist-upgrade; sudo apt-get autoremove" # apt
   # https://askubuntu.com/questions/2389/generating-list-of-manually-installed-packages-and-querying-individual-packages/492343#492343
   alias agsm="comm -23 <(apt-mark showmanual | sort -u) \
                 <(gzip -dc /var/log/installer/initial-status.gz \
