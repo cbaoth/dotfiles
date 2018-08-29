@@ -11,8 +11,7 @@
 #alias ..='cd ..'
 #alias ...='cd ../..'
 #alias ....='cd ../../..'
-alias h='cd ~'
-alias /='cd /'
+#alias h='cd ~'
 
 # file operations
 alias cpi='cp -i'
@@ -254,6 +253,7 @@ alias rpm-extract='rpm2cpio "$1" | cpio -ivd'
 # Why? So this aliases file can be borrowed by other shells such as bash.
 [[ ! $SHELL = *zsh ]] || return 0
 
+alias /='cd /'
 alias h='history'
 alias hs='history | grep -Ei'
 

@@ -1,4 +1,4 @@
-# ~/.zsh/functions: Common functions
+# ~/.zsh/functions.zsh: Common functions
 # all functions are written in way that they work on both, zsh and bash
 
 # Author:   cbaoth <dev@cbaoth.de>
@@ -10,70 +10,163 @@
 # line to your .emacs:
 #   (folding-add-to-marks-list 'shell-script-mode "# {{{ " "# }}}" nil t)
 
-# {{{ - CORE -----------------------------------------------------------------
-# Some basic stuff ...
+# {{{ - COLORS & EFFECTS -----------------------------------------------------
+typeset -A +r _TPUT_MAP
+# foreground colors
+_TPUT_MAP[black]=$(tput setaf 0)
+_TPUT_MAP[red]=$(tput setaf 1)
+_TPUT_MAP[green]=$(tput setaf 2)
+_TPUT_MAP[yellow]=$(tput setaf 3)
+_TPUT_MAP[blue]=$(tput setaf 4)
+_TPUT_MAP[magnta]=$(tput setaf 5)
+_TPUT_MAP[cyan]=$(tput setaf 6)
+_TPUT_MAP[white]=$(tput setaf 7)
+_TPUT_MAP[black+]=$(tput setaf 8)
+_TPUT_MAP[red+]=$(tput setaf 9)
+_TPUT_MAP[green+]=$(tput setaf 10)
+_TPUT_MAP[yellow+]=$(tput setaf 11)
+_TPUT_MAP[blue+]=$(tput setaf 12)
+_TPUT_MAP[magnta+]=$(tput setaf 13)
+_TPUT_MAP[cyan+]=$(tput setaf 14)
+_TPUT_MAP[white+]=$(tput setaf 15)
+# backgrud colors
+_TPUT_MAP[b_black]=$(tput setab 0)
+_TPUT_MAP[b_red]=$(tput setab 1)
+_TPUT_MAP[b_green]=$(tput setab 2)
+_TPUT_MAP[b_yellow]=$(tput setab 3)
+_TPUT_MAP[b_blue]=$(tput setab 4)
+_TPUT_MAP[b_magnta]=$(tput setab 5)
+_TPUT_MAP[b_cyan]=$(tput setab 6)
+_TPUT_MAP[b_white]=$(tput setab 7)
+_TPUT_MAP[b_black+]=$(tput setab 8)
+_TPUT_MAP[b_red+]=$(tput setab 9)
+_TPUT_MAP[b_green+]=$(tput setab 10)
+_TPUT_MAP[b_yellow+]=$(tput setab 11)
+_TPUT_MAP[b_blue+]=$(tput setab 12)
+_TPUT_MAP[b_magnta+]=$(tput setab 13)
+_TPUT_MAP[b_cyan+]=$(tput setab 14)
+_TPUT_MAP[b_white+]=$(tput setab 15)
+# text effects
+_TPUT_MAP[b]=$(tput bold) # bold
+_TPUT_MAP[d]=$(tput dim) # dim
+_TPUT_MAP[u]=$(tput smul) # underline
+_TPUT_MAP[u-]=$(tput rmul) # underline off
+_TPUT_MAP[r]=$(tput rev) # reversed
+_TPUT_MAP[s]=$(tput smso) # standout
+_TPUT_MAP[s-]=$(tput rmso) # standout off
+_TPUT_MAP[c]=$(tput sgr0) # reset
+# bad practice (thus oftentimes not supported)
+_TPUT_MAP[blink]=$(tput blink)
+_TPUT_MAP[invisible]=$(tput invis)
+typeset -r _TPUT_MAP
 
-# print usage in format (could use ${1?"Usage: $0 [msg]"} but style is bad)
-# usage: p_usg [msg]..
+# foreground color, e.g.: tp_f blue
+tp_f() { printf "%s" "${_TPUT_MAP[bg_$1]}"; }
+# background color, e.g.: tp_b red
+tp_b() { printf "%s" "${_TPUT_MAP[bg_$1]}"; }
+# fx, e.g.: tp_x bold
+tp_x() { printf "%s" "${_TPUT_MAP[fx_$1]}"; }
+tp() {
+  local -r USG="tp STYLE.."
+  local HELP
+  ! IFS='' read -r -d '' HELP <<EOF
+Usage: $USG
+
+Styles:
+  Text Colors (0-7):
+    black, red, green, yellow, blue, magenta, cyan, white
+
+  Text Colors Light (8-15):
+    black+, red+, green+, yellow+, blue+, magenta+, cyan+, white+
+
+  Background Colors (0-7):
+    b_black, b_red, b_green, b_yellow, b_blue, b_magenta, b_cyan,
+    b_white
+
+  Background Colors Light (8-15):
+    b_black+, b_red+, b_green+, b_yellow+, b_blue+, b_magenta+,
+    b_cyan+, b_white+
+
+  Text Effects:
+    b    bold
+    d    dim
+    u    underline start
+    u-   underline stop
+    r    reversed (swap back and foreground color)
+    s    standout start
+    s-   standout stop
+    c    clear styles (set default style)
+
+  Others (considered bad practice, oftentimes not supported):
+    blink, invisible
+
+Try it:
+  printf "%%sERROR:%%s %%sunderlined%%s back to normal\\\\n" \\
+    "\$(tp b red+ b_white+)" \\
+    "\$(tp c)" \\
+    "\$(tp b u red)" \\
+    "\$(tp c)"
+EOF
+  [ -z "$1" ] && { printf "Usage: $USG\n"; return 1; }
+  [[ "$1" =~ ^(-h|--help)$ ]] && { printf "$HELP"; return 1; }
+  for s in $*; do printf "%s" "${_TPUT_MAP[$s]}"; done
+}
+# }}} - COLORS & EFFECTS -----------------------------------------------------
+
+# {{{ - CORE -----------------------------------------------------------------
+# get function name (for bash and zsh)
+func_name() { printf "%s" "${FUNCNAME[1]-${funcstack[2]}}"; }
+
+# get function caller name (for bash and zsh)
+func_caller() { printf "%s" "${FUNCNAME[2]-${funcstack[3]}}"; }
+
+# print usage in the following format: "Usage: {args}"
+# alternative: ${1?"Usage: $0 [msg]"} (but doesn't look so nice)
 p_usg() {
-  [ -z "$1" ] && printf "usage: %s\n" "$0 args.." && return 1
-  printf "usage: %s\n" "$*"
+  [ -z "$1" ] && { printf "Usage: %s\n" "$(func_name) USAGE.."; return 1; }
+  printf "Usage: %s\n" "$*"
 }
 
-# TODO
-#p_usg_p() {
-#  [ -z "$1" ] && printf "usage: %s\n" "$0 args.." && return 1
-#  printf "usage: %s\n" "$*"
-#}
-#  p_usg_p "$2" "$0 args.." || return 1
-
-# print an info message, usage: p_msg [msg]..
+# print an info message, Usage: p_msg [msg]..
 p_msg() {
-  [ -z "$1" ] && p_usg "$0 message" && return 1
+  [ -z "$1" ] && { p_usg "$(func_name) MSG.." && return 1; }
   printf "> %s\n" "$*"
 }
 
 # predicate: is command $1 available?
+# why not use which? https://stackoverflow.com/a/677212/7393995
 cmd_p() {
-  [ -z "$1" ] && p_usg "$0 command" && return 1
-  # https://stackoverflow.com/a/677212/7393995
+  [ -z "$1" ] && { p_usg "$(func_name) CMD"; return 1; }
   command -v "$1" 2>&1 > /dev/null && return 0 || return 1
 }
 
 # join array by delimiter (on zsh ${(j:/:)1} can be used instead)
 # example: join_by / 1 2 3 4 -> 1/2/3/4
 join_by() {
-  [ -z "$2" ] && p_usg "$0 del array.." && return 1
+  [ -z "$2" ] && { p_usg "$(func_name) DELIMITER ARRAY.."; return 1; }
   local del=$1 first=$2; shift 2
   printf "%s%s" "$first" "${@/#/$del}"
-}
-
-# join array with newlines after each element (including last one)
-# usage: join_by_n 1 2 3 4 -> 1\n2\n3\n4\n
-join_by_n() {
-  [ -z "$1" ] && p_usg "$0 array.." && return 1
-  IFS=$'\n' printf "%s\n" "$@"
 }
 
 # execute multiple tput commands at once, ignore and return gracefully if tput
 # not available
 tputs() {
-  [ -z "$1" ] && p_usg "tputs arg.." && return 1
+  [ -z "$1" ] && { p_usg "tputs STYLE.."; return 1; }
   cmd_p tput || return 0
   join_by_n "$@" | tput -S
 }
 
-# print error message in format "> ERROR: [msg]..", usage: p_err [msg]
+# print error message in format "> ERROR: [msg]..", Usage: p_err [msg]
 p_err() {
-  [ -z "$1" ] && p_usg "$0 message" && return 1
+  [ -z "$1" ] && { p_usg "$(func_name) MSG.."; return 1; }
   printf "%s> ERROR:%s %s\n" \
     "$(tputs 'setaf 7' 'setab 1' 'bold')" "$(tput sgr0)" \
     "$(tput smul)$*$(tput sgr0)" >&2
 }
 
-# print error message in format "> WARNING: [msg]..", usage: p_war [msg]
+# print error message in format "> WARNING: [msg]..", Usage: p_war [msg]
 p_war() {
-  [ -z "$1" ] && p_usg "$0 message" && return 1
+  [ -z "$1" ] && { p_usg "$(func_name) MSG.."; return 1; }
   printf "%s> WARNING:%s %s\n" \
     "$(tputs 'setaf 0' 'setab 3')" "$(tput sgr0)" \
     "$*"
@@ -82,9 +175,9 @@ p_war() {
 # print debug message in format "> DEBUG({lvl}): [msg].."
 # env DBG_LVL supercedes [dbg_lvl] (first arg.) if DBG_LVL > dbg_lvl
 # set dbg_lvl to 0 if DBG_LVL should be used exclusively
-# usage: p_dbg [dbg_lvl] [show_at_lvl] [msg]..
+# Usage: p_dbg [dbg_lvl] [show_at_lvl] [msg]..
 p_dbg() {
-  [ -z "$3" ] && p_usg "$0 dbg_lvl show_at_lvl message" && return 1
+  [ -z "$3" ] && p_usg "$(func_name) DBG_LVL SHOW_AT_LVL MSG.." && return 1
   local dbg_lvl=$(( ${DBG_LVL-0} > $1 ? ${DBG_LVL-0} : $1 )); shift
   local show_at_lvl=$1; shift
   [ $dbg_lvl -lt $show_at_lvl ] && return 0
@@ -95,6 +188,7 @@ p_dbg() {
 
 # print 'yes' in green color
 p_yes() { print -P "%F{green}yes%f"; }
+
 # print 'no' in red color
 p_no() { print -P "%F{red}no%f"; }
 
@@ -113,11 +207,11 @@ p_colortable() {
 #   py_print "192,168,0,1,sep='.'"
 #   py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"
 py_print() {
-  if [[ $1 = (-i|--import) ]]; then
+  if [[ $1 =~ ^(-i|--import)$ ]]; then
     [ -z "$2" ] && p_err "missing value for argument -i" && return 1
     local _py_import="$2"; shift 2
   fi
-  [ -z "$1" ] && p_usg "$0 [-i import] code.." && return 1
+  [ -z "$1" ] && p_usg "$(func_name) [-i import] PY_CODE.." && return 1
   python3<<<"${_py_import+import ${_py_import}}
 print($@)"
 }
@@ -142,7 +236,7 @@ is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
 # predicate: is given [number] an integer?
 # number may NOT contain decimal separator "."
 is_int() {
-  [ -z "$1" ] && p_usg "$0 number.." && return 1
+  [ -z "$1" ] && p_usg "$(func_name) NUMBER.." && return 1
   for n in $*; do
     [[ $n =~ ^\ *[+-]?[0-9]+\ *$ ]] || return 1
     shift
@@ -153,7 +247,7 @@ is_int() {
 # predicate: is given [number] a decimal number?
 # number MUST contain decimal separator "." (optional, scale can be 0)
 is_decimal() {
-  [ -z "$1" ] && p_usg "$0 number.." && return 1
+  [ -z "$1" ] && p_usg "$(func_name) NUMBER.." && return 1
   for n in $*; do
     [[ $n =~ ^\ *[+-]?([0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] || return 1
     shift
@@ -164,7 +258,7 @@ is_decimal() {
 # predicate: is given [number] positive?
 # number MAY contain decimal separator "." (optional, can be integer)
 is_positive() {
-  [ -z "$1" ] && p_usg "$0 number.." && return 1
+  [ -z "$1" ] && p_usg "$(func_name) NUMBER.." && return 1
   for n in $*; do
     [[ ! $n =~ ^\ *- ]] || return 1
     shift
@@ -175,7 +269,7 @@ is_positive() {
 # predicate: is given [value] a number? (either integer or decimal)
 # number MAY contain decimal separator "." (optional, scale can be 0)
 is_number() { # may contain .
-  [ -z "$1" ] && p_usg "$0 number.." && return 1
+  [ -z "$1" ] && p_usg "$(func_name) NUMBER.." && return 1
   for n in $*; do
     [[ $n =~ ^\ *[+-]?([0-9]+|[0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] || return 1
     shift
@@ -187,7 +281,7 @@ is_number() { # may contain .
 # {{{ - COMMAND EXECUTION ----------------------------------------------------
 # execute command [cmd] with a [delay] (sleep syntax)
 cmd_delay() {
-  [ -z "$2" ] && p_usg echo "$0 delay cmd.." && return 1
+  [ -z "$2" ] && p_usg echo "$(func_name) DELAY COMMAND.." && return 1
   local delay="$1"; shift
   sleep $dealy
   $*
@@ -197,7 +291,7 @@ cmd_delay() {
 # {{{ - QUERIES --------------------------------------------------------------
 # query (yes/no): ask any question (no: return 1)
 q_yesno() {
-  [ -z "$1" ] && p_usg "$0 question" && return 1
+  [ -z "$1" ] && p_usg "$(func_name) QUESTION" && return 1
   sh="$(basename $SHELL)"
   key=""
   printf "$* (y/n) "
@@ -218,7 +312,7 @@ q_yesno() {
 # query (yes/no): overwrite given file? (no: return 1)
 # return 0, without asking a thing, if [file] doesn't exist
 q_overwrite() {
-  [ -z "$1" ] && p_usg "$0 file" && return 1
+  [ -z "$1" ] && p_usg "$(func_name) file" && return 1
   local file="$1"
   if [ -e "$file" ]; then
     p_war "file '$file' exists!"
@@ -230,55 +324,59 @@ q_overwrite() {
   fi
   return 0
 }
-# }}} - QUERIES ---------------------------------------------------------------
+# }}} - QUERIES --------------------------------------------------------------
 
 # {{{ loop
 # ----------------------------------------------------------------------------
 while_read () { while true; do read x; p_msg "exec: $* \"$x\"" && $* "$x"; done; }
 while_read_bg () { while true; do read x; p_msg "exec: $* \"$x\" &" && ($* "$x" &); done; }
 while_read_xclip () {
-  local USG
-  IFS='' read -r -d '' USG <<"EOF"
-$0 regex command..
+  local -r USG="$(func_name) [option..] command.."
+  local HELP
+  ! IFS='' read -r -d '' HELP <<EOF
+Usage: $USG
 
- Reads x clipboard every 0.2 sec and executes the given command with the
- clipboard's content as argument whenever the clipboard content changes.
- The argument can be placed at a specific position within the command
- by using {} (see examples below). All commands are redirected to bash.
+Reads x clipboard every 0.2 sec and executes the given command with the
+clipboard's content as argument whenever the clipboard content changes.
+The argument can be placed at a specific position within the command
+by using {} (see examples below). All commands are redirected to bash.
 
- -m REGEX  the clipboard content must match the given regex (else: skip)
- -b        execute command in background
- -v        verbose output (print command before execution)
+options:
+  -m|--match RE    clipboard content must match given regex, else: skip
+  -b|--background  execute command in background
+  -v|--verbose     verbose output (print command before execution)
 
- examples:
-   # filter for strings starting with 'https?://' and just echo them
-   $0 -m '^https?://' echo
+examples:
+  # filter for strings starting with 'https?://' and just echo them
+  $(func_name) -m '^https?://' echo
 
-   # don't filter, echo the string into a file named 'foo' and execute
-   # a second command
-   $0 -b echo {} \>\> foo \; cmd-foo {}
+  # don't filter, echo the string into a file named 'foo' and execute
+  # a second command
+  $(func_name) -b echo {} \>\> foo \; cmd-foo {}
 EOF
-  if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    printf "%s" "$USG"
-    return 1
-  fi
+  readonly HELP
+  # parse arguments
+  [ -z "$1" ] && p_usg "$USG" && return 1
   local bg=false regex="" verbose=false
   #delim=''  #  -d DELIM  split by delimiter (e.g. \n), execute separately for each entry
-
   while [ -n "$1" ]; do
     case "$1" in
-      "-m")
-        [ -z "$2" ] && p_err "error parsing args, missing regex" && return 1
+      -m|--match)
+        [ -z "$2" ] && { p_err "error parsing args, missing regex"; return 1; }
         regex="$2"
         shift 2
         ;;
-      "-b")
+      -b|--background)
         bg=true
         shift
         ;;
-      "-v")
+      -v|--verbose)
         verbose=true
         shift
+        ;;
+      -h|--help)
+        print "%s" "$HELP"
+        return 0
         ;;
       -*)
         p_err "error parsing args, unknown option $1" && return 1
@@ -289,6 +387,7 @@ EOF
     esac
   done
   [ -z "$1" ] && p_err "missing command" && return 1
+  # start monitoring
   while true; do
     c="$(xclip -selection clip-board -o -l)"
     if [ "$c" != "$cprev" ]; then
@@ -387,35 +486,38 @@ stringrepeat() {
 # }}}
 # {{{ math
 # ----------------------------------------------------------------------------
+# send expression to dc (simple wrapper)
 calc() {
-  [ -z "$1" ] && p_usg "$0 [-d] exp" && return 1
+  local HELP USG="$(func_name) [OPTION..] EXPR.."
+  ! IFS='' read -r -d '' HELP <<EOF
+Usage: $USG
+
+options:
+  -s|--scale X     decimal scale (default: 0)
+EOF
+  [ -z "$1" ] && p_usg "$USG" && return 1
   local scale
   while [ -n "$1" ]; do
     case $1 in
       -s|--scale)
-        [ -z "$2" ] && p_err "missing value for argument -s" && return 1
-        is_int $2 || p_err "value [$2] for argument -s must be an integer" && return 1
+        [ -z "$2" ] && { p_err "missing value for argument -s"; return 1; }
+        is_int $2 || { p_err "value [$2] for argument -s must be an integer"; return 1; }
         scale="scale=$2;"; shift 2
         ;;
       -h|--help)
-        cat<<!
-usage: $0 [options] exp
-
-options:
-  -s|--scale X     decimal scale (default: 0)
-!
-        return 0
+        printf "%s" "$HELP"; return 0
         ;;
       -*)
-        p_err "unknown argument: $1" && return 1
+        p_err "unknown argument: $1"; return 1
         ;;
       *)
         break
         ;;
     esac
   done
-  bc <<<"$*"
+  bc <<<"$scale$*"
 }
+
 rnd () {
    printf "%s" "$((($RANDOM % $1)+1))"; }
 hex2dec() { echo "ibase=16; $(echo ${1##0x} | tr '[a-f]' '[A-F]')" | bc; }
@@ -490,7 +592,7 @@ mac_generate() {
 # ----------------------------------------------------------------------------
 # add a suffix to the file name, before the file extension
 file-suffix() {
-  [ "$#" -ne 2 ] && p_usg "$0 file suffix" && return 1
+  [ "$#" -ne 2 ] && p_usg "$(func_name) file suffix" && return 1
   [[ "$1" == *"."* ]] \
     && echo "${1%.*}$2.${1##*.}" \
     || echo "$1$2"
@@ -501,7 +603,7 @@ cmd_p rename || cmd_p zmv || \
 rename () {
   if [ $# -lt 2 ]; then
     cat <<!
-usage: rename <pattern> <file..>
+Usage: rename <pattern> <file..>
 example: rename 's/ /_/g' *.txt
 !
     return 1
@@ -516,6 +618,22 @@ example: rename 's/ /_/g' *.txt
 }
 
 clean () {
+  # usage + help
+  local -r USG="$(func_name) clean [option..]"
+  local HELP
+  ! IFS='' read -r -d '' HELP <<EOF
+Usage: $USG
+
+options:
+  -h    show this help
+  -r    recursive mode (process sub-directories)
+  -a    remove special characters (all but: \w()[]~&%#@.,+'-)
+  -nl   don't rename to lower case (enabled by default)
+  -ns   don't rename spaces (including %20) to '_' (enabled by default)
+  -v    debug mode (high verbosity)
+EOF
+  readonly HELP
+  # parse arguments
   local -r PAT_SPACE="s/(\s|%20)/_/g"
   local -r PAT_LOWER="y/A-Z/a-z/"
   local -r PAT_SPECIAL="s/[^\w()\[\]~&%#@.,+'-]/_/g"
@@ -527,45 +645,29 @@ clean () {
   while [ -n "$1" ]; do
     case "$1" in
       "-h"|"--help")
-        cat <<!
-usage: clean [options]
-
-  -h  show this help
-  -r  recursive mode (process sub-directories)
-  -a  remove special characters (all but: \w()[]~&%#@.,+'-)
-  -nl don't rename to lower case (enabled by default)
-  -ns don't rename spaces (including %20) to '_' (enabled by default)
-  -v  debug mode (high verbosity)
-!
-        return 0
+        printf "%s" "$HELP"; return 0
         ;;
       "-r")
-        recursive=1
-        shift
+        recursive=1; shift
         ;;
       "-a")
-        p_special=1
-        shift
+        p_special=1; shift
         ;;
       "-nl")
-        p_lower=0
-        shift
+        p_lower=0; shift
         ;;
       "-ns")
-        p_space=0
-        shift
+        p_space=0; shift
         ;;
       "-v")
-        debug=1
-        shift
+        debug=1; shift
         ;;
       *)
-        echo "unknown argument '$1'"
-        return 1
+        p_err "unknown argument: $1"; return 1
         ;;
     esac
   done
- local pattern=""
+  local pattern=""
   if [ $p_space -ne 0 ]; then
     [ ${#pattern} -gt 0 ] && pattern="$pattern;"
     pattern+="$PAT_SPACE"
@@ -612,6 +714,7 @@ usage: clean [options]
     rename $rd "$pattern" *
   fi
 }
+
 ls-mime () {
   if [ -z "$2" ]; then
     cat <<!
@@ -627,10 +730,11 @@ examples:
   local mtype="$1"; shift
   file -h -i $*|grep -e "$mtype"|sed 's/: .*//g'
 }
+
 spacekill () {
   if [ -z "$1" ]; then
     cat <<!
-usage: spacekill [-n] <regex> [target]
+Usage: spacekill [-n] <regex> [target]
 example: spacekill "[0-9]*"  # removes all numbers
          spacekill ^ 0       # insert 0 in front of each filename
          spacekill -n - _    # replace the first - with _
@@ -649,7 +753,7 @@ options: -n      non global replacement
 rename2 () {
   if [ -z "$2" ]; then
     cat <<!
-usage: rename2 [-n] <regex/target> <file>..
+Usage: rename2 [-n] <regex/target> <file>..
 example: rename2 ^[0-9]*/ [01]*.ogg  # removes all leading numbers
          rename2 -n -/_ *.ogg        # replace the first - with _
 options: -n      non global replacement
@@ -670,7 +774,7 @@ options: -n      non global replacement
 mvpre () {
   if [ -z "$1" ]; then
     cat <<!
-usage: mvpre <prefix> <file>..
+Usage: mvpre <prefix> <file>..
 example: mvpre myband_-_ *.ogg
 !
     return 1
@@ -685,7 +789,7 @@ example: mvpre myband_-_ *.ogg
 mvpre-count () {
   if [ -z "$1" ]; then
     cat <<!
-usage: mvpre-count <file>.."
+Usage: mvpre-count <file>.."
 example: mvpre-count intro.ogg interlude.ogg final_song.ogg
          -> 01_intro.ogg 02_interlude.ogg 03_final_song.ogg
 !
@@ -916,7 +1020,7 @@ git-truncate () {
 # youtube-dl download using aria2 (4 concurrent downloades, 4 threads per host)
 # use output filenames generated by youtube-dl
 ytp() {
-  [ -z "$1" ] && p_usg "$0 url.." && return 1
+  [ -z "$1" ] && p_usgc "url.." && return 1
   youtube-dl -f 'bestvideo[vcodec=vp9]+bestaudio[acodec=opus]
                  /bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]
                  /bestvideo[vcodec=vp8]+bestaudio[acodec=opus]
@@ -931,7 +1035,7 @@ ytp() {
 }
 # same as ytp but download audio only
 ytap() {
-  [ -z "$1" ] && p_usg "$0 url.." && return 1
+  [ -z "$1" ] && p_usg "$(func_name) url.." && return 1
   youtube-dl -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]
                  /best[ext=webm]/best[ext=ogg]/best' \
              -x -o '%(title)s [%(id)s].ogg' \
@@ -943,7 +1047,7 @@ ytap() {
 to_mp3 () {
   local brate=160k
   [ -z "$1" ] && \
-    p_usg "youtube-audio-extract infile [bitrate] [outfile]\n  bitrate   audio bitrate in bit/s (default: ${brate})\n  requirements: avconv (ffmpeg), libavcodec-*" && return 1
+    p_usg "$(func_name) INFILE [BITRATE [OUTFILE]]\n  bitrate   audio bitrate in bit/s (default: ${brate})\n  requirements: avconv (ffmpeg), libavcodec-*" && return 1
   local in="$1"
   [ -n "$2" ] && brate="$2"
   local out
@@ -957,7 +1061,7 @@ to_mp3 () {
 }
 id3-cover-replace () {
   [ -z "$1" ] && \
-    p_usg "id3-cover-replace [-c cover] mp3file..\n  removes all images from id3 and adds\n  the selected image (default: folder.jpg) as cover" && return 1
+    p_usg "$(func_name) [-c COVER] FILE..\n  removes all images from id3 and adds\n  the selected image (default: folder.jpg) as cover" && return 1
   local cover="folder.jpg"
   [ "$1" = "-c" ] && \
     cover="$2" && shift 2
@@ -969,7 +1073,7 @@ id3-cover-replace () {
 }
 mpc2mp3 () {
   [ -z "$1" ] && \
-    p_usg "mpc2ogg [-n|--normalize] files.." && return 1
+    p_usg "$(func_name) [-n|--normalize] FILE.." && return 1
   local normal=0
   [ "$1" = "-n" ] || [ "$1" = "--normalize" ] && \
     normal=1 && shift
@@ -989,7 +1093,7 @@ mpc2mp3 () {
 }
 ppc2ogg () {
   [ -z "$1" ] && \
-    p_usg "mpc2ogg [-n|--normalize] files.." && return 1
+    p_usg "$(func_name) [-n|--normalize] FILE.." && return 1
   local normal=0
   [ "$1" = "-n" ] || [ "$1" = "--normalize" ] && \
     normal=1 && shift
@@ -1004,7 +1108,7 @@ ppc2ogg () {
 }
 ts2ps() {
   [ -z "$1" ] &&\
-    p_usg "ts2ps infile [outfile]" &&\
+    p_usg "$(func_name) INFILE [OUTFILE]" &&\
     return -1
   local outfile
   if [ -n "$2" ]; then
@@ -1048,7 +1152,7 @@ mplayer-delete-me() {
   rm "$DELETE_ME"
 }
 mplayer-bookmark-split() {
-  [ -z "$1" ] && p_usg "mplayer-bookmark-split infile" && return -1
+  [ -z "$1" ] && p_usg "$(func_name) FILE" && return -1
   local infile="$1"
   [ ! -f "$infile" ] && p_err "file not found: $infile" && return -1
   local bmfile="${1}.bookmarks"
@@ -1116,10 +1220,10 @@ mpv_find() {
         shift; break # all args after this are treated as mpv args
         ;;
       -h|--help)
-        p_usg "$0 dir [arg..] [-a mvp-arg..]"
+        p_usg "$(func_name) DIR [OPTION..] [-a MPV_ARG..]"
         cat <<!
 
-args:
+Options:
   -m --match P    match given regex pattern to find videos
                   (default: ".*\.\(avi\|mkv\|mp4\|webm\)")
   -s --sort A     sort arg, e.g. -R for random (default: -g, see: "man sort")
@@ -1131,7 +1235,7 @@ args:
 
   -h --help       show this help
 
-examples:
+Examples:
   # play all videos found in . and below in random order
   $1 -r -s -R
   # play all webm files found in /video starting skipping the first 10
@@ -1144,7 +1248,7 @@ examples:
         [ -n "$dir" ] \
           && p_err "unknown argument: $1" && return 1
         [ -z "$1" ] \
-          && p_usg "$0 dir [args] [-a mvp-arg..]" && return 1
+          && p_usg "$(func_name) dir [args] [-a mvp-arg..]" && return 1
         [ ! -d "$1" ] \
           && p_err "no such directory or unknown argument: $1" && return 1
         dir="$1"; shift
@@ -1174,7 +1278,7 @@ consider installing parallel (e.g. "apt-get install parallel" on debian/ubuntu)
 
 # fixes index in avi files using mencoder
 fixidx() {
-  [ -z "$1" ] && p_usg "fixidx avifile [outfile]" && return -1
+  [ -z "$1" ] && p_usg "$(func_name) INFILE [OUTFILE]" && return -1
   local infile="$1"
   [ ! -f "$infile" ] && p_err "file not found" && return -1
   [ -n "$2" ] && outfile="$2" || outfile=$(file-suffix "$infile" _FIXED)
@@ -1193,7 +1297,7 @@ to_opus() {
     opusenc_args+=($2)
     shift 2
   fi
-  [ -z "$1" ] && p_usg "toopus [-b bitrate] infile [opusenc-arg..]" \
+  [ -z "$1" ] && p_usg "$(func_name) [-b BITRATE] INFILE [OPUSENC_ARG..]" \
     && return -1
   local infile="$1"; shift
   [ ! -f "$infile" ] && p_err "no such file: $infile" && return -1
@@ -1205,7 +1309,7 @@ to_opus() {
 # concatenate media files using ffmpeg
 media_concat() {
   [ -z "$2" ] &&\
-    p_usg "$0 outfile infile.." &&\
+    p_usg "$(func_name) OUTFILE INFILE.." &&\
     return -1
   local outfile="$1"; shift
   #mencoder -ovc copy -oac copy -o "$outfile" $*
@@ -1215,7 +1319,7 @@ media_concat() {
 # crop video using ffmpeg
 video_crop() {
   [ -z "$2" ] &&
-    p_usg "$0 infile crop [outfile]\nexample: $0 video.webm 640:352:0:64" &&
+    p_usg "$(func_name) INFILE CROP [OUTFILE]\nexample: $(func_name) video.webm 640:352:0:64" &&
     return -1
   local infile="$1"; crop="$2"
   [ -f "$infile" ] && p_err "file not found: $infile" && return -1
@@ -1226,7 +1330,7 @@ video_crop() {
 
 wmv2avi() {
   [ -z "$1" ] &&\
-    p_usg "$0 infile [outfile]" &&\
+    p_usg "$(func_name) INFILE [OUTFILE]" &&\
     return -1
   local outfile
   if [ -n "$2" ]; then
@@ -1241,7 +1345,7 @@ mma-timidity () {
   mma "$1" && timidity "${1%.*}.mid"
 }
 mediathek () {
-  [ -z "$1" ] && p_usg "mediathek asx-url" && return 1
+  [ -z "$1" ] && p_usg "$(func_name) ASX_URL" && return 1
   curl -s "$1" | grep mms: | cut -d \" -f 2 | while read url; do
     local outfile="${url##*/}"
     p_msg "dumping '$url' -> '$outfile'"
@@ -1251,17 +1355,11 @@ mediathek () {
 
 # list dimensions of all given image files
 image_dimensions () {
-  [ -z "$1" ] && p_usg "$0 [option..] +format file.." && return 1
-  local d='|'
-  while [ -n "$1" ]; do
-    case $1 in
-      -d|--delimiter)
-        [ -z "$2" ] && p_err "missing value for argument $1" && return 1
-        d=$2; shift 2
-        ;;
-      -h|--help)
-        cat <<!
-usage: $0 [options] [filter..] file..
+  # usage + help
+  local -r USG="$(func_name) [OPTION..] FILE.."
+  local HELP
+  ! IFS='' read -r -d '' HELP <<EOF
+Usage: $USG
 
 options:
   -d|--delimiter D    output column delimiter (default: '|')
@@ -1274,12 +1372,32 @@ output format:
 examples:
   # list all dimension information for *.jpg, use delimiter ; instead of |
   image_dimensions -d \; *.jpg
+
   # get only the WxH dimension string (4) for test.jpg
   image_dimensions test.jpg | cut -d \| -f 4
-  # get all file names (1) of *.jpg files with a min dimension (6) <= 1000
-  image_dimensions *.jpg|awk -F '|' 'BEGIN {OFS="|"}{if($6 <= 1000) print $1}'
-!
-        return 0
+
+  # get only the file names (1) from *.jpg where dimension (6) <= 1000
+  image_dimensions *.jpg \
+    | awk -F '|' 'BEGIN {OFS="|"} { if ($6 <= 1000) print $1 }'
+
+  # read all dimensional values from *.jpg into variables and "do some stuff"
+  image_dimensions *.jpg \
+    | while IFS='|' read -r f w h dim pixels min max; do
+        printf "%s - w:%s x h:%s -> %s\n" "$f" "$w" "$h" "$pixels"
+      done
+EOF
+  readonly HELP
+  # parse arguments
+  [ -z "$1" ] && p_usg "$USG" && return 1
+  local d='|'
+  while [ -n "$1" ]; do
+    case $1 in
+      -d|--delimiter)
+        [ -z "$2" ] && { p_err "missing value for argument $1"; return 1; }
+        d=$2; shift 2
+        ;;
+      -h|--help)
+        printf "%s" "$HELP"; return 0
         ;;
       -*)
         p_err "unknown argument: $1"; return 1
@@ -1289,7 +1407,7 @@ examples:
         ;;
     esac
   done
-
+  # process files
   for f in "$@"; do
     [ ! -f "$f" ] && p_err "file not found [$f], skipping ..." && continue
     local ident=$(identify -format '%w|%h\n' $f)
@@ -1307,47 +1425,50 @@ examples:
   done
 }
 
-# get pixel count of the given image file
-image_pixelcount () {
-  [ -z "$1" ] && p_usg "$0 file" && return 1
-  [ ! -f "$1" ] && p_err "not a file: $1" && return 1
-  [ -z "$(file -bi $1|grep image)" ] && p_err "this doesn't seem to be an image file: $1" && return 1
-  #for f in $*; do
-  local formula=$(identify -format "%w*%h" "$1" 2>/dev/null)
-  [ $? -ne 0 ] && echo 'error' >&2 && return 1 #continue
-  echo $(($formula))
-  #done
+rm_smallimage () {
+  # usage + help
+  local -r USG="$(func_name) [OPTION..]"
+  local HELP
+  ! IFS='' read -r -d '' HELP <<EOF
+  test
+foo
+  bar
+EOF
+  readonly HELP
+  print "$help"
 }
-rm-smallimage () {
-  if [ -z "$1" ]; then
-    cat <<!
-$0 [-t] imagefile..
 
-args:
-  -t    test mode, don't delete anything
+# foo() {
+#   if [ -z "$1" ]; then
+#     cat <<!
+# $(func_name) [-t] file..
 
-remove images with a pixel count < 160000 (example: < 400x400)
-!
-    return 1
-  fi
-  [ "$1" = "-t" ] && test=1 || test=0
-  for f in $*; do
-    [ ! -f "$f" ] && continue
-    local px=$(image-pixelcount "$f") # 2>/dev/null
-    [ $? -ne 0 ] && p_err "size can't be identified: $f" && continue
-    if [ $px -lt 160000 ]; then
-      if [ $test -eq 1 ]; then
-        echo "too small: \"$f\""
-      else
-        p_msg "removing: $px $f"
-        rm "$f"
-      fi
-    fi
-  done
-}
+# removes all given images with a pixel count < 160000 (example: < 400x400)
+
+# args:
+#   -t    test mode, don't delete anything
+#   -p X  min pixel count (default: 160000)
+# !
+#     return 1
+#   fi
+#   [ "$1" = "-t" ] && test=1 || test=0
+#   for f in $*; do
+#     [ ! -f "$f" ] && continue
+#     local px=$(image-pixelcount "$f") # 2>/dev/null
+#     [ $? -ne 0 ] && p_err "size can't be identified: $f" && continue
+#     if [ $px -lt 160000 ]; then
+#       if [ $test -eq 1 ]; then
+#         echo "too small: \"$f\""
+#       else
+#         p_msg "removing: $px $f"
+#         rm "$f"
+#       fi
+#     fi
+#   done
+# }
 exif-set-author () {
-  [ -z "$2" ] && p_usg "$0 author file.." && return 1
-  cmd_p exiv2 || { p_err "exiv2 must be installed"; return 1 }
+  [ -z "$2" ] && p_usg "$(func_name) AUTHOR FILE.." && return 1
+  cmd_p exiv2 || { p_err "exiv2 must be installed"; return 1; }
   local author="$1" && shift
   exiv2 mo -v -k \
     -M "set Exif.Image.Artist Ascii $author" \
@@ -1356,41 +1477,64 @@ exif-set-author () {
     #-M "set Iptc.Application2.Byline String $author" \
 }
 flv2mp4 () {
-  [ -z "$1" ] && p_usg "$0 flvfile" && return 1
+  [ -z "$1" ] && p_usg "$(func_name) flvfile" && return 1
   local infile="$1"
   local outfile="${infile%.*}.mp4"
   p_msg "converting '$infile' to '$outfile'"
   ffmpeg -i "$infile" -vcodec copy -acodec copy "$outfile"
 }
 fixaspectratio () {
-  [ -z "$1" ] && p_usg "$0 infile [outfile{infile_FIX.ext}] [ratio{16:9}]" && return 1
+  [ -z "$1" ] && p_usg "$(func_name) INFILE [OUTFILE [ratio]]" && return 1
   local infile="$1"
   [ -n "$2" ] && outfile="$2" || outfile=$(file-suffix "$1" _FIX)
   [ -n "$3" ] && ratio="$3" || ratio="16:9"
   ffmpeg -i "$infile" -aspect "$ratio" -c copy "$outfile"
 }
-gifspeed () {
-  if [ -z "$1" ]; then
-cat <<!
-usage: $0 giffile
 
-exmaple:
-  # Get delay of first 10 frames of infile:
-  $0 infile.gif
+# get animated gif file playback speed
+gif_delay () {
+  # usage + help
+  local -r USG="$(func_name) FILE"
+  local HELP
+  ! IFS='' read -r -d '' HELP <<EOF
+Usage: $USG
 
-  # A delay of 10x100 would mean 10/100 sec between frames
-  # Convert an infile with delay 5x100 to a new outfile with a modified delay
-  # To 5/10 sec. delay (speed up)
-  convert -delay 10x100 infile.gif outfile.gif
-  # To 15/10 sec. delay (slow down), note that x100 is the default
-  convert -delay 15 infile.gif outfile.gif
-!
-  fi
-  [ -z "$1" ] && p_err "no gif infile provided" && return 1
+$(tput bold)About:$(tput sgr0)
+  This is a simple wrapper for 'identify' (imagemagic) that will return the
+  delay (speed) of the first 10 frames of a given gif file.
+
+  $ $(tput bold)$(func_name)$(tput sgr0) infile.gif
+$(tput setaf 4)
+8x100
+8x100
+8x100
+7x100
+8x100
+...
+$(tput sgr0)
+  A delay of 8x100 would mean a 8/100 sec delay between frames
+
+$(tput bold)Convert:$(tput sgr0)
+  One can change the speed of a given gif file using 'convert' (imagemagick).
+
+  # Change the speed of the above mentioned infile.gif (8x100 average) ..
+  # .. to 5/10 sec. delay (speed up)
+  $ $(tput bold)convert$(tput sgr0) -delay 10x100 infile.gif outfile.gif
+
+  # .. to 15/10 sec. delay (slow down), the 'x100' can be omitted (default)
+  $ $(tput bold)convert$(tput sgr0) -delay 15 infile.gif outfile.gif
+EOF
+  readonly HELP
+  # parse arguments
+  [ -z "$1" ] && { p_usg "$USG"; return 1; }
+  [[ $1 =~ ^(-h|--help)$ ]] && { printf "%s" "$HELP"; return 1; }
+  [ ! -f "$1" ] && p_err "file not found: $1" && return 1
+  # print first 10 gif delays
   identify -verbose "$1" | grep Delay | head -n 10 | grep -Eo '[0-9]+x[0-9]+'
 }
-ffmpeg-split-screen () {
-  [ -z "$3" ] && p_usg "$0 infile1 infile2 outfile [v|h]" && return 1
+
+video-split-screen () {
+  [ -z "$3" ] && p_usg "$(func_name) INFILE1 INFILE2 OUTFILE [v|h]" && return 1
   local infile1="$1"; shift
   local infile2="$1"; shift
   local outfile="$1"; shift
@@ -1411,7 +1555,10 @@ ffmpeg-split-screen () {
   echo ffmpeg -i \"$infile1\" -i \"$infile2\" -filter_complex "'$filter'" -map "'[vid]'" \"$outfile\"
   ffmpeg -i "$infile1" -i "$infile2" -filter_complex "$filter" -map '[vid]' "$outfile"
 }
-image-concat() {
+
+# concatenate images
+# TODO needs improvement in case images are of different size
+image_concat() {
   local -r MAX=3840
   local mode=default
   local tile=""
@@ -1433,7 +1580,7 @@ image-concat() {
         ;;
     esac
   done
-  [ -z "$2" ] && p_usg "$0 [-w|-h|-n] [-x1] [-o outfile] infile.." && return 1
+  [ -z "$2" ] && p_usg "$(func_name) [-w|-h|-n] [-x1] [-o OUTFILE] INFILE.." && return 1
   [ -z "$outfile" ] && outfile=$(file-suffix "$1" "-concat$(date +%s)") && echo "outfile: $outfile"
   q_overwrite "$outfile" || return 1
   local min_height=$(identify -format '%h\n' "${@}" | sort -n | head -n 1)
@@ -1468,7 +1615,7 @@ set +v
 # {{{ system
 # ----------------------------------------------------------------------------
 pnice () {
-  [ -z "$1" ] && p_usg "$0 process-name-regexp" && return 1
+  [ -z "$1" ] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
   local p="$(ps ax -T|grep -iE $*|grep -vE '0:00.*grep')"
   [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
   p_msg "niceness of the following processes/threads will be changed:"
@@ -1478,7 +1625,7 @@ pnice () {
   fi
 }
 pniceio () {
-  [ -z "$1" ] && p_usg "$0 process-name-regexp" && return 1
+  [ -z "$1" ] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
   local p="$(ps ax -T|grep -iE $*|grep -vE '0:00.*grep')"
   [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
   p_msg "niceness of the following processes/threads will be changed:"
@@ -1488,7 +1635,7 @@ pniceio () {
   fi
 }
 pniceloop () {
-  [ -z "$1" ] && p_usg "$0 process-name-regexp" && return 1
+  [ -z "$1" ] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
   while true; do
     local p="$(ps ax -T|grep -iE $*|grep -vE '0:00.*grep')"
     [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
@@ -1504,18 +1651,18 @@ pniceloop () {
 iso-quickmount () {
   if [ -z "$1" ]; then
     cat <<!
-usage: $0 [iso-file [dir]|dir]
+Usage: $(func_name) [ISO_FILE [DIR]|DIR]
 
 examples:
   # quick mount iso file to default dir (will be created)
   # dir name pattern: filename without extension, same base dir as given iso
-  $0 freebsd.iso
+  $(func_name) freebsd.iso
 
   # quick mount iso to specific dir (will be created)
-  $0 ~/isos/freebsd.iso ./freebsd/
+  $(func_name) ~/isos/freebsd.iso ./freebsd/
 
   # umount quickmount iso dir (and remove dir again)
-  $0 freebsd/
+  $(func_name) freebsd/
 !
     return 1
   fi
@@ -1634,24 +1781,24 @@ create-crypto-containe () { # file, size, fstype [, files]
 }
 mkcc-cd () {
   [ -z "$2" ] && \
-    p_usg "mkcc-cd <container> <file>.." && return 1
+    p_usg "$(func_name) CONTAINER FILE.." && return 1
   file="$1"; shift
   create-crypto-containe "$file" 700 'iso9660' "$*"
 }
 mkcc-dvd () {
   [ -z "$2" ] && \
-    p_usg "mkcc-cd <container> <file>.." && return 1
+    p_usg "$(func_name) CONTAINER FILE.." && return 1
   local file="$1"; shift
   create-crypto-containe "$file" 4400 'iso9660' "$*"
 }
 mkcc-ext2 () {
   [ -z "$2" ] && \
-    p_usg "mkcc-ext2 <container> <size>" && return 1
+    p_usg "$(func_name) CONTAINER SIZE" && return 1
   create-crypto-containe "$1" "$2" 'ext2'
 }
 mount-crypted () {
   [ -z "$1" ] && \
-    p_usg "mount-crypted <container>" && return 1
+    p_usg "$(func_name) CONTAINER" && return 1
   local fs=ext2
   [ "${1##*.}" = "iso" ] && fs=iso9660
   local sudo=""
@@ -1665,10 +1812,12 @@ mount-crypted () {
 # }}} crypto
 # {{{ debian/ubuntu
 # ----------------------------------------------------------------------------
-apt-key-import () {
-  [ -z "$1" ] && p_usg "apt-import-key finger-print" && return 1
-  gpg --keyserver wwwkeys.eu.pgp.net --recv-keys "$1" &&\
-    sudo gpg --armor --export "$1" | apt-key add -
-}
+if cmd_p apt-key; then
+  apt-key-import () {
+    [ -z "$1" ] && { p_usg "$(func_name) FINGERPRINT"; return 1; }
+    gpg --keyserver wwwkeys.eu.pgp.net --recv-keys "$1" \
+      && sudo gpg --armor --export "$1" | apt-key add -
+  }
+fi
 # ----------------------------------------------------------------------------
 # }}}
