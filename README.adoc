@@ -260,9 +260,9 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 |Function|Description
 |`*calc* _EXPR.._`|A simple wrapper for `dc`. Set the decimal scale using the `-s` option (default: 0). +
  image:func_calc_1.png[]
-|`*py_calc* _PY_CODE.._`|Basically the same as `py_print -i math PY_CODE..`. +
+|`*py_calc* _PY_CODE.._`|Routes `PY_CODE` through python3's `print` function with `from math import *`.
  image:func_py_calc_1.png[] +
- Or slightly more advanced. +
+ Apart from this additional import it's basically the same as `py_print` so this is also possible _(even without the math. prefix)_:
  image:func_py_calc_2.png[]
 
 |===
