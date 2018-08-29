@@ -1307,7 +1307,7 @@ to_opus() {
 }
 
 # concatenate media files using ffmpeg
-media_concat() {
+ff_concat() {
   [ -z "$2" ] &&\
     p_usg "$(func_name) OUTFILE INFILE.." &&\
     return -1
@@ -1317,7 +1317,7 @@ media_concat() {
 }
 
 # crop video using ffmpeg
-video_crop() {
+ff_crop() {
   [ -z "$2" ] &&
     p_usg "$(func_name) INFILE CROP [OUTFILE]\nexample: $(func_name) video.webm 640:352:0:64" &&
     return -1
