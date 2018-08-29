@@ -478,7 +478,7 @@ stringrepeat() {
   [ -z "$2" ] && \
     p_usg "stringrepeat count str" && \
     return 1
-  ! is_int $1 && p_err "$1 is not an integer" && return 1
+  ! is_int $1 && { p_err "$1 is not an integer"; return 1; }
   #echo $(printf "%0$1d" | sed "s/0/$2/g")
   awk 'BEGIN{$'$1'=OFS="'$2'";print}'
 }
@@ -495,7 +495,7 @@ Usage: $USG
 options:
   -s|--scale X     decimal scale (default: 0)
 EOF
-  [ -z "$1" ] && p_usg "$USG" && return 1
+  [ -z "$1" ] && { p_usg "$USG"; return 1; }
   local scale
   while [ -n "$1" ]; do
     case $1 in
@@ -516,6 +516,11 @@ EOF
     esac
   done
   bc <<<"$scale$*"
+}
+
+py_calc() {
+  [ -z "$1" ] && { p_usg "$(func_name)"; return 1; }
+
 }
 
 rnd () {
