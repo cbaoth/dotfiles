@@ -258,9 +258,13 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 [%header,cols="1,3",options="header"]
 |===
 |Function|Description
-|`*calc* _EXPR_`|A simple wrapper for `dc`. Set the decimal scale using the `-s` option (default: 0). +
- image:func_calc_1.png[] +
- Also consider using `py_print -i math PY_CODE..`.
+|`*calc* _EXPR.._`|A simple wrapper for `dc`. Set the decimal scale using the `-s` option (default: 0). +
+ image:func_calc_1.png[]
+|`*py_calc* _PY_CODE.._`|Basically the same as `py_print -i math PY_CODE..`. +
+ image:func_py_calc_1.png[] +
+ Or slightly more advanced. +
+ image:func_py_calc_2.png[]
+
 |===
 
 
