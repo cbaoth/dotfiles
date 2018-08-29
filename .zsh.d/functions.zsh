@@ -211,7 +211,7 @@ py_print() {
     [ -z "$2" ] && p_err "missing value for argument -i" && return 1
     local _py_import="$2"; shift 2
   fi
-  [ -z "$1" ] && p_usg "$(func_name) [-i import] PY_CODE.." && return 1
+  [ -z "$1" ] && p_usg "$(func_name) [-i IMPORT] PY_CODE.." && return 1
   python3<<<"${_py_import+import ${_py_import}}
 print($@)"
 }
@@ -519,8 +519,14 @@ EOF
 }
 
 py_calc() {
-  [ -z "$1" ] && { p_usg "$(func_name)"; return 1; }
-
+  if [[ $1 =~ ^(-i|--import)$ ]]; then
+    [ -z "$2" ] && p_err "missing value for argument -i" && return 1
+    local _py_import="$2"; shift 2
+  fi
+  [ -z "$1" ] && p_usg "$(func_name) [-i IMPORT] PY_CODE.." && return 1
+  python3<<<"from math import *
+${_py_import+import ${_py_import}}
+print($@)"
 }
 
 rnd () {
