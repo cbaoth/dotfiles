@@ -532,6 +532,9 @@ bindkey -v
 bindkey '^x^x' execute-named-cmd # in addition to alt-x (if alt not working)
 bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working)
 
+# sudo
+#bindkey "^[^[" sudo-command-line # esc, esc (if \e\e doesn't work)
+
 # {{{ - COMPLETION -----------------------------------------------------------
 # lookup spaces
 bindkey ' ' magic-space
@@ -594,11 +597,6 @@ if zplug check "zsh-users/zaw"; then
 fi
 # }}} - ZAW ------------------------------------------------------------------
 # }}} = ZSH KEYBINDINGS ======================================================
-
-# sudo
-bindkey "^[^[" sudo-command-line # esc, esc (if \e\e doesn't work)
-
-
 
 # {{{ = INCLUDES =============================================================
 # include os/host specific functon files
