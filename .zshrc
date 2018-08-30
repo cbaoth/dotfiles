@@ -217,8 +217,10 @@ prompt fade 0
 # {{{ - PL9K -----------------------------------------------------------------
 #https://github.com/bhilburn/powerlevel9k/wiki/About-Fonts
 #POWERLEVEL9K_MODE=awesome-fontconfig
+#POWERLEVEL9K_MODE=nerdfont-complete
 # fonts: fira code, deb: fonts-powerline fonts-inconsolata
 # sudo fc-cache -vf ~/.local/share/fonts
+ZSH_THEME="powerlevel9k/powerlevel9k"
 
 # load pewerlevel9k (if availlable)
 # apt: zsh-theme-powerlevel9k - https://github.com/bhilburn/powerlevel9k
@@ -228,7 +230,7 @@ zplug_cmd "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme \
 
 # {{{ - - General ------------------------------------------------------------
 POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable) # disk_usage
-POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline context) # root_indicator
+# POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline context) # root_indicator
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(vcs newline status command_execution_time \
                                     background_jobs docker_machine)
 #[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]]
@@ -236,19 +238,31 @@ $IS_WSL || POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 
 #export DEFAULT_USER="$USER" # not an options, lambda should always be shown
-POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
+#POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
 #POWERLEVEL9K_USER_TEMPLATE="%n"
 POWERLEVEL9K_HOST_TEMPLATE="$(is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
 POWERLEVEL9K_HOST_ICON="🖳"
 POWERLEVEL9K_SSH_ICON="🖧"
 #POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
-POWERLEVEL9K_SHORTEN_DIR_LENGTH=4
+POWERLEVEL9K_SHORTEN_DIR_LENGTH=3
 POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
-POWERLEVEL9K_PROMPT_ON_NEWLINE=false
-POWERLEVEL9K_RPROMPT_ON_NEWLINE=true
+POWERLEVEL9K_PROMPT_ON_NEWLINE=true
+POWERLEVEL9K_RPROMPT_ON_NEWLINE=false
 POWERLEVEL9K_TIME_FORMAT="%D{%H:%M}"
 #POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX="\u256D"
+POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX=""
 #POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="\u2570[$USER]\u03bb"
+is_sudo && _PROMPT_SUDO_ICON="▲" || _PROMPT_SUDO_ICON=""
+_PROMPT_USER_NAME=$(is_me || print -P '%n ')
+if (is_su); then
+  POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="%B%K{red}%F{white}$_PROMPT_SUDO_ICON"
+  POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX+=" $_PROMT_USER_NAME\u03bb %f%k%b%F{red}\uE0B0%f "
+else
+  _PROMPT_BG_COLOR=$(is_sudo_cached && print "yellow" || print "white")
+  POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="%K{$_PROMPT_BG_COLOR}%F{black}$_PROMPT_SUDO_ICON"
+  POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX+=" $_PROMPT_USER_NAME\u03bb %f%k%F{$_PROMPT_BG_COLOR}\uE0B0%f "
+fi
+unset _PROMPT_SUDO_ICON _PROMPT_BG_COLOR _PROMPT_USER_NAME
 POWERLEVEL9K_STATUS_VERBOSE=false
 #POWERLEVEL9K_BACKGROUND_JOBS_VERBOSE=false # default: true
 #POWERLEVEL9K_BACKGROUND_JOBS_VERBOSE_ALWAYS=true # default: false
@@ -550,6 +564,8 @@ bindkey ' ' magic-space
 #bindkey '^[OB' history-beginning-search-forward # down (vs. down-line-or-history)
 # }}} - COMPLETION -----------------------------------------------------------
 # {{{ - CURSOR NAVIGATION ----------------------------------------------------
+#WORDCHARS="*?_-.[]~=/&;!#$%^(){}<>""
+
 # input navigation using arrow keys (plus emacs: ctrl-a/e, alt-b/f)
 bindkey '^[[1;5D' backward-word # ctrl-left
 bindkey '^[[1;5C' forward-word # ctrl-right

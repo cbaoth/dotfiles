@@ -61,10 +61,10 @@ if [ -n "`command -v apt 2>/dev/null`" ]; then
   alias apr='sudo apt remove' # conflicts with ar
   alias apr!='sudo apt purge'
   alias apra='sudo apt auto-remove'
-  alias aps='sudo apt search'
-  alias apss='sudo apt show'
-  alias apl='sudo apt list'
-  alias apli='sudo apt list --installed'
+  alias aps='apt search'
+  alias apss='apt show'
+  alias apl='apt list'
+  alias apli='apt list --installed'
 fi
 
 if [ -n "`command -v dpkg 2>/dev/null`" ]; then
