@@ -230,6 +230,9 @@ is_su() { [[ $UID -eq 0 && $EUID -eq 0 ]]; }
 # predicate: is this a sudo envionment?
 is_sudo() { [ -n "$SUDO_USER" ]; }
 
+# predicate: is
+is_sudo_cached() { sudo -n true 2> /dev/null; }
+
 # predicate: is this a ssh session we are in?
 is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
 
@@ -1039,20 +1042,20 @@ ytp() {
                  /bestvideo[ext=webm]+bestaudio[ext=webm]
                  /bestvideo[ext=webm]+bestaudio[ext=ogg]
                  /best[ext=webm]/bestvideo+bestaudio/best' \
-             -o '%(title)s [%(id)s].%(ext)s' \
+             -i -o '%(title)s [%(id)s].%(ext)s' \
              -g --get-filename "${@}" \
-   | sed '$!N;s/\n/\n  out=/' \
-   | aria2c -x 4 -j 4 -i -
+    | sed '$!N;s/\n/\n  out=/' \
+    | aria2c -U "$UAGENT" -c -x4 -j4 -i -
 }
 # same as ytp but download audio only
 ytap() {
   [ -z "$1" ] && p_usg "$(func_name) url.." && return 1
   youtube-dl -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]
                  /best[ext=webm]/best[ext=ogg]/best' \
-             -x -o '%(title)s [%(id)s].ogg' \
+             -i -x -o '%(title)s [%(id)s].ogg' \
              -g --get-filename "${@}" \
     | sed '$!N;s/\n/\n  out=/' \
-    | aria2c -x 4 -j 4 -i -
+    | aria2c -U "$UAGENT" -c -x4 -j4 -i -
 }
 # convert infile to mp3 audio file
 to_mp3 () {

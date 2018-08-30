@@ -161,11 +161,11 @@ alias yt="youtube-dl \
                 /bestvideo[ext=webm]+bestaudio[ext=webm]
                 /bestvideo[ext=webm]+bestaudio[ext=ogg]
                 /best[ext=webm]/bestvideo+bestaudio/best' \
-            -o '%(title)s [%(id)s].%(ext)s'"
+            -i -o '%(title)s [%(id)s].%(ext)s'"
 alias yta="youtube-dl \
             -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]
                 /best[ext=webm]/best[ext=ogg]/best' \
-            -x -o '%(title)s [%(id)s].ogg'"
+            -i -x -o '%(title)s [%(id)s].ogg'"
 #alias wall-video='pkill -9 xwinwrap; xwinwrap -ni -o 0.6 -fs -s -st -sp -ov \
 #  -b -nf -- mplayer -wid WID -quiet -loop 0 -nosound'
 #alias wall-video='pkill -9 xwinwrap; xwinwrap -ni -o 1 -fs -s -st -sp -ov -b \
@@ -251,11 +251,16 @@ alias rpm-extract='rpm2cpio "$1" | cpio -ivd'
 # {{{ = ZSH ONLY =============================================================
 # The following aliases are intended for ZSH only, skip if not in ZSH shell.
 # Why? So this aliases file can be borrowed by other shells such as bash.
-[[ ! $SHELL = *zsh ]] || return 0
+[[ ! $SHELL = *zsh ]] && return 0
 
 alias /='cd /'
 alias h='history'
 alias hs='history | grep -Ei'
+
+alias reload-functions='. $HOME/.zsh.d/functions.zsh;
+  source_ifex_custom $HOME/.zsh.d/functions'
+alias reload-aliases='. $HOME/.zsh.d/aliases.zsh;
+  source_ifex_custom $HOME/.zsh.d/aliases'
 
 # {{{ - SUFFIX ALIASES -------------------------------------------------------
 # e.g. 'alias -s txt=vim', now 'foo.txt' will open foo.txt in vim
@@ -266,9 +271,11 @@ alias hs='history | grep -Ei'
 # {{{ - GLOBAL ALIASES -------------------------------------------------------
 alias -g wget="wget -U \"$UAGENT\""
 alias -g axel="axel -U \"$UAGENT\" -a"
-alias -g tr-lower="tr '[A-Z]' '[a-z]'"
-alias -g tr-upper="tr '[a-z]' '[A-Z]'"
-alias -g mp3gain-track='mp3gain -k -d 93.5 -r'
+alias -g aria2c="aria2c -U \"$UAGENT\" -c -x4 -j4"
+alias -g a2=aria2c
+alias -g tr-low="tr '[A-Z]' '[a-z]'"
+alias -g tr-up="tr '[a-z]' '[A-Z]'"
+alias -g mp3gain='mp3gain -k -d 93.5 -r'
 alias -g mp3gain-album='mp3gain -k -d 93.5 -a'
 alias -g urlclean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi;
                         s/%3d/:/gi; s/%3f/?/gi'"
@@ -317,6 +324,7 @@ alias -g NUL="> /dev/null 2>&1"
 alias -g S='| sort'
 #alias -g TL='| tail -20'
 alias -g T='| tail'
+alias -g TF='| tail -f'
 #alias -g US='| sort -u'
 #alias -g VM=/var/log/messages
 #alias -g X0G='| xargs -0 egrep'

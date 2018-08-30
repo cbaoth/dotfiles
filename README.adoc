@@ -211,6 +211,7 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 |`*is_bash*`|`true` if `bash` session, else: `false`
 |`*is_su*`|`true` if root (super user) session, else: `false`
 |`*is_sudo*`|`true` if in sudo mode, else: `false`
+|`*is_sudo_cached*`|`true` if sudo has cached credentials, else: `false`
 |`*is_ssh*`|`true` if ssh session, else: `false`
 |`*is_int* _NUMBER.._`|`true` if all given numbers are integers _(only digits)_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
 |`*is_decimal* _NUMBER.._`|`true` if all given numbers are decimals _(only digits, MUST contain decimal separator '.')_, else: `false`. Ignores leading/trailing spaces, accepts leading +/- sign.
