@@ -33,11 +33,11 @@ export HISTFILESIZE=0 # set shell history to zero
 
 # {{{ - CORE -----------------------------------------------------------------
 export OS=$(uname | tr '[A-Z]' '[a-z]')
-[ ! $HOST ] && export HOST=$HOSTNAME
+[[ -z "${HOST-}" ]] && export HOST=$HOSTNAME
 
 export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 export COLORTERM=xterm
-#[ -n "`echo $TERMCAP|grep -i screen`" ] && TERM=screen
+#[[ -n "$(echo $TERMCAP|grep -i screen)" ]] && TERM=screen
 
 # globally raise (but never lower) the default debug level of p_dbg
 export DBG_LVL=0
@@ -73,8 +73,8 @@ export PS1="\[\e[0;37m\](\w)\[\\033[0;39m\]
 
 # {{{ = INCLUDES =============================================================
 include_ifex () {
-  while [ -n "$1" ]; do
-    [ -f "$1" ] && source "$1"
+  while [[ -n "$1" ]]; do
+    [[ -f "$1" ]] && source "$1"
     shift
   done
 }
@@ -89,7 +89,7 @@ include_ifex $HOME/.zsh.d/aliases.zsh
 #  $HOME/.zsh.d/aliases.$HOST.zsh \
 #  $HOME/.zsh.d/aliases.$HOST.$OS.zsh \
 #  $HOME/.bash/aliases-bash.sh
-#  `cat .aliases | grep -Ev '^\s*#' | sed 's/^alias/alias -g/'`
+#  $(cat .aliases | grep -Ev '^\s*#' | sed 's/^alias/alias -g/')
 
 # load functions
 #include_ifex \
@@ -115,7 +115,7 @@ include_ifex $HOME/.zsh.d/aliases.zsh
 # stupid messages but better timeouts in bg thatn in fg (delay at login)
 
 # TODO: FIND A BETTER SOLUTION< MOVE TO INPUTRC / XINITRC
-if [ "$DISPLAY" ]; then
+if [[ -n "${DISPLAY-}" ]]; then
   # repeat caps lock (colemak backspace)
   xset r 66 2>/dev/null &!
   # don't repeat tilde
@@ -128,7 +128,7 @@ fi
 # }}} - X STUFF --------------------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # print welcome message (if top-level shell)
-if [[ $SHLVL -eq 1 ]]; then
+if (($SHLVL == 1)); then
    print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
    # on %F{green}#%l%f%b"
    print -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"

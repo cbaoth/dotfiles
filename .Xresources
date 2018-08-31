@@ -29,11 +29,13 @@ URxvt.keysym.Shift-Control-C: eval:selection_to_clipboard
 
 !XTerm*boldFont:         terminus-*-12*
 !XTerm*font:             terminus-*-12*
-!*boldFont:              xft:Fira Code:size=8:style=bold
-*font:                  xft:Fira Code:size=8:style=medium,\
+!*boldFont:              xft:Fura Code:size=8:style=bold,\
+!                        xft:Fira Code:size=8:style=bold
+*font:                  xft:Fura Code:size=8:style=medium,\
+                        xft:Fira Code:size=8:style=medium,\
                         xft:Symbola,\
                         -*-unifont-*-*-*-*-*-*-*-*-*-*-*-*
-*.faceName:             Fira Code
+*.faceName:             Fura Code
 *.faceSize:             9
 !URxvt*letterSpace:      -1
 URxvt*letterSpace:      0
@@ -242,7 +244,7 @@ urxvt*dynamicColors:    on
 ! }}} - NumixDarkest colors --------------------------------------------------
 ! {{{ - C'Baoth Custom colors ------------------------------------------------
 ! special
-*.foreground:   #c0c0c0
+*.foreground:   #bbbbbb
 *.background:   #000000
 *.cursorColor:  #00ff00
 
@@ -265,7 +267,7 @@ urxvt*dynamicColors:    on
 ! blue
 *.color4:       #0d68a8
 !*.color12:      #729fcf
-*.color12:      #4F8dce
+*.color12:      #689cd2
 
 ! magenta
 *.color5:       #744560

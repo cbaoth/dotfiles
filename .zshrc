@@ -12,11 +12,12 @@
 # For login shell / general variable like PATH see ~/.zshenv
 
 # {{{ - CORE -----------------------------------------------------------------
+
 export OS=${$(uname):l}
 export HOST=${$(hostname):l}
 export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 #export COLORTERM=xterm
-#[ -n "`echo $TERMCAP|grep -i screen`" ] && TERM=screen
+#[ -n "$(echo $TERMCAP|grep -i screen)" ]] && TERM=screen
 
 # globally raise (but never lower) the default debug level of p_dbg
 export DBG_LVL=0
@@ -42,14 +43,14 @@ fi
 
 # Is X available?
 IS_X=false
-if [ ! xset q &>/dev/null ]; then
+if ! xset q &>/dev/null; then
   IS_X=true
 fi
 # }}} - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
 
 # {{{ - DEV ------------------------------------------------------------------
-export CLASSPATH=".:$HOME/.class:$CLASSPATH"
-export PYTHONPATH="$PYTHONPATH:$HOME/lib/python/site-packages"
+export CLASSPATH=".:$HOME/.class${CLASSPATH+:$CLASSPATH}"
+export PYTHONPATH="${PYTHONPATH+:$PYTHONPATH}:$HOME/lib/python/site-packages"
 export SCALA_HOME="$HOME/scala"
 command -v java 2>&1 >/dev/null \
   && export JAVA_HOME=${$(realpath $(command -v java))/bin\/java/}
@@ -57,8 +58,8 @@ export ARCH=$(uname -m)
 
 # Check if we are in the 32bit chroot
 #export INCHROOT=0
-#if [ -z "`mount -l -t ext3 | grep 'on / type'`" ]; then
-#if [ ! -d "/usr/lib64/" ]; then
+#if [[ -z "$(mount -l -t ext3 | grep 'on / type')" ]]; then
+#if [[ ! -d "/usr/lib64/" ]]; then
 #  export DISPLAY=":0"
 #  export INCHROOT=1
 #  export ARCH=i686
@@ -66,7 +67,7 @@ export ARCH=$(uname -m)
 #  export PS1="$(print '%{\e[0;37m%}(%~)%{\e[0m%}
 #[%{\e[0;32m%}%n%{\e[0m%}@%m]%# ')"
 #  # Mount Radeon Shared Memory TMPFS
-#  #[ -z "`mount|grep shm`" ] && sudo mount /dev/shm/
+#  #[ -z "$(mount|grep shm)" ]] && sudo mount /dev/shm/
 #  alias cb="cd ~/; su cbaoth"
 #fi
 
@@ -124,10 +125,10 @@ source $HOME/.zsh.d/functions.zsh
 
 # include given source file(s) if they exist,
 source_ifex () {
-  [ -z "$1" ] && p_usg "$0 source-file.." && return 1
-  while [ -n "$1" ]; do
+  [[ -z "${1-}" ]] && p_usg "$0 source-file.." && return 1
+  while [[ -n "$1" ]]; do
     p_dbg 0 2 "potential source: $1"
-    [ -r "$1" ] && { p_dbg 0 1 "loading source: $1"; source "$1" }
+    [[ -r "$1" ]] && { p_dbg 0 1 "loading source: $1"; source "$1" }
     shift
   done
   return 0
@@ -136,10 +137,10 @@ source_ifex () {
 # include all matching os/host specific source files having the given
 # [source-file-prefix] file name prefix(s)
 source_ifex_custom () {
-  [ -z "$1" ] && printf "usage: %s" "$0 source-file-prefix.." && return 1
+  [[ -z "${1-}" ]] && printf "usage: %s" "$0 source-file-prefix.." && return 1
   local host=${${HOST:l}//./_}
   local os=${OS:l}
-  while [ -n "$1" ]; do
+  while [[ -n "${1-}" ]]; do
     local base_file=$1
     source_ifex \
       "${base_file}-${os}.zsh" \
@@ -161,16 +162,16 @@ is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # {{{ = ZPLUG PREPARE ========================================================
 # apt: zplug - https://github.com/zplug/zplug
 alias zplug_cmd=zplug
-#if [ -f "/usr/share/zplug/init.zsh" ]; then
+#if [[ -f "/usr/share/zplug/init.zsh" ]]; then
 #  p_dbg 0 2 'zplug found in /usr/share/zplug, loading ...'
 #  source /usr/share/zplug/init.zsh
 # TODO clean this up, much too complicate (separate functions or don't cover all unlikely cases)
-if [ -f "$HOME/.zplug/init.zsh" ]; then
+if [[ -f "$HOME/.zplug/init.zsh" ]]; then
   p_dbg 0 2 'zplug found in ~/.zplug, loading ...'
   source "$HOME/.zplug/init.zsh"
 else
   p_war 'init.zsh not found in ~/.zplug'
-  if [ -d "$HOME/.zplug" ]; then
+  if [[ -d "$HOME/.zplug" ]]; then
     q_yesno "zplug not found but $HOME/.zplug exist, should I delete it?" \
       && rm -rf ~/.zplug
   fi
@@ -179,8 +180,8 @@ else
      || url_cmd=false; then
     $url_cmd https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
   fi
-  if [ $? -eq 0 ]; then
-    if [ -f "$HOME/.zplug/init.zsh" ]; then
+  if (($? == 0)); then
+    if [[ -f "$HOME/.zplug/init.zsh" ]]; then
       source "$HOME/.zplug/init.zsh"
     else
       p_err "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')installation seem to have faild, $HOME/.zplug not found."
@@ -229,9 +230,10 @@ zplug_cmd "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme \
   && POWERLEVEL9K_ISACTIVE=true || POWERLEVEL9K_ISACTIVE=false
 
 # {{{ - - General ------------------------------------------------------------
-POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable) # disk_usage
+POWERLEVEL9K_DISABLE_RPROMPT=false
+POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable vcs) # disk_usage
 # POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline context) # root_indicator
-POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(vcs newline status command_execution_time \
+POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time \
                                     background_jobs docker_machine)
 #[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]]
 $IS_WSL || POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
@@ -369,7 +371,7 @@ zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
 
 # activate syntax highlighting, load last to affect everything loaded before
 # apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
-[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ] \
+[[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] \
   && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
   || zplug "zsh-users/zsh-syntax-highlighting"
 # }}} = ZPLUG PLUGINS ========================================================
@@ -493,7 +495,7 @@ zstyle ':completion:*:corrections' format '%B%d (errors: %e)%b'
 zstyle ':completion:*' group-name ''
 
 # complete only specific hosts (big host file)
-#zstyle '*' hosts `hostname` motoko.intra puppet.intra bateau.intra togusa.intra yav.in
+#zstyle '*' hosts $HOST motoko.intra puppet.intra bateau.intra togusa.intra yav.in
 
 # file type command detecton
 #compctl -g '*.ebuild' ebuild
@@ -509,7 +511,7 @@ zstyle ':completion:*' group-name ''
 
 # user name auto completion
 function _userlist {
-  [ -r /etc/passwd ] && reply=($(cat /etc/passwd | cut -d : -f 1))
+  [[ -r /etc/passwd ]] && reply=($(cat /etc/passwd | cut -d : -f 1))
 }
 compctl -K _userlist ps -fU
 compctl -K _userlist finger
@@ -635,12 +637,12 @@ rm -f ~/*.core(N) ~/*.dump(N) &!
 #) &!
 # }}} - DTAG -----------------------------------------------------------------
 # {{{ - X STUFF --------------------------------------------------------------
-#if [ -n "$DESKTOP_SESSION" ]; then
+#if [[ -n "$DESKTOP_SESSION" ]]; then
 #fi
 # }}} - X STUFF --------------------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # print welcome message (if top-level shell)
-if [[ $SHLVL -eq 1 ]]; then
+if (($SHLVL == 1)); then
    print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
    # on %F{green}#%l%f%b"
    print -P "%B%F{white}Uptime:%b%F{green}$(uptime)%f"

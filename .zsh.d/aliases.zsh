@@ -95,8 +95,9 @@ alias python-profile="python -m cProfile -s time"
 # }}} - DEV ------------------------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
-alias wget="wget -U \"$UAGENT\""
-alias axel="axel -U \"$UAGENT\" -a"
+alias wget="wget -U '$UAGENT'"
+#alias axel="axel -U \"$UAGENT\" -a"
+alias aria2c="aria2c -U '$UAGENT' -c -x4 -j4"
 #alias epic='TERM=rxvt && su yasuo -c '\''epic4 yasuo irc.tu-ilmenau.de'\'''
 #alias bx='bitchx -b -l .bitchxrc cbaoth irc.openprojects.net'
 alias ftp="ftp -p"
@@ -105,7 +106,7 @@ alias ftp="ftp -p"
 #  sudo service idmapd restart'
 alias nfs-reexport='exportfs -ra'
 alias proxy-set-tor="export http_proxy=http://localhost:8118"
-alias wget-m="wget -U \"$UAGENT\" -m -k -K -E -np -N"
+alias wget-m="wget -U '$UAGENT' -m -k -K -E -np -N"
 #alias vncsrv='tightvncserver -geometry 1024x768 -depth 24 :1'
 #alias vncsrv16='tightvncserver -geometry 1024x768 -depth 16 :1'
 #alias vncsrv-desktop='sudo x11vnc -display :0 -noxdamage -forever -usepw -ncache 10'
@@ -131,7 +132,7 @@ alias xprop-type='xprop _NET_WM_WINDOW_TYPE | cut -d_ -f10'
 alias xprop-title='xprop WM_NAME | cut -d\" -f2'
 alias xprop-role='xprop WM_WINDOW_ROLE | cut -d\" -f2'
 alias xprop2="xprop | egrep '^(WM_CLASS|WM_NAME|WM_WINDOW_ROLE)' \
-  | sed -r 's/^WM_(WINDOW_)?([^_(\s]+)(\([^)]*\))?/\2/g;
+  | sed -E 's/^WM_(WINDOW_)?([^_(\s]+)(\([^)]*\))?/\2/g;
             s/^NAME/TITLE/g; s/\s*=\s*/\t/g;
             s/CLASS\t\"(.*)\", \"(.*)\"/CLASS\t"\1"\nNAME\t"\2"/g'"
 # }}} - XORG -----------------------------------------------------------------
@@ -224,8 +225,8 @@ alias rename-stripspecial-rec="find . -type f -execdir rename \"s/^\.\///g;
   s/[^ \w()\[\]~&%#@.,+'-]/_/g; s/^/\.\//\" '{}' +"
 alias rename-titlecase="rename 's/(^|[\s_-])([a-z])/\1\u\2/g'"
 alias rename-camelcase="rename 's/(^|[\s_-])([a-z])/\u\2/g'"
-alias sed-titlecase="sed -r 's/(^|[\s_-])([a-z])/\1\u\2/g'"
-alias sed-camelcase="sed -r 's/(^|[\s_-])([a-z])/\u\2/g'"
+alias sed-titlecase="sed -E 's/(^|[\s_-])([a-z])/\1\u\2/g'"
+alias sed-camelcase="sed -E 's/(^|[\s_-])([a-z])/\u\2/g'"
 alias rm-dupes='jdupes -dN'
 alias rm-dupes-rec='jdupes -dNrO'
 alias mysqlr='mysql -u root -p'
@@ -233,12 +234,12 @@ alias mysqlr='mysql -u root -p'
 #  find ~/.opera/cache/sesn/ -maxdepth 1 -size +1M \
 #    -printf '%CY-%Cm-%Cd %CH:%CM %f %s\n' \
 #  | sort -r"
-#alias urldecode="sed -r 's/%([0-9A-F][0-9A-F])/\\\\x\1/g' |
+#alias urldecode="sed -E 's/%([0-9A-F][0-9A-F])/\\\\x\1/g' |
 #  while read l; do echo -e \"$l\"; done"
-alias urldecode="sed -r 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | while read l;
+alias urldecode="sed -E 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | while read l;
   do echo -e \"\$l\"; done"
 #alias audacious-playlist-urldecode="awk -F '[<>]' '/<location>/{print $3}' \
-#  | sed 's/^file:\/\///g' |sed -r 's/%([0-9A-F][0-9A-F])/\\\\x\1/g' \
+#  | sed 's/^file:\/\///g' |sed -E 's/%([0-9A-F][0-9A-F])/\\\\x\1/g' \
 #  | xargs -n1 echo -e"
 alias cat-utf16-to-utf8='iconv -f utf-16 -t utf-8'
 alias cat-utf16-to-iso-8859-1='iconv -f utf-16 -t ISO-8859-1'
@@ -269,12 +270,11 @@ alias reload-aliases='. $HOME/.zsh.d/aliases.zsh;
 # }}} - SUFFIX ALIASES -------------------------------------------------------
 
 # {{{ - GLOBAL ALIASES -------------------------------------------------------
-alias -g wget="wget -U \"$UAGENT\""
-alias -g axel="axel -U \"$UAGENT\" -a"
-alias -g aria2c="aria2c -U \"$UAGENT\" -c -x4 -j4"
-alias -g a2=aria2c
-alias -g tr-low="tr '[A-Z]' '[a-z]'"
-alias -g tr-up="tr '[a-z]' '[A-Z]'"
+alias -g WG=wget # already an alias
+#alias -g AX=axel # already an alias
+alias -g A2=aria2c # already an alias
+alias -g TRL="tr '[A-Z]' '[a-z]'"
+alias -g TRU="tr '[a-z]' '[A-Z]'"
 alias -g mp3gain='mp3gain -k -d 93.5 -r'
 alias -g mp3gain-album='mp3gain -k -d 93.5 -a'
 alias -g urlclean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi;

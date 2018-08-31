@@ -107,7 +107,7 @@ Try it:
     "\$(tp b u red)" \\
     "\$(tp c)"
 EOF
-  [ -z "$1" ] && { printf "Usage: $USG\n"; return 1; }
+  [[ -z "$1" ]] && { printf "Usage: $USG\n"; return 1; }
   [[ "$1" =~ ^(-h|--help)$ ]] && { printf "$HELP"; return 1; }
   for s in $*; do printf "%s" "${_TPUT_MAP[$s]}"; done
 }
@@ -123,27 +123,27 @@ func_caller() { printf "%s" "${FUNCNAME[2]-${funcstack[3]}}"; }
 # print usage in the following format: "Usage: {args}"
 # alternative: ${1?"Usage: $0 [msg]"} (but doesn't look so nice)
 p_usg() {
-  [ -z "$1" ] && { printf "Usage: %s\n" "$(func_name) USAGE.."; return 1; }
+  [[ -z "$1" ]] && { printf "Usage: %s\n" "$(func_name) USAGE.."; return 1; }
   printf "Usage: %s\n" "$*"
 }
 
 # print an info message, Usage: p_msg [msg]..
 p_msg() {
-  [ -z "$1" ] && { p_usg "$(func_name) MSG.." && return 1; }
+  [[ -z "$1" ]] && { p_usg "$(func_name) MSG.." && return 1; }
   printf "> %s\n" "$*"
 }
 
 # predicate: is command $1 available?
 # why not use which? https://stackoverflow.com/a/677212/7393995
 cmd_p() {
-  [ -z "$1" ] && { p_usg "$(func_name) CMD"; return 1; }
+  [[ -z "$1" ]] && { p_usg "$(func_name) CMD"; return 1; }
   command -v "$1" 2>&1 > /dev/null && return 0 || return 1
 }
 
 # join array by delimiter (on zsh ${(j:/:)1} can be used instead)
 # example: join_by / 1 2 3 4 -> 1/2/3/4
 join_by() {
-  [ -z "$2" ] && { p_usg "$(func_name) DELIMITER ARRAY.."; return 1; }
+  [[ -z "$2" ]] && { p_usg "$(func_name) DELIMITER ARRAY.."; return 1; }
   local del=$1 first=$2; shift 2
   printf "%s%s" "$first" "${@/#/$del}"
 }
@@ -151,14 +151,14 @@ join_by() {
 # execute multiple tput commands at once, ignore and return gracefully if tput
 # not available
 tputs() {
-  [ -z "$1" ] && { p_usg "tputs STYLE.."; return 1; }
+  [[ -z "$1" ]] && { p_usg "tputs STYLE.."; return 1; }
   cmd_p tput || return 0
   join_by_n "$@" | tput -S
 }
 
 # print error message in format "> ERROR: [msg]..", Usage: p_err [msg]
 p_err() {
-  [ -z "$1" ] && { p_usg "$(func_name) MSG.."; return 1; }
+  [[ -z "$1" ]] && { p_usg "$(func_name) MSG.."; return 1; }
   printf "%s> ERROR:%s %s\n" \
     "$(tputs 'setaf 7' 'setab 1' 'bold')" "$(tput sgr0)" \
     "$(tput smul)$*$(tput sgr0)" >&2
@@ -166,7 +166,7 @@ p_err() {
 
 # print error message in format "> WARNING: [msg]..", Usage: p_war [msg]
 p_war() {
-  [ -z "$1" ] && { p_usg "$(func_name) MSG.."; return 1; }
+  [[ -z "$1" ]] && { p_usg "$(func_name) MSG.."; return 1; }
   printf "%s> WARNING:%s %s\n" \
     "$(tputs 'setaf 0' 'setab 3')" "$(tput sgr0)" \
     "$*"
@@ -177,10 +177,10 @@ p_war() {
 # set dbg_lvl to 0 if DBG_LVL should be used exclusively
 # Usage: p_dbg [dbg_lvl] [show_at_lvl] [msg]..
 p_dbg() {
-  [ -z "$3" ] && p_usg "$(func_name) DBG_LVL SHOW_AT_LVL MSG.." && return 1
+  [[ -z "$3" ]] && p_usg "$(func_name) DBG_LVL SHOW_AT_LVL MSG.." && return 1
   local dbg_lvl=$(( ${DBG_LVL-0} > $1 ? ${DBG_LVL-0} : $1 )); shift
   local show_at_lvl=$1; shift
-  [ $dbg_lvl -lt $show_at_lvl ] && return 0
+  (($dbg_lvl < $show_at_lvl)) && return 0
   printf "%s> DEBUG(%s):%s %s\n" \
     "$(tputs 'setaf 0' 'setab 6')" "$show_at_lvl" "$(tput sgr0)" \
     "$*"
@@ -196,8 +196,8 @@ p_no() { print -P "%F{red}no%f"; }
 p_colortable() {
   for i in {0..255}; do
     printf '\e[1m\e[37m\e[48;5;%dm%03d\e[0m ' $i $i
-    [ $i -ge 16 ] && [ $((i%6)) -eq 3 ] \
-      || [ $i -eq 15 ] \
+    (($i >= 16)) && (($((i%6)) == 3)) \
+      || (($i == 15)) \
       && printf '\n'
   done
 }
@@ -208,10 +208,10 @@ p_colortable() {
 #   py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"
 py_print() {
   if [[ $1 =~ ^(-i|--import)$ ]]; then
-    [ -z "$2" ] && p_err "missing value for argument -i" && return 1
+    [[ -z "$2" ]] && p_err "missing value for argument -i" && return 1
     local _py_import="$2"; shift 2
   fi
-  [ -z "$1" ] && p_usg "$(func_name) [-i IMPORT] PY_CODE.." && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) [-i IMPORT] PY_CODE.." && return 1
   python3<<<"${_py_import+import ${_py_import}}
 print($@)"
 }
@@ -225,21 +225,21 @@ is_zsh() { [[ $SHELL = *zsh ]]; }
 is_bash() { [[ $SHELL = *bash ]]; }
 
 # predicate: is current user superuse?
-is_su() { [[ $UID -eq 0 && $EUID -eq 0 ]]; }
+is_su() { (($UID == 0 && $EUID == 0)); }
 
 # predicate: is this a sudo envionment?
-is_sudo() { [ -n "$SUDO_USER" ]; }
+is_sudo() { [[ -n "$SUDO_USER" ]]; }
 
 # predicate: is
 is_sudo_cached() { sudo -n true 2> /dev/null; }
 
 # predicate: is this a ssh session we are in?
-is_ssh() { [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; }
+is_ssh() { [[ -n "$SSH_CLIENT" ]] || [[ -n "$SSH_TTY" ]]; }
 
 # predicate: is given [number] an integer?
 # number may NOT contain decimal separator "."
 is_int() {
-  [ -z "$1" ] && p_usg "$(func_name) NUMBER.." && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) NUMBER.." && return 1
   for n in $*; do
     [[ $n =~ ^\ *[+-]?[0-9]+\ *$ ]] || return 1
     shift
@@ -250,7 +250,7 @@ is_int() {
 # predicate: is given [number] a decimal number?
 # number MUST contain decimal separator "." (optional, scale can be 0)
 is_decimal() {
-  [ -z "$1" ] && p_usg "$(func_name) NUMBER.." && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) NUMBER.." && return 1
   for n in $*; do
     [[ $n =~ ^\ *[+-]?([0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] || return 1
     shift
@@ -261,7 +261,7 @@ is_decimal() {
 # predicate: is given [number] positive?
 # number MAY contain decimal separator "." (optional, can be integer)
 is_positive() {
-  [ -z "$1" ] && p_usg "$(func_name) NUMBER.." && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) NUMBER.." && return 1
   for n in $*; do
     [[ ! $n =~ ^\ *- ]] || return 1
     shift
@@ -272,7 +272,7 @@ is_positive() {
 # predicate: is given [value] a number? (either integer or decimal)
 # number MAY contain decimal separator "." (optional, scale can be 0)
 is_number() { # may contain .
-  [ -z "$1" ] && p_usg "$(func_name) NUMBER.." && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) NUMBER.." && return 1
   for n in $*; do
     [[ $n =~ ^\ *[+-]?([0-9]+|[0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] || return 1
     shift
@@ -284,7 +284,7 @@ is_number() { # may contain .
 # {{{ - COMMAND EXECUTION ----------------------------------------------------
 # execute command [cmd] with a [delay] (sleep syntax)
 cmd_delay() {
-  [ -z "$2" ] && p_usg echo "$(func_name) DELAY COMMAND.." && return 1
+  [[ -z "$2" ]] && p_usg echo "$(func_name) DELAY COMMAND.." && return 1
   local delay="$1"; shift
   sleep $dealy
   $*
@@ -294,19 +294,19 @@ cmd_delay() {
 # {{{ - QUERIES --------------------------------------------------------------
 # query (yes/no): ask any question (no: return 1)
 q_yesno() {
-  [ -z "$1" ] && p_usg "$(func_name) QUESTION" && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) QUESTION" && return 1
   sh="$(basename $SHELL)"
   key=""
   printf "$* (y/n) "
-  while [ "$key" != "y" ] && [ "$key" != "n" ]; do
-    if [ "$sh" = "zsh" ]; then
+  while [[ "$key" != "y" ]] && [[ "$key" != "n" ]]; do
+    if [[ "$sh" = "zsh" ]]; then
       read -s -k 1 key
     else
       read -s -n 1 key
     fi
   done
   echo
-  if [ "$key" = "y" ]; then
+  if [[ "$key" = "y" ]]; then
     return 0
   fi
   return 1
@@ -315,9 +315,9 @@ q_yesno() {
 # query (yes/no): overwrite given file? (no: return 1)
 # return 0, without asking a thing, if [file] doesn't exist
 q_overwrite() {
-  [ -z "$1" ] && p_usg "$(func_name) file" && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) file" && return 1
   local file="$1"
-  if [ -e "$file" ]; then
+  if [[ -e "$file" ]]; then
     p_war "file '$file' exists!"
     if q_yesno "overwrite?"; then
       rm -rf -- "$file"
@@ -359,13 +359,13 @@ examples:
 EOF
   readonly HELP
   # parse arguments
-  [ -z "$1" ] && p_usg "$USG" && return 1
+  [[ -z "$1" ]] && p_usg "$USG" && return 1
   local bg=false regex="" verbose=false
   #delim=''  #  -d DELIM  split by delimiter (e.g. \n), execute separately for each entry
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     case "$1" in
       -m|--match)
-        [ -z "$2" ] && { p_err "error parsing args, missing regex"; return 1; }
+        [[ -z "$2" ]] && { p_err "error parsing args, missing regex"; return 1; }
         regex="$2"
         shift 2
         ;;
@@ -389,26 +389,23 @@ EOF
         ;;
     esac
   done
-  [ -z "$1" ] && p_err "missing command" && return 1
+  [[ -z "$1" ]] && p_err "missing command" && return 1
   # start monitoring
   while true; do
     c="$(xclip -selection clip-board -o -l)"
-    if [ "$c" != "$cprev" ]; then
-      if [ -z "$regex" ] || [[ $c =~ $regex ]]; then
-        while read -r e; do
-          local cmd=${@/{}/$e}
-          if $bg; then
-            $verbose && echo "$ ${cmd[@]}"
-            echo "${cmd[@]}" | bash
-          else
-            $verbose && echo "$ ${cmd[@]} &"
-            echo "${cmd[@]}" \& | bash
-          fi
-        done <<<"$c"
+    [[ "$c" = "$cprev" ]] && continue # skip: clipboard unchanged
+    [[ -n "$regex" ]] && [[ ! $c =~ $regex ]] && continue # skip: regex no match
+    while read -r e; do # process clipboard rows in sequence
+      local cmd="${@//\{\}/$e}" # substitute {} with clipboad text
+      if $bg; then
+        $verbose && p_msg "bash ${cmd[@]} &"
+        bash <<<"${cmd[@]}" &
+      else
+        $verbose && p_msg "bash ${cmd[@]}"
+        bash <<<"${cmd[@]}"
       fi
-    else
-      sleep .2
-    fi
+    done <<<"$c"
+    sleep .2 # sleep 200ms (less load, usually enough with user interaction)
     cprev="$c"
   done
 }
@@ -417,44 +414,44 @@ EOF
 # {{{ find files
 # ----------------------------------------------------------------------------
 find-greater-than () {
-  [ -z $2 ] || ! is_int $1 && \
+  [[ -z $2 ]] || ! is_int $1 && \
     p_usg "find-greater-than <max> <dir>...\nmax (bytes)" && return 1
   min=$1; shift
   for dir in $*; do
     find "$dir" -printf "%p %s\n"|while read l; do
-      [ ${l##*[ ]} -gt $min ] && echo $l;
+      ((${l##*[ ]} == $min)) && echo $l;
     done
   done
 }
 find-between () {
-  [ -z $3 ] || ! is_int $1 $2 && \
+  [[ -z $3 ]] || ! is_int $1 $2 && \
     p_usg "find-less-than <min> <max> <dir>...\nmin|max (bytes)" && \
     return 1
   min=$1; max=$2; shift 2
   for dir in $*; do
     find "$dir" -printf "%p %s\n"|while read l; do
       size=${l##*[ ]}
-      [ $size -gt $min ] && [ $size -lt $max ] && echo $l;
+      (($size > $min)) && (($size < $max)) && echo $l;
     done
   done
 }
 find-less-than () {
-  [ -z $2 ] || ! is_int $1 && \
+  [[ -z $2 ]] || ! is_int $1 && \
     p_usg "find-less-than <max> <dir>...\nmax (bytes)" && \
     return 1
   max=$1; shift
   for dir in $*; do
     find "$dir" -printf "%p %s\n"|while read l; do
-      [ ${l##*[ ]} -lt $max ] && echo $l;
+      ((${l##*[ ]} < $max)) && echo $l;
     done
   done
 }
 zerokill () {
-  [ -z "$1" ] && \
+  [[ -z "$1" ]] && \
     p_usg "zerokill <dir> [-r]" && \
     return 1
   dir="$1"
-  if [ "$2" = "-r" ]; then
+  if [[ "$2" = "-r" ]]; then
     find "$dir" -type f -size 0 | while read f; do rm "$f"; done
   else
     find "$dir" -maxdepth 1 -type f -size 0 | while read f; do rm "$f"; done
@@ -462,14 +459,14 @@ zerokill () {
 }
 rm-empty-dirs () {
   dir="."
-  [ -n "$1" ] && dir="$1"
+  [[ -n "$1" ]] && dir="$1"
   set -x
   find "$dir" -depth -type d -empty -delete
   set +x
 }
 rm-thumb-dirs () {
   dir="."
-  [ -n "$1" ] && dir="$1"
+  [[ -n "$1" ]] && dir="$1"
   find "$dir" -type d -iname ".thumbnails" -exec rm -rf {} \;
   #find "$dir" -type d -exec rmdir --ignore-fail-on-non-empty -p {} +
 }
@@ -478,7 +475,7 @@ rm-thumb-dirs () {
 # {{{ string
 # ----------------------------------------------------------------------------
 stringrepeat() {
-  [ -z "$2" ] && \
+  [[ -z "$2" ]] && \
     p_usg "stringrepeat count str" && \
     return 1
   ! is_int $1 && { p_err "$1 is not an integer"; return 1; }
@@ -498,12 +495,12 @@ Usage: $USG
 options:
   -s|--scale X     decimal scale (default: 0)
 EOF
-  [ -z "$1" ] && { p_usg "$USG"; return 1; }
+  [[ -z "$1" ]] && { p_usg "$USG"; return 1; }
   local scale
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     case $1 in
       -s|--scale)
-        [ -z "$2" ] && { p_err "missing value for argument -s"; return 1; }
+        [[ -z "$2" ]] && { p_err "missing value for argument -s"; return 1; }
         is_int $2 || { p_err "value [$2] for argument -s must be an integer"; return 1; }
         scale="scale=$2;"; shift 2
         ;;
@@ -523,10 +520,10 @@ EOF
 
 py_calc() {
   if [[ $1 =~ ^(-i|--import)$ ]]; then
-    [ -z "$2" ] && p_err "missing value for argument -i" && return 1
+    [[ -z "$2" ]] && p_err "missing value for argument -i" && return 1
     local _py_import="$2"; shift 2
   fi
-  [ -z "$1" ] && p_usg "$(func_name) [-i IMPORT] PY_CODE.." && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) [-i IMPORT] PY_CODE.." && return 1
   python3<<<"from math import *
 ${_py_import+import ${_py_import}}
 print($@)"
@@ -537,7 +534,7 @@ rnd () {
 hex2dec() { echo "ibase=16; $(echo ${1##0x} | tr '[a-f]' '[A-F]')" | bc; }
 # TODO: fix overflow (eg. 125 @ 2 digits)
 zerofill () { #inserts leading zeros (number, digits)
-  [ -z $2 ] && \
+  [[ -z $2 ]] && \
     p_usg "zerofill value digits" && return 1
   ! is_int $1 || ! is_int $2 && p_err "$i is not an integer" && return 1
     echo $(printf "%0$2d" $1)
@@ -568,7 +565,7 @@ calcSum() {
 # {{{ network
 # ----------------------------------------------------------------------------
 wget-mm () {
-  [ -z "$1" ] &&\
+  [[ -z "$1" ]] &&\
     p_usg "wget-mm url" &&\
     echo "mirror url (no parent) multi threaded (8)" &&\
     return 1
@@ -579,21 +576,21 @@ wget-mm () {
 }
 wget-d () {
   ref="$2"
-  [ -z "$2" ] && ref="$(dirname $1)"
-  out="$(echo \"$1\" | sed -r 's/^http:\/\///g;s/\/+$//g;s/\//+/g')"
+  [[ -z "$2" ]] && ref="$(dirname $1)"
+  out="$(echo \"$1\" | sed -E 's/^http:\/\///g;s/\/+$//g;s/\//+/g')"
   wget -U "$UAGENT" --referer "$ref" -c "$1" -O "$out"
 }
 wget-d-rev () { wget $(echo $1|sed 's/.*\///g'|tr + \/) -O $1; }
 ssh-tunnel () {
-  [ -z "$2" ] &&\
+  [[ -z "$2" ]] &&\
     p_usg "ssh-tunnel [user@]host[:port] localport [remoteport]" &&\
     return 1
-  [ $2 -lt 1024 ] && SUDO="sudo"
+  (($2 < 1024)) && SUDO="sudo"
   user="${1%@*}"
   host="${${x#*@}%:*}"
   port="${1#*:}"
   lp="$2"; rp="$3"
-  [ -z "$3" ] && rp="$lp"
+  [[ -z "$3" ]] && rp="$lp"
   $SUDO ssh -f "$host" $([ -n "$port"] && echo -p $port) $([ -n "$user"] && echo -l $user) -L $lp:127.0.0.1:$rp -N
 }
 mac_generate() {
@@ -606,8 +603,8 @@ mac_generate() {
 # ----------------------------------------------------------------------------
 # add a suffix to the file name, before the file extension
 file-suffix() {
-  [ "$#" -ne 2 ] && p_usg "$(func_name) file suffix" && return 1
-  [[ "$1" == *"."* ]] \
+  [[ "$#" -ne 2 ]] && p_usg "$(func_name) file suffix" && return 1
+  [[ "$1" = *"."* ]] \
     && echo "${1%.*}$2.${1##*.}" \
     || echo "$1$2"
 }
@@ -615,7 +612,7 @@ file-suffix() {
 # if rename is not availlable, provide a simple replace implementation
 cmd_p rename || cmd_p zmv || \
 rename () {
-  if [ $# -lt 2 ]; then
+  if (($# < 2)); then
     cat <<!
 Usage: rename <pattern> <file..>
 example: rename 's/ /_/g' *.txt
@@ -626,7 +623,7 @@ example: rename 's/ /_/g' *.txt
   shift
   for f in $*; do
     target="$(echo $f | sed $pattern)"
-    [ ! -e "$target" ] && \
+    [[ ! -e "$target" ]] && \
       mv "$f" "$target"
   done
 }
@@ -656,7 +653,7 @@ EOF
   local p_space=1
   local p_special=0
   local debug=0
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     case "$1" in
       "-h"|"--help")
         printf "%s" "$HELP"; return 0
@@ -682,41 +679,41 @@ EOF
     esac
   done
   local pattern=""
-  if [ $p_space -ne 0 ]; then
-    [ ${#pattern} -gt 0 ] && pattern="$pattern;"
+  if [[ $p_space -ne 0 ]]; then
+    ((${#pattern} > 0)) && pattern="$pattern;"
     pattern+="$PAT_SPACE"
   fi
-  if [ $p_lower -ne 0 ]; then
-    [ ${#pattern} -gt 0 ] && pattern="$pattern;"
+  if [[ $p_lower -ne 0 ]]; then
+    ((${#pattern} > 0)) && pattern="$pattern;"
     pattern+="$PAT_LOWER"
   fi
-  if [ $p_special -ne 0 ]; then
-    [ ${#pattern} -gt 0 ] && pattern="$pattern;"
+  if [[ $p_special -ne 0 ]]; then
+    ((${#pattern} > 0)) && pattern="$pattern;"
     pattern+="$PAT_SPECIAL"
   fi
-  [ ${#pattern} -le 0 ] &&\
+  ((${#pattern} <= 0)) &&\
     p_err "at least one pattern must be active!" &&\
     return 1
   p_dbg $debug 1 "pattern: '$pattern'"
-  local rd=""; [ $debug -ge 1 ] && rd="-v"
+  local rd=""; (($debug >= 1)) && rd="-v"
   local pwd="$(pwd)"
   # return to pwd on interrupt
   trap "cd $pwd; return 2" INT TERM SIGTERM
   # hide  "no matches found: *" in zsh (rename will handle it instead)
   unsetopt NOMATCH
-  if [ $recursive -eq 1 ]; then
+  if (($recursive == 1)); then
     #find ./ -type f -exec rename 'y/A-Z/a-z/' {} \;
     find . -depth -type d | \
       while read d; do
         local dir="$(dirname $d)"
         local base="$(basename $d)"
-        local target="$(echo $base | sed -r \"$pattern\")"
+        local target="$(echo $base | sed -E \"$pattern\")"
         cd "$d"
         p_dbg $debug 1 "processing files in $d/"
         rename $rd "$pattern" *
         cd "$pwd"
-        if [ "$d" != "." ]; then
-          if [ "$target" != "$base" ]; then
+        if [[ "$d" != "." ]]; then
+          if [[ "$target" != "$base" ]]; then
             p_dbg $debug 1 "$d renamed as $dir/$target"
             mv "$d" "$dir"/"$target"
           fi
@@ -730,7 +727,7 @@ EOF
 }
 
 ls-mime () {
-  if [ -z "$2" ]; then
+  if [[ -z "$2" ]]; then
     cat <<!
 ls-mime mimetype file..
 examples:
@@ -739,14 +736,14 @@ examples:
 !
     return 1
   fi
-  #[ -z "$(echo $1|grep -E '\w\/\w')" ] &&\
+  #[ -z "$(echo $1|grep -E '\w\/\w')" ]] &&\
   #  echo "wrong mimetype format \'$1\'" && return 1
   local mtype="$1"; shift
   file -h -i $*|grep -e "$mtype"|sed 's/: .*//g'
 }
 
 spacekill () {
-  if [ -z "$1" ]; then
+  if [[ -z "$1" ]]; then
     cat <<!
 Usage: spacekill [-n] <regex> [target]
 example: spacekill "[0-9]*"  # removes all numbers
@@ -757,7 +754,7 @@ options: -n      non global replacement
     return 1
   fi
   local mode="g"
-  [ "$1" = "-n" ] && \
+  [[ "$1" = "-n" ]] && \
     mode="" && \
     shift
   local pattern="$1"
@@ -765,7 +762,7 @@ options: -n      non global replacement
   rename "s/$pattern/$target/$MODE"
 }
 rename2 () {
-  if [ -z "$2" ]; then
+  if [[ -z "$2" ]]; then
     cat <<!
 Usage: rename2 [-n] <regex/target> <file>..
 example: rename2 ^[0-9]*/ [01]*.ogg  # removes all leading numbers
@@ -775,18 +772,18 @@ options: -n      non global replacement
     return 1
   fi
   local mode="g"
-  [ "$1" = "-n" ] && \
+  [[ "$1" = "-n" ]] && \
     mode="" && \
     shift
   local pattern="$1"
   shift
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     rename "s/$pattern/$MODE" "$1"
     shift
   done
 }
 mvpre () {
-  if [ -z "$1" ]; then
+  if [[ -z "$1" ]]; then
     cat <<!
 Usage: mvpre <prefix> <file>..
 example: mvpre myband_-_ *.ogg
@@ -795,13 +792,13 @@ example: mvpre myband_-_ *.ogg
   fi
   prefix="$1"
   shift
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     rename "s/^(.*\/)?/\$1$prefix/" "$1"
     shift
   done
 }
 mvpre-count () {
-  if [ -z "$1" ]; then
+  if [[ -z "$1" ]]; then
     cat <<!
 Usage: mvpre-count <file>.."
 example: mvpre-count intro.ogg interlude.ogg final_song.ogg
@@ -810,40 +807,40 @@ example: mvpre-count intro.ogg interlude.ogg final_song.ogg
     return 1
   fi
   i=1
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     local prefix=$(zerofill $i 2)
     local target="${prefix}_$1"
-     if [ ! -e "$target" ]; then
+     if [[ ! -e "$target" ]]; then
       p_msg "$target"
       mv "$1" "$target"
     else
       p_err "skipping '$target', file exists !"
     fi
-      [ "$?" -ne 0 ] && p_err "something went wrong" #&& return 1
+      [[ "$?" -ne 0 ]] && p_err "something went wrong" #&& return 1
     i=$(($i+1))
     shift
   done
 }
 rename-prefix-modtime () {
-  [ -n "$2" ] && p_err "rename-prefix-modtime to many parameters" &&\
+  [[ -n "$2" ]] && p_err "rename-prefix-modtime to many parameters" &&\
     p_usg "rename-prefix-modtime file" && return 2
-  [ -z "$1" ] && p_usg "rename-prefix-modtime file" && return 2
+  [[ -z "$1" ]] && p_usg "rename-prefix-modtime file" && return 2
   local ls=$(which -a ls|grep -v alias|head -n 1)
   local target="$($ls -l --time-style '+%Y-%m-%d@%H.%M' \"$1\"|cut -d \  -f 6) $1"
   echo renaming \"$1\" to \"$target\"
   mv "$1" "$target"
 }
 rename-prefix-exif-time () {
-  [ -n "$2" ] && p_err "rename-prefix-exif-time to many parameters" &&\
+  [[ -n "$2" ]] && p_err "rename-prefix-exif-time to many parameters" &&\
     p_usg "rename-prefix-exif-time file" && return 2
-  [ -z "$1" ] && p_usg "rename-prefix-exif-time file" && return 2
+  [[ -z "$1" ]] && p_usg "rename-prefix-exif-time file" && return 2
   local target="$(exif -t 0x9003 \"$1\"|grep Value|sed 's/\s*Value:\s*\([0-9]*\):\([0-9]*\):\([0-9]*\) \([0-9]*\):\([0-9]*\):\([0-9]*\).*/\1-\2-\3@\4.\5.\6/g') $1"
   echo renaming \"$1\" to \"$target\"
   mv "$1" "$target"
 }
 rename-dir-filecount () {
   local skip="" digits=0 rec=0 reccount=0 countall=0 verbose=0 test=0 prefix=0 clean=0 cleanonly=0 hidden=0
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     case $1 in
       -r)
         rec=1; shift
@@ -855,14 +852,14 @@ rename-dir-filecount () {
         countall=1; shift
         ;;
       -d)
-        [ -z "$2" ] && p_err "digit count missing for argument $1" && return 2
+        [[ -z "$2" ]] && p_err "digit count missing for argument $1" && return 2
         if ! is_int $2 || ! is_positive $2; then
           p_err "digit count is not a positive int value: $2" && return 2
         fi
         digits=$2; shift 2
         ;;
       -s)
-        [ -z "$2" ] && p_err "pattern missing for argument $1" && return 2
+        [[ -z "$2" ]] && p_err "pattern missing for argument $1" && return 2
         skip="$2"; shift 2
         ;;
       -v)
@@ -872,19 +869,19 @@ rename-dir-filecount () {
         test=1; shift
         ;;
       -p)
-        [ $hidden -eq 1 ] && p_err "-p and -h are mutually exclusive" && return 2
+        (($hidden == 1)) && p_err "-p and -h are mutually exclusive" && return 2
         prefix=1; shift
         ;;
       -h)
-        [ $prefix -eq 1 ] && p_err "-p and -h are mutually exclusive" && return 2
+        (($prefix == 1)) && p_err "-p and -h are mutually exclusive" && return 2
         hidden=1; shift
         ;;
       -c)
-        [ $cleanonly -eq 1 ] && p_err "-co and -c are mutually exclusive" && return 2
+        (($cleanonly == 1)) && p_err "-co and -c are mutually exclusive" && return 2
         clean=1; shift
         ;;
       -co)
-        [ $clean -eq 1 ] && p_err "-co and -c are mutually exclusive" && return 2
+        (($clean == 1)) && p_err "-co and -c are mutually exclusive" && return 2
         cleanonly=1; shift
         ;;
       *)
@@ -892,7 +889,7 @@ rename-dir-filecount () {
         ;;
     esac
   done
-  if [ -z "$1" ]; then
+  if [[ -z "$1" ]]; then
     cat <<!
 rename-dir-filecount [arg..] dir
 
@@ -924,53 +921,53 @@ example: rename-dir-filecount -r -s '/_[^/]*$' ~/foo/
 !
      return 2
   fi
-  if [ -d "$1" ]; then
+  if [[ -d "$1" ]]; then
     local dir="${1%%/}" && shift # remove trailing / if existing
   else
     p_err "dir not found: $1" && return 2
   fi
-  [ -n "$1" ] && p_err "unknown arg: $1" && return 2
+  [[ -n "$1" ]] && p_err "unknown arg: $1" && return 2
 
   local -a type
-  [ $countall -ne 1 ] && type=(-type f)
+  [[ $countall -ne 1 ]] && type=(-type f)
   local -a maxdepth
-  [ $rec -ne 1 ] && maxdepth=(-maxdepth 0)
+  [[ $rec -ne 1 ]] && maxdepth=(-maxdepth 0)
   local -a maxdepthcount
-  [ $reccount -ne 1 ] && maxdepthcount=(-maxdepth 1)
+  [[ $reccount -ne 1 ]] && maxdepthcount=(-maxdepth 1)
   local -a nothidden
-  [ $hidden -ne 1 ] && nothidden=(-not -name ".*")
+  [[ $hidden -ne 1 ]] && nothidden=(-not -name ".*")
 
   find "$dir" $maxdepth -depth -type d $nothidden \
     | while read d; do
-        [ "$d" = "." ] && continue
-        if [ -n "$skip" ] && echo "$d" | grep -E "$skip" > /dev/null; then
-          [ $verbose -eq 1 ] && p_msg "skipping (regex): $d"
+        [[ "$d" = "." ]] && continue
+        if [[ -n "$skip" ]] && echo "$d" | grep -E "$skip" > /dev/null; then
+          (($verbose == 1)) && p_msg "skipping (regex): $d"
           continue
         fi
         # count files in dir and rename dir (possible old count is removed)
         count=$(find "$d" $maxdepthcount $type | wc -l)
-        [ $digits -ne 0 ] && count=$(zerofill $count $digits)
-        [ $countall -eq 1 ] && count=$((count-1)) # -1 to exclude current dir .
-        if [ $cleanonly -eq 1 ]; then # clean only
-          [ $prefix -eq 1 ] \
-            && dest="$(echo \"$d\" | sed -r \"s/((^\.?)?\/)\([0-9]+\)\s+([^/]+)$/\1\3/\")" \
-            || dest="$(echo \"$d\" | sed -r 's/\s+\([0-9]*\)$//')"
-        elif [ $clean -eq 1 ]; then # clean and add
-          [ $prefix -eq 1 ] \
-            && dest="$(echo \"$d\" | sed -r \"s/((^\.?)?\/)\([0-9]+\)\s+([^/]+)$/\1($count) \3/\")" \
-            || dest="$(echo \"$d\" | sed -r 's/\s+\([0-9]*\)$//') ($count)"
+        [[ $digits -ne 0 ]] && count=$(zerofill $count $digits)
+        (($countall == 1)) && count=$((count-1)) # -1 to exclude current dir .
+        if (($cleanonly == 1)); then # clean only
+          (($prefix == 1)) \
+            && dest="$(echo \"$d\" | sed -E \"s/((^\.?)?\/)\([0-9]+\)\s+([^/]+)$/\1\3/\")" \
+            || dest="$(echo \"$d\" | sed -E 's/\s+\([0-9]*\)$//')"
+        elif (($clean == 1)); then # clean and add
+          (($prefix == 1)) \
+            && dest="$(echo \"$d\" | sed -E \"s/((^\.?)?\/)\([0-9]+\)\s+([^/]+)$/\1($count) \3/\")" \
+            || dest="$(echo \"$d\" | sed -E 's/\s+\([0-9]*\)$//') ($count)"
         else # simply add, don't clean first
-          [ $prefix -eq 1 ] \
-            && dest="$(echo \"$d\" | sed -r \"s/((^\.?)?\/)([^/]+)$/\1\($count\) \3/\")" \
+          (($prefix == 1)) \
+            && dest="$(echo \"$d\" | sed -E \"s/((^\.?)?\/)([^/]+)$/\1\($count\) \3/\")" \
             || dest="$d ($count)"
         fi
-        if [ "$d" = "$dest" ]; then
-          [ $verbose -eq 1 ] && p_msg "skipping (same name): $d"
-        elif [ -d "$dest" ]; then
-          [ $verbose -eq 1 ] && p_msg "skipping (exists): $d"
+        if [[ "$d" = "$dest" ]]; then
+          (($verbose == 1)) && p_msg "skipping (same name): $d"
+        elif [[ -d "$dest" ]]; then
+          (($verbose == 1)) && p_msg "skipping (exists): $d"
         else
-          [ $verbose -eq 1 ] && p_msg "moving: '$d' -> '$dest'"
-          if [ $test -eq 1 ]; then
+          (($verbose == 1)) && p_msg "moving: '$d' -> '$dest'"
+          if (($test == 1)); then
             echo "mv \"$d\" \"$dest\""
           else
             mv "$d" "$dest"
@@ -984,13 +981,13 @@ url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
 # {{{ moving
 # ----------------------------------------------------------------------------
 mergedir () {
-  [ -z "$1" ] && p_usg "mergedir target [source..]\nmerge content of all source directories into the given target directory\nif no source is provided target* will be matched instead" && return 2
+  [[ -z "$1" ]] && p_usg "mergedir target [source..]\nmerge content of all source directories into the given target directory\nif no source is provided target* will be matched instead" && return 2
   tar="$1"; shift
-  [ -n "$1" ] && src=("$@") || src=("${tar}"*)
+  [[ -n "$1" ]] && src=("$@") || src=("${tar}"*)
   mkdir -p "$tar"
-  [ ! -d "$tar" ] && echo "error creating target directory: $tar" && return 2
+  [[ ! -d "$tar" ]] && echo "error creating target directory: $tar" && return 2
   for d in "${src[@]}"; do
-    [ "$d" -ef "$tar" ] && echo "skipping, source same as target: $d" && continue
+    [[ "$d" -ef "$tar" ]] && echo "skipping, source same as target: $d" && continue
     find "$d" -mindepth 1 -maxdepth 1 -exec /bin/mv -t "$tar" -- {} +
     rmdir "$d"
   done
@@ -1000,10 +997,10 @@ mergedir () {
 # {{{ textfile manipulation
 # ----------------------------------------------------------------------------
 kill_trailing_spaces () {
-  [ -z "$1" ] && \
+  [[ -z "$1" ]] && \
     p_usg "kill_trailing_spaces <file>" && return 1
   file="$1"
-  [ ! -w "$file" ] && \
+  [[ ! -w "$file" ]] && \
     p_err "file '$file' does not exist or is not writable" && return 1
   perl -pi -e 's/[ ]\+$//g' "$file"
 }
@@ -1013,11 +1010,11 @@ kill_trailing_spaces () {
 # {{{ delevopment
 # https://web.archive.org/web/20130116195128/http://bogdan.org.ua/2011/03/28/how-to-truncate-git-history-sample-script-included.html
 git-truncate () {
-  [ -z "$1" ] && p_usg "git-truncate hash-id/tag [message]" \
+  [[ -z "$1" ]] && p_usg "git-truncate hash-id/tag [message]" \
     && return 1
   id="$1"; shift
   msg="Truncated history"
-  [ -n "$1" ] && msg="$*"
+  [[ -n "$1" ]] && msg="$*"
   p_msg "The history prior to the hash-id/tag '$id' will be DELETED !!!"
   if ! q_yesno "> Delete history?"; then
     return 0
@@ -1034,7 +1031,7 @@ git-truncate () {
 # youtube-dl download using aria2 (4 concurrent downloades, 4 threads per host)
 # use output filenames generated by youtube-dl
 ytp() {
-  [ -z "$1" ] && p_usgc "url.." && return 1
+  [[ -z "$1" ]] && p_usgc "url.." && return 1
   youtube-dl -f 'bestvideo[vcodec=vp9]+bestaudio[acodec=opus]
                  /bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]
                  /bestvideo[vcodec=vp8]+bestaudio[acodec=opus]
@@ -1049,7 +1046,7 @@ ytp() {
 }
 # same as ytp but download audio only
 ytap() {
-  [ -z "$1" ] && p_usg "$(func_name) url.." && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) url.." && return 1
   youtube-dl -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]
                  /best[ext=webm]/best[ext=ogg]/best' \
              -i -x -o '%(title)s [%(id)s].ogg' \
@@ -1060,12 +1057,12 @@ ytap() {
 # convert infile to mp3 audio file
 to_mp3 () {
   local brate=160k
-  [ -z "$1" ] && \
+  [[ -z "$1" ]] && \
     p_usg "$(func_name) INFILE [BITRATE [OUTFILE]]\n  bitrate   audio bitrate in bit/s (default: ${brate})\n  requirements: avconv (ffmpeg), libavcodec-*" && return 1
   local in="$1"
-  [ -n "$2" ] && brate="$2"
+  [[ -n "$2" ]] && brate="$2"
   local out
-  if [ -n "$3" ]; then
+  if [[ -n "$3" ]]; then
     out="$3"
   else
     out="$(basename $in)"
@@ -1074,28 +1071,28 @@ to_mp3 () {
   ffmpeg -i "$in" -ab "$brate" "$out"
 }
 id3-cover-replace () {
-  [ -z "$1" ] && \
+  [[ -z "$1" ]] && \
     p_usg "$(func_name) [-c COVER] FILE..\n  removes all images from id3 and adds\n  the selected image (default: folder.jpg) as cover" && return 1
   local cover="folder.jpg"
-  [ "$1" = "-c" ] && \
+  [[ "$1" = "-c" ]] && \
     cover="$2" && shift 2
-  [ ! -f "$cover" ] && p_err "cover '$cover' not found" && return 1
+  [[ ! -f "$cover" ]] && p_err "cover '$cover' not found" && return 1
   p_msg "removing image files from id3"
   eyeD3 --remove-images $*
   p_msg "adding new cover"
   eyeD3 --add-image="$cover":FRONT_COVER:"$(basename $cover)" $*
 }
 mpc2mp3 () {
-  [ -z "$1" ] && \
+  [[ -z "$1" ]] && \
     p_usg "$(func_name) [-n|--normalize] FILE.." && return 1
   local normal=0
-  [ "$1" = "-n" ] || [ "$1" = "--normalize" ] && \
+  [[ "$1" = "-n" ]] || [[ "$1" = "--normalize" ]] && \
     normal=1 && shift
   for f in $*; do
     #mpcdec "$f" --wav - |oggenc - -q 5 -o "${f%.*}".ogg
     tmp="/tmp/mpc2ogg_$(date +%s%N).wav"
     p_msg "$(basename $f)"
-    if [ $normal -eq 1 ]; then
+    if (($normal == 1)); then
       mpcdec "$f" "$tmp"
       normalize "$tmp"
       lame --vbr-new -V 2 "$tmp" $(basename "${f%.*}").mp3
@@ -1106,26 +1103,26 @@ mpc2mp3 () {
   done
 }
 ppc2ogg () {
-  [ -z "$1" ] && \
+  [[ -z "$1" ]] && \
     p_usg "$(func_name) [-n|--normalize] FILE.." && return 1
   local normal=0
-  [ "$1" = "-n" ] || [ "$1" = "--normalize" ] && \
+  [[ "$1" = "-n" ]] || [[ "$1" = "--normalize" ]] && \
     normal=1 && shift
   for f in $*; do
     #mpcdec "$f" --wav - |oggenc - -q 5 -o "${f%.*}".ogg
     tmp="/tmp/mpc2ogg_$(date +%s%N).wav"
     mpcdec "$f" "$tmp"
-    [ $normal -eq 1 ] && normalize "$tmp"
+    (($normal == 1)) && normalize "$tmp"
     oggenc "$tmp" -q 5 -o $(basename "${f%.*}").ogg
     rm -f /tmp/mpc2ogg_*.wav
   done
 }
 ts2ps() {
-  [ -z "$1" ] &&\
+  [[ -z "$1" ]] &&\
     p_usg "$(func_name) INFILE [OUTFILE]" &&\
     return -1
   local outfile
-  if [ -n "$2" ]; then
+  if [[ -n "$2" ]]; then
     outfile="$2"
   else
     outfile="${1%.*}".m2p
@@ -1150,12 +1147,12 @@ mplayer-videodump() {
 mplayer-delete-me() {
   local -r DELETE_ME=/tmp/mplayer-delete-me
   local -r LOG_FILE="${DELETE_ME}.log"
-  if [ ! -f "$DELETE_ME" ]; then
+  if [[ ! -f "$DELETE_ME" ]]; then
     p_err "file not found: $DELETE_ME, nothing to delete"
     return -1
   fi
   uniq < "$DELETE_ME" | while read f; do
-    if [ ! -f "$f" ]; then
+    if [[ ! -f "$f" ]]; then
       p_err "file not found: $f" \
         | tee -a "$LOG_FILE"
       continue
@@ -1166,11 +1163,11 @@ mplayer-delete-me() {
   rm "$DELETE_ME"
 }
 mplayer-bookmark-split() {
-  [ -z "$1" ] && p_usg "$(func_name) FILE" && return -1
+  [[ -z "$1" ]] && p_usg "$(func_name) FILE" && return -1
   local infile="$1"
-  [ ! -f "$infile" ] && p_err "file not found: $infile" && return -1
+  [[ ! -f "$infile" ]] && p_err "file not found: $infile" && return -1
   local bmfile="${1}.bookmarks"
-  [ ! -f "$bmfile" ] && p_err "no bookmark file found: $bmfile" && return -1
+  [[ ! -f "$bmfile" ]] && p_err "no bookmark file found: $bmfile" && return -1
   local -a cmd
   local cmd=(ffmpeg) pos="" pos_prev="0" idx=0 outfile=""
   while read b; do
@@ -1179,7 +1176,7 @@ mplayer-bookmark-split() {
      #case "$bmtype" in
      #   begin)
     idx=$((idx+1))
-    [ "$pos" != "" ] && pos_prev="$pos"
+    [[ "$pos" != "" ]] && pos_prev="$pos"
     pos="$(cut -d \| -f 3 <<< $b)"
     outfile=$(file-suffix "$infile" "_bmsplit_$(zerofill $idx 3)")
     cmd=(ffmpeg)
@@ -1188,7 +1185,7 @@ mplayer-bookmark-split() {
     p_msg "$cmd[@]"
     ${cmd[@]}
   done < "$bmfile"
-  if [ $idx -eq 0 ]; then
+  if (($idx == 0)); then
     p_warn "nothing to do ..."
     return
   fi
@@ -1198,7 +1195,7 @@ mplayer-bookmark-split() {
   cmd+=(-ss $pos -i "$infile")
   cmd+=(-sn -vcodec copy -acodec copy -y "$outfile")
   p_msg "$cmd[@]"
-  #sed -r 's/ (-sn|-ss)/\n \1/g' <<< ${cmd[@]}
+  #sed -E 's/ (-sn|-ss)/\n \1/g' <<< ${cmd[@]}
   ${cmd[@]}
 }
 
@@ -1207,10 +1204,10 @@ mpv_find() {
   trap 'exit 1' INT TERM SIGTERM
   local dir regex=".*\.\(avi\|mkv\|mp4\|webm\)"
   local tailn=0 recursive=false sort=-g noact=false
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     case $1 in
       -i|--index)
-        [ -z "$2" ] && p_err "missing value for argument --index" \
+        [[ -z "$2" ]] && p_err "missing value for argument --index" \
           && return 1
         tailn=$(($2+1)); shift 2
         ;;
@@ -1218,12 +1215,12 @@ mpv_find() {
         recursive=true; shift
         ;;
       -m|--match)
-        [ -z "$2" ] && p_err "missing value for argument --match" \
+        [[ -z "$2" ]] && p_err "missing value for argument --match" \
           && return 1
         regex="$2"; shift 2
         ;;
       -s|--sort)
-        [ -z "$2" ] && p_err "missing value for argument --sort" \
+        [[ -z "$2" ]] && p_err "missing value for argument --sort" \
           && return 1
         sort=$2; shift 2
         ;;
@@ -1259,17 +1256,17 @@ Examples:
         return 1
         ;;
       *)
-        [ -n "$dir" ] \
+        [[ -n "$dir" ]] \
           && p_err "unknown argument: $1" && return 1
-        [ -z "$1" ] \
+        [[ -z "$1" ]] \
           && p_usg "$(func_name) dir [args] [-a mvp-arg..]" && return 1
-        [ ! -d "$1" ] \
+        [[ ! -d "$1" ]] \
           && p_err "no such directory or unknown argument: $1" && return 1
         dir="$1"; shift
         ;;
     esac
   done
-  [ -z "$dir" ] && dir=.
+  [[ -z "$dir" ]] && dir=.
 
   local parallel=true
   if ! cmd_p parallel; then
@@ -1292,10 +1289,10 @@ consider installing parallel (e.g. "apt-get install parallel" on debian/ubuntu)
 
 # fixes index in avi files using mencoder
 fixidx() {
-  [ -z "$1" ] && p_usg "$(func_name) INFILE [OUTFILE]" && return -1
+  [[ -z "$1" ]] && p_usg "$(func_name) INFILE [OUTFILE]" && return -1
   local infile="$1"
-  [ ! -f "$infile" ] && p_err "file not found" && return -1
-  [ -n "$2" ] && outfile="$2" || outfile=$(file-suffix "$infile" _FIXED)
+  [[ ! -f "$infile" ]] && p_err "file not found" && return -1
+  [[ -n "$2" ]] && outfile="$2" || outfile=$(file-suffix "$infile" _FIXED)
   p_msg "output file: $outfile"
   mencoder -forceidx -oac copy -ovc copy "$infile" -o "$outfile"
 }
@@ -1304,17 +1301,17 @@ fixidx() {
 # TODO add argument for output filename
 to_opus() {
   local opusenc_args=()
-  if [ "$1" = "-b" ]; then
+  if [[ "$1" = "-b" ]]; then
     opusenc_args+=(-b)
-    [ -z "$2" ] && p_err "no bitrate provided" && return -1
+    [[ -z "$2" ]] && p_err "no bitrate provided" && return -1
     ! is_int $2 && p_err "bitrate must be a valid integer"
     opusenc_args+=($2)
     shift 2
   fi
-  [ -z "$1" ] && p_usg "$(func_name) [-b BITRATE] INFILE [OPUSENC_ARG..]" \
+  [[ -z "$1" ]] && p_usg "$(func_name) [-b BITRATE] INFILE [OPUSENC_ARG..]" \
     && return -1
   local infile="$1"; shift
-  [ ! -f "$infile" ] && p_err "no such file: $infile" && return -1
+  [[ ! -f "$infile" ]] && p_err "no such file: $infile" && return -1
   local outfile="${infile%.*}.opus"
   p_msg "outfile: $outfile"
   opusenc "${opusenc_args[@]}" "$@" "$infile" "$outfile"
@@ -1322,7 +1319,7 @@ to_opus() {
 
 # concatenate media files using ffmpeg
 ff_concat() {
-  [ -z "$2" ] &&\
+  [[ -z "$2" ]] &&\
     p_usg "$(func_name) OUTFILE INFILE.." &&\
     return -1
   local outfile="$1"; shift
@@ -1332,22 +1329,22 @@ ff_concat() {
 
 # crop video using ffmpeg
 ff_crop() {
-  [ -z "$2" ] &&
+  [[ -z "$2" ]] &&
     p_usg "$(func_name) INFILE CROP [OUTFILE]\nexample: $(func_name) video.webm 640:352:0:64" &&
     return -1
   local infile="$1"; crop="$2"
-  [ -f "$infile" ] && p_err "file not found: $infile" && return -1
-  [ -n "$3" ] && outfile="$3" || outfile=$(file-suffix "$infile" _CROP)
+  [[ -f "$infile" ]] && p_err "file not found: $infile" && return -1
+  [[ -n "$3" ]] && outfile="$3" || outfile=$(file-suffix "$infile" _CROP)
   p_msg "output file: $outfile"
   ffmpeg -i "$infile" -vf crop=$crop -codec:a copy "$outfile"
 }
 
 wmv2avi() {
-  [ -z "$1" ] &&\
+  [[ -z "$1" ]] &&\
     p_usg "$(func_name) INFILE [OUTFILE]" &&\
     return -1
   local outfile
-  if [ -n "$2" ]; then
+  if [[ -n "$2" ]]; then
     outfile="$2"
   else
     outfile="${1%.*}".avi
@@ -1359,7 +1356,7 @@ mma-timidity () {
   mma "$1" && timidity "${1%.*}.mid"
 }
 mediathek () {
-  [ -z "$1" ] && p_usg "$(func_name) ASX_URL" && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) ASX_URL" && return 1
   curl -s "$1" | grep mms: | cut -d \" -f 2 | while read url; do
     local outfile="${url##*/}"
     p_msg "dumping '$url' -> '$outfile'"
@@ -1402,12 +1399,12 @@ examples:
 EOF
   readonly HELP
   # parse arguments
-  [ -z "$1" ] && p_usg "$USG" && return 1
+  [[ -z "$1" ]] && p_usg "$USG" && return 1
   local d='|'
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     case $1 in
       -d|--delimiter)
-        [ -z "$2" ] && { p_err "missing value for argument $1"; return 1; }
+        [[ -z "$2" ]] && { p_err "missing value for argument $1"; return 1; }
         d=$2; shift 2
         ;;
       -h|--help)
@@ -1423,17 +1420,17 @@ EOF
   done
   # process files
   for f in "$@"; do
-    [ ! -f "$f" ] && p_err "file not found [$f], skipping ..." && continue
+    [[ ! -f "$f" ]] && p_err "file not found [$f], skipping ..." && continue
     local ident=$(identify -format '%w|%h\n' $f)
     IFS='|' read -r w h <<<"$ident"
-    [ -z "$w" ] || [ -z "$h" ] && p_err "unable to identify the dimensions of [$f], skipping ..." && continue
+    [[ -z "$w" ]] || [[ -z "$h" ]] && p_err "unable to identify the dimensions of [$f], skipping ..." && continue
     is_int $w || { p_err "width w = [$w] doesn't seemt to be an integer" && return 1; }
     is_int $h || { p_err "height h = [$h] doesn't seemt to be an integer" && return 1; }
     local dim="$wx$h"
     local pixels=$(($w*$h))
     local min=$(($w>$h?$h:$w))
     local max=$(($w<$h?$h:$w))
-    [ -n "$min_comp" ] && [ ! $min -$min_comp $filter_min_pixel ] && continue
+    [[ -n "$min_comp" ]] && [[ ! $min -$min_comp $filter_min_pixel ]] && continue
     printf "%s%s%s%s%s%s%s%s%s%s%s%s%s\n" "$f" "$d" "$w" "$d" "$h" "$d" \
            "$dim" "$d" "$pixels" "$d" "$min" "$d" "$max"
   done
@@ -1453,7 +1450,7 @@ EOF
 }
 
 # foo() {
-#   if [ -z "$1" ]; then
+#   if [[ -z "$1" ]]; then
 #     cat <<!
 # $(func_name) [-t] file..
 
@@ -1465,13 +1462,13 @@ EOF
 # !
 #     return 1
 #   fi
-#   [ "$1" = "-t" ] && test=1 || test=0
+#   [[ "$1" = "-t" ]] && test=1 || test=0
 #   for f in $*; do
-#     [ ! -f "$f" ] && continue
+#     [[ ! -f "$f" ]] && continue
 #     local px=$(image-pixelcount "$f") # 2>/dev/null
-#     [ $? -ne 0 ] && p_err "size can't be identified: $f" && continue
-#     if [ $px -lt 160000 ]; then
-#       if [ $test -eq 1 ]; then
+#     [[ $? -ne 0 ]] && p_err "size can't be identified: $f" && continue
+#     if (($px < 160000)); then
+#       if (($test == 1)); then
 #         echo "too small: \"$f\""
 #       else
 #         p_msg "removing: $px $f"
@@ -1481,7 +1478,7 @@ EOF
 #   done
 # }
 exif-set-author () {
-  [ -z "$2" ] && p_usg "$(func_name) AUTHOR FILE.." && return 1
+  [[ -z "$2" ]] && p_usg "$(func_name) AUTHOR FILE.." && return 1
   cmd_p exiv2 || { p_err "exiv2 must be installed"; return 1; }
   local author="$1" && shift
   exiv2 mo -v -k \
@@ -1491,17 +1488,17 @@ exif-set-author () {
     #-M "set Iptc.Application2.Byline String $author" \
 }
 flv2mp4 () {
-  [ -z "$1" ] && p_usg "$(func_name) flvfile" && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) flvfile" && return 1
   local infile="$1"
   local outfile="${infile%.*}.mp4"
   p_msg "converting '$infile' to '$outfile'"
   ffmpeg -i "$infile" -vcodec copy -acodec copy "$outfile"
 }
 fixaspectratio () {
-  [ -z "$1" ] && p_usg "$(func_name) INFILE [OUTFILE [ratio]]" && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) INFILE [OUTFILE [ratio]]" && return 1
   local infile="$1"
-  [ -n "$2" ] && outfile="$2" || outfile=$(file-suffix "$1" _FIX)
-  [ -n "$3" ] && ratio="$3" || ratio="16:9"
+  [[ -n "$2" ]] && outfile="$2" || outfile=$(file-suffix "$1" _FIX)
+  [[ -n "$3" ]] && ratio="$3" || ratio="16:9"
   ffmpeg -i "$infile" -aspect "$ratio" -c copy "$outfile"
 }
 
@@ -1556,9 +1553,9 @@ $(tput bold)Convert:$(tput sgr0)
 EOF
   readonly HELP
   # parse arguments
-  [ -z "$1" ] && { p_usg "$USG"; return 1; }
+  [[ -z "$1" ]] && { p_usg "$USG"; return 1; }
   local format="#%s %T" average=false
-  while [ -n "$1" ]; do
+  while [[ -n "$1" ]]; do
     case $1 in
       -d|--delay-only)
         format="%T"; shift
@@ -1577,12 +1574,12 @@ EOF
         ;;
     esac
   done
-  [ -z "$1" ] && { p_err "missing file argument"; return 1; }
-  [ ! -f "$1" ] && { p_err "file not found: $1"; return 1; }
+  [[ -z "$1" ]] && { p_err "missing file argument"; return 1; }
+  [[ ! -f "$1" ]] && { p_err "file not found: $1"; return 1; }
   # print delays or average
   if $average; then
     delay_sum=$(identify -format "%T+" "$1")
-    [ $? -ne 0 ] && { p_err "error processing gif file"; return 1; }
+    [[ $? -ne 0 ]] && { p_err "error processing gif file"; return 1; }
     pluses=${delay_sum//[^+]}
     frame_count=${#pluses}
     printf "%s\n" "$(((${delay_sum}0)/frame_count))"
@@ -1592,12 +1589,12 @@ EOF
 }
 
 video-split-screen () {
-  [ -z "$3" ] && p_usg "$(func_name) INFILE1 INFILE2 OUTFILE [v|h]" && return 1
+  [[ -z "$3" ]] && p_usg "$(func_name) INFILE1 INFILE2 OUTFILE [v|h]" && return 1
   local infile1="$1"; shift
   local infile2="$1"; shift
   local outfile="$1"; shift
   local filter='[0:v]pad=iw*2:ih[int];[int][1:v]overlay=W/2:0[vid]'
-  [ -n "$1" ] && case $1 in
+  [[ -n "$1" ]] && case $1 in
     v)
        shift; # default
     ;;
@@ -1630,7 +1627,7 @@ image_concat() {
         tile="x1"; shift
         ;;
       -o)
-        [ -z "$2" ] && p_err "missing file name after -o" && return 1
+        [[ -z "$2" ]] && p_err "missing file name after -o" && return 1
         outfile="$2"; shift 2
         ;;
       *)
@@ -1638,8 +1635,8 @@ image_concat() {
         ;;
     esac
   done
-  [ -z "$2" ] && p_usg "$(func_name) [-w|-h|-n] [-x1] [-o OUTFILE] INFILE.." && return 1
-  [ -z "$outfile" ] && outfile=$(file-suffix "$1" "-concat$(date +%s)") && echo "outfile: $outfile"
+  [[ -z "$2" ]] && p_usg "$(func_name) [-w|-h|-n] [-x1] [-o OUTFILE] INFILE.." && return 1
+  [[ -z "$outfile" ]] && outfile=$(file-suffix "$1" "-concat$(date +%s)") && echo "outfile: $outfile"
   q_overwrite "$outfile" || return 1
   local min_height=$(identify -format '%h\n' "${@}" | sort -n | head -n 1)
   #min_height=$(echo -e "$min_height\n$((MAX/$#))" | sort -n | head -n 1)
@@ -1647,7 +1644,7 @@ image_concat() {
   #min_width=$(echo -e "$min_width\n$((MAX/$#))" | sort -n | head -n 1)
   local -a args=(-background black -mode Concatenate)
   #args+=(-limit memory 100mb)
-  [ "$tile" = "x1" ] && args+=(-tile x1)
+  [[ "$tile" = "x1" ]] && args+=(-tile x1)
   #args+=(-gravity center) # default
   case $mode in
     -n)
@@ -1673,9 +1670,9 @@ set +v
 # {{{ system
 # ----------------------------------------------------------------------------
 pnice () {
-  [ -z "$1" ] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
   local p="$(ps ax -T|grep -iE $*|grep -vE '0:00.*grep')"
-  [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
+  (($#p <= 0)) && p_err "no matching processes/threads found" && return 1
   p_msg "niceness of the following processes/threads will be changed:"
   echo "$p"
   if q_yesno "> process?"; then
@@ -1683,9 +1680,9 @@ pnice () {
   fi
 }
 pniceio () {
-  [ -z "$1" ] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
   local p="$(ps ax -T|grep -iE $*|grep -vE '0:00.*grep')"
-  [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
+  (($#p <= 0)) && p_err "no matching processes/threads found" && return 1
   p_msg "niceness of the following processes/threads will be changed:"
   echo "$p"
   if q_yesno "> process?"; then
@@ -1693,10 +1690,10 @@ pniceio () {
   fi
 }
 pniceloop () {
-  [ -z "$1" ] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
+  [[ -z "$1" ]] && p_usg "$(func_name) PROC_NAME_REGEX" && return 1
   while true; do
     local p="$(ps ax -T|grep -iE $*|grep -vE '0:00.*grep')"
-    [ $#p -le 0 ] && p_err "no matching processes/threads found" && return 1
+    (($#p <= 0)) && p_err "no matching processes/threads found" && return 1
     p_msg "niceness of the following processes/threads will be changed:"
     echo "$p"
   #if  q_yesno "> process"; then
@@ -1707,7 +1704,7 @@ pniceloop () {
   done
 }
 iso-quickmount () {
-  if [ -z "$1" ]; then
+  if [[ -z "$1" ]]; then
     cat <<!
 Usage: $(func_name) [ISO_FILE [DIR]|DIR]
 
@@ -1725,7 +1722,7 @@ examples:
     return 1
   fi
   local mountdir
-  if [ -d "$1" ]; then
+  if [[ -d "$1" ]]; then
     mountdir="$1"
     if sudo umount "$MOUNTDIR"; then
       p_msg "Successfully un-mounted: $MOUNTDIR"
@@ -1738,19 +1735,19 @@ examples:
       p_err "Unable to un-mount given dir!" #: $MOUNTDIR"
       return 1
     fi
-  elif [ -f "$1" ]; then
+  elif [[ -f "$1" ]]; then
     local isofile="$1"
     if ! file --mime-type "$ISOFILE" | grep 'iso9660' 2>&1 >/dev/null; then
       p_err "Given argument doesn't seem to be a valid iso image: $ISOFILE"
       return 1
     fi
     mountdir="${1%.*}"
-    [ -n "$2" ] && mountdir="$2" # \
-    #  && [ -d "$2" ] && p_err "Given mount dir does already exist '$2'!" \
+    [[ -n "$2" ]] && mountdir="$2" # \
+    #  && [[ -d "$2" ]] && p_err "Given mount dir does already exist '$2'!" \
     #  && return 1
     if ! sudo mkdir "$mountdir" 2>&1 \
         | grep -v ': File exists'; then
-      if [ ! -d "$mountdir" ]; then
+      if [[ ! -d "$mountdir" ]]; then
         p_err "Unable to create dir: $mountdir"
         return 1
       fi
@@ -1763,7 +1760,7 @@ examples:
       echo $rsp | grep 'according to mtab.*is already mounted'  >/dev/null \
         && msg=" The file seems to be mounted already!" && am=1
       p_err "Unable to mount iso file!$msg" #: $isofile"
-      if ! sudo rmdir "$mountdir" 2>/dev/null && [ $am -ne 1 ]; then
+      if ! sudo rmdir "$mountdir" 2>/dev/null && [[ $am -ne 1 ]]; then
         p_war "Unable to remove mount dir: $mountdir"
         #return 1
       fi
@@ -1782,14 +1779,14 @@ examples:
 create-crypto-containe () { # file, size, fstype [, files]
   # get args and check a few things
   local file="$1" # container file
-  #[ -f "$file" ] && p_err "file '$file' does exist" && return 1
+  #[ -f "$file" ]] && p_err "file '$file' does exist" && return 1
   local dir=$(dirname "$1"); shift # dirname
-  [ ! -d "$dir" ] && p_err "no such dir '$dir'" && return 1
+  [[ ! -d "$dir" ]] && p_err "no such dir '$dir'" && return 1
   local size="$1"; shift # container size (mb)
   ! is_int $size && p_err "no valid size '$size'" && return 1
   local blocks=$(($size*1024)) # container size (blocks)
   local space=$(df "$dir" | grep -v Filesystem | awk '{print $3}')
-  [ $space -lt $blocks ] && \
+  (($space < $blocks)) && \
     p_err "not enough space on target drive" && return 1
   local fs=$1; shift # container filesystem
   local bs=1024 # set block size
@@ -1800,9 +1797,9 @@ create-crypto-containe () { # file, size, fstype [, files]
     p_msg "you might be asked to enter your sudo password"
   #seed=$(head -c 15 /dev/random | uuencode -m - | head -2 | tail -1)
   #muli key mode !!! CBC
-  if [ "$fs" = 'iso9660' ]; then
-    [ $size -lt 1000 ] && bs=512 # set block size
-    [ -z "$*" ] && p_err "missing files" && return 1
+  if [[ "$fs" = 'iso9660' ]]; then
+    (($size < 1000)) && bs=512 # set block size
+    [[ -z "$*" ]] && p_err "missing files" && return 1
     #p_msg "creating empty container"
     #$sudo dd if=/dev/zero of="$file" bs=$bs count=$blocks
     #p_msg "creating random data"
@@ -1821,7 +1818,7 @@ create-crypto-containe () { # file, size, fstype [, files]
     mkisofs -r $* | aespipe -e aes256 -w 5 -T \
       -K "$file" -O 16 >> "$file" &&\
     p_msg "try: growisofs -dvd-compat -Z /dev/dvd=$file"
-  elif [ "$fs" = 'ext2' ]; then
+  elif [[ "$fs" = 'ext2' ]]; then
     p_msg "creating empty container"
     $sudo dd if=/dev/zero of="$file" bs=$bs count=$blocks &&\
     p_msg "creating random data" &&\
@@ -1838,27 +1835,27 @@ create-crypto-containe () { # file, size, fstype [, files]
   return 0
 }
 mkcc-cd () {
-  [ -z "$2" ] && \
+  [[ -z "$2" ]] && \
     p_usg "$(func_name) CONTAINER FILE.." && return 1
   file="$1"; shift
   create-crypto-containe "$file" 700 'iso9660' "$*"
 }
 mkcc-dvd () {
-  [ -z "$2" ] && \
+  [[ -z "$2" ]] && \
     p_usg "$(func_name) CONTAINER FILE.." && return 1
   local file="$1"; shift
   create-crypto-containe "$file" 4400 'iso9660' "$*"
 }
 mkcc-ext2 () {
-  [ -z "$2" ] && \
+  [[ -z "$2" ]] && \
     p_usg "$(func_name) CONTAINER SIZE" && return 1
   create-crypto-containe "$1" "$2" 'ext2'
 }
 mount-crypted () {
-  [ -z "$1" ] && \
+  [[ -z "$1" ]] && \
     p_usg "$(func_name) CONTAINER" && return 1
   local fs=ext2
-  [ "${1##*.}" = "iso" ] && fs=iso9660
+  [[ "${1##*.}" = "iso" ]] && fs=iso9660
   local sudo=""
   ! is_su && sudo="sudo" && \
     p_msg "you might be asked to enter your sudo password"
@@ -1872,7 +1869,7 @@ mount-crypted () {
 # ----------------------------------------------------------------------------
 if cmd_p apt-key; then
   apt-key-import () {
-    [ -z "$1" ] && { p_usg "$(func_name) FINGERPRINT"; return 1; }
+    [[ -z "$1" ]] && { p_usg "$(func_name) FINGERPRINT"; return 1; }
     gpg --keyserver wwwkeys.eu.pgp.net --recv-keys "$1" \
       && sudo gpg --armor --export "$1" | apt-key add -
   }
