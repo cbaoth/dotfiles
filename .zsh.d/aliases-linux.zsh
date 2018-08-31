@@ -25,7 +25,7 @@ alias llg="ls -al | grep -Ei --color"
 # }}} - GENERAL --------------------------------------------------------------
 
 # {{{ - SYSTEM ---------------------------------------------------------------
-alias fontcache-refresh="sudo fc-cache -f -v"
+alias fontcache-refresh="xset fp rehash; sudo fc-cache -f -v"
 alias remount-exec="sudo mount -o remount,exec"
 # }}} - SYSTEM ---------------------------------------------------------------
 
@@ -38,9 +38,9 @@ alias route-newdefault='sudo route delete default; sudo route add default gw'
 #alias burndvd='growisofs -Z /dev/dvd -R -J'
 alias midi-keyboard-output="aconnect \$(aconnect -i \
   | grep -E 'client.*Keystation Mini 32' \
-  | sed -r 's/^client ([0-9]+).*/\1/') \$(aconnect -o \
+  | sed -E 's/^client ([0-9]+).*/\1/') \$(aconnect -o \
   | grep -E 'client.*FLUID Synth' \
-  | sed -r 's/^client ([0-9]+).*/\1/') >/dev/null \
+  | sed -E 's/^client ([0-9]+).*/\1/') >/dev/null \
   || printf 'Unable to connect Keystation Midi 32 to FLUYID Synth\n' >&2"
 # }}} - MULTIMEDIA -----------------------------------------------------------
 
@@ -52,7 +52,7 @@ alias midi-keyboard-output="aconnect \$(aconnect -i \
 # {{{ = DISTRIBUTION SPECIFIC ================================================
 # {{{ - DEB ------------------------------------------------------------------
 
-if [ -n "`command -v apt 2>/dev/null`" ]; then
+if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
   # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
   alias apd='sudo apt update'
   alias api='sudo apt update; sudo apt install'
@@ -67,12 +67,12 @@ if [ -n "`command -v apt 2>/dev/null`" ]; then
   alias apli='apt list --installed'
 fi
 
-if [ -n "`command -v dpkg 2>/dev/null`" ]; then
+if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
   alias dgs="dpkg --get-selections" # see "apt list --installed" too
   alias dca="dpkg --configure -a"
 fi
 
-if [ -n "`command -v apt-get 2>/dev/null`" ]; then
+if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
   alias ag="sudo apt-get"
   #alias agi="sudo apt-get -y install" # apt install
   #alias agr="sudo apt-get remove" # apt remove
@@ -87,19 +87,19 @@ if [ -n "`command -v apt-get 2>/dev/null`" ]; then
                     | sed -n 's/^Package: //p' | sort -u)"
 fi
 
-if [ -n "`command -v apt-cache 2>/dev/null`" ]; then
+if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
   alias ac="apt-cache"
   #alias acs="apt-cache search"
   #alias aci="apt-cache show"
 fi
 
-if [ -n "`command -v apt-key 2>/dev/null`" ]; then
+if [[ -n "$(command -v apt-key 2>/dev/null)" ]]; then
   alias apt-key-add="sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys"
 fi
 # {{{ - DEB ------------------------------------------------------------------
 
 # {{{ - PACMAN ---------------------------------------------------------------
-if [ -n "`command -v pacman 2>/dev/null`" ]; then
+if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
   alias pmi="sudo pacman -S"
   alias pms="sudo pacman -Ss"
   alias pmr="sudo pacman -Rs"

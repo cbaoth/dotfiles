@@ -2,7 +2,7 @@
 # interactive shell: .zshenv > .zshrc | login shell: .zshenv > .zprofile > zlogin / .zlogout
 
 # {{{ - X WINDOWS ------------------------------------------------------------
-# if [ -n "$DESKTOP_SESSION" ]; then
+# if [[ -n "$${DESKTOP_SESSION-}" ]]; then
 #   # load default keyboard layout
 #   setxkbmap us -variant colemak
 #   # repeat caps lock (colemak backspace)
@@ -14,7 +14,7 @@
 #   # and add terminate via print button (seldom used) + shift + mod
 #   xmodmap -e 'keycode 0x6B = Print Sys_Req Print Terminate_Server Print Sys_Req' 2>/dev/null &!
 
-#   [ -f "$HOME/.Xresources.d/$(hostname)" ] \
+#   [[ -f "$HOME/.Xresources.d/$(hostname)" ]] \
 #     && xrdb -merge $HOME/.Xresources.d/$(hostname)
 
 #   if command -v gnome-keyring-daemon 2>&1 > /dev/null; then

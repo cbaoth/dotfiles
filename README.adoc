@@ -186,7 +186,7 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 |Function|Description
 |`*p_colortable*`|Print 256 ansi color table. +
  image:func_p_colortable_1.png[]
-|`*tputs* _STYLE.._`|Execute multiple `tput` commands in sequcen. _Exapmle:_ +
+|`*tputs* _STYLE.._`|Execute multiple `tput` commands in sequence. _Exapmle:_ +
  image:func_tputs_1.png[]
 |`*tp* _STYLE.._`|Set one or more tput colors and text effects by (short) name. All values are looked up from a map _(no need to run an external process)_. +
  image:func_tp_1.png[]
@@ -220,18 +220,6 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 |===
 
 
-=== Clipboard
-
-[%header,cols="1,3",options="header"]
-|===
-|Function|Description
-|`*while_read* _COMMAND.._`|Monitor input and execute command in foreground using input as command argument. _Example: `while_read wget` to download all entered urls._
-|`*while_read_bg* _COMMAND.._`|Monitor input and execute command in background _(job)_ using input as command argument. _Example: `while_read_bg wget` to download all entered urls._
-|`*while_read_xclip* [OPTION..] _COMMAND.._`|Monitor X clipboard and execute command using clipboard content as command argument. _Example:_ +
- `while_read_xclip -b -m '^https?://.*' echo \'{}\' \>\> links.txt \; wget --quiet -c \'{}\'` +
- _to append all clipboard http(s) links to `links.txt` and download them using wget_
-|===
-
 === Queries
 
 [%header,cols="1,4",options="header"]
@@ -254,6 +242,20 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 |===
 
 
+=== Command
+
+[%header,cols="1,2",options="header"]
+|===
+|Function|Description
+|`*cmd_delay* _DELAY COMMAND.._`|Execute a command with a delay (using `sleep` format, e.g. `3m` for 3 minutes). _Sleep timer example:_ `cmd_delay 45m systemctl suspend`.
+|`*while_read* _COMMAND.._`|Monitor input _(read lines)_ and execute command in foreground using input as command argument. _Example: `while_read wget` to download all entered urls._
+|`*while_read_bg* _COMMAND.._`|Monitor input _(read lines)_ and execute command in background _(job)_ using input as command argument. _Example: `while_read_bg wget` to download all entered urls._
+|`*while_read_xclip* [OPTION..] _COMMAND.._`|Monitor X clipboard and execute command using clipboard content as command argument. _Example:_ +
+ `while_read_xclip -b -m '^https?://.*' tee -a links.txt "<<<'{}'" \| wget -nv -c -i -` +
+ _to append all http(s) URLs read vom clipboard to a file named `links.txt` and download them using wget._
+|===
+
+
 === Math
 
 [%header,cols="1,3",options="header"]
@@ -266,15 +268,6 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
  Apart from this additional import it's basically the same as `py_print` so this is also possible _(even without the math. prefix)_: +
  image:func_py_calc_2.png[]
 
-|===
-
-
-=== Command
-
-[%header,cols="1,2",options="header"]
-|===
-|Function|Description
-|`*cmd_delay* _DELAY COMMAND.._`|Execute a command with a delay (using `sleep` format, e.g. `3m` for 3 minutes). _Sleep timer example:_ `cmd_delay 45m systemctl suspend`.
 |===
 
 
