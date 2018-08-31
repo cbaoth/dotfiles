@@ -28,16 +28,16 @@ export HISTFILESIZE=0 # set shell history to zero
 
 # {{{ - BASH -----------------------------------------------------------------
 # if running bash
-if [ -n "$BASH_VERSION" ]; then
+if [[ -n "${BASH_VERSION-}" ]]; then
     # include .bashrc if it exists
-    if [ -f "$HOME/.bashrc" ]; then
+    if [[ -f "$HOME/.bashrc" ]]; then
 	. "$HOME/.bashrc"
     fi
 fi
 # }}} - BASH -----------------------------------------------------------------
 
 # {{{ - X WINDOWS ------------------------------------------------------------
-# if [ -n "$DESKTOP_SESSION" ]; then
+# if [[ -n "${DESKTOP_SESSION-}" ]]; then
 #   # load default keyboard layout
 #   setxkbmap us -variant colemak
 #   # repeat caps lock (colemak backspace)
