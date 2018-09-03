@@ -12,7 +12,6 @@
 # For login shell / general variable like PATH see ~/.zshenv
 
 # {{{ - CORE -----------------------------------------------------------------
-
 export OS=${$(uname):l}
 export HOST=${$(hostname):l}
 export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
@@ -43,7 +42,7 @@ fi
 
 # Is X available?
 IS_X=false
-if ! xset q &>/dev/null; then
+if [[ ! -t 0 ]] && xset b off; then
   IS_X=true
 fi
 # }}} - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
