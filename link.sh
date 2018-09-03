@@ -4,10 +4,11 @@
 
 # TODO
 # - Skip existing links that already point to the right destination
+# - Provide more appropriate blacklist
 
-LINK_FILE=`realpath $0`
-DOTFILES=`dirname $LINK_FILE`
-BAKDIR=$HOME/dofile_bak_`date +%s`
+LINK_FILE=$(realpath $0)
+DOTFILES=$(dirname $LINK_FILE)
+BAKDIR=$HOME/dofile_bak_$(date +%s)
 
 cd "$DOTFILES"
 # safety check before we create wrong links
@@ -20,7 +21,7 @@ find "$DOTFILES" -regextype sed \
      -regex "$DOTFILES/\..\w.*" \
      ! -regex '.*/\(link.sh\|\.git\|\.gitignore\|\.vscode\)\(/.*\)\?' \
 | while read f; do
-  targetrel=`realpath --relative-to "$DOTFILES" $f`
+  targetrel=$(realpath --relative-to "$DOTFILES" $f)
   echo "$targetrel"
   target=$HOME/$targetrel
   echo "$target"

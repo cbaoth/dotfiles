@@ -234,12 +234,12 @@ is_sudo() { [[ -n "$SUDO_USER" ]]; }
 is_sudo_cached() { sudo -n true 2> /dev/null; }
 
 # predicate: is this a ssh session we are in?
-is_ssh() { [[ -n "$SSH_CLIENT" ]] || [[ -n "$SSH_TTY" ]]; }
+is_ssh() { [[ -n "$SSH_CLIENT" || -n "$SSH_TTY" ]]; }
 
 # predicate: is given [number] an integer?
 # number may NOT contain decimal separator "."
 is_int() {
-  [[ -z "$1" ]] && p_usg "$(func_name) NUMBER.." && return 1
+  [[ -z "$1" ]] && { p_usg "$(func_name) NUMBER.."; return 1; }
   for n in $*; do
     [[ $n =~ ^\ *[+-]?[0-9]+\ *$ ]] || return 1
     shift
@@ -250,7 +250,7 @@ is_int() {
 # predicate: is given [number] a decimal number?
 # number MUST contain decimal separator "." (optional, scale can be 0)
 is_decimal() {
-  [[ -z "$1" ]] && p_usg "$(func_name) NUMBER.." && return 1
+  [[ -z "$1" ]] && { p_usg "$(func_name) NUMBER.."; return 1; }
   for n in $*; do
     [[ $n =~ ^\ *[+-]?([0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] || return 1
     shift
@@ -261,7 +261,7 @@ is_decimal() {
 # predicate: is given [number] positive?
 # number MAY contain decimal separator "." (optional, can be integer)
 is_positive() {
-  [[ -z "$1" ]] && p_usg "$(func_name) NUMBER.." && return 1
+  [[ -z "$1" ]] && { p_usg "$(func_name) NUMBER.."; return 1 }
   for n in $*; do
     [[ ! $n =~ ^\ *- ]] || return 1
     shift
@@ -272,7 +272,7 @@ is_positive() {
 # predicate: is given [value] a number? (either integer or decimal)
 # number MAY contain decimal separator "." (optional, scale can be 0)
 is_number() { # may contain .
-  [[ -z "$1" ]] && p_usg "$(func_name) NUMBER.." && return 1
+  [[ -z "$1" ]] && { p_usg "$(func_name) NUMBER.."; return 1; }
   for n in $*; do
     [[ $n =~ ^\ *[+-]?([0-9]+|[0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] || return 1
     shift
@@ -284,9 +284,9 @@ is_number() { # may contain .
 # {{{ - COMMAND EXECUTION ----------------------------------------------------
 # execute command [cmd] with a [delay] (sleep syntax)
 cmd_delay() {
-  [[ -z "$2" ]] && p_usg echo "$(func_name) DELAY COMMAND.." && return 1
+  [[ -z "$2" ]] && { p_usg echo "$(func_name) DELAY COMMAND.."; return 1; }
   local delay="$1"; shift
-  sleep $dealy
+  sleep $delay
   $*
 }
 # }}} - COMMAND EXECUTION ----------------------------------------------------
@@ -294,10 +294,11 @@ cmd_delay() {
 # {{{ - QUERIES --------------------------------------------------------------
 # query (yes/no): ask any question (no: return 1)
 q_yesno() {
-  [[ -z "$1" ]] && p_usg "$(func_name) QUESTION" && return 1
-  sh="$(basename $SHELL)"
-  key=""
-  printf "$* (y/n) "
+  [[ -z "$1" ]] && { p_usg "$(func_name) QUESTION"; return 1; }
+  local -r sh="$(basename $SHELL)"
+  local question="$*"
+  local key=""
+  printf "%s (y/n) " "$question"
   while [[ "$key" != "y" ]] && [[ "$key" != "n" ]]; do
     if [[ "$sh" = "zsh" ]]; then
       read -s -k 1 key
@@ -305,7 +306,7 @@ q_yesno() {
       read -s -n 1 key
     fi
   done
-  echo
+  printf "\n"
   if [[ "$key" = "y" ]]; then
     return 0
   fi
@@ -315,12 +316,12 @@ q_yesno() {
 # query (yes/no): overwrite given file? (no: return 1)
 # return 0, without asking a thing, if [file] doesn't exist
 q_overwrite() {
-  [[ -z "$1" ]] && p_usg "$(func_name) file" && return 1
+  [[ -z "$1" ]] && { p_usg "$(func_name) file"; return 1; }
   local file="$1"
   if [[ -e "$file" ]]; then
     p_war "file '$file' exists!"
     if q_yesno "overwrite?"; then
-      rm -rf -- "$file"
+      rm -rf -- "$file" || { p_err "unable to delete the file!"; return 1; }
       return 0
     fi
     return 1
@@ -331,43 +332,92 @@ q_overwrite() {
 
 # {{{ loop
 # ----------------------------------------------------------------------------
-while_read () { while true; do read x; p_msg "exec: $* \"$x\"" && $* "$x"; done; }
-while_read_bg () { while true; do read x; p_msg "exec: $* \"$x\" &" && ($* "$x" &); done; }
-while_read_xclip () {
-  local -r USG="$(func_name) [option..] command.."
+while_read () {
+  local -r USG="$(func_name) [OPTION..] COMMAND.."
   local HELP
   ! IFS='' read -r -d '' HELP <<EOF
 Usage: $USG
 
-Reads x clipboard every 0.2 sec and executes the given command with the
-clipboard's content as argument whenever the clipboard content changes.
-The argument can be placed at a specific position within the command
-by using {} (see examples below). All commands are redirected to bash.
+Summary:
+  Reads input (default) or monitors X clipboard [--xclip] passing text as
+  argument to the given COMMAND...
 
-options:
-  -m|--match RE    clipboard content must match given regex, else: skip
-  -b|--background  execute command in background
-  -v|--verbose     verbose output (print command before execution)
+Options:
+  -x, --xclip           monitor X clipboard instead of reading terminal input
+  --pollrate X          XClip mode poll-rate in seconds (default: 0.2)
+  -m, --match RE        input must match the given regex, else: ignore input
+  --match-lines         match individual lines (default: match complete input)
+  -b, --background      Execute command as job, else: execute in sequence.
+  -d, --delimiter       input delimiter (default: \n)
+  -v, --verbose         verbose output, print full command before execution.
 
-examples:
-  # filter for strings starting with 'https?://' and just echo them
-  $(func_name) -m '^https?://' echo
+  --allow-duplicates    Allow repeated input (default: ignore), sequenciala
+                          repetitions only, depulicates never tracked globally
+                          no effect in --xclip mode (clipboard changes only)
 
-  # don't filter, echo the string into a file named 'foo' and execute
-  # a second command
-  $(func_name) -b echo {} \>\> foo \; cmd-foo {}
+Terminal Input Mode (default):
+  Reads terminal text input. Each time a newline is entered, the given
+  COMMAND.. is executed using last last read line as final argument of, or as
+  a subsitution for '{}' inside, the COMMAND...
+
+XClip Mode [-x]:
+  Instead of reading the terminal text input, the X clipboard content is used
+  as input argument. The clipboard is monitored for changes in 0.2 sec (or
+  --pollrate X) intervals. With the default --delimiter \n the command is
+  executed multiple times, once per line inside the clipboard text. Change it
+  e.g. to \0 if the whole clipboard content should be used as an argument.
+
+
+  change will trigger a COMMAND.. using the clipboard content as arumentexecution in the same way as in the default mode, just
+  using the clipboard content as argument. Note that in case the clipboard contains
+  newlines, each line is treated as a separate input (multiple lines means
+  multiple command executions)!
+
+Background [-b] option and limitations:
+  The [-b] option usually makes sence here, at least in case of long running
+  commands, since per default commands are executed in sequence (single
+  threaded) meaning that the input is not monitored while a command is still
+  being executed. In case of normal (read input) mode this might work, since
+  the termial usually still keeps track of input, but when the buffer is
+  filled subsequent input will be lost!
+
+  The [-d] option is ignored in XClip mode, otherwise the command would be
+  executed every 0.2sec, only changes in clipboad content are tracked.
+
+Examples:
+  # read URLs from input, append matches to file 'links' and download
+  $(func_name) -b -m '^https?://' echo {} \>\> links \; wget -nv -c {}
+  # same but using tee
+  $(func_name) -b -m '^https?://' tee -a links "<<<'{}'" \| wget -nv -c -i -
+
+  # monitor xclip for URLs and open matches in new firefox tabs
+  $(func_name) -x -b -m '^\w+://' --new-tab firefox
 EOF
-  readonly HELP
   # parse arguments
-  [[ -z "$1" ]] && p_usg "$USG" && return 1
-  local bg=false regex="" verbose=false
+  [[ -z "$1" ]] && { p_usg "$USG"; return 1; }
+  local bg=false xclip=false verbose=false allow_dupes=false match_lines=false
+  local delimiter=$'\n'
+  local regex=""
+  local pollrate=.2
   #delim=''  #  -d DELIM  split by delimiter (e.g. \n), execute separately for each entry
   while [[ -n "$1" ]]; do
     case "$1" in
+      -x|--xclip)
+        xclip=true
+        shift
+        ;;
       -m|--match)
-        [[ -z "$2" ]] && { p_err "error parsing args, missing regex"; return 1; }
+        [[ -z "$2" ]] && { p_err "missing regex value for option [$1]"; return 1; }
         regex="$2"
         shift 2
+        ;;
+      --match-lines)
+        match_lines=true
+        shift
+        ;;
+      -d|--allow-duplicates)
+        allow_dupes=true
+        shift
         ;;
       -b|--background)
         bg=true
@@ -376,6 +426,12 @@ EOF
       -v|--verbose)
         verbose=true
         shift
+        ;;
+      --pollrate)
+        [[ -z "$2" ]] && { p_err "missing decimal value for option [$1]"; return 1; }
+        ! is_decimal && { p_err "invalid decimal value [$2] for option [$1]"; return 1; }
+        pollrate=$2
+        shift 2
         ;;
       -h|--help)
         print "%s" "$HELP"
@@ -390,13 +446,27 @@ EOF
     esac
   done
   [[ -z "$1" ]] && p_err "missing command" && return 1
-  # start monitoring
+  $allow_dupes && $xclip && p_war "Ignoring --allow-duplicates option in --xclip mode."
+  # start reading / monitoring
   while true; do
-    c="$(xclip -selection clip-board -o -l)"
-    [[ "$c" = "$cprev" ]] && continue # skip: clipboard unchanged
-    [[ -n "$regex" ]] && [[ ! $c =~ $regex ]] && continue # skip: regex no match
-    while read -r e; do # process clipboard rows in sequence
-      local cmd="${@//\{\}/$e}" # substitute {} with clipboad text
+    if $xclip; then
+      c="$(xclip -selection clip-board -o -l)"
+    else
+      read c
+    fi
+    # new input identical to previous / clipboard unchanged? -> skip input
+    [[ !$allow_dupes && $c = $cprev ]] && continue
+    # input (no line) match mode and regex doesn't match? -> skip input
+    [[ !$match_lines && ! $c =~ $regex ]] && continue
+    while read -r e; do # process multi-line input, each row at a time
+      [[ $match_line && ! $e =~ $regex ]] && continue
+      local -a cmd
+      if [[ ${@} =~ \\{\\} ]]; then # contains {}? substitute
+        cmd=("${@//\{\}/$e}") # substitute {} in command with input text
+      else # no {}? append argument
+        cmd=("${@}")
+        cmd+=("$e")
+      fi
       if $bg; then
         $verbose && p_msg "bash ${cmd[@]} &"
         bash <<<"${cmd[@]}" &
@@ -405,7 +475,7 @@ EOF
         bash <<<"${cmd[@]}"
       fi
     done <<<"$c"
-    sleep .2 # sleep 200ms (less load, usually enough with user interaction)
+    sleep $pollrate # sleep 200ms (less load, usually enough with user interaction)
     cprev="$c"
   done
 }
