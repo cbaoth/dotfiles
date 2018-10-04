@@ -1,0 +1,275 @@
+#!/usr/bin/env bash
+# while-read: Monitor input/x clipboard and execute command
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+   if [[ -f "$f" ]]; then
+     source "$f"
+     break
+   fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+#trap '_rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+#             c"${BASH_COMMAND:-N/A}"; \
+#      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+# constants
+declare -r _USAGE="${_SCRIPT_FILE} [OPTION..] COMMAND.."
+declare _HELP
+  ! IFS='' read -r -d '' _HELP <<EOF
+Usage: $_USAGE
+
+Reads text input from command line or X clipboard [--xclip], passing the text
+as argument to the given COMMAND..
+
+$(cl::fx b)General:$(cl::fx r)
+  -b, --background      Execute command as job, else: execute in sequence.
+  -d, --delimiter       input delimiter (default: newline \$'\\n')
+  -v, --verbose         verbose output, print full command before execution.
+
+$(cl::fx b)XClip:$(cl::fx r)
+  -x, --xclip           monitor X clipboard instead of reading terminal input
+  --pollrate X          XClip mode poll-rate in seconds (default: 0.2s)
+
+$(cl::fx b)Filter Input:$(cl::fx r)
+  -m, --match RE        input must match the given regex, else: ignore input
+  --match-seperate      match individual item (separated by --delimiter)
+                        (default: match complete input)
+  --allow-duplicates    Allow repeated input (default: ignore). Affects sequen-
+                        cial repetitions only, depulicates are never tracked
+                        globally. Has no effect on --xclip mode (see below).
+
+$(cl::fx b)Terminal Input Mode (default):$(cl::fx r)
+  Reads terminal text input line-by-line. Each time a newline \\n is entered,
+  COMMAND.. is executed using the given text as final argument.
+
+  If a different delimiter is used, the line may be split up into individual
+  items (e.g. separated by space), each item will executing the COMMAND..
+
+  Each {} within the COMMAND.. will be substituted with the given line/item.
+  If no {} exists the line/item will be appended to the COMMAND... (final arg.)
+
+$(cl::fx b)XClip Mode [-x]:$(cl::fx r)
+  Reads the X clipboard content in regular intervals (default: 0.2 sec
+  intervals, see --pollrate). Each X clipboard content change, within the given
+  interval, is read as input.
+
+  Since the clipboard can contine multi-line text, using the default
+  --delimiter \\n will result in multiple COMMAND.. executions per input (one
+  per line in clipboard text). The delimiter can be changed but be aware that
+  multi-line COMMAND.. arguments may be problematic.
+
+  Note that the --allow-duplicates option is ignored in XClip mode, since only
+  clipboard changes are registered as new input.
+
+$(cl::fx b)Background [-b] option and limitations:$(cl::fx r)
+  Per default commands are executed in sequence (single threaded) meaning that
+  the input is not monitored while a command is still being executed. In case
+  of terminal input mode this might work to some degree (until the input buffer
+  is exausted) but it can result in data loss (input not read).
+
+  As a result it is usually sensible to use the [-b], especially in XClip mode
+  in combination with "long runnning" commands (longer than clipbard change
+  intervals).
+
+  Note that in the current implementation no execution queue exists, meaning
+  that a combination of long running comamnds and high input frequency can
+  again result in issues (high load / too many jobs).
+
+$(cl::fx b)Examples:$(cl::fx r)
+  # read URLs from input, append matches to file 'links' and download
+  ${_SCRIPT_FILE} -b -m '^https?://' echo '{}' \>\> links \; wget -nv -c '{}'
+  # same but using tee
+  ${_SCRIPT_FILE} -b -m '^https?://' tee -a links "<<<'{}'" \| wget -nv -c -i -
+
+  # monitor xclip for URLs and open matches in new firefox tabs
+  ${_SCRIPT_FILE} -x -b -m '^\w+://' --new-tab firefox
+EOF
+readonly _HELP
+
+# arguments
+declare bg=false
+declare xclip=false
+declare verbose=false
+declare allow_dupes=false
+declare match_separate=false
+declare delimiter=$'\n'
+declare regex=""
+declare pollrate=.2
+declare cmd_arg
+
+# parse arguments
+_parse_args() {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$_USAGE"
+    exit 1
+  fi
+  #delim=''  #  -d DELIM  split by delimiter (e.g. \n), execute separately for each entry
+  while [[ -n "${1:-}" ]]; do
+    case "$1" in
+      -x|--xclip)
+        xclip=true
+        shift
+        ;;
+      -m|--match)
+        if [[ -z "$2" ]]; then
+          cl::p_err "missing regex value for option [$1]"
+          exit 1
+        fi
+        regex="$2"
+        shift 2
+        ;;
+      --match-separate)
+        match_separate=true
+        shift
+        ;;
+      -d|--delimiter)
+        if [[ -z "$2" ]]; then
+          cl::p_err "missing delimiter value for option [$1]"
+          exit 1
+        fi
+        delimiter="$2"
+        shift 2
+        ;;
+      --allow-duplicates)
+        allow_dupes=true
+        shift
+        ;;
+      -b|--background)
+        bg=true
+        shift
+        ;;
+      -v|--verbose)
+        verbose=true
+        shift
+        ;;
+      --pollrate)
+        if [[ -z "$2" ]]; then
+          cl::p_err "missing decimal value for option [$1]"
+          exit 1
+        fi
+        if [[ ! "$2" =~ ^[0-9]+(s|m|h|d)?$ ]]; then
+          cl::p_err "invalid value [$2] for option [$1]"
+          cl::p_err "only numeric values with suffix s (default), m, h, and d are allowed"
+          exit 1
+        fi
+        pollrate="$2"
+        shift 2
+        ;;
+      -h|--help)
+        printf "%s" "$_HELP"
+        exit 0
+        ;;
+      -*)
+        cl::p_err "unknown option [$1]"
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_err "missing command"
+    exit 1
+  fi
+  cmd_arg="$@"
+
+  if ${allow_dupes} && ${xclip}; then
+    cl::p_war "Ignoring --allow-duplicates option in --xclip mode."
+    allow_dupes=false
+  fi
+}
+
+# start reading / monitoring
+_read_loop() {
+  local input      # current input (xclip content / read line)
+  local input_prev # input from previous iteration
+  local item       # input or part of input (separated via delimiter)
+  local first=true # is first iteration?
+
+  # keep reeding input
+  while true; do
+    # xclip or read lines?
+    if ${xclip}; then
+      # poll rate sleep, must come first due to continues below
+      if ! $first; then
+        sleep ${pollrate} # poll rate
+      fi
+      input="$(xclip -selection clip-board -o -l)"
+    else
+      IFS='' read -r -d $'\n' input
+    fi
+    first=false
+
+    # no input? -> skip
+    [[ -z "${input}" ]] && continue
+    # new input identical to previous / clipboard unchanged? -> skip input
+    [[ ${allow_dupes} && "${input}" = "${input_prev:-}" ]] && continue
+    # input (no line) match mode and regex doesn't match? -> skip input
+    [[ ! ${match_separate} && ! "${input}" =~ ${regex} ]] && continue
+
+    # process lines/delimiter input, each element at a time (including last)
+    while IFS='' read -r -d "${delimiter}" item || [ -n "$item" ]; do
+      [[ ${match_separate} && ! "${item}" =~ ${regex} ]] && continue
+      local -a cmd
+
+      # substitute {}?
+      if [[ "$@" =~ \{\} ]]; then # contains {}? substitute
+        # in the command substitute all {} with the given item
+        # https://stackoverflow.com/a/29613573 escape specials
+        cmd="$(perl -s -0777 -pe 's/\{\}/\Q$item\E/g' -- -item="${item}" <<<"$@")"
+      else # no {}? append argument
+        cmd=("$@")
+        cmd+=("'${item}'")
+      fi
+
+      # run in background (job)?
+      if ${bg}; then
+        # TODO implement a simple queue to limit number of concurrent jobs
+        ${verbose} && cl::p_msg "${cmd[@]} &"
+        bash <<<"${cmd[@]}" &
+      else
+        ${verbose} && cl::p_msg "${cmd[@]}"
+        #bash <<<"${cmd[@]}"
+        bash <<<"${cmd[@]}"
+      fi
+    done <<<"${input}"
+
+    input_prev="${input}"
+    item=""
+  done
+}
+
+main() {
+  _parse_args "$@"
+  _read_loop "${cmd_arg[@]}"
+}
+
+main "$@"
+
+exit 1

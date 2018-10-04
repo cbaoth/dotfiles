@@ -12,13 +12,13 @@
 # For login shell / general variable like PATH see ~/.zshenv
 
 # {{{ - CORE -----------------------------------------------------------------
-export OS=${$(uname):l}
-export HOST=${$(hostname):l}
+export OS="${$(uname):l}"
+export HOST="${$(hostname):l}"
 export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 #export COLORTERM=xterm
 #[ -n "$(echo $TERMCAP|grep -i screen)" ]] && TERM=screen
 
-# globally raise (but never lower) the default debug level of p_dbg
+# globally raise (but never lower) the default debug level of cl::p_dbg
 export DBG_LVL=0
 # }}} - CORE -----------------------------------------------------------------
 
@@ -40,7 +40,7 @@ if [[ $(uname -r) = *Microsoft* ]]; then
   unsetopt BG_NICE
 fi
 
-# Is X available?
+# Is X available? Unreliable for ssh x-forwading., suffi. for local sessions.
 IS_X=false
 if [[ ! -t 0 ]] && xset b off; then
   IS_X=true
@@ -52,8 +52,8 @@ export CLASSPATH=".:$HOME/.class${CLASSPATH+:$CLASSPATH}"
 export PYTHONPATH="${PYTHONPATH+:$PYTHONPATH}:$HOME/lib/python/site-packages"
 export SCALA_HOME="$HOME/scala"
 command -v java 2>&1 >/dev/null \
-  && export JAVA_HOME=${$(realpath $(command -v java))/bin\/java/}
-export ARCH=$(uname -m)
+  && export JAVA_HOME="${$(realpath $(command -v java))/bin\/java/}"
+export ARCH="$(uname -m)"
 
 # Check if we are in the 32bit chroot
 #export INCHROOT=0
@@ -120,14 +120,14 @@ export UAGENT
 
 # {{{ = CORE FUNCTIONS & ALIASES =============================================
 # include core functions, must simply be there (used everywhere)
-source $HOME/.zsh.d/functions.zsh
+source $HOME/lib/commons.sh
 
 # include given source file(s) if they exist,
 source_ifex () {
-  [[ -z "${1-}" ]] && p_usg "$0 source-file.." && return 1
+  [[ -z "${1-}" ]] && cl::p_usg "$0 source-file.." && return 1
   while [[ -n "$1" ]]; do
-    p_dbg 0 2 "potential source: $1"
-    [[ -r "$1" ]] && { p_dbg 0 1 "loading source: $1"; source "$1" }
+    cl::p_dbg 0 2 "potential source: $1"
+    [[ -r "$1" ]] && { cl::p_dbg 0 1 "loading source: $1"; source "$1" }
     shift
   done
   return 0
@@ -137,10 +137,10 @@ source_ifex () {
 # [source-file-prefix] file name prefix(s)
 source_ifex_custom () {
   [[ -z "${1-}" ]] && printf "usage: %s" "$0 source-file-prefix.." && return 1
-  local host=${${HOST:l}//./_}
-  local os=${OS:l}
+  local host="${${HOST:l}//./_}"
+  local os="${OS:l}"
   while [[ -n "${1-}" ]]; do
-    local base_file=$1
+    local base_file="$1"
     source_ifex \
       "${base_file}-${os}.zsh" \
       $($IS_WSL && print "${base_file}-${os}_wsl.zsh") \
@@ -152,8 +152,12 @@ source_ifex_custom () {
   return 0
 }
 
-# include core aliases
+# include common and zsh specific aliases
+source_ifex $HOME/.aliases
 source_ifex $HOME/.zsh.d/aliases.zsh
+
+# include common and zsh specific aliases
+source_ifex $HOME/.zsh.d/functions.zsh
 
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # }}} = CORE FUNCTIONS & ALIASES =============================================
@@ -162,31 +166,37 @@ is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # apt: zplug - https://github.com/zplug/zplug
 alias zplug_cmd=zplug
 #if [[ -f "/usr/share/zplug/init.zsh" ]]; then
-#  p_dbg 0 2 'zplug found in /usr/share/zplug, loading ...'
+#  cl::p_dbg 0 2 'zplug found in /usr/share/zplug, loading ...'
 #  source /usr/share/zplug/init.zsh
 # TODO clean this up, much too complicate (separate functions or don't cover all unlikely cases)
 if [[ -f "$HOME/.zplug/init.zsh" ]]; then
-  p_dbg 0 2 'zplug found in ~/.zplug, loading ...'
+  cl::p_dbg 0 2 'zplug found in ~/.zplug, loading ...'
   source "$HOME/.zplug/init.zsh"
 else
-  p_war 'init.zsh not found in ~/.zplug'
+  cl::p_war 'init.zsh not found in ~/.zplug'
   if [[ -d "$HOME/.zplug" ]]; then
-    q_yesno "zplug not found but $HOME/.zplug exist, should I delete it?" \
+    cl::q_yesno "zplug not found but $HOME/.zplug exist, should I delete it?" \
       && rm -rf ~/.zplug
   fi
-  if cmd_p curl && url_cmd=(curl l -sL --proot-rdir -all,https) \
-     || cmd_p wget && url_cmd=(wget -qO -) \
-     || url_cmd=false; then
-    $url_cmd https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
+
+  if command -v curl >& /dev/null; then
+    _url_cmd=(curl l -sL --proot-rdir -all,https)
+  elif command -v wget >& /dev/null; then
+    _url_cmd=(wget -qO -)
+  else
+    _url_cmd=false
   fi
+  "${_url_cmd[@]}" https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
+  unset _url_cmd
+
   if (($? == 0)); then
     if [[ -f "$HOME/.zplug/init.zsh" ]]; then
       source "$HOME/.zplug/init.zsh"
     else
-      p_err "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')installation seem to have faild, $HOME/.zplug not found."
+      cl::p_err "$(cl::tputs 'setaf 1')zplug $(cl::tputs 'setaf 3')installation seem to have faild, $HOME/.zplug not found."
     fi
   else
-    p_err "$(tputs 'setaf 1')zplug $(tputs 'setaf 3')download failed."
+    cl::p_err "$(cl::tputs 'setaf 1')zplug $(cl::tputs 'setaf 3')download failed."
     # temporary dummy zplug alias so all commannds below will exit gracefully
     alias zplug_cmd=false
   fi
@@ -241,7 +251,7 @@ POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 #export DEFAULT_USER="$USER" # not an options, lambda should always be shown
 #POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
 #POWERLEVEL9K_USER_TEMPLATE="%n"
-POWERLEVEL9K_HOST_TEMPLATE="$(is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
+POWERLEVEL9K_HOST_TEMPLATE="$(cl::is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
 POWERLEVEL9K_HOST_ICON="🖳"
 POWERLEVEL9K_SSH_ICON="🖧"
 #POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
@@ -253,13 +263,13 @@ POWERLEVEL9K_TIME_FORMAT="%D{%H:%M}"
 #POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX="\u256D"
 POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX=""
 #POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="\u2570[$USER]\u03bb"
-is_sudo && _PROMPT_SUDO_ICON="▲" || _PROMPT_SUDO_ICON=""
-_PROMPT_USER_NAME=$(is_me || print -P '%n ')
-if (is_su); then
+cl::is_sudo && _PROMPT_SUDO_ICON="▲" || _PROMPT_SUDO_ICON=""
+_PROMPT_USER_NAME="$(is_me || print -P '%n ')"
+if (cl::is_su); then
   POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="%B%K{red}%F{white}$_PROMPT_SUDO_ICON"
   POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX+=" $_PROMT_USER_NAME\u03bb %f%k%b%F{red}\uE0B0%f "
 else
-  _PROMPT_BG_COLOR=$(is_sudo_cached && print "yellow" || print "white")
+  _PROMPT_BG_COLOR="$(cl::is_sudo_cached && print "yellow" || print "white")"
   POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="%K{$_PROMPT_BG_COLOR}%F{black}$_PROMPT_SUDO_ICON"
   POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX+=" $_PROMPT_USER_NAME\u03bb %f%k%F{$_PROMPT_BG_COLOR}\uE0B0%f "
 fi
@@ -377,7 +387,7 @@ zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
 
 # {{{ = ZPLUG LOAD ===========================================================
 zplug_cmd check --verbose \
-  || { q_yesno "Install missing zplug packages" && zplug install }
+  || { cl::q_yesno "Install missing zplug packages" && zplug install }
 
 # load local plugins
 #zplug_cmd "~/.zsh.d", from:local
@@ -573,20 +583,36 @@ bindkey '^[[1;5C' forward-word # ctrl-right
 bindkey '^[[1;5A' beginning-of-line # ctrl-up
 bindkey '^[[1;5B' end-of-line # ctrl-down
 
+# ctrl-w/a/s/d (w/a/r/s on colemak) arrow key navigation
+#bindkey '^w' up-line-or-history # ctrl-w
+#bindkey '^a' down-line-or-history # ctrl-r
+#bindkey '^r' down-line-or-history # ctrl-r
+#bindkey '^s' up-line-or-history # ctrl-w
+
+
 if [[ "$TERM" = *xterm* ]]; then
-  #bindkey "\e[1~" beginning-of-line # HOME
-  bindkey '^[[7~' beginning-of-line  # HOME also: rxvt (ctrl-a)
-  bindkey '^[[2~' overwrite-mode # INS (also: ctrl-x,ctrl-o)
+  # end of line: emacs ctrl-a, vim
+  #bindkey "${terminfo[khome]}" beginning-of-line
+  bindkey "\e[1~" beginning-of-line # HOME
+  bindkey '^[[7~' beginning-of-line  # HOME
+
+  #bindkey "${terminfo[kend]}" end-of-line
+  bindkey '\e[4~' end-of-line # END
+  bindkey '^[[8~' end-of-line # END rxvt (also: ctrl-e)
+
+  bindkey '^[[2~' overwrite-mode # INS (emacs: ctrl-x,ctrl-o)
   bindkey '^[[3~' delete-char # DEL (also: ctrl-d -> delete-char-or-list)
   bindkey '^?' backward-delete-char # BS (also: ctrl-h and ctrl-w -> word)
-  #bindkey '\e[4~' end-of-line # END
-  bindkey '^[[8~' end-of-line # END rxvt (also: ctrl-e)
 fi
 # }}} - CURSOR NAVIGATON -----------------------------------------------------
 # {{{ - VI MODE --------------------------------------------------------------
 # vi mode
 # open command line in vim
 bindkey -M vicmd '^v' edit-command-line
+
+# search histor using / and ?
+#bindkey -M vicmd '?' history-incremental-search-backward
+#bindkey -M vicmd '/' history-incremental-search-forward
 # }}} - VI MODE --------------------------------------------------------------
 # {{{ - ZAW ------------------------------------------------------------------
 # https://github.com/zsh-users/zaw
@@ -630,9 +656,9 @@ rm -f ~/*.core(N) ~/*.dump(N) &!
 
 # {{{ - DTAG -----------------------------------------------------------------
 # enabale dtag (when available)
-#(cmd_p dtags-activate \
+#(command -v dtags-activate >& /dev/null \
 #  && eval "$(dtags-activate zsh)" \
-#  || p_war "unable to activate dtags, dtags-activate not found" \
+#  || cl::p_war "unable to activate dtags, dtags-activate not found" \
 #) &!
 # }}} - DTAG -----------------------------------------------------------------
 # {{{ - X STUFF --------------------------------------------------------------
@@ -641,7 +667,7 @@ rm -f ~/*.core(N) ~/*.dump(N) &!
 # }}} - X STUFF --------------------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # print welcome message (if top-level shell)
-if (($SHLVL == 1)); then
+if (( $SHLVL == 1 )); then
    print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
    # on %F{green}#%l%f%b"
    print -P "%B%F{white}Uptime:%b%F{green}$(uptime)%f"

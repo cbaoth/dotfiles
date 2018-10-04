@@ -1,5 +1,7 @@
-#!/bin/bash
-# Author:   cbaoth <dev@cbaoth.de>
+#!/usr/bin/env bash
+# links.sh: symlink dotfiles from git repo to home directory
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
 # Keywords: bash shell-script
 
 # TODO
@@ -18,7 +20,7 @@ cd "$DOTFILES"
 
 mkdir -p "$BAKDIR"
 find "$DOTFILES" -regextype sed \
-     -regex "$DOTFILES/\..\w.*" \
+     -regex "$DOTFILES/\(\.\w\|lib/\|bin/\).*" \
      ! -regex '.*/\(link.sh\|\.git\|\.gitignore\|\.vscode\)\(/.*\)\?' \
 | while read f; do
   targetrel=$(realpath --relative-to "$DOTFILES" $f)
