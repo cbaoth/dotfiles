@@ -117,11 +117,14 @@ bindsym $mod+Shift+f floating toggle
 # mod-f: focus between tiling / floating windows
 bindsym $mod+f focus mode_toggle
 
-# focus the parent container
+# mod-a/A: focus parent/child container
 bindsym $mod+a focus parent
+bindsym $mod+Shift+a focus child
 
-# focus the child container
-#bindsym $mod+d focus child
+# mod-z/Z: move current to / retreive first window from scratchpad
+bindsym $mod+z move scratchpad
+bindsym $mod+Shift+z scratchpad show
+#bindsym $mod+/ [title="Visual Studio Code$"] scratchpad show
 
 # switch to workspace
 bindsym $mod+1 workspace 1
@@ -218,22 +221,22 @@ bindsym $mod Escape exec i3-sensible-terminal -r i3float -e htop
 bindsym $mod F1 exec i3-sensible-terminal -e ssh -p 8090 yav.in
 
 # volume media keys: volume up/down/topple-mute (req.: pulseaudio, osdsh)
-bindsym XF86AudioRaiseVolume exec --no-startup-id media-keys.sh -o vol+
-bindsym XF86AudioLowerVolume exec --no-startup-id media-keys.sh -o vol-
-bindsym XF86AudioMute exec --no-startup-id media-keys.sh -o mute
+bindsym XF86AudioRaiseVolume exec --no-startup-id media-keys -o vol+
+bindsym XF86AudioLowerVolume exec --no-startup-id media-keys -o vol-
+bindsym XF86AudioMute exec --no-startup-id media-keys -o mute
 # mod4-mod1-=/-/0: alternative keys (same as above)
-bindsym Mod4 Mod1 equal exec --no-startup-id media-keys.sh -o vol+
-bindsym Mod4 Mod1 minus exec --no-startup-id media-keys.sh -o vol-
-bindsym Mod4 Mod1 0 exec --no-startup-id media-keys.sh -o mute
+bindsym Mod4 Mod1 equal exec --no-startup-id media-keys -o vol+
+bindsym Mod4 Mod1 minus exec --no-startup-id media-keys -o vol-
+bindsym Mod4 Mod1 0 exec --no-startup-id media-keys -o mute
 
 # media player keys (req.: https://github.com/acrisci/playerctl)
-bindsym XF86AudioPlay exec --no-startup-id media-keys.sh -o play-pause
-bindsym XF86AudioPrev exec --no-startup-id media-keys.sh -o previous
-bindsym XF86AudioNext exec --no-startup-id media-keys.sh -o next
-# mod4-mod1-7/8/9: alternative keys (same as above)
-bindsym Mod4 Mod1 7 exec --no-startup-id media-keys.sh -o play-pause
-bindsym Mod4 Mod1 8 exec --no-startup-id media-keys.sh -o previous
-bindsym Mod4 Mod1 9 exec --no-startup-id media-keys.sh -o next
+bindsym XF86AudioPlay exec --no-startup-id media-keys -o play-pause
+bindsym XF86AudioPrev exec --no-startup-id media-keys -o previous
+bindsym XF86AudioNext exec --no-startup-id media-keys -o next
+# mod4-mod1-Space/,/.: alternative keys (same as above)
+bindsym Mod4 Mod1 space exec --no-startup-id media-keys -o play-pause
+bindsym Mod4 Mod1 comma exec --no-startup-id media-keys -o previous
+bindsym Mod4 Mod1 period exec --no-startup-id media-keys -o next
 
 # Sreen brightness controls (req.: xbacklight)
 bindsym XF86MonBrightnessUp exec --no-startup-id xbacklight -inc 20
@@ -258,6 +261,8 @@ for_window [class="spotify$"], move container to workspace 0; workspace 0
 # assign
 # }}} - Default Workspaces ---------------------------------------------------
 for_window [window_role="i3float"] floating enable
+for_window [class="mpv"] floating enable
+for_window [class="streaming_client"] fullscreen enable
 # }}} = Window Rules =========================================================
 
 # {{{ = Launch Apps ==========================================================
