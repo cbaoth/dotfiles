@@ -5,3 +5,5 @@
 	email = dev@cbaoth.de
 [pull]
 	rebase = preserve
+[core]
+	fileMode = false

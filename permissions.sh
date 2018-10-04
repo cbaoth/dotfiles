@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# permissions.sh: fix permissions of dotfiles repo
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script
 
 # safety check before chaning mod bits for the wrong files
 [ ! -d ".git" ] \

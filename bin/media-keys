@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# ~/bin/media-keys.sh: Control media player and pa volume, optional OSD
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+   if [[ -f "$f" ]]; then
+     source "$f"
+     break
+   fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+trap '_rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+             c"${BASH_COMMAND:-N/A}"; \
+      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+# constants
+declare -r _USAGE="${_SCRIPT_FILE} [-o] (volume-up|volume-down|play-pause|previous|next)"
+
+# osd: show current volume
+_osd_volume() {
+  local vol=$(pactl list sinks | grep '^[[:space:]]Volume:' | head -n 1 \
+                | tail -n 1 | sed -e 's,.* \([0-9][0-9]*\)%.*,\1,')
+  osdctl -b "Master Volume: $vol",$vol
+  return 0
+}
+
+# osd: show mute state
+_osd_mute() {
+  local mute=$(pactl list sinks | grep '^\s*Mute:' | head -n 1 | sed 's/.*: //g')
+  if [[ "$mute" = "yes" ]]; then
+    osdctl -b "Master Volume: Muted",0
+  else
+    _osd_volume
+  fi
+  return 0
+}
+
+# player control with optional osd
+_player_ctrl() {
+  local osd="${2-false}"
+  case $1 in
+    previous)
+      playerctl previous
+      $osd && osdctl -s "Player: Previous Track"
+      ;;
+    next)
+      playerctl next
+      $osd && osdctl -s "Player: Next Track"
+      ;;
+    play-pause)
+      playerctl play-pause
+      $osd && osdctl -s "Player: $(playerctl status)"
+      ;;
+    *)
+      cl::p_err "Unknown _player_ctrl argument: $1"
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+# parse arguments and perform actions
+main() {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$_USAGE"
+    exit 1
+  fi
+  # process arguments
+  local _osd=false
+  while [[ -n "${1:-}" ]]; do
+    case "$1" in
+      vol+|volume-up)
+        pactl set-sink-mute 0 false
+        pactl set-sink-volume 0 +5%
+        $_osd && _osd_volume
+        shift
+        ;;
+      vol-|volume-down)
+        pactl set-sink-volume 0 -5%
+        $_osd && _osd_volume
+        shift
+        ;;
+      mute)
+        pactl set-sink-mute 0 toggle
+        $_osd && _osd_mute
+        shift
+        ;;
+      pp|play-pause)
+        _player_ctrl play-pause # $_osd
+        shift
+        ;;
+      prev|previous)
+        _player_ctrl previous $_osd
+        shift
+        ;;
+      next)
+        _player_ctrl next $_osd
+        shift
+        ;;
+      -o|--osd)
+        _osd=true
+        shift
+        ;;
+      *)
+        p_err "unknown argument: $1"
+        exit 1
+        ;;
+    esac
+  done
+}
+
+main "$@"
+
+exit 0

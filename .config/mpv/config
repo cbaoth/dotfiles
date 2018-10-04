@@ -117,9 +117,9 @@ audio-pitch-correction=yes              # automatically insert scaletempo when p
 # =======
 
 # Defaults for all profiles
-# mpv vo=help for a list of supported outputs
-#vo=opengl                                # video output driver (default: gpu)
-vo=sdl
+# mpv vo=help for a list of supported oucl::tputs
+vo=opengl                                # video output driver (default: gpu)
+#vo=sdl
 #vo=wayland
 #tscale=oversample                        # [sharp] oversample <-> linear (triangle) <-> catmull_rom <-> mitchell (default) <-> gaussian <-> bicubic [smooth]
 #opengl-early-flush=no

@@ -39,7 +39,7 @@ export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 export COLORTERM=xterm
 #[[ -n "$(echo $TERMCAP|grep -i screen)" ]] && TERM=screen
 
-# globally raise (but never lower) the default debug level of p_dbg
+# globally raise (but never lower) the default debug level of cl::p_dbg
 export DBG_LVL=0
 # }}} - CORE -----------------------------------------------------------------
 # }}} - DEV ------------------------------------------------------------------
@@ -72,37 +72,7 @@ export PS1="\[\e[0;37m\](\w)\[\\033[0;39m\]
 # }}} = PROMPT ===============================================================
 
 # {{{ = INCLUDES =============================================================
-include_ifex () {
-  while [[ -n "$1" ]]; do
-    [[ -f "$1" ]] && source "$1"
-    shift
-  done
-}
-# FIXME currently not fully bash compatible
-#include_ifex $HOME/.zsh.d/functions.zsh
-include_ifex $HOME/.zsh.d/aliases.zsh
-
-# load aliases
-#include_ifex \
-#  $HOME/.zsh.d/aliases.zsh \
-#  $HOME/.zsh.d/aliases.$OS.zsh \
-#  $HOME/.zsh.d/aliases.$HOST.zsh \
-#  $HOME/.zsh.d/aliases.$HOST.$OS.zsh \
-#  $HOME/.bash/aliases-bash.sh
-#  $(cat .aliases | grep -Ev '^\s*#' | sed 's/^alias/alias -g/')
-
-# load functions
-#include_ifex \
-#  $HOME/.zsh.d/functions.zsh \
-#  $HOME/.zsh.d/functions.$OS.zsh \
-#  $HOME/.zsh.d/functions.$HOST.zsh \
-#  $HOME/.zsh.d/functions.$HOST.$OS.zsh
-
-# load system/host specific config file (eg: ~/.bashrc.freebsd)
-#include_ifex \
-#  $HOME/.bash.d/bashrc.$OS.sh \
-#  $HOME/.bash.d/bashrc.$HOST.sh \
-#  $HOME/.bash.d/bashrc.$HOST.$OS.sh
+source $HOME/.aliases
 # }}} = INCLUDES =============================================================
 
 # {{{ = FINAL EXECUTIONS =====================================================

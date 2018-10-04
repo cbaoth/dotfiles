@@ -21,10 +21,16 @@ export LESSCHARSET="utf-8"
 #export BREAK_CHARS="\"#'(),;\`\\|\!?[]{}"
 # }}} - LOCALE ---------------------------------------------------------------
 
-# {{{ - SECURITY -------------------------------------------------------------
+# {{{ - SECURITY & PRIVACY ---------------------------------------------------
+# private session
 export HISTFILE="" # don't create shell history file
-export HISTFILESIZE=0 # set shell history to zero
-# }}} - SECURITY -------------------------------------------------------------
+export HISTFILESIZE=0 # set shell history file limit to zero
+export HISTSIZE=10000 # set (in memory) history limit
+# persisted session
+#export HISTFILE="~/.bash_history" # don't create shell history file
+#export HISTFILESIZE=10000 # set shell history file limit to zero
+#export HISTSIZE=10000 # set (in memory) history limit
+# }}} - SECURITY & PRIVACY ---------------------------------------------------
 
 # {{{ - BASH -----------------------------------------------------------------
 # if running bash
