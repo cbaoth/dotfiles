@@ -125,7 +125,7 @@ main() {
         shift
         ;;
       *)
-        p_err "unknown argument: $1"
+        cl::p_err "unknown argument: $1"
         exit 1
         ;;
     esac

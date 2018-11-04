@@ -53,47 +53,80 @@ find-less-than () {
     done
   done
 }
-zerokill () {
-  [[ -z "$1" ]] && \
-    cl::p_usg "zerokill <dir> [-r]" && \
+
+# OK - find and remove all empty files
+rm_empty_files () {
+  if [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
+    cl::p_usg "$(cl::func_name) [-r] DIR"
     return 1
-  dir="$1"
-  if [[ "$2" = "-r" ]]; then
-    find "$dir" -type f -size 0 | while read f; do rm "$f"; done
-  else
-    find "$dir" -maxdepth 1 -type f -size 0 | while read f; do rm "$f"; done
   fi
+  local -a maxdepth=(-maxdepth 1)
+  if [[ "${1:-}" = "-r" ]]; then
+    unset maxdepth
+    shift
+  fi
+  local -a dirs=(.)
+  [[ -n "${1:-}" ]] && dirs="$@"
+  for dir in "${dirs[@]}"; do
+    find "$dir" ${maxdepth:+${maxdepth[@]}} -type f -empty -delete
+  done
 }
-rm-empty-dirs () {
-  dir="."
-  [[ -n "$1" ]] && dir="$1"
-  set -x
-  find "$dir" -depth -type d -empty -delete
-  set +x
+
+# OK - find and remove all empty dirs
+rm_empty_dirs () {
+  if [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
+    cl::p_usg "$(cl::func_name) [DIR]"
+    return 0
+  fi
+  local -a maxdepth=(-maxdepth 1)
+  if [[ "${1:-}" = "-r" ]]; then
+    unset maxdepth
+    shift
+  fi
+  local -a dirs=(.)
+  [[ -n "${1:-}" ]] && dirs="$@"
+  for dir in "${dirs[@]}"; do
+    find "$dir" ${maxdepth:+${maxdepth[@]}} -depth -type d -empty -delete
+  done
 }
-rm-thumb-dirs () {
-  dir="."
-  [[ -n "$1" ]] && dir="$1"
-  find "$dir" -type d -iname ".thumbnails" -exec rm -rf {} \;
-  #find "$dir" -type d -exec rmdir --ignore-fail-on-non-empty -p {} +
+
+# OK - find and remove all .thumbnails dirs
+rm_thumbnail_dirs () {
+  if [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
+    cl::p_usg "$(cl::func_name) [DIR]"
+    return 0
+  fi
+  local -a maxdepth=(-maxdepth 1)
+  if [[ "${1:-}" = "-r" ]]; then
+    unset maxdepth
+    shift
+  fi
+  local -a dirs=(.)
+  [[ -n "${1:-}" ]] && dirs="$@"
+  for dir in "${dirs[@]}"; do
+    find "$dir" ${maxdepth:+${maxdepth[@]}} -type d -iname ".thumbnails" -exec rm -rf {} \;
+  done
 }
 # ----------------------------------------------------------------------------
 # }}} find files
 # {{{ string
 # ----------------------------------------------------------------------------
-stringrepeat() {
-  [[ -z "$2" ]] && \
-    cl::p_usg "stringrepeat count str" && \
+# OK - repeat string
+string_repeat() {
+  if [[ -z "${2:-}" ]]; then
+    cl::p_usg "string_repeat COUNT STRING" && \
     return 1
+  fi
   ! cl::is_int $1 && { cl::p_err "$1 is not an integer"; return 1; }
   #echo $(printf "%0$1d" | sed "s/0/$2/g")
+  #printf "$2.0s" {1..$1}
   awk 'BEGIN{$'$1'=OFS="'$2'";print}'
 }
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ math
 # ----------------------------------------------------------------------------
-# send expression to dc (simple wrapper)
+# OK - send expression to dc (simple wrapper)
 calc() {
   local HELP USG="$(cl::func_name) [OPTION..] EXPR.."
   ! IFS='' read -r -d '' HELP <<EOF
@@ -102,7 +135,7 @@ Usage: $USG
 Options:
   -s|--scale X     decimal scale (default: 0)
 EOF
-  [[ -z "$1" ]] && { cl::p_usg "$USG"; return 1; }
+  [[ -z "${1:-}" ]] && { cl::p_usg "$USG"; return 1; }
   local scale
   while [[ -n "$1" ]]; do
     case $1 in
@@ -125,6 +158,7 @@ EOF
   bc <<<"${scale}$@"
 }
 
+# OK - send expression to python print with imported math package
 py_calc() {
   if [[ "$1" =~ ^(-i|--import)$ ]]; then
     [[ -z "$2" ]] && cl::p_err "missing value for argument -i" && return 1
@@ -171,60 +205,109 @@ calcSum() {
 # }}} math
 # {{{ network
 # ----------------------------------------------------------------------------
-wget-mm () {
-  [[ -z "$1" ]] &&\
-    cl::p_usg "wget-mm url" &&\
-    echo "mirror url (no parent) multi threaded (8)" &&\
+# OK - multi-threaded (8 jobs) wget mirror
+wget_mm () {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) URL"
+    printf "mirror URL (no parent) using wget running 8 background jobs\n"
     return 1
+  fi
   for i in {1..8}; do
-    echo "($i) wget -U \"$UAGENT\" -m -k -K -E -np -N \"$1\" &"
+    printf "job(%s): wget -U '%s' -m -k -K -E -np -N '%s' &" "$i" "$UAGENT" "$1"
     wget -U "$UAGENT" -m -k -K -E -np -N "$1" &
   done
 }
-wget-d () {
-  ref="$2"
-  [[ -z "$2" ]] && ref="$(dirname $1)"
-  out="$(echo \"$1\" | sed -E 's/^http:\/\///g;s/\/+$//g;s/\//+/g')"
-  wget -U "$UAGENT" --referer "$ref" -c "$1" -O "$out"
-}
-wget-d-rev () { wget $(echo $1|sed 's/.*\///g'|tr + \/) -O $1; }
-ssh-tunnel () {
-  [[ -z "$2" ]] &&\
-    cl::p_usg "ssh-tunnel [user@]host[:port] localport [remoteport]" &&\
+
+# OK - download URL using wget using output file name based on URL
+wget_d () {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) URL [REFERER]"
+    printf "download URL using wget into dynamic output file based on URL\n"
     return 1
-  (($2 < 1024)) && SUDO="sudo"
-  user="${1%@*}"
-  host="${${x#*@}%:*}"
-  port="${1#*:}"
-  lp="$2"; rp="$3"
-  [[ -z "$3" ]] && rp="$lp"
-  $SUDO ssh -f "$host" $([ -n "$port"] && echo -p $port) $([ -n "$user"] && echo -l $user) -L $lp:127.0.0.1:$rp -N
+  fi
+  local ref="${2:-$(dirname "$1")}"
+  local outfile="$(sed -E 's/^http:\/\///g;s/\/+$//g;s/\//+/g' <<<"$1")"
+  wget -U "$UAGENT" --referer "$ref" -c "$1" -O "$outfile"
 }
+
+# TODO - attempt to re-download a file that was downloaded using wget_d
+wget_d_rev () {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) FILE"
+    printf "attempt to re-download a file that was downloaded using wget_d\n"
+    return 1
+  fi
+  local url="$(sed 's/.*\///g'|tr + \/ <<<"$1")"
+  local ref="$(dirname "$url")}"
+  wget -U "$UAGENT" --referer "$ref" "$url" -O "$1"
+}
+
+# OK - open ssh tunnel
+ssh_tunnel () {
+  if [[ -z "${2:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [USER@]HOST[:PORT] LOCALPORT [REMOTEPORT]"
+    return 1
+  fi
+  local host="${${1#*@}%:*}"
+  local user
+  [[ "$1" = *@* ]] && user="${1%@*}"
+  local port
+  [[ "$1" = *:* ]] && port="${1#*:}"
+  local lp="$2"
+  local rp="${3:-$lp}"
+  (($lp < 1024)) && ! cl::is_su && local SUDO="sudo"
+  $SUDO ssh -f "${host}" ${port:+-p ${port}} ${user:+-l $user} -L ${lp}:127.0.0.1:${rp} -N
+}
+
+# OK - generate a random mac address
 mac_generate() {
-  macaddr="52:54:$(dd if=/dev/urandom count=1 2>/dev/null | md5sum | sed 's/^\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4/')"
-  echo $macaddr
+  printf "52:54:%s" "$(dd if=/dev/urandom count=1 2>/dev/null \
+                       | md5sum \
+                       | sed 's/^\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4/')"
 }
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ file renaming
 # ----------------------------------------------------------------------------
-# add a suffix to the file name, before the file extension
-file-suffix() {
-  [[ "$#" -ne 2 ]] && cl::p_usg "$(cl::func_name) file suffix" && return 1
-  [[ "$1" = *"."* ]] \
-    && echo "${1%.*}$2.${1##*.}" \
-    || echo "$1$2"
+# OK- print file name of given file with an added suffix (considering file ext.)
+p_file_with_suffix() {
+  if [[ $# -ne 2 ]]; then
+    cl::p_usg "$(cl::func_name) SUFFIX FILE"
+    return 1
+  fi
+  local suffix="$1"
+  shift
+  if [[ "$1" = *"."* ]]; then
+    printf "%s" "${1%.*}${suffix}.${1##*.}"
+  else
+    printf "%s" "$1${suffix}"
+  fi
 }
 
-# if rename is not availlable, provide a simple replace implementation
-if ! command -v rename >& /dev/null && ! command -v zmv >& /dev/null; then
+# OK - rename given file(s) by adding the given suffix (considering file ext.)
+mv_suffix() {
+  if [[ -z ${2:-} ]]; then
+    cl::p_usg "$(cl::func_name) SUFFIX FILE.."
+    return 1
+  fi
+  local suffix="$1"
+  shift
+  for file in "$@"; do
+    mv -i "$file" "$(p_file_with_suffix "$suffix" "$file")"
+  done
+}
 
+# OK - if rename is not available, provide a simple replace implementation
+if ! cl::cmd_p rename >& /dev/null; then
+  # OK - simple rename implemenation (if rename command not available)
   rename () {
-    if (($# < 2)); then
+    cl::p_war "rename command not available, using simplified implementation"
+    cl::cmd_p zmv && cl::p_war "consider using available zmv command instead"
+    if (( $# < 2 )); then
       cat <<EOF
-Usage: rename PATTERN FILE..
+Usage: $(cl::func_name) PATTERN FILE..
 
-Example: rename 's/ /_/g' *.txt
+Example: $(cl::func_name) 's/ /_/g' *.txt
 EOF
       return 1
     fi
@@ -232,21 +315,22 @@ EOF
     shift
     for f in "$@"; do
       target="$(sed -E $pattern <<<"$f")"
-      [[ ! -e "$target" ]] && \
-        mv "$f" "$target"
+      mv -i "$f" "$target"
     done
   }
-
 fi
 
-clean () {
+# TODO - strip special chars from file names
+rename_strip_specials () {
   # usage + help
-  local -r USG="$(cl::func_name) clean [option..]"
+  local -r USAGE="$(cl::func_name) [OPTION..]"
   local HELP
   ! IFS='' read -r -d '' HELP <<EOF
-Usage: $USG
+Usage: $USAGE
 
-Options:
+Strips special characters from file names.
+
+OPTIONS:
   -h    show this help
   -r    recursive mode (process sub-directories)
   -a    remove special characters (all but: \w()[]~&%#@.,+'-)
@@ -260,65 +344,72 @@ EOF
   local -r PAT_LOWER="y/A-Z/a-z/"
   local -r PAT_SPECIAL="s/[^\w()\[\]~&%#@.,+'-]/_/g"
   local recursive=0
-  local p_lower=1
-  local p_space=1
-  local p_special=0
-  local debug=0
+  local p_lower=true
+  local p_space=true
+  local p_special=false
+  local debug_lvl=0
   while [[ -n "$1" ]]; do
     case "$1" in
       "-h"|"--help")
         printf "%s" "$HELP"; return 0
         ;;
       "-r")
-        recursive=1; shift
+        recursive=true; shift
         ;;
       "-a")
-        p_special=1; shift
+        p_special=true; shift
         ;;
       "-nl")
-        p_lower=0; shift
+        p_lower=false; shift
         ;;
       "-ns")
-        p_space=0; shift
+        p_space=false; shift
         ;;
       "-v")
-        debug=1; shift
+        debug_lvl=1; shift
         ;;
       *)
-        cl::p_err "unknown argument: $1"; return 1
+        cl::p_err "unknown argument [$1]"
+        return 1
         ;;
     esac
   done
+
   local pattern=""
-  if [[ "$p_space" -ne 0 ]]; then
-    ((${#pattern} > 0)) && pattern="$pattern;"
+  if $p_space; then
+    (( ${#pattern} > 0 )) && pattern="${pattern};"
     pattern+="$PAT_SPACE"
   fi
-  if [[ "$p_lower" -ne 0 ]]; then
-    ((${#pattern} > 0)) && pattern="$pattern;"
+  if $p_lower; then
+    (( ${#pattern} > 0 )) && pattern="${pattern};"
     pattern+="$PAT_LOWER"
   fi
-  if [[ "$p_special" -ne 0 ]]; then
-    ((${#pattern} > 0)) && pattern="$pattern;"
+  if $p_special; then
+    (( ${#pattern} > 0 )) && pattern="${pattern};"
     pattern+="$PAT_SPECIAL"
   fi
-  ((${#pattern} <= 0)) &&\
+  if (( ${#pattern} <= 0 )); then
     cl::p_err "at least one pattern must be active!" &&\
     return 1
-  cl::p_dbg $debug 1 "pattern: '$pattern'"
-  local rd=""; (($debug >= 1)) && rd="-v"
-  local pwd="$(pwd)"
+  fi
+  cl::p_dbg ${debug_lvl} 1 "pattern: '${pattern}'"
+
+  local rd=""
+  (( ${debug_lvl} > 0 )) && rd="-v"
+  local _pwd="$(pwd)"
   # return to pwd on interrupt
-  trap "cd $pwd; return 2" INT TERM SIGTERM
+  # TODO consider exit code
+  trap "cd ${_pwd}; return 2" INT TERM SIGTERM
+
   # hide  "no matches found: *" in zsh (rename will handle it instead)
   unsetopt NOMATCH
-  if (($recursive == 1)); then
+  if ${recursive}; then
     #find ./ -type f -exec rename 'y/A-Z/a-z/' {} \;
     find . -depth -type d | \
       while read d; do
         local dir="$(dirname $d)"
         local base="$(basename $d)"
-        local target="$(echo $base | sed -E \"$pattern\")"
+        local target="$(sed -E \"$pattern\" <<<"$base")"
         cd "$d"
         cl::p_dbg $debug 1 "processing files in $d/"
         rename $rd "$pattern" *
@@ -337,20 +428,29 @@ EOF
   fi
 }
 
-ls-mime () {
-  if [[ -z "$2" ]]; then
+# OK - list all selected files matching the given mime type
+ls_mime () {
+  if [[ -z "${2:-}" ]]; then
     cat <<!
-ls-mime mimetype file..
-examples:
-  ls-mime text/html *.bin
-  ls-mime "(text/html|application/xml|application/x-empty)" *.txt
+Usage: $(cl::func_name) MIME-TYPE FILE..
+
+Lists all FILE.. matching the given MIME-TYPE.
+
+EXAMPLES:
+  # list all *.bin files of type text/html
+  $(cl::func_name) text/html *.bin
+  # list all *.txt files matching the given (regex) list of mime types
+  $(cl::func_name) "(text/html|application/xml|application/x-empty)" *.txt
 !
     return 1
   fi
   #[ -z "$(echo $1|grep -E '\w\/\w')" ]] &&\
   #  echo "wrong mimetype format \'$1\'" && return 1
-  local mtype="$1"; shift
-  file -h -i "$@"|grep -e "$mtype"|sed 's/: .*//g'
+  local mtype="$1"
+  shift
+  file -h -i "$@" \
+    | grep -e "$mtype" \
+    | sed 's/: .*//g'
 }
 
 spacekill () {
@@ -836,7 +936,7 @@ mplayer-bookmark-split() {
 
 # finds media files, optionally sorts them and plays them using mpv
 mpv_find() {
-  trap 'exit 1' INT TERM SIGTERM
+  trap 'return 1' INT TERM SIGTERM
   local dir regex=".*\.\(avi\|mkv\|mp4\|webm\)"
   local tailn=0 recursive=false sort=-g noact=false
   while [[ -n "$1" ]]; do
