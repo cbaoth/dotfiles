@@ -76,26 +76,17 @@ source $HOME/.aliases
 # }}} = INCLUDES =============================================================
 
 # {{{ = FINAL EXECUTIONS =====================================================
-# {{{ - X STUFF --------------------------------------------------------------
-# this should normally not be here, but ... this way its always executed when
-# opening a term
-
-# no perfect check since we could e.g. be in an ssh session without
-# working / running x, so we start everything in the background
-# stupid messages but better timeouts in bg thatn in fg (delay at login)
-
-# TODO: FIND A BETTER SOLUTION< MOVE TO INPUTRC / XINITRC
-if [[ -n "${DISPLAY-}" ]]; then
-  # repeat caps lock (colemak backspace)
-  xset r 66 2>/dev/null &!
-  # don't repeat tilde
-  #xset -r 49 &
-  # ubuntu hack: disable stupid ubuntu shift+backspace -> x terminate
-  xmodmap -e 'keycode 0x16 = BackSpace BackSpace BackSpace BackSpace' 2>/dev/null &!
-  # and add terminate via print button (seldom used) + shift + mod
-  xmodmap -e 'keycode 0x6B = Print Sys_Req Print Terminate_Server Print Sys_Req' 2>/dev/null &!
+# {{{ - X WINDOWS ------------------------------------------------------------
+# are we in a x-windows session?
+if [[ -n "${DESKTOP_SESSION-}" ]]; then
+  # is gnome-keyring-daemon availlable? use it as ssh agent
+  if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
+    export $(gnome-keyring-daemon --start)
+    # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+    export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+  fi
 fi
-# }}} - X STUFF --------------------------------------------------------------
+# }}} - X WINDOWS ------------------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # print welcome message (if top-level shell)
 if (($SHLVL == 1)); then

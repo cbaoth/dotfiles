@@ -252,8 +252,8 @@ POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 #POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
 #POWERLEVEL9K_USER_TEMPLATE="%n"
 POWERLEVEL9K_HOST_TEMPLATE="$(cl::is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
-POWERLEVEL9K_HOST_ICON="🖳"
-POWERLEVEL9K_SSH_ICON="🖧"
+POWERLEVEL9K_HOST_ICON="" # \ufa01 \ufcbe
+POWERLEVEL9K_SSH_ICON="\u260D " # \uf9c0 \uf996 \uf96a \u21cc \u21f5
 #POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
 POWERLEVEL9K_SHORTEN_DIR_LENGTH=3
 POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
@@ -654,6 +654,17 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 # remove core dump files
 rm -f ~/*.core(N) ~/*.dump(N) &!
 
+# {{{ - X WINDOWS ------------------------------------------------------------
+# are we in a x-windows session?
+if [[ -n "${DESKTOP_SESSION-}" ]]; then
+  # is gnome-keyring-daemon availlable? use it as ssh agent
+  if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
+    export $(gnome-keyring-daemon --start)
+    # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+    export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+  fi
+fi
+# }}} - X WINDOWS ------------------------------------------------------------
 # {{{ - DTAG -----------------------------------------------------------------
 # enabale dtag (when available)
 #(command -v dtags-activate >& /dev/null \
