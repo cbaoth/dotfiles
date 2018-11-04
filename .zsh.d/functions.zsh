@@ -14,8 +14,8 @@ if ! command -v "cl::cmd_p" >& /dev/null; then
   done
 fi
 if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, exiting ..\n" >&2
-  exit 1
+  printf "commons lib not found, unable to import functions.zsh, returning ..\n" >&2
+  return 1
 fi
 
 # {{{ find files
