@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# giv-delay: Get animated gif file playback speed
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+   if [[ -f "$f" ]]; then
+     source "$f"
+     break
+   fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+#trap '_rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+#             c"${BASH_COMMAND:-N/A}"; \
+#      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+# constants
+declare -r _USAGE="${_SCRIPT_FILE} FILE.."
+declare _HELP
+  ! IFS='' read -r -d '' _HELP <<EOF
+Usage: $_USAGE
+
+$(cl::fx b)About:$(cl::fx r)
+  This is a simple wrapper for 'identify' (imagemagic) that will return the
+  delay (speed) in 100th of a second of all frames in a given gif file.
+
+$(cl::fx b)Options:$(cl::fx r)
+    -d|--delay-only   print the delay ony (default: print frame index + delay)
+    -a|--average      print the average (rounded) delay of all frames
+
+$(cl::fx b)Examples:$(cl::fx r)
+  # print frame index + delay in 1/100 sec
+  $(cl::fx green)${_SCRIPT_FILE} infile.gif$(cl::fx r)
+$(cl::fx blue)#1 8
+#2 8
+#3 8
+#4 7
+#5 8
+...$(cl::fx r)
+
+  # print delay in 1/100 sec only (omit the "#x " frame index prefix)
+  $(cl::fx green)${_SCRIPT_FILE} -d infile.gif$(cl::fx r)
+$(cl::fx blue)8
+8
+8
+7
+8
+...$(cl::fx r)
+
+  # the average delay in 1/100 for all frames
+  $(cl::fx green)${_SCRIPT_FILE} -a infile.gif$(cl::fx r)
+$(cl::fx blue)8$(cl::fx r)
+
+$(cl::fx b)Convert:$(cl::fx r)
+  One can change the speed of a given gif file using $(cl::fx green)convert$(cl::fx r) (imagemagick).
+
+  # Change the speed of the above mentioned infile.gif (8x100 average) ..
+  # .. to 5/100 sec. delay (speed up)
+  $(cl::fx green)convert -delay 10x100 infile.gif outfile.gif$(cl::fx r)
+
+  # .. to 15/100 sec. delay (slow down), the 'x100' can be omitted (default)
+  $(cl::fx green)convert -delay 15 infile.gif outfile.gif$(cl::fx r)
+EOF
+readonly _HELP
+
+# arguments
+declare format="#%s %T"
+declare average=false
+declare infile
+
+# parse arguments
+_parse_args() {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "${_USAGE}"
+    exit 1
+  fi
+  while [[ -n "$1" ]]; do
+    case $1 in
+      -d|--delay-only)
+        format="%T"
+        shift
+        ;;
+      -a|--average)
+        average=true
+        shift
+        ;;
+      -h|--help)
+        printf "%s" "${_HELP}"
+        exit 1
+        ;;
+      -*)
+        cl::p_err "unknown argument: $1"
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_err "missing file argument"
+    exit 1
+  fi
+  if (( $# > 1 )); then
+    cl::p_err "too many arguments, provide only a single file"
+    exit 1
+  fi
+  if [[ ! -f "$1" ]]; then
+    cl::p_err "file not found: $1"
+    exit 1
+  fi
+  infile="$1"
+}
+
+_gif_delay() {
+  # print delays or average
+  if $average; then
+    delay_sum="$(identify -format "%T+" "${infile}")"
+    if [[ "$?" -ne 0 ]]; then
+      cl::p_err "error processing gif file"
+      exit 1
+    fi
+    pluses="${delay_sum//[^+]}"
+    frame_count="${#pluses}"
+    printf "%s\n" "$(((${delay_sum}0)/frame_count))"
+  else
+    identify -format "${format}\n" "${infile}"
+  fi
+}
+
+main() {
+  _parse_args "$@"
+  _gif_delay
+}
+
+main "$@"
+
+exit 0

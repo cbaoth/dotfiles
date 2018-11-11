@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# mpv-find: Recursively find media files and play them using mpv
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+   if [[ -f "$f" ]]; then
+     source "$f"
+     break
+   fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+trap '_rc=$?; \
+     printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+            "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+            c"${BASH_COMMAND:-N/A}"; \
+     exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+# constants
+declare -r _USAGE="${_SCRIPT_FILE} [OPTION..] COMMAND.."
+declare _HELP
+  ! IFS='' read -r -d '' _HELP <<EOF
+$(cl::fx b)Options:$(cl::fx r)
+  -m --match P    match given regex pattern to find videos
+                  (default: ".*\.\(avi\|mkv\|mp4\|webm\)")
+  -s --sort A     sort arg, e.g. -R for random (default: -g, see: "man sort")
+  -r --recursive  find videos in subdirectories (default: off)
+  -i --index X    skip the first X search results (default: 0)
+  -n --noact      don't play the search result, send it to stdout instead
+
+  -a --mpv-args   all arguments after this one are forwarded to mpv
+
+  -h --help       show this help
+
+$(cl::fx b)Examples:$(cl::fx r)
+  # play all videos found in . and below in random order
+  $(cl::fx b)${_SCRIPT_FILE} -r -s -R$(cl::fx r)
+  # play all webm files found in /video starting skipping the first 10
+  # not using mpv's resume playback feature
+  $(cl::fx b)${_SCRIPT_FILE} /video -m ".*\.webm" -i 10 -a --no-resume-playback$(cl::fx r)
+EOF
+readonly _HELP
+
+# TODO find a way to stop the playback loop when exiting mpv but ignoring errors
+#$(cl::fx b)MPV Config:$(cl::fx r)
+#  # to stop playback after quitting mpv use the exit code 100 in mpv
+#  # if this is not done, quitting mpv will continue the loop (not desirable)
+#  # input.conf:
+#  ESC quit 100
+#  q quit-watch-later 100
+
+# arguments
+declare dir
+declare regex=".*\.\(avi\|mkv\|mp4\|webm\)"
+declare tailn=0
+declare recursive=false
+declare sort=-g
+declare noact=false
+declare parallel=true
+declare -a mpv_args
+
+# parse arguments
+_parse_args() {
+  while [[ -n "${1:-}" ]]; do
+    case "$1" in
+      -i|--index)
+        if [[ -z "${2:-}" ]]; then
+          cl::p_err "missing value for argument --index"
+          return 1
+        fi
+        tailn="$(($2+1))"
+        shift 2
+        ;;
+      -r|--recursive)
+        recursive=true
+        shift
+        ;;
+      -m|--match)
+        if [[ -z "${2:-}" ]]; then
+          cl::p_err "missing value for argument --match"
+          return 1
+        fi
+        regex="$2"
+        shift 2
+        ;;
+      -s|--sort)
+        if [[ -z "${2:-}" ]]; then
+          cl::p_err "missing value for argument --sort"
+          return 1
+        fi
+        sort="$2"
+        shift 2
+        ;;
+      -n|--noact)
+        noact=true
+        shift
+        ;;
+      -a|--mpv-args)
+        shift
+        break # all args after this are treated as mpv args
+        ;;
+      -h|--help)
+        cl::p_usg "${_SCRIPT_FILE} DIR [OPTION..] [-a MPV_ARG..]"
+        printf "%s" "${_HELP}"
+        return 1
+        ;;
+      *)
+        if [[ -n "${dir:-}" ]]; then
+          cl::p_err "unknown argument: $1"
+          return 1
+        fi
+        if [[ -z "${1:-}" ]]; then
+          cl::p_usg "${_SCRIPT_FILE} dir [args] [-a mvp-arg..]"
+          return 1
+        fi
+        if [[ ! -d "$1" ]]; then
+          cl::p_err "no such directory or unknown argument: $1"
+          return 1
+        fi
+        dir="$1"; shift
+        ;;
+    esac
+  done
+  # default directory .
+  [[ -z "${dir:-}" ]] && dir=.
+  # is parrallel available?
+  if ! cl::cmd_p parallel; then
+     parallel=false
+     cat <<EOF
+warning: gnu parallel not found, switching to compatibility mode (using xargs)
+note that in compatibility mode some player functions may not work
+consider installing parallel (e.g. "apt-get install parallel" on debian/ubuntu)
+EOF
+  fi
+  # treate all remaining args as mpv args
+  mpv_args=("$@")
+}
+
+_mpvfind() {
+  find "$dir" $($recursive && echo --max-depth 1) \
+       -regex "$regex" \
+    | sort $sort \
+    | tail -n +${tailn} \
+    | ($noact && cat \
+              || ($parallel && parallel --tty -Xj1 mpv "${mpv_args[@]}" \
+                            || xargs -I'{}' mpv "${mpv_args[@]}" '{}'))
+}
+
+main() {
+  _parse_args "$@"
+  _mpvfind
+}
+
+main "$@"
+
+exit 0
