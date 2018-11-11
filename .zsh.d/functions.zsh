@@ -268,35 +268,6 @@ mac_generate() {
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ file renaming
-# ----------------------------------------------------------------------------
-# OK- print file name of given file with an added suffix (considering file ext.)
-p_file_with_suffix() {
-  if [[ $# -ne 2 ]]; then
-    cl::p_usg "$(cl::func_name) SUFFIX FILE"
-    return 1
-  fi
-  local suffix="$1"
-  shift
-  if [[ "$1" = *"."* ]]; then
-    printf "%s" "${1%.*}${suffix}.${1##*.}"
-  else
-    printf "%s" "$1${suffix}"
-  fi
-}
-
-# OK - rename given file(s) by adding the given suffix (considering file ext.)
-mv_suffix() {
-  if [[ -z ${2:-} ]]; then
-    cl::p_usg "$(cl::func_name) SUFFIX FILE.."
-    return 1
-  fi
-  local suffix="$1"
-  shift
-  for file in "$@"; do
-    mv -i "$file" "$(p_file_with_suffix "$suffix" "$file")"
-  done
-}
-
 # OK - if rename is not available, provide a simple replace implementation
 if ! cl::cmd_p rename >& /dev/null; then
   # OK - simple rename implemenation (if rename command not available)
@@ -319,114 +290,6 @@ EOF
     done
   }
 fi
-
-# TODO - strip special chars from file names
-rename_strip_specials () {
-  # usage + help
-  local -r USAGE="$(cl::func_name) [OPTION..]"
-  local HELP
-  ! IFS='' read -r -d '' HELP <<EOF
-Usage: $USAGE
-
-Strips special characters from file names.
-
-OPTIONS:
-  -h    show this help
-  -r    recursive mode (process sub-directories)
-  -a    remove special characters (all but: \w()[]~&%#@.,+'-)
-  -nl   don't rename to lower case (enabled by default)
-  -ns   don't rename spaces (including %20) to '_' (enabled by default)
-  -v    debug mode (high verbosity)
-EOF
-  readonly HELP
-  # parse arguments
-  local -r PAT_SPACE="s/(\s|%20)/_/g"
-  local -r PAT_LOWER="y/A-Z/a-z/"
-  local -r PAT_SPECIAL="s/[^\w()\[\]~&%#@.,+'-]/_/g"
-  local recursive=0
-  local p_lower=true
-  local p_space=true
-  local p_special=false
-  local debug_lvl=0
-  while [[ -n "$1" ]]; do
-    case "$1" in
-      "-h"|"--help")
-        printf "%s" "$HELP"; return 0
-        ;;
-      "-r")
-        recursive=true; shift
-        ;;
-      "-a")
-        p_special=true; shift
-        ;;
-      "-nl")
-        p_lower=false; shift
-        ;;
-      "-ns")
-        p_space=false; shift
-        ;;
-      "-v")
-        debug_lvl=1; shift
-        ;;
-      *)
-        cl::p_err "unknown argument [$1]"
-        return 1
-        ;;
-    esac
-  done
-
-  local pattern=""
-  if $p_space; then
-    (( ${#pattern} > 0 )) && pattern="${pattern};"
-    pattern+="$PAT_SPACE"
-  fi
-  if $p_lower; then
-    (( ${#pattern} > 0 )) && pattern="${pattern};"
-    pattern+="$PAT_LOWER"
-  fi
-  if $p_special; then
-    (( ${#pattern} > 0 )) && pattern="${pattern};"
-    pattern+="$PAT_SPECIAL"
-  fi
-  if (( ${#pattern} <= 0 )); then
-    cl::p_err "at least one pattern must be active!" &&\
-    return 1
-  fi
-  cl::p_dbg ${debug_lvl} 1 "pattern: '${pattern}'"
-
-  local rd=""
-  (( ${debug_lvl} > 0 )) && rd="-v"
-  local _pwd="$(pwd)"
-  # return to pwd on interrupt
-  # TODO consider exit code
-  trap "cd ${_pwd}; return 2" INT TERM SIGTERM
-
-  # hide  "no matches found: *" in zsh (rename will handle it instead)
-  unsetopt NOMATCH
-  if ${recursive}; then
-    #find ./ -type f -exec rename 'y/A-Z/a-z/' {} \;
-    find . -depth -type d | \
-      while read d; do
-        local dir="$(dirname $d)"
-        local base="$(basename $d)"
-        local target="$(sed -E \"$pattern\" <<<"$base")"
-        cd "$d"
-        cl::p_dbg $debug 1 "processing files in $d/"
-        rename $rd "$pattern" *
-        cd "$pwd"
-        if [[ "$d" != "." ]]; then
-          if [[ "$target" != "$base" ]]; then
-            cl::p_dbg $debug 1 "$d renamed as $dir/$target"
-            mv "$d" "$dir"/"$target"
-          fi
-        fi
-      done
-    cd "$pwd"
-    rename $rd "$pattern" *
-  else
-    rename $rd "$pattern" *
-  fi
-}
 
 # OK - list all selected files matching the given mime type
 ls_mime () {
@@ -493,28 +356,14 @@ Options: -n      non global replacement
     shift
   done
 }
-mvpre () {
+
+rename_prefix_counter() {
   if [[ -z "$1" ]]; then
-    cat <<!
-Usage: mvpre <prefix> <file>..
-example: mvpre myband_-_ *.ogg
-!
-    return 1
-  fi
-  prefix="$1"
-  shift
-  while [[ -n "$1" ]]; do
-    rename "s/^(.*\/)?/\$1$prefix/" "$1"
-    shift
-  done
-}
-mvpre-count () {
-  if [[ -z "$1" ]]; then
-    cat <<!
+    cat <<EOF
 Usage: mvpre-count <file>.."
 example: mvpre-count intro.ogg interlude.ogg final_song.ogg
          -> 01_intro.ogg 02_interlude.ogg 03_final_song.ogg
-!
+EOF
     return 1
   fi
   i=1
@@ -532,7 +381,8 @@ example: mvpre-count intro.ogg interlude.ogg final_song.ogg
     shift
   done
 }
-rename-prefix-modtime () {
+
+rename_prefix_modtime () {
   [[ -n "$2" ]] && cl::p_err "rename-prefix-modtime to many parameters" &&\
     cl::p_usg "rename-prefix-modtime file" && return 2
   [[ -z "$1" ]] && cl::p_usg "rename-prefix-modtime file" && return 2
@@ -541,7 +391,7 @@ rename-prefix-modtime () {
   echo renaming \"$1\" to \"$target\"
   mv "$1" "$target"
 }
-rename-prefix-exif-time () {
+rename_prefix_exiftime () {
   [[ -n "$2" ]] && cl::p_err "rename-prefix-exif-time to many parameters" &&\
     cl::p_usg "rename-prefix-exif-time file" && return 2
   [[ -z "$1" ]] && cl::p_usg "rename-prefix-exif-time file" && return 2
@@ -549,7 +399,8 @@ rename-prefix-exif-time () {
   echo renaming \"$1\" to \"$target\"
   mv "$1" "$target"
 }
-rename-dir-filecount () {
+
+rename_dir_filecount () {
   local skip="" digits=0 rec=0 reccount=0 countall=0 verbose=0 test=0 prefix=0 clean=0 cleanonly=0 hidden=0
   while [[ -n "$1" ]]; do
     case $1 in
@@ -604,7 +455,7 @@ rename-dir-filecount () {
     cat <<!
 rename-dir-filecount [OPTION..] DIR
 
-$(cl::tp b)Options:$(cl::tp r)
+$(cl::fx b)Options:$(cl::fx r)
   -r        recursive mode, process sub-directories too
   -rc       count files recursively in all sub-directories (esle: only current)
   -d N      number of digits, e.g. -d 4 results in 0001, 0002, ...
@@ -617,19 +468,19 @@ $(cl::tp b)Options:$(cl::tp r)
   -t        test mode, don't do anything, just print move command
   -v        verbose mode
 
-$(cl::tp b)Example:$(cl::tp r)
+$(cl::fx b)Example:$(cl::fx r)
   # add file count suffix (x) to to ~/foo and its sup-directories
   # don't reame directories staring with underscore _
-  $(cl::tp b)rename-dir-filecount -r -s '/_[^/]*$' ~/foo/$(cl::tp r)
+  $(cl::fx b)rename-dir-filecount -r -s '/_[^/]*$' ~/foo/$(cl::fx r)
 
-  $(cl::tp blue)~/foo/bar/1.txt
+  $(cl::fx blue)~/foo/bar/1.txt
   ~/foo/bar/2.txt
   ~/foo/bar/3.txt
-  ~/foo/x.txt$(cl::tp r)
+  ~/foo/x.txt$(cl::fx r)
 
   # results in
 
-  $(cl::tp blue)~/foo (1)/bar (3)$(cl::tp r)
+  $(cl::fx blue)~/foo (1)/bar (3)$(cl::fx r)
 !
      return 2
   fi
@@ -687,6 +538,7 @@ $(cl::tp b)Example:$(cl::tp r)
         fi
       done
 }
+
 url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
 # ----------------------------------------------------------------------------
 # }}} renaming
@@ -934,94 +786,6 @@ mplayer-bookmark-split() {
   ${cmd[@]}
 }
 
-# finds media files, optionally sorts them and plays them using mpv
-mpv_find() {
-  trap 'return 1' INT TERM SIGTERM
-  local dir regex=".*\.\(avi\|mkv\|mp4\|webm\)"
-  local tailn=0 recursive=false sort=-g noact=false
-  while [[ -n "$1" ]]; do
-    case $1 in
-      -i|--index)
-        [[ -z "$2" ]] && cl::p_err "missing value for argument --index" \
-          && return 1
-        tailn="$(($2+1))"; shift 2
-        ;;
-      -r|--recursive)
-        recursive=true; shift
-        ;;
-      -m|--match)
-        [[ -z "$2" ]] && cl::p_err "missing value for argument --match" \
-          && return 1
-        regex="$2"; shift 2
-        ;;
-      -s|--sort)
-        [[ -z "$2" ]] && cl::p_err "missing value for argument --sort" \
-          && return 1
-        sort="$2"; shift 2
-        ;;
-      -n|--noact)
-        noact=true; shift
-        ;;
-      -a|--mpv-args)
-        shift; break # all args after this are treated as mpv args
-        ;;
-      -h|--help)
-        cl::p_usg "$(cl::func_name) DIR [OPTION..] [-a MPV_ARG..]"
-        cat <<!
-
-$(cl::tp b)Options:$(cl::tp r)
-  -m --match P    match given regex pattern to find videos
-                  (default: ".*\.\(avi\|mkv\|mp4\|webm\)")
-  -s --sort A     sort arg, e.g. -R for random (default: -g, see: "man sort")
-  -r --recursive  find videos in subdirectories (default: off)
-  -i --index X    skip the first X search results (default: 0)
-  -n --noact      don't play the search result, send it to stdout instead
-
-  -a --mpv-args   all arguments after this one are forwarded to mpv
-
-  -h --help       show this help
-
-$(cl::tp b)Examples:$(cl::tp r)
-  # play all videos found in . and below in random order
-  $(cl::tp b)$(cl::func_name) -r -s -R$(cl::tp r)
-  # play all webm files found in /video starting skipping the first 10
-  # not using mpv's resume playback feature
-  $(cl::tp b)$(cl::func_name) /video -m ".*\.webm" -i 10 -a --no-resume-playback$(cl::tp r)
-!
-        return 1
-        ;;
-      *)
-        [[ -n "$dir" ]] \
-          && cl::p_err "unknown argument: $1" && return 1
-        [[ -z "$1" ]] \
-          && cl::p_usg "$(cl::func_name) dir [args] [-a mvp-arg..]" && return 1
-        [[ ! -d "$1" ]] \
-          && cl::p_err "no such directory or unknown argument: $1" && return 1
-        dir="$1"; shift
-        ;;
-    esac
-  done
-  [[ -z "$dir" ]] && dir=.
-
-  local parallel=true
-  if ! command -v parallel >& /dev/null; then
-     parallel=false
-     cat <<!
-warning: gnu parallel not found, switching to compatibility mode (using xargs)
-note that in compatibility mode some player functions may not work
-consider installing parallel (e.g. "apt-get install parallel" on debian/ubuntu)
-!
-  fi
-
-  find "$dir" $($recursive && echo --max-depth 1) \
-       -regex "$regex" \
-    | sort $sort \
-    | tail -n +${tailn} \
-    | ($noact && cat \
-              || ($parallel && parallel --tty -Xj1 mpv "${@}" \
-                            || xargs -I'{}' mpv "${@}" '{}'))
-}
-
 # fixes index in avi files using mencoder
 fixidx() {
   [[ -z "$1" ]] && cl::p_usg "$(cl::func_name) INFILE [OUTFILE]" && return -1
@@ -1107,30 +871,30 @@ image_dimensions () {
   ! IFS='' read -r -d '' HELP <<EOF
 Usage: $USG
 
-$(cl::tp b)Options:$(cl::tp r)
+$(cl::fx b)Options:$(cl::fx r)
   -d|--delimiter D    output column delimiter (default: '|')
 
-$(cl::tp b)Output Format:$(cl::tp r)
-  $(cl::tp blue)index:   1          |2   |3  |4       |5     |6         |7
+$(cl::fx b)Output Format:$(cl::fx r)
+  $(cl::fx blue)index:   1          |2   |3  |4       |5     |6         |7
   fields:  {file-name}|{w} |{h}|{w}x{h} |{w*x} |{min(w,h)}|{max(w,h)}
-  example: test.jpg   |1024|768|1024x768|786432|768       |1024$(cl::tp r)
+  example: test.jpg   |1024|768|1024x768|786432|768       |1024$(cl::fx r)
 
-$(cl::tp b)Examples:$(cl::tp r)
+$(cl::fx b)Examples:$(cl::fx r)
   # list all dimension information for *.jpg, use delimiter ; instead of |
-  $(cl::tp green)$(cl::func_name) -d \\; *.jpg$(cl::tp r)
+  $(cl::fx green)$(cl::func_name) -d \\; *.jpg$(cl::fx r)
 
   # get only the WxH dimension string (4) for test.jpg
-  $(cl::tp green)$(cl::func_name) test.jpg | cut -d \\| -f 4$(cl::tp r)
+  $(cl::fx green)$(cl::func_name) test.jpg | cut -d \\| -f 4$(cl::fx r)
 
   # get only the file names (1) from *.jpg where dimension (6) <= 1000
-  $(cl::tp green)$(cl::func_name) *.jpg \\
-    | awk -F '|' 'BEGIN {OFS="|"} { if (\$6 <= 1000) print \$1 }'$(cl::tp r)
+  $(cl::fx green)$(cl::func_name) *.jpg \\
+    | awk -F '|' 'BEGIN {OFS="|"} { if (\$6 <= 1000) print \$1 }'$(cl::fx r)
 
   # read all dimensional values from *.jpg into variables and "do some stuff"
-  $(cl::tp green)$(cl::func_name) *.jpg \\
+  $(cl::fx green)$(cl::func_name) *.jpg \\
     | while IFS='|' read -r f w h dim pixels min max; do
         printf "%s - w:%s x h:%s -> %s\n" "\$f" "\$w" "\$h" "\$pixels"
-      done$(cl::tp r)
+      done$(cl::fx r)
 EOF
   readonly HELP
   # parse arguments
@@ -1240,92 +1004,6 @@ fixaspectratio () {
   ffmpeg -i "$infile" -aspect "$ratio" -c copy "$outfile"
 }
 
-# get animated gif file playback speed
-gif_delay () {
-  # usage + help
-  local -r USG="$(cl::func_name) FILE"
-  local HELP
-  ! IFS='' read -r -d '' HELP <<EOF
-Usage: $USG
-
-$(cl::tp b)About:$(cl::tp r)
-  This is a simple wrapper for 'identify' (imagemagic) that will return the
-  delay (speed) in 100th of a second of all frames in a given gif file.
-
-$(cl::tp b)Options:$(cl::tp r)
-    -d|--delay-only   print the delay ony (default: print frame index + delay)
-    -a|--average      print the average (rounded) delay of all frames
-
-$(cl::tp b)Examples:$(cl::tp r)
-  # print frame index + delay in 1/100 sec
-  $(cl::tp green)$(cl::func_name) infile.gif$(cl::tp r)
-$(cl::tp blue)#1 8
-#2 8
-#3 8
-#4 7
-#5 8
-...$(cl::tp r)
-
-  # print delay in 1/100 sec only (omit the "#x " frame index prefix)
-  $(cl::tp green)$(cl::func_name) -d infile.gif$(cl::tp r)
-$(cl::tp blue)8
-8
-8
-7
-8
-...$(cl::tp r)
-
-  # the average delay in 1/100 for all frames
-  $(cl::tp green)$(cl::func_name) -a infile.gif$(cl::tp r)
-$(cl::tp blue)8$(cl::tp r)
-
-$(cl::tp b)Convert:$(cl::tp r)
-  One can change the speed of a given gif file using $(cl::tp green)convert$(cl::tp r) (imagemagick).
-
-  # Change the speed of the above mentioned infile.gif (8x100 average) ..
-  # .. to 5/100 sec. delay (speed up)
-  $(cl::tp green)convert -delay 10x100 infile.gif outfile.gif$(cl::tp r)
-
-  # .. to 15/100 sec. delay (slow down), the 'x100' can be omitted (default)
-  $(cl::tp green)convert -delay 15 infile.gif outfile.gif$(cl::tp r)
-EOF
-  readonly HELP
-  # parse arguments
-  [[ -z "$1" ]] && { cl::p_usg "$USG"; return 1; }
-  local format="#%s %T" average=false
-  while [[ -n "$1" ]]; do
-    case $1 in
-      -d|--delay-only)
-        format="%T"; shift
-        ;;
-      -a|--average)
-        average=true; shift
-        ;;
-      -h|--help)
-        printf "%s" "$HELP"; return 1;
-        ;;
-      -*)
-        cl::p_err "unknown argument: $1"; return 1
-        ;;
-      *)
-        break;
-        ;;
-    esac
-  done
-  [[ -z "$1" ]] && { cl::p_err "missing file argument"; return 1; }
-  [[ ! -f "$1" ]] && { cl::p_err "file not found: $1"; return 1; }
-  # print delays or average
-  if $average; then
-    delay_sum="$(identify -format "%T+" "$1")"
-    [[ "$?" -ne 0 ]] && { cl::p_err "error processing gif file"; return 1; }
-    pluses="${delay_sum//[^+]}"
-    frame_count="${#pluses}"
-    printf "%s\n" "$(((${delay_sum}0)/frame_count))"
-  else
-    identify -format "$format\n" "$1"
-  fi
-}
-
 video-split-screen () {
   [[ -z "$3" ]] && cl::p_usg "$(cl::func_name) INFILE1 INFILE2 OUTFILE [v|h]" && return 1
   local infile1="$1"; shift
@@ -1347,59 +1025,6 @@ video-split-screen () {
   esac
   echo ffmpeg -i \"$infile1\" -i \"$infile2\" -filter_complex "'$filter'" -map "'[vid]'" \"$outfile\"
   ffmpeg -i "$infile1" -i "$infile2" -filter_complex "$filter" -map '[vid]' "$outfile"
-}
-
-# concatenate images
-# TODO needs improvement in case images are of different size
-image_concat() {
-  local -r MAX=3840
-  local mode=default
-  local tile=""
-  local outfile=""
-  while true; do
-    case $1 in
-      -[hwn])
-        mode="$1"; shift
-        ;;
-      -x1)
-        tile="x1"; shift
-        ;;
-      -o)
-        [[ -z "$2" ]] && cl::p_err "missing file name after -o" && return 1
-        outfile="$2"; shift 2
-        ;;
-      *)
-        break
-        ;;
-    esac
-  done
-  [[ -z "$2" ]] && cl::p_usg "$(cl::func_name) [-w|-h|-n] [-x1] [-o OUTFILE] INFILE.." && return 1
-  [[ -z "$outfile" ]] && outfile="$(file-suffix "$1" "-concat$(date +%s)")" && echo "outfile: $outfile"
-  cl::q_overwrite "$outfile" || return 1
-  local min_height="$(identify -format '%h\n' "$@" | sort -n | head -n 1)"
-  #min_height="$(echo -e "$min_height\n$((MAX/$#))" | sort -n | head -n 1)"
-  local min_width="$(identify -format '%w\n' "$@" | sort -n | head -n 1)"
-  #min_width="$(echo -e "$min_width\n$((MAX/$#))" | sort -n | head -n 1)"
-  local -a args=(-background black -mode Concatenate)
-  #args+=(-limit memory 100mb)
-  [[ "$tile" = "x1" ]] && args+=(-tile x1)
-  #args+=(-gravity center) # default
-  case $mode in
-    -n)
-      args+=(-geometry +0+0)
-      ;;
-    -w)
-      args+=(-geometry "$(echo $min_width\n$MAX | sort -n | head -n 1)x")
-      ;;
-    -h)
-      args+=(-geometry "x${min_height}")
-      ;;
-    *)
-      args+=(-geometry x${min_height} -extent "${min_width}>x")
-      ;;
-  esac
-  montage $args "${@}" "$outfile"
-set +v
 }
 # ----------------------------------------------------------------------------
 # }}} multimeda

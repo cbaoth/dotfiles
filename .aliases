@@ -219,8 +219,8 @@ alias urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
                       s/%3f/?/gi'"
 alias usbsleep='sudo ~/bin/scsi-idle 900&'
 alias rename-p2u="rename 's/\./_/g;s/_([^_]{1,5})$/.\$1/'"
-alias rename-stripspecial="rename \"s/[^ \w()\[\]~&%#@.,+'-]/_/g\""
-alias rename-stripspecial-rec="find . -type f -execdir rename \"s/^\.\///g;
+alias rename-strip-specials="rename \"s/[^ \w()\[\]~&%#@.,+'-]/_/g\""
+alias rename-strip-specials-rec="find . -type f -depth -execdir rename \"s/^\.\///g;
   s/[^ \w()\[\]~&%#@.,+'-]/_/g; s/^/\.\//\" '{}' +"
 alias rename-titlecase="rename 's/(^|[\s_-])([a-z])/\1\u\2/g'"
 alias rename-camelcase="rename 's/(^|[\s_-])([a-z])/\u\2/g'"

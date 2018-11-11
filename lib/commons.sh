@@ -322,6 +322,21 @@ cl::p_no() {
   # zsh: print -P "%F{red}no%f"
   printf "%sno%s" "$(cl::fx red)" "$(cl::fx r)"
 }
+
+# print file name of given file with an added suffix (considering file ext.)
+cl::p_file_with_suffix() {
+  if [[ $# -ne 2 ]]; then
+    cl::p_usg "$(cl::func_name) SUFFIX FILE"
+    return 1
+  fi
+  local suffix="$1"
+  shift
+  if [[ "$1" = *"."* ]]; then
+    printf "%s" "${1%.*}${suffix}.${1##*.}"
+  else
+    printf "%s" "$1${suffix}"
+  fi
+}
 # }}} = PRINT FUNCTONS =======================================================
 
 # {{{ = ARRAY ================================================================
@@ -518,6 +533,35 @@ cl::q_overwrite() {
   return 0
 }
 # }}} = QUERIES ==============================================================
+
+# {{{ = FILE OPERATIONS ======================================================
+# rename given file(s) by adding the given suffix (considering file ext.)
+cl::mv_add_suffix() {
+  if [[ -z ${2:-} ]]; then
+    cl::p_usg "$(cl::func_name) SUFFIX FILE.."
+    return 1
+  fi
+  local suffix="$1"
+  shift
+  for file in "$@"; do
+    mv -i "$file" "$(cl::p_file_with_suffix "$suffix" "$file")"
+  done
+}
+
+# rename given file(s) by adding the given prefix
+cl::mv_add_prefix() {
+  if [[ -z "$1" ]]; then
+    cat <<EOF
+Usage: $(cl::func_name) <prefix> <file>..
+example: $(cl::func_name) myband_-_ *.ogg
+EOF
+    return 1
+  fi
+  prefix="$1"
+  shift
+  rename "s/^(.*\/)?/\$1$prefix/" "$@"
+}
+# }}} = FILE OPERATIONS ======================================================
 
 # {{{ = PYTHON ===============================================================
 # execute python3's print function with the given [code] argument(s)
