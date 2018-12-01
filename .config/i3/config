@@ -52,10 +52,24 @@ bar {
 # }}} - Colors ---------------------------------------------------------------
 # }}} = Styles ===============================================================
 
-# {{{ = Key Bindings =========================================================
+# {{{ = Variables ============================================================
 # default mod key
 set $mod Mod4
 
+# workspace numbers and names
+set $ws1 "1:Main"
+set $ws2 "2:Web"
+set $ws3 "3:Code"
+set $ws4 "4:Video"
+set $ws5 "5:Misc"
+set $ws6 "6:Misc"
+set $ws7 "7:Misc"
+set $ws8 "8:Misc"
+set $ws9 "9:Tray"
+set $ws0 "10:Music"
+# }}} = Variables ============================================================
+
+# {{{ = Key Bindings =========================================================
 # Mouse+$mod: drag floating windows
 floating_modifier $mod
 
@@ -127,28 +141,28 @@ bindsym $mod+Shift+z scratchpad show
 #bindsym $mod+/ [title="Visual Studio Code$"] scratchpad show
 
 # switch to workspace
-bindsym $mod+1 workspace 1
-bindsym $mod+2 workspace 2
-bindsym $mod+3 workspace 3
-bindsym $mod+4 workspace 4
-bindsym $mod+5 workspace 5
-bindsym $mod+6 workspace 6
-bindsym $mod+7 workspace 7
-bindsym $mod+8 workspace 8
-bindsym $mod+9 workspace 9
-bindsym $mod+0 workspace 10
+bindsym $mod+1 workspace number $ws1
+bindsym $mod+2 workspace number $ws2
+bindsym $mod+3 workspace number $ws3
+bindsym $mod+4 workspace number $ws4
+bindsym $mod+5 workspace number $ws5
+bindsym $mod+6 workspace number $ws6
+bindsym $mod+7 workspace number $ws7
+bindsym $mod+8 workspace number $ws8
+bindsym $mod+9 workspace number $ws9
+bindsym $mod+0 workspace number $ws1
 
 # move focused container to workspace
-bindsym $mod+Shift+1 move container to workspace 1; workspace 1
-bindsym $mod+Shift+2 move container to workspace 2; workspace 2
-bindsym $mod+Shift+3 move container to workspace 3; workspace 3
-bindsym $mod+Shift+4 move container to workspace 4; workspace 4
-bindsym $mod+Shift+5 move container to workspace 5; workspace 5
-bindsym $mod+Shift+6 move container to workspace 6; workspace 6
-bindsym $mod+Shift+7 move container to workspace 7; workspace 7
-bindsym $mod+Shift+8 move container to workspace 8; workspace 8
-bindsym $mod+Shift+9 move container to workspace 9; workspace 9
-bindsym $mod+Shift+0 move container to workspace 10; workspace 10
+bindsym $mod+Shift+1 move container to workspace $ws1
+bindsym $mod+Shift+2 move container to workspace $ws2
+bindsym $mod+Shift+3 move container to workspace $ws3
+bindsym $mod+Shift+4 move container to workspace $ws4
+bindsym $mod+Shift+5 move container to workspace $ws5
+bindsym $mod+Shift+6 move container to workspace $ws6
+bindsym $mod+Shift+7 move container to workspace $ws7
+bindsym $mod+Shift+8 move container to workspace $ws8
+bindsym $mod+Shift+9 move container to workspace $ws9
+bindsym $mod+Shift+0 move container to workspace $ws10
 
 # mod-x: meta mode
 set $mode_meta Meta: (c)lose window
@@ -252,17 +266,17 @@ bindsym XF86HomePage exec google-chrome
 
 # {{{ = Window Rules =========================================================
 # {{{ - Default Workspaces ---------------------------------------------------
-# window rules: default workspaces
-#for_window [class="^evil-app$"] floating enable, move container to workspace 4
-for_window [class=".*chrome"], move container to workspace 2; workspace 2
-for_window [class="(?i)code$"], move container to workspace 3; workspace 3
-for_window [class="(?i)XnView(MP)?"], move container to workspace 5; workspace 5
-for_window [class="spotify$"], move container to workspace 0; workspace 0
-# assign
+for_window [class=".*chrome"], move container to workspace $ws2 ; chrome to #2
+for_window [class="(?i)code$"], move container to workspace $ws3 ; code to #3
+for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5 ; xnview to #5
+for_window [class="spotify$"], move container to workspace $ws0 ; spotify to #10
+for_window [title="Nextcloud"], move container to workspace $ws9 ; nc client to #9
 # }}} - Default Workspaces ---------------------------------------------------
+# {{{ - Window Modes ---------------------------------------------------------
 for_window [window_role="i3float"] floating enable
-for_window [class="mpv"] floating enable
+for_window [class="mpv"] floating enable # mpv float
 for_window [class="streaming_client"] fullscreen enable
+# }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
 
 # {{{ = Launch Apps ==========================================================
@@ -278,4 +292,7 @@ exec --no-startup-id feh --bg-scale ~/.wallpaper.jpg
 # conky system monitor
 exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-syslog
 exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-sysmon2
+
+# nextcloud client
+exec --no-startup-id nextcloud
 # }}} = Launch Apps ==========================================================
