@@ -1,7 +1,8 @@
 ! ~/.Xresources: x resource configuration
 
 ! {{{ = General ==============================================================
-Xft.dpi:                120
+! get display dpi: grepxdpyinfo | grep dots
+!Xft.dpi:                96
 Xft.antialias:          true
 Xft.rgba:               rgb
 Xft.hinting:            true
