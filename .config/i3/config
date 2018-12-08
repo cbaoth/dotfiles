@@ -264,6 +264,9 @@ bindsym XF86Tools exec spotify
 # home button: start browser
 bindsym XF86HomePage exec google-chrome
 
+# print button: flameshot (screenshot)
+bindsym Print exec --no-startup-id flameshot gui
+
 # {{{ = Window Rules =========================================================
 # {{{ - Default Workspaces ---------------------------------------------------
 for_window [class=".*chrome"], move container to workspace $ws2 ; chrome to #2
