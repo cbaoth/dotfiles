@@ -447,17 +447,23 @@ zstyle ':completion:*:*:kill:*:processes' list-colors '=(#b) #([0-9]#)*=0=01;31'
 #zstyle ':completion:*:cd:*' ignored-patterns '(*/)#CVS'
 
 # fuzzy matching for completion
-#zstyle ':completion:*' completer _complete _match _approximate
+# http://zsh.sourceforge.net/Doc/Release/Completion-System.html
+# http://zsh.sourceforge.net/Guide/zshguide06.html
+zstyle ':completion:*' completer _complete _match _approximate
+# _exand: use only with tab -> complete-word, not with expand-or-complete (default)
 #zstyle ':completion:*' completer _expand _complete _match _approximate _ignored
 
-# insert all expansions for expand completer
-#zstyle ':completion:*:expand:*' tag-order all-expansions
-zstyle ':completion:*:match:*' original only
-#zstyle ':completion:*:approximate:*' max-errors 1 numeric
+# _match context: dont insert * at the end (when pressing tab)
+#zstyle ':completion:*:match:*' original only
 
+# _expand context: suggest original string too
+#zstyle ':completion:*:expand:*' tag-order all-expansions
+
+# _approximate context: allow X errors when using the approximate completer
+#zstyle ':completion:*:approximate:*' max-errors 2 numeric
 # increase number of errors allowed (fuzzy matching) depending on lenght
-#zstyle -e ':completion:*:approximate:*' \
-#        max-errors 'reply=($((($#PREFIX+$#SUFFIX)/3))numeric)'
+zstyle -e ':completion:*:approximate:*' \
+        max-errors 'reply=($((($#PREFIX+$#SUFFIX)/3))numeric)'
 
 # ignore completion for non existing commands
 #zstyle ':completion:*:functions' ignored-patterns '_*'
@@ -485,7 +491,6 @@ zstyle ':completion:*:cd:*' ignore-parents parent pwd
 
 # match uppercase from lowercase
 #zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
-
 # case insesitivity, partial matchin, substitution
 zstyle ':completion:*' matcher-list 'm:{A-Z}={a-z}' 'm:{a-z}={A-Z}' \
        'r:|[._-]=** r:|=**' 'l:|=* r:|=*'
@@ -513,8 +518,9 @@ zstyle ':completion:*' group-name ''
 #compctl -g '*.java' + -g '*(-/)' javac
 #compctl -g '*.tar.bz2 *.tar.gz *.bz2 *.gz *.jar *.rar *.tar *.tbz2 *.tgz *.zip *.Z' \
 #        + -g '*(-/)' extract
-#compctl -g '*.mp3 *.ogg *.mod *.wav *.avi *.mpg *.mpeg *.wmv' + -g '*(-/)' mpv
-#compctl -g '*.py' python
+compctl -g '*.mp3 *.ogg *.opus *.mod *.wav *.avi *.mpg *.mpeg *.wmv *.mkv *.webm *.mp4' \
+        + -g '*(-/)' mpv
+compctl -g '*.py' python
 #compctl -g '*(-/D)' cd
 #compctl -g '*(-/)' mkdir
 
