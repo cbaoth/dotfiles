@@ -90,6 +90,6 @@ volume master {
 
 tztime local {
     #format = "%Y-%m-%d %H:%M:%S %Z"
-    format = "🕓 %H:%M"
+    format = "🕓 %d.%m %H:%M"
     timezone = "Europe/Berlin"
 }
