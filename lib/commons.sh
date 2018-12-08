@@ -68,56 +68,62 @@ cl::include_lib() {
 
 # {{{ = TEXT FX ==============================================================
 declare -A +r FX_MAP  # +r just in case this cript is re-loaded, see -r below
-# foreground colors
-FX_MAP[black]="$(tput setaf 0)"
-FX_MAP[red]="$(tput setaf 1)"
-FX_MAP[green]="$(tput setaf 2)"
-FX_MAP[yellow]="$(tput setaf 3)"
-FX_MAP[blue]="$(tput setaf 4)"
-FX_MAP[magnta]="$(tput setaf 5)"
-FX_MAP[cyan]="$(tput setaf 6)"
-FX_MAP[white]="$(tput setaf 7)"
-FX_MAP[black+]="$(tput setaf 8)"
-FX_MAP[red+]="$(tput setaf 9)"
-FX_MAP[green+]="$(tput setaf 10)"
-FX_MAP[yellow+]="$(tput setaf 11)"
-FX_MAP[blue+]="$(tput setaf 12)"
-FX_MAP[magnta+]="$(tput setaf 13)"
-FX_MAP[cyan+]="$(tput setaf 14)"
-FX_MAP[white+]="$(tput setaf 15)"
-# backgrud colors
-FX_MAP[b_black]="$(tput setab 0)"
-FX_MAP[b_red]="$(tput setab 1)"
-FX_MAP[b_green]="$(tput setab 2)"
-FX_MAP[b_yellow]="$(tput setab 3)"
-FX_MAP[b_blue]="$(tput setab 4)"
-FX_MAP[b_magnta]="$(tput setab 5)"
-FX_MAP[b_cyan]="$(tput setab 6)"
-FX_MAP[b_white]="$(tput setab 7)"
-FX_MAP[b_black+]="$(tput setab 8)"
-FX_MAP[b_red+]="$(tput setab 9)"
-FX_MAP[b_green+]="$(tput setab 10)"
-FX_MAP[b_yellow+]="$(tput setab 11)"
-FX_MAP[b_blue+]="$(tput setab 12)"
-FX_MAP[b_magnta+]="$(tput setab 13)"
-FX_MAP[b_cyan+]="$(tput setab 14)"
-FX_MAP[b_white+]="$(tput setab 15)"
-# text effects
-FX_MAP[b]="$(tput bold)" # bold
-FX_MAP[d]="$(tput dim)" # dim
-FX_MAP[u]="$(tput smul)" # underline
-FX_MAP[u-]="$(tput rmul)" # underline off
-FX_MAP[i]="$(tput rev)" # reversed
-FX_MAP[s]="$(tput smso)" # standout
-FX_MAP[s-]="$(tput rmso)" # standout off
-FX_MAP[r]="$(tput sgr0)" # reset
-# bad practice (thus oftentimes not supported)
-FX_MAP[blink]="$(tput blink)"
-FX_MAP[invisible]="$(tput invis)"
+# initialize fx map, skip if term unsuported
+if [[ -n "${TERM:-}" && "${TERM}" != *dumb* ]]; then
+  # foreground colors
+  FX_MAP[black]="$(tput setaf 0)"
+  FX_MAP[red]="$(tput setaf 1)"
+  FX_MAP[green]="$(tput setaf 2)"
+  FX_MAP[yellow]="$(tput setaf 3)"
+  FX_MAP[blue]="$(tput setaf 4)"
+  FX_MAP[magnta]="$(tput setaf 5)"
+  FX_MAP[cyan]="$(tput setaf 6)"
+  FX_MAP[white]="$(tput setaf 7)"
+  FX_MAP[black+]="$(tput setaf 8)"
+  FX_MAP[red+]="$(tput setaf 9)"
+  FX_MAP[green+]="$(tput setaf 10)"
+  FX_MAP[yellow+]="$(tput setaf 11)"
+  FX_MAP[blue+]="$(tput setaf 12)"
+  FX_MAP[magnta+]="$(tput setaf 13)"
+  FX_MAP[cyan+]="$(tput setaf 14)"
+  FX_MAP[white+]="$(tput setaf 15)"
+  # backgrud colors
+  FX_MAP[b_black]="$(tput setab 0)"
+  FX_MAP[b_red]="$(tput setab 1)"
+  FX_MAP[b_green]="$(tput setab 2)"
+  FX_MAP[b_yellow]="$(tput setab 3)"
+  FX_MAP[b_blue]="$(tput setab 4)"
+  FX_MAP[b_magnta]="$(tput setab 5)"
+  FX_MAP[b_cyan]="$(tput setab 6)"
+  FX_MAP[b_white]="$(tput setab 7)"
+  FX_MAP[b_black+]="$(tput setab 8)"
+  FX_MAP[b_red+]="$(tput setab 9)"
+  FX_MAP[b_green+]="$(tput setab 10)"
+  FX_MAP[b_yellow+]="$(tput setab 11)"
+  FX_MAP[b_blue+]="$(tput setab 12)"
+  FX_MAP[b_magnta+]="$(tput setab 13)"
+  FX_MAP[b_cyan+]="$(tput setab 14)"
+  FX_MAP[b_white+]="$(tput setab 15)"
+  # text effects
+  FX_MAP[b]="$(tput bold)" # bold
+  FX_MAP[d]="$(tput dim)" # dim
+  FX_MAP[u]="$(tput smul)" # underline
+  FX_MAP[u-]="$(tput rmul)" # underline off
+  FX_MAP[i]="$(tput rev)" # reversed
+  FX_MAP[s]="$(tput smso)" # standout
+  FX_MAP[s-]="$(tput rmso)" # standout off
+  FX_MAP[r]="$(tput sgr0)" # reset
+  # bad practice (thus oftentimes not supported)
+  FX_MAP[blink]="$(tput blink)"
+  FX_MAP[invisible]="$(tput invis)"
+fi
 declare -r FX_MAP
 
 # convenient way to set one or more terimnal text effects at once
 cl::fx() {
+  # unsupported terminal, return
+  [[ -z "${TERM:-}" || "${TERM}" == *dumb* ]] && return 1
+  # help & usage
   local -r _usage="cl::fx STYLE.."
   local _help
   ! IFS='' read -r -d '' _help <<EOF
