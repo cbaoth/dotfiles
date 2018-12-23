@@ -66,7 +66,7 @@ set $ws6 "6:Misc"
 set $ws7 "7:Misc"
 set $ws8 "8:Misc"
 set $ws9 "9:Tray"
-set $ws0 "10:Music"
+set $ws10 "10:Music"
 # }}} = Variables ============================================================
 
 # {{{ = Key Bindings =========================================================
@@ -85,6 +85,9 @@ bindsym $mod+r exec rofi -show combi
 #bindsym $mod+r exec --no-startup-id i3-dmenu-desktop
 # mod-Shift-r: start dmenu (program launcher)
 bindsym $mod+Shift+r exec dmenu_run
+
+# mod-e: run double commander
+bindsym $mod+e exec doublecmd
 
 # alt-F4: close/kill focused window
 bindsym Mod1 F4 kill
@@ -150,7 +153,7 @@ bindsym $mod+6 workspace number $ws6
 bindsym $mod+7 workspace number $ws7
 bindsym $mod+8 workspace number $ws8
 bindsym $mod+9 workspace number $ws9
-bindsym $mod+0 workspace number $ws1
+bindsym $mod+0 workspace number $ws10
 
 # move focused container to workspace
 bindsym $mod+Shift+1 move container to workspace $ws1
@@ -269,11 +272,12 @@ bindsym Print exec --no-startup-id flameshot gui
 
 # {{{ = Window Rules =========================================================
 # {{{ - Default Workspaces ---------------------------------------------------
-for_window [class=".*chrome"], move container to workspace $ws2 ; chrome to #2
-for_window [class="(?i)code$"], move container to workspace $ws3 ; code to #3
-for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5 ; xnview to #5
-for_window [class="spotify$"], move container to workspace $ws0 ; spotify to #10
-for_window [title="Nextcloud"], move container to workspace $ws9 ; nc client to #9
+for_window [class=".*chrome"], move container to workspace $ws2 ; chrome
+for_window [class="(?i)code$"], move container to workspace $ws3 ; vs code
+for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5 ; xnview
+for_window [title="Nextcloud"], move container to workspace $ws9 ; nc client
+for_window [class="spotify$"], move container to workspace $ws10 ; spotify
+for_window [class="pavucontrol"], move container to workspace $ws10 ; pavucontrol
 # }}} - Default Workspaces ---------------------------------------------------
 # {{{ - Window Modes ---------------------------------------------------------
 for_window [window_role="i3float"] floating enable
