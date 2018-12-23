@@ -84,4 +84,5 @@ alias -g TF='| tail -f'
 alias -g X0='| xargs -0'
 #alias -g XG='| xargs egrep'
 alias -g X='| xargs'
+alias -g SUM="|awk '{s+=\$1} END {print s}'"
 # }}} - GLOBAL ALIASES -------------------------------------------------------
