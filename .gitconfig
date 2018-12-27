@@ -7,3 +7,5 @@
 	rebase = preserve
 [core]
 	fileMode = false
+[credential]
+	helper = store
