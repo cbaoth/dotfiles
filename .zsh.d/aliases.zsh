@@ -28,8 +28,6 @@ alias -g WG=wget # already an alias
 alias -g A2=aria2c # already an alias
 alias -g TRL="tr '[A-Z]' '[a-z]'"
 alias -g TRU="tr '[a-z]' '[A-Z]'"
-alias -g mp3gain='mp3gain -k -d 93.5 -r'
-alias -g mp3gain-album='mp3gain -k -d 93.5 -a'
 alias -g urlclean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi;
                         s/%3d/:/gi; s/%3f/?/gi'"
 alias -g urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
