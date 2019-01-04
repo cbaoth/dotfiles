@@ -545,29 +545,53 @@ url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
 # {{{ moving
 # ----------------------------------------------------------------------------
 merge_dir () {
-  if [[ -z "$1" ]]; then
-    cl::p_usg "mergedir target [source..]
+  local verbose=false wild=false
+  while [[ "${1:-}" == -* ]]; do
+    case ${1} in
+       -v)
+           verbose=true
+           shift
+           ;;
+       -w)
+           wild=true
+           shift
+           ;;
+       *)
+           break
+           ;;
+    esac
+  done
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg [-v|-w] "merge_dir target [source..]
 merge content of all source directories into the given target directory
-if no source is provided target* will be matched instead"
+if no source is provided target* will be matched instead (-w for *target*)"
     return 1
   fi
   tar="$1"
   shift
-  [[ -n "$1" ]] && src=("$@") || src=("${tar}"*)
+  if [[ -n "${1:-}" ]]; then
+    src=("$@")
+  elif ${wild}; then
+    src=(*"${tar}"*)
+  else
+    src=("${tar}"*)
+  fi
 
-  mkdir -p "$tar"
-  if [[ ! -d "$tar" ]]; then
-    cl::p_err "unabe to create target directory [$tar]"
+  mkdir -p "${tar}"
+  if [[ ! -d "${tar}" ]]; then
+    cl::p_err "unabe to create target directory [${tar}]"
     return 2
   fi
 
+  ${verbose} && cl::p_msg "target: ${tar}"
   for d in "${src[@]}"; do
-    if [[ "$d" -ef "$tar" ]]; then
-      cl::p_msg "skipping, source same as target: $d"
+    ${verbose} && cl::p_msg "processing: ${d}"
+    if [[ "${d}" -ef "${tar}" ]]; then
+      cl::p_msg "skipping, source same as target: ${d}"
       continue
     fi
-    find "$d" -mindepth 1 -maxdepth 1 -exec /bin/mv -t "$tar" -- {} +
-    rmdir "$d"
+    find "${d}" -mindepth 1 -maxdepth 1 -exec /bin/mv -t "${tar}" -- {} +
+    rmdir "${d}"
   done
 }
 # ----------------------------------------------------------------------------
