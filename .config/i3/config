@@ -275,9 +275,9 @@ bindsym Print exec --no-startup-id flameshot gui
 for_window [class=".*chrome"], move container to workspace $ws2 ; chrome
 for_window [class="(?i)code$"], move container to workspace $ws3 ; vs code
 for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5 ; xnview
-for_window [title="Nextcloud"], move container to workspace $ws9 ; nc client
 for_window [class="spotify$"], move container to workspace $ws10 ; spotify
 for_window [class="pavucontrol"], move container to workspace $ws10 ; pavucontrol
+for_window [class="nextcloud"], move container to scratchpad ; nc client
 # }}} - Default Workspaces ---------------------------------------------------
 # {{{ - Window Modes ---------------------------------------------------------
 for_window [window_role="i3float"] floating enable
