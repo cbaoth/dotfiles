@@ -49,6 +49,7 @@ $(cl::fx b)Options:$(cl::fx r)
   -n --noact      don't play the search result, send it to stdout instead
 
   -a --mpv-args   all arguments after this one are forwarded to mpv
+  -nr --no-resume equivalent to adding mpv argument --no-resume-playback
 
   -h --help       show this help
 
@@ -76,7 +77,7 @@ declare tailn=0
 declare recursive=false
 declare sort=-g
 declare noact=false
-declare parallel=true
+declare noresume=false
 declare -a mpv_args
 
 # parse arguments
@@ -119,6 +120,10 @@ _parse_args() {
         shift
         break # all args after this are treated as mpv args
         ;;
+      -nr|--no-resume)
+        noresume=true
+        shift
+        ;;
       -h|--help)
         cl::p_usg "${_SCRIPT_FILE} DIR [OPTION..] [-a MPV_ARG..]"
         printf "%s" "${_HELP}"
@@ -143,17 +148,9 @@ _parse_args() {
   done
   # default directory .
   [[ -z "${dir:-}" ]] && dir=.
-  # is parrallel available?
-  if ! cl::cmd_p parallel; then
-     parallel=false
-     cat <<EOF
-warning: gnu parallel not found, switching to compatibility mode (using xargs)
-note that in compatibility mode some player functions may not work
-consider installing parallel (e.g. "apt-get install parallel" on debian/ubuntu)
-EOF
-  fi
   # treate all remaining args as mpv args
   mpv_args=("$@")
+  $noresume && mpv_args+=(--no-resume-playback)
 }
 
 _mpvfind() {
@@ -161,9 +158,7 @@ _mpvfind() {
        -regex "$regex" \
     | sort $sort \
     | tail -n +${tailn} \
-    | ($noact && cat \
-              || ($parallel && parallel --tty -Xj1 mpv "${mpv_args[@]}" \
-                            || xargs -I'{}' mpv "${mpv_args[@]}" '{}'))
+    | ($noact && cat || tr '\n' '\0' | xargs -0 -n 10000 mpv "${mpv_args[@]}")
 }
 
 main() {
