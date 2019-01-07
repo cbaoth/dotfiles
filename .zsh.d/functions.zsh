@@ -545,7 +545,7 @@ url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
 # {{{ moving
 # ----------------------------------------------------------------------------
 merge_dir () {
-  local verbose=false wild=false noact=false
+  local verbose=false wild=false noact=false ignore_case
   while [[ "${1:-}" == -* ]]; do
     case ${1} in
        -v)
@@ -560,16 +560,27 @@ merge_dir () {
            noact=true
            shift
            ;;
+       -i)
+           ignore_case=1
+           shift
+           ;;
        *)
            break
            ;;
     esac
   done
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "merge_dir [-v|-w|-n] target [source..]
+    cl::p_usg "merge_dir [OPTION..] target [source..]
+
 merge content of all source directories into the given target directory
-if no source is provided target* will be matched instead (-w for *target*)
-use -n for no-act (print commands only) and -v for verbose mode"
+  with -w to match *target* (actually base-directory/*target*)
+
+OPTIONS:
+  -w match *target*, only if no sources are provided
+  -i match target case insensitive, only if no sources are provided
+     note, this will set the extendedglob option
+  -n for no-act (print commands only) and
+  -v for verbose mode"
     return 1
   fi
   tar="$1"
@@ -577,31 +588,40 @@ use -n for no-act (print commands only) and -v for verbose mode"
   if [[ -n "${1:-}" ]]; then
     src=("$@")
   elif ${wild}; then
+    setopt extendedglob
     if [[ $tar = */* ]]; then
-      src=("${tar%/*}"/*"${tar##*/}"*)
+      src=(${ignore_case:+(#i)}"${tar%/*}"/*"${tar##*/}"*/)
     else
-      src=(*"${tar}"*)
+      src=(${ignore_case:+(#i)}*"${tar}"*/)
     fi
   else
-    src=("${tar}"*)
+    setopt extendedglob
+    src=(${ignore_case:+(#i)}"${tar}"*/)
   fi
-  mkdir -p "${tar}"
-  if [[ ! -d "${tar}" ]]; then
+  local dir_created=false
+  ${noact} || mkdir -p "${tar}" && dir_created=true
+  if [[ ! ${noact} && ! -d "${tar}" ]]; then
     cl::p_err "unabe to create target directory [${tar}]"
     return 2
   fi
 
   ${verbose} && cl::p_msg "target: ${tar}"
   ${verbose} && cl::p_msg "source(s): ${src[@]}"
+  setopt extendedglob
   for d in "${src[@]}"; do
     ${verbose} && cl::p_msg "processing: ${d}"
+    if [[ ! -d "${d}" ]]; then
+      ${verbose} && cl::p_msg "skipping, not a directory: ${d}"
+      continue
+    fi
     if [[ "${d}" -ef "${tar}" ]]; then
-      cl::p_msg "skipping, source same as target: ${d}"
+      cl::p_war "skipping, source same as target: ${d}"
       continue
     fi
     find "${d}" -mindepth 1 -maxdepth 1 -exec $($noact && printf echo) /bin/mv -t "${tar}" -- {} +
     ${noact} || rmdir "${d}"
   done
+  ${dir_created} && rmdir --ignore-fail-on-non-empty "${tar}" 2>/dev/null
 }
 # ----------------------------------------------------------------------------
 # }}}
