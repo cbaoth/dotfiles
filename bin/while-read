@@ -48,7 +48,6 @@ as argument to the given COMMAND..
 $(cl::fx b)General:$(cl::fx r)
   -b, --background      Execute command as job, else: execute in sequence.
   -d, --delimiter       input delimiter (default: newline \$'\\n')
-  -v, --verbose         verbose output, print full command before execution.
 
 $(cl::fx b)XClip:$(cl::fx r)
   -x, --xclip           monitor X clipboard instead of reading terminal input
@@ -61,6 +60,11 @@ $(cl::fx b)Filter Input:$(cl::fx r)
   --allow-duplicates    Allow repeated input (default: ignore). Affects sequen-
                         cial repetitions only, depulicates are never tracked
                         globally. Has no effect on --xclip mode (see below).
+
+$(cl::fx b)Verbosity:$(cl::fx r)
+  -v, --verbose         verbose output, print full command before execution.
+  -xn, --xnotify        use notify-send (if existing) to show each processed
+                        item as a desktop notification
 
 $(cl::fx b)Terminal Input Mode (default):$(cl::fx r)
   Reads terminal text input line-by-line. Each time a newline \\n is entered,
@@ -116,6 +120,7 @@ declare xclip=false
 declare verbose=false
 declare allow_dupes=false
 declare match_separate=false
+declare xnotify=false
 declare delimiter=$'\n'
 declare regex=""
 declare pollrate=.2
@@ -164,6 +169,14 @@ _parse_args() {
         ;;
       -v|--verbose)
         verbose=true
+        shift
+        ;;
+      -xn|--xnotify)
+        if cl::cmd_p notify-send; then
+          xnotify=true
+        else
+          cl::p_war "argument $1 ignored, notify-send command not found"
+        fi
         shift
         ;;
       --pollrate)
@@ -252,9 +265,11 @@ _read_loop() {
       if ${bg}; then
         # TODO implement a simple queue to limit number of concurrent jobs
         ${verbose} && cl::p_msg "${cmd[@]} &"
+        ${xnotify} && notify-send -u low 'while-read' "${item}"
         bash <<<"${cmd[@]}" &
       else
         ${verbose} && cl::p_msg "${cmd[@]}"
+        ${xnotify} && notify-send -u low 'while-read' "${item}"
         #bash <<<"${cmd[@]}"
         bash <<<"${cmd[@]}"
       fi
