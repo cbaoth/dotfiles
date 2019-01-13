@@ -218,7 +218,8 @@ mode "$mode_system" {
     bindsym e exec "i3-nagbar -t warning -m 'Do you really want to exit i3?' -b 'Exit i3' 'i3-msg exit'"
 
     # S: lock screen + suspend system
-    bindsym Shift+s mode "default"; exec dm-tool lock; exec systemctl suspend
+    #bindsym Shift+s mode "default"; exec dm-tool lock; exec systemctl suspend
+    bindsym Shift+s mode "default"; exec xsuspend
     # H: lock screen + hibernate system
     bindsym Shift+h mode "default"; exec dm-tool lock; exec systemctl hibernate
     # B: reboot system
@@ -270,8 +271,13 @@ bindsym XF86HomePage exec google-chrome
 # print button: flameshot (screenshot)
 bindsym Print exec --no-startup-id flameshot gui
 
+# lock button / mod-i
+#bindsym Mod4 i exec dm-tool lock; exec systemctl suspend
+bindsym Mod4 i mode "default"; exec xsuspend
+
 # {{{ = Window Rules =========================================================
 # {{{ - Default Workspaces ---------------------------------------------------
+for_window [class="JDownloader"], move container to workspace $ws1
 for_window [class=".*chrome"], move container to workspace $ws2 ; chrome
 for_window [class="(?i)code$"], move container to workspace $ws3 ; vs code
 for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5 ; xnview
