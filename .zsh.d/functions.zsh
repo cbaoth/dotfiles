@@ -230,16 +230,23 @@ wget_d () {
   wget -U "$UAGENT" --referer "$ref" -c "$1" -O "$outfile"
 }
 
-# TODO - attempt to re-download a file that was downloaded using wget_d
+# attempt to re-download a file that was downloaded using wget_d
 wget_d_rev () {
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) FILE"
+    cl::p_usg "$(cl::func_name) FILE.."
     printf "attempt to re-download a file that was downloaded using wget_d\n"
     return 1
   fi
-  local url="$(sed 's/.*\///g'|tr + \/ <<<"$1")"
-  local ref="$(dirname "$url")}"
-  wget -U "$UAGENT" --referer "$ref" "$url" -O "$1"
+  for f in "$@"; do
+    local url="http://$(tr '+' '/' <<<"$f")"
+    local ref="$(dirname "$url")"
+    cl::p_msg "Trying to re-download: $url"
+    wget -U "$UAGENT" --referer "$ref" "$url" -O "$f"
+    [[ $? == 0 ]] && continue
+    cl::p_err "Attempt to re-donwload via http failed, trying https ..."
+    url="${url/http:/https:}"
+    wget -U "$UAGENT" --referer "$ref" "$url" -O "$f"
+  done
 }
 
 # OK - open ssh tunnel
