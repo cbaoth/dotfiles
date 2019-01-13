@@ -1,0 +1,12 @@
+#!/bin/bash
+## lock screen if not in a light-dm session
+#ps aux | awk '$12=="light-dm" {exit 0} END{exit 1}' \
+#  ||
+# i3lock
+#dm-tool lock
+
+# kill pulseaudio (doesn't always recover, respawn instead)
+pkill -9 pulseaudio
+
+# suspend system
+systemctl suspend
