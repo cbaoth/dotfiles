@@ -23,16 +23,6 @@ alias reload-aliases='. $HOME/.zsh.d/aliases.zsh;
 # }}} - SUFFIX ALIASES -------------------------------------------------------
 
 # {{{ - GLOBAL ALIASES -------------------------------------------------------
-alias -g WG=wget # already an alias
-#alias -g AX=axel # already an alias
-alias -g A2=aria2c # already an alias
-alias -g TRL="tr '[A-Z]' '[a-z]'"
-alias -g TRU="tr '[a-z]' '[A-Z]'"
-alias -g urlclean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi;
-                        s/%3d/:/gi; s/%3f/?/gi'"
-alias -g urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
-                         s/%3f/?/gi'"
-
 # no spelling correction (if correct / correctall is active)
 # can result in issues when used with sudo
 #alias -g rm='nocorrect rm'
@@ -41,49 +31,48 @@ alias -g urlclean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
 #alias -g zmv='nocorrect zmv'
 #alias -g mkdir='nocorrect mkdir'
 
-# http://grml.org/zsh/zsh-lovers.html
 alias -g ...='../..'
 alias -g ....='../../..'
 alias -g .....='../../../..'
-#alias -g @CA="2>&1 | cat -A"
-#alias -g @C='| wc -l'
-#alias -g @D="DISPLAY=:0.0"
-#alias -g @DN=/dev/null
-#alias -g @ED="export DISPLAY=:0.0"
-alias -g @EG='|& egrep'
-alias -g @EGI='|& egrep -i'
-alias -g @EH='|& head'
-alias -g @EL='|& less'
-#alias -g @ELS='|& less -S'
-#alias -g @ETL='|& tail -20'
-alias -g @ET='|& tail'
-#alias -g @F=' | fmt -'
+
+alias -g @N='> /dev/null 2>&1'
+alias -g @eN='2> /dev/null'
+
 alias -g @G='| egrep'
-alias -g @GI='| egrep -i'
+alias -g @eG='|& egrep'
+alias -g @Gi='| egrep -i'
+alias -g @eGi='|& egrep -i'
 alias -g @H='| head'
-#alias -g @HL='|& head -20'
-#alias -g @Sk="*~(*.bz2|*.gz|*.tgz|*.zip|*.z)"
-#alias -g @LL="2>&1 | less"
-alias -g @L="| less"
-#alias -g @LS='| less -S'
-#alias -g @MM='| most'
-#alias -g @M='| more'
-#alias -g @NE="2> /dev/null"
-#alias -g @NS='| sort -n'
-alias -g @NUL="> /dev/null 2>&1"
-#alias -g @PIPE='|'
-#alias -g @R=' > /c/aaa/tee.txt '
-#alias -g @RNS='| sort -nr'
-alias -g @S='| sort'
-#alias -g @TL='| tail -20'
+alias -g @eH='|& head'
 alias -g @T='| tail'
-alias -g @TF='| tail -f'
-#alias -g @US='| sort -u'
-#alias -g @VM=/var/log/messages
-#alias -g @X0G='| xargs -0 egrep'
-alias -g @X0='| xargs -0'
-#alias -g @XG='| xargs egrep'
+alias -g @eT='|& tail'
+alias -g @Tf='| tail -f'
+alias -g @eTf='|& tail -f'
+
+if command -v most >/dev/null; then
+  alias -g @L="| most"
+  alias -g @eL='|& most'
+else
+  alias -g @L="| less"
+  alias -g @eL='|& less'
+fi
+
+alias -g @S='| sort'
+alias -g @Su='| sort -u'
 alias -g @X='| xargs'
-alias -g @SUM="|awk '{s+=\$1} END {print s}'"
-alias -g @MPV="|tr '\n' '\0'|xargs -0 -n 10000 mpv --no-resume-playback"
+alias -g @X0='| xargs -0'
+alias -g @Xl='| tr '\n' '\0' | xargs -0 -n 10000'
+alias -g @Cl='| wc -l'
+
+alias -g @MPV="| tr '\n' '\0' | xargs -0 -n 10000 mpv --no-resume-playback"
+
+alias -g @to_lower="| tr '[A-Z]' '[a-z]'"
+alias -g @to_upper="| tr '[a-z]' '[A-Z]'"
+alias -g @url_clean="| sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi;
+                            s/%3d/:/gi; s/%3f/?/gi'"
+alias -g @url_clean2="| sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
+                             s/%3f/?/gi'"
+alias -g @sum="| awk '{s+=\$1} END {print s}'"
+
+#alias -g @Sk="*~(*.bz2|*.gz|*.tgz|*.zip|*.z)"
 # }}} - GLOBAL ALIASES -------------------------------------------------------

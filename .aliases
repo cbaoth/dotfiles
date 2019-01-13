@@ -7,14 +7,13 @@
 
 # {{{ - GENERAL --------------------------------------------------------------
 # change directory shortcuts
-#alias ..='cd ..'
-#alias ...='cd ../..'
-#alias ....='cd ../../..'
-#alias h='cd ~'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
 
 # file operations
-alias cpi='cp -i'
-alias mvi='mv -i'
+alias cp='cp -i'
+alias mv='mv -i'
 
 # editors
 alias e='emacs -nw'
@@ -22,9 +21,10 @@ alias vim='vim -N'
 alias vi='vim -N'
 alias v='vim -N'
 
-# add --color option to all grep commands
+# add --color option to all grep commands and add -i aliases
 for c in '' e f r; do
   alias ${c}grep="${c}grep --color"
+  alias ${c}grepi="${c}grep --color -i"
 done
 
 #alias sws='echo 4 > /proc/acpi/sleep'
