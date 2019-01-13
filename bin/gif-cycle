@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# giv-cycle: Turn animated gif into a loop (append reversed version)
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script
+
+# src: http://www.imagemagick.org/Usage/anim_mods/#patrol
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+  if [[ -f "$f" ]]; then
+    source "$f"
+    break
+  fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+#trap '_rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+#             c"${BASH_COMMAND:-N/A}"; \
+#      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+# constants
+declare -r _USAGE="${_SCRIPT_FILE} INFILE [OUTFILE]"
+
+
+main() {
+  if [ -z "${1:-}" ]; then
+    cl::p_usg "${_USAGE}"
+    exit 1
+  fi
+  local infile="$1"
+  local outfile
+  [ -n "${2:-}" ] && outfile="$2" || outfile="${1%.*}-cycle.gif"
+  cl::p_msg "converting [$infile] to [$outfile]"
+  convert "${infile}" -coalesce -duplicate 1,-2-1 -layers OptimizePlus "${outfile}"
+}
+
+main "$@"
+
+exit 0
+
