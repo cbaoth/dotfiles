@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# ff-copy-mpv-bookmarks: Copy all mvp-bookmarked sections from a mediafile to new files using ffmpeg
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script ffmpeg
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+  if [[ -f "$f" ]]; then
+    source "$f"
+    break
+  fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+#trap '_rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+#             c"${BASH_COMMAND:-N/A}"; \
+#      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+
+# copy (a) fragment(s) from a media file based on a mpv bookmarks file
+main() {
+  local file_override_mode
+  local sort=false
+  while [[ "${1:-}" = -[syn] ]]; do
+    [[ "$1" = "-s" ]] && sort=true
+    [[ "$1" = "-y" ]] && file_override_mode="y"
+    [[ "$1" = "-n" ]] && file_override_mode="n"
+    shift
+  done
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [-f] MPV_BOOMARKS_FILE"
+    cat <<EOF
+
+OPTIONS:
+  -s     sort bookmarks by time, per default all bookmarks will be processed
+         in sequence, allowing overlapping begin-end intervals
+  -y     non-interactive mode, overwrite files without asking
+  -n     non-interactive mode, skip if file does already exist
+
+EXAMPLE:
+> cat video.webm.bookmarks
+00:00:39|2%|6785372|end      - ignored due to following end
+00:01:31|6%|13241991|end     - section 00:00:00 to 00:01:31 (since file start)
+00:02:24|10%|19724523|begin
+00:02:54|12%|23391325|end    - section 00:02:24 to 00:02:54 (since last begin)
+00:03:18|14%|26524953|begin
+00:04:21|19%|34150374|begin  - section 00:03:18 to 00:04:21 (since last begin)
+00:04:57|21%|39280089|end    - section 00:04:21 to 00:04:57 (since last begin)
+                             - without the least 'end' it be end-of-file
+
+> $(cl::func_name) video.webm.bookmarks
+  -> creates files based on video.webm (inferred from bookmarks file name)
+     video_00.00.39-00.01.31.webm
+     video_00.02.24-00.02.54.webm
+     video_00.03.18-00.04.21.webm
+     video_00.04.21-00.04.57.webm
+EOF
+    return 1
+  fi
+
+  local bookmarks="$1"
+  [[ ! -f "${bookmarks}" ]] && cl::p_err "bookmark file not found [${bookmarks}]" && return 1
+  local infile="${bookmarks%.*}"
+  [[ ! -f "${infile}" ]] && cl::p_err "media file not found [${infile}]" && return 1
+
+  local pos_start="00:00:00"
+  local pos_end
+  local prev_type
+  local -a pos_from_list=()
+  local -a pos_to_list=()
+
+  # process bookmark file (lines)
+  while IFS='|' read -r pos _ _ type; do
+    [[ ! "${pos}" =~ ^[0-9:.]+$ ]] \
+      && cl::p_war "invalid position [${pos}], skipping .." \
+      && continue
+    case ${type} in
+      begin)
+        # last one was 'begin'? then add section from (last) begin to (this) begin
+        if [[ "${prev_type:-}" = "begin" ]]; then
+          pos_from_list+=("${pos_start}")
+          pos_to_list+=("${pos}")
+        fi
+        pos_start="${pos}"
+        ;;
+      end)
+        # last one was 'begin'? then add section from begin to (this) end
+        # last one was unset? then add section from 0 to (this) end
+        if [[ "${prev_type:-}" = "begin" || -z "${prev_type:-}" ]]; then
+          pos_end="${pos}"
+          pos_from_list+=("${pos_start}")
+          pos_to_list+=("${pos_end}")
+        else
+          # last one was end too? then replace previous end with this one
+          unset 'pos_to_list[${#pos_to_list[@]}-1]'
+          cl::p_war "ignoring last end index [${pos_end}] in favor of new one [${pos}]"
+          pos_end="${pos}"
+          pos_to_list+=("${pos_end}")
+        fi
+        ;;
+      *)
+        cl::p_war "invalid bookmark type [${type}], skipping .."
+        ;;
+    esac
+    prev_type="${type}"
+  done < <( (${sort} && sort || cat) < "${bookmarks}" )
+  # last one was 'begin'? then add section from (this) begin to end-of-file
+  if [[ "${prev_type:-}" = "begin" ]]; then
+    pos_from_list+=("${pos_start}")
+    pos_to_list+=("-1")
+  fi
+echo "${pos_from_list[@]}"
+echo "${pos_to_list[@]}"
+echo "${pos_start:-}"
+echo "${pos_end:-}"
+echo "${last_type:-}"
+  cl::p_msg "processing ${#pos_from_list[@]} bookmarked sections .."
+  for ((i=0; i < ${#pos_from_list[@]}; i++)); do
+    local outfile="$(cl::p_file_with_suffix _${pos_from_list[i]//:/.}-${pos_to_list[i]//:/.} "${infile}")"
+    local -a ffargs=()
+    if [[ -z "${file_override_mode:-}" ]]; then
+      cl::q_overwrite "${outfile}" || continue
+    elif [[ "${file_override_mode:-}" = "y" ]]; then
+      ffargs+=(-y)
+    elif [[ "${file_override_mode:-}" = "n" && -f "${outfile}" ]]; then
+      cl::p_war "outfile [${outfile}] exists, skipping .."
+      continue
+    fi
+    if [[ "${pos_to_list[i]}" = "-1" ]]; then
+      ffargs+=(-ss ${pos_from_list[i]})
+    else
+      ffargs+=(-ss ${pos_from_list[i]} -to ${pos_to_list[i]})
+    fi
+    cl::p_msg "outfile [${outfile}]"
+    ffmpeg "${ffargs[@]}" -i "${infile}" -c copy "${outfile}"
+  done
+}
+
+main "$@"
+
+exit 0
