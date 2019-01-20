@@ -125,17 +125,20 @@ EOF
     esac
     prev_type="${type}"
   done < <( (${sort} && sort || cat) < "${bookmarks}" )
+
   # last one was 'begin'? then add section from (this) begin to end-of-file
   if [[ "${prev_type:-}" = "begin" ]]; then
     pos_from_list+=("${pos_start}")
     pos_to_list+=("-1")
   fi
-echo "${pos_from_list[@]}"
-echo "${pos_to_list[@]}"
-echo "${pos_start:-}"
-echo "${pos_end:-}"
-echo "${last_type:-}"
-  cl::p_msg "processing ${#pos_from_list[@]} bookmarked sections .."
+
+  local cnt=${#pos_from_list[@]}
+  if (( ${cnt} <= 0 )); then
+    p_war "no processable sections found in bookmark file, exiting .."
+    exit 1
+  fi
+
+  cl::p_msg "processing ${cnt} bookmarked sections .."
   for ((i=0; i < ${#pos_from_list[@]}; i++)); do
     local outfile="$(cl::p_file_with_suffix _${pos_from_list[i]//:/.}-${pos_to_list[i]//:/.} "${infile}")"
     local -a ffargs=()
@@ -155,6 +158,7 @@ echo "${last_type:-}"
     cl::p_msg "outfile [${outfile}]"
     ffmpeg "${ffargs[@]}" -i "${infile}" -c copy "${outfile}"
   done
+  cl::p_msg "done."
 }
 
 main "$@"
