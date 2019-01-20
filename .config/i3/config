@@ -236,7 +236,7 @@ mode "$mode_system" {
 bindsym $mod Escape exec i3-sensible-terminal -r i3float -e htop
 
 # mod-F1: open ssh session to yav.in
-bindsym $mod F1 exec i3-sensible-terminal -e ssh -p 8090 yav.in
+bindsym $mod F1 exec i3-sensible-terminal -e env $(gnome-keyring-daemon --start) ssh -p 8090 yav.in
 
 # volume media keys: volume up/down/topple-mute (req.: pulseaudio, osdsh)
 bindsym XF86AudioRaiseVolume exec --no-startup-id media-keys -o vol+
@@ -281,6 +281,7 @@ for_window [class="JDownloader"], move container to workspace $ws1
 for_window [class=".*chrome"], move container to workspace $ws2 ; chrome
 for_window [class="(?i)code$"], move container to workspace $ws3 ; vs code
 for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5 ; xnview
+for_window [class="avidemux"], move container to workspace $ws1
 for_window [class="spotify$"], move container to workspace $ws10 ; spotify
 for_window [class="pavucontrol"], move container to workspace $ws10 ; pavucontrol
 for_window [class="nextcloud"], move container to scratchpad ; nc client
