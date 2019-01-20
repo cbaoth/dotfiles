@@ -375,12 +375,12 @@ cl::join_by_n() {
 # {{{ = PREDICATES ===========================================================
 # predicate: is current shell zsh?
 cl::is_zsh() {
-  [[ "$SHELL" = *zsh ]]
+  [[ "$(readlink /proc/$$/exe)" = *zsh ]]
 }
 
 # predicate: is current shell bash?
 cl::is_bash() {
-  [[ "$SHELL" = *bash ]]
+  [[ "$(readlink /proc/$$/exe)" = *bash ]]
 }
 
 # predicate: is current user superuse?
@@ -503,7 +503,7 @@ cl::q_yesno() {
   local key=""
   printf "%s (y/n) " "$question"
   while [[ "$key" != "y" ]] && [[ "$key" != "n" ]]; do
-    if [[ "$sh" = "zsh" ]]; then
+    if [[ "$(readlink /proc/$$/exe)" = *zsh ]]; then
       read -s -k 1 key
     else
       read -s -n 1 key
