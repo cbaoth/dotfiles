@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ff-copy: Copy a fragment from a media file to a new file using ffmpeg
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script ffmpeg
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+  if [[ -f "$f" ]]; then
+    source "$f"
+    break
+  fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+#trap '_rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+#             c"${BASH_COMMAND:-N/A}"; \
+#      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+# copy a fragment from a media file to a new file
+main() {
+  if [[ -z "${3:-}" ]]; then
+    cl::p_usg "$(cl::func_name) INFILE START END [OUTFILE]"
+    cat <<EOF
+
+EXAMPLES:
+> $(cl::func_name) video.webm 0 2:00 video_first_2min.webm
+  -> 2min clip from the beginning
+
+> $(cl::func_name) video.webm 02:00 05:00
+  -> inferred outfile name: video_02.00+05.00.webm, 5min clip starting from minute 2
+
+> $(cl::func_name) video.webm 0 60
+  -> inferred outfile name: video_0+60.webm, 1min (60 sec) clip from the beginning
+EOF
+    return 1
+  fi
+  [[ ! -f "$1" ]] && cl::p_err "no such file: $1" && return 1
+  local infile="$1"
+  [[ ! "$2" =~ ^[0-9:.]+$ ]] \
+    && cl::p_err "invalid start time, see man ffmpeg-utils(1) 'Time duration' for details: $2" \
+    && return 1
+  local pos_start="$2"
+  [[ ! "$3" =~ ^[0-9:.]+$ ]] \
+    && cl::p_err "invalid duration, see man ffmpeg-utils(1) 'Time duration' for details: $3" \
+    && return 1
+  local duration="$3"
+  shift 3
+  local outfile="${1:-$(cl::p_file_with_suffix _${pos_start//:/.}+${duration//:/.} "${infile}")}"
+  [ -n "${1:-}" ] && shift
+  cl::q_overwrite "${outfile}"
+  ffmpeg -ss "${pos_start}" -t "${duration}" -i "${infile}" -c copy "${outfile}"
+}
+
+main "$@"
+
+exit 0
