@@ -31,7 +31,7 @@ IFS=$'\t\n\0'
 trap '_rc=$?; \
      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-            c"${BASH_COMMAND:-N/A}"; \
+            "${BASH_COMMAND:-N/A}"; \
      exit $_rc' ERR
 trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 #trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
@@ -41,7 +41,7 @@ declare -r _USAGE="${_SCRIPT_FILE} [OPTION..] COMMAND.."
 declare _HELP
   ! IFS='' read -r -d '' _HELP <<EOF
 $(cl::fx b)Options:$(cl::fx r)
-  -m --match P    match given regex pattern to find videos
+  -m --match P    filter files by regex pattern (full file path)
                   (default: ".*\.\(avi\|mkv\|mp4\|webm\)")
   -s --sort A     sort arg, e.g. -R for random (default: -g, see: "man sort")
   -r --recursive  find videos in subdirectories (default: off)
@@ -56,8 +56,8 @@ $(cl::fx b)Options:$(cl::fx r)
 $(cl::fx b)Examples:$(cl::fx r)
   # play all videos found in . and below in random order
   $(cl::fx b)${_SCRIPT_FILE} -r -s -R$(cl::fx r)
-  # play all webm files found in /video starting skipping the first 10
-  # not using mpv's resume playback feature
+  # play all webm files found in /video skipping the first 10 files
+  # deactivating mpv's resume-playback feature
   $(cl::fx b)${_SCRIPT_FILE} /video -m ".*\.webm" -i 10 -a --no-resume-playback$(cl::fx r)
 EOF
 readonly _HELP
@@ -87,7 +87,7 @@ _parse_args() {
       -i|--index)
         if [[ -z "${2:-}" ]]; then
           cl::p_err "missing value for argument --index"
-          return 1
+          exit 1
         fi
         tailn="$(($2+1))"
         shift 2
@@ -99,7 +99,7 @@ _parse_args() {
       -m|--match)
         if [[ -z "${2:-}" ]]; then
           cl::p_err "missing value for argument --match"
-          return 1
+          exit 1
         fi
         regex="$2"
         shift 2
@@ -107,7 +107,7 @@ _parse_args() {
       -s|--sort)
         if [[ -z "${2:-}" ]]; then
           cl::p_err "missing value for argument --sort"
-          return 1
+          exit 1
         fi
         sort="$2"
         shift 2
@@ -127,20 +127,20 @@ _parse_args() {
       -h|--help)
         cl::p_usg "${_SCRIPT_FILE} [OPTION..] DIR.. [-a MPV_ARG..]"
         printf "%s" "${_HELP}"
-        return 1
+        exit 1
         ;;
       *)
         if [[ -n "${dir:-}" ]]; then
           cl::p_err "unknown argument: $1"
-          return 1
+          exit 1
         fi
         if [[ -z "${1:-}" ]]; then
           cl::p_usg "${_SCRIPT_FILE} [OPTION..] DIR.. [-a MPV_ARG..]"
-          return 1
+          exit 1
         fi
         if [[ ! -d "$1" ]]; then
           cl::p_err "no such directory or unknown argument: $1"
-          return 1
+          exit 1
         fi
         dirs+=("$1"); shift
         ;;
