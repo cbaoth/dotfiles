@@ -20,13 +20,12 @@ cd "$DOTFILES"
 
 mkdir -p "$BAKDIR"
 find "$DOTFILES" -regextype sed \
-     -regex "$DOTFILES/\(\.\w\|lib/\|bin/\).*" \
+     -regex "$DOTFILES/\(\.\w\|lib\|bin\).*" \
      ! -regex '.*/\(link.sh\|\.git\|\.gitignore\|\.vscode\)\(/.*\)\?' \
 | while read f; do
   targetrel=$(realpath --relative-to "$DOTFILES" $f)
-  echo "$targetrel"
   target=$HOME/$targetrel
-  echo "$target"
+  echo "> target: $target"
   #if [[ "$target" =~ "$DOTFILES" ]]; then
   #  echo "> ERROR: target location inside dotfiles git repository, skipping: $target" >&2
   #  continue
@@ -48,6 +47,11 @@ find "$DOTFILES" -regextype sed \
     fi
   else
     if [ -e "$target" ]; then # target exists?
+      # is a link pointing to the desired target?
+      if [[ -L "$target" && "$(readlink $target)" -ef "$f" ]]; then
+        echo "> INFO: correct link alreardy exists, skipping .."
+        continue
+      fi
       targetbak="$BAKDIR/$targetrel"
       echo "> WARNING: file '$target' exists, moving to '$targetbak'" >&2
       mkdir -p "$BAKDIR/`dirname $targetrel`"
