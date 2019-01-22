@@ -103,9 +103,9 @@ slang=en,eng,de,deu,ger
 volume-max=200                          # maximum volume in %, everything above 100 results in amplification
 volume=100                              # default volume, 100 = unchanged
 #https://ffmpeg.org/ffmpeg-filters.html#acompressor
-#af=acompressor                          # use audio filter to normalize volume
+af=acompressor                          # use audio filter to normalize volume
 #https://ffmpeg.org/ffmpeg-filters.html#dynaudnorm
-af=lavfi=dynaudnorm
+#af=lavfi=dynaudnorm
 #af-pre=lavfi="compand=attacks=1.5:decays=0.2:gain=-18"
 #audio-channels=5.1,stereo
 #audio-spdif=dts-hd,ac3
