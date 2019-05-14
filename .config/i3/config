@@ -277,14 +277,20 @@ bindsym Mod4 i mode "default"; exec xsuspend
 
 # {{{ = Window Rules =========================================================
 # {{{ - Default Workspaces ---------------------------------------------------
-for_window [class="JDownloader"], move container to workspace $ws1
-for_window [class=".*chrome"], move container to workspace $ws2 ; chrome
-for_window [class="(?i)code$"], move container to workspace $ws3 ; vs code
-for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5 ; xnview
-for_window [class="avidemux"], move container to workspace $ws1
-for_window [class="spotify$"], move container to workspace $ws10 ; spotify
-for_window [class="pavucontrol"], move container to workspace $ws10 ; pavucontrol
-for_window [class="nextcloud"], move container to scratchpad ; nc client
+# WS 1
+#for_window [class="avidemux"], move container to workspace $ws1
+for_window [title="JDownloader"], move container to workspace $ws1
+# WS 2
+#for_window [class=".*chrome"], move container to workspace $ws2
+# WS 3
+#for_window [class="(?i)code$"], move container to workspace $ws3
+# WS 5
+#for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5
+# WS 10
+for_window [class="spotify$"], move container to workspace $ws10
+for_window [class="pavucontrol"], move container to workspace $ws10
+# WS SCRATCHPAD
+for_window [class="nextcloud"], move container to scratchpad
 # }}} - Default Workspaces ---------------------------------------------------
 # {{{ - Window Modes ---------------------------------------------------------
 for_window [window_role="i3float"] floating enable

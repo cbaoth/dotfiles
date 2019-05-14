@@ -1,6 +1,7 @@
 # ~/.zshrc: executed by zsh(1)
 # interactive shell: .zshenv > .zshrc
-# login shell: .zshenv > .zprofile > zlogin / .zlogout
+# interactive shell: .zshenv > .zshrc
+# login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zsh zshrc shell-script
@@ -22,11 +23,32 @@ export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 export DBG_LVL=0
 # }}} - CORE -----------------------------------------------------------------
 
+# {{{ - SECURITY & PRIVACY ---------------------------------------------------
+# private session
+#export HISTFILE="" # don't create shell history file
+#export SAVEHIST=0 # set shell history file limit to zero
+# shared session
+export HISTSIZE=10000 # set in-memory history limit
+export SAVEHIST=10000 # set history file limit
+export HISTFILE="~/.history" # set history file
+
+setopt INC_APPEND_HISTORY # write immediately (default: on exit only)
+#setopt HIST_IGNORE_DUPS # don't add duplicates
+setopt HIST_IGNORE_ALL_DUPS # delete old entry in favor of new one if duplicate
+setopt SHARE_HISTORY # share history between sesions
+#setopt EXTENDED_HISTORY # store in ":start:elapsed;command" format
+setopt HIST_IGNORE_SPACE # don't record lines stating with a space (privacy)
+#setopt HIST_REDUCE_BLANKS # remove unnecessary spaces
+#setopt HIST_VERIFY # don't execute immediately after history expansion
+setopt HIST_NO_STORE # don't store history / fc commands
+setopt HIST_NO_FUNCTIONS # don't store function definitions
+# }}} - SECURITY & PRIVACY ---------------------------------------------------
+
 # {{{ - UMASK ----------------------------------------------------------------
 # single user system (ubuntu default): go-w
-umask 022
+#umask 022
 # multi user system umask: g-w, o-rwx
-#umask 027
+umask 027
 # multi user system umask: o-rwx
 #umask 007
 # }}} - UMASK ----------------------------------------------------------------
@@ -655,39 +677,3 @@ source_ifex_custom $HOME/.zsh.d/aliases
 # include os/host specific zshrc files
 source_ifex_custom $HOME/.zsh.d/zshrc
 # }}} = INCLUDES =============================================================
-
-# {{{ = FINAL EXECUTIONS =====================================================
-# remove core dump files
-rm -f ~/*.core(N) ~/*.dump(N) &!
-
-# {{{ - X WINDOWS ------------------------------------------------------------
-# are we in a x-windows session?
-if [[ -n "${DESKTOP_SESSION-}" ]]; then
-  # is gnome-keyring-daemon availlable? use it as ssh agent
-  if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
-    export $(gnome-keyring-daemon --start)
-    # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
-    export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
-  fi
-fi
-# }}} - X WINDOWS ------------------------------------------------------------
-# {{{ - DTAG -----------------------------------------------------------------
-# enabale dtag (when available)
-#(command -v dtags-activate >& /dev/null \
-#  && eval "$(dtags-activate zsh)" \
-#  || cl::p_war "unable to activate dtags, dtags-activate not found" \
-#) &!
-# }}} - DTAG -----------------------------------------------------------------
-# {{{ - X STUFF --------------------------------------------------------------
-#if [[ -n "$DESKTOP_SESSION" ]]; then
-#fi
-# }}} - X STUFF --------------------------------------------------------------
-# {{{ - MOTD -----------------------------------------------------------------
-# print welcome message (if top-level shell)
-if (( $SHLVL == 1 )); then
-   print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
-   # on %F{green}#%l%f%b"
-   print -P "%B%F{white}Uptime:%b%F{green}$(uptime)%f"
-fi
-# }}} - MOTD -----------------------------------------------------------------
-# }}} = FINAL EXECUTIONS =====================================================
