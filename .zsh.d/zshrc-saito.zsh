@@ -13,3 +13,14 @@ if ${POWERLEVEL9K_ISACTIVE-false}; then
   # load prompt theme from /usr/share/zsh/functions/Prompts/
   prompt fade 3
 fi
+
+# {{{ - UMASK ----------------------------------------------------------------
+# single user system (ubuntu default): go-w
+umask 022
+# multi user system umask: g-w, o-rwx
+#umask 027
+# multi user system umask: o-rwx
+#umask 007
+# }}} - UMASK ----------------------------------------------------------------
+
+
