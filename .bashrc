@@ -26,10 +26,10 @@ export LESSCHARSET="utf-8"
 #export BREAK_CHARS="\"#'(),;\`\\|\!?[]{}"
 # }}} - LOCALE ---------------------------------------------------------------
 
-# {{{ - SECURITY -------------------------------------------------------------
-export HISTFILE="" # don't create shell history file
-export HISTFILESIZE=0 # set shell history to zero
-# }}} - SECURITY -------------------------------------------------------------
+# {{{ - PRIVACY --------------------------------------------------------------
+#export HISTFILE="" # don't create shell history file
+#export HISTFILESIZE=0 # set shell history to zero
+# }}} - PRIVACY --------------------------------------------------------------
 
 # {{{ - CORE -----------------------------------------------------------------
 export OS=$(uname | tr '[A-Z]' '[a-z]')

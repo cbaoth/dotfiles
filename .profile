@@ -1,6 +1,6 @@
 # ~/.profile: executed by the command interpreter for login shells.
 # This file is not read by bash(1), if ~/.bash_profile or ~/.bash_login
-# exists. This file is read in case some WMs are stated.
+# exists. This file is read in case some WMs are started.
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: profile bash shell-script
@@ -23,13 +23,13 @@ export LESSCHARSET="utf-8"
 
 # {{{ - SECURITY & PRIVACY ---------------------------------------------------
 # private session
-export HISTFILE="" # don't create shell history file
-export HISTFILESIZE=0 # set shell history file limit to zero
-export HISTSIZE=10000 # set (in memory) history limit
-# persisted session
-#export HISTFILE="~/.bash_history" # don't create shell history file
-#export HISTFILESIZE=10000 # set shell history file limit to zero
+#export HISTFILE="" # don't create shell history file
+#export HISTFILESIZE=0 # set shell history file limit to zero
 #export HISTSIZE=10000 # set (in memory) history limit
+# persisted session
+export HISTFILE="~/.bash_history" # don't create shell history file
+export HISTFILESIZE=10000 # set shell history file limit to zero
+export HISTSIZE=10000 # set (in memory) history limit
 # }}} - SECURITY & PRIVACY ---------------------------------------------------
 
 # {{{ - BASH -----------------------------------------------------------------

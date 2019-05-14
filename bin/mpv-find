@@ -156,7 +156,9 @@ _parse_args() {
 }
 
 _mpvfind() {
-  find "${dirs[@]}" $($recursive && echo --max-depth 1) \
+  local -a maxdepth=()
+  ${recursive} || maxdepth=(-maxdepth 1)
+  find "${dirs[@]}" "${maxdepth[@]}" \
        -regex "$regex" \
     | sort $sort \
     | tail -n +${tailn} \

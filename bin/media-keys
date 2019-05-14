@@ -38,6 +38,7 @@ trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 
 # constants
 declare -r _USAGE="${_SCRIPT_FILE} [-o] (volume-up|volume-down|play-pause|previous|next)"
+declare -r -a _PLAYER=(spotify quodlibet gmusicbrowser mpv mplayer vlc)
 
 # osd: show current volume
 _osd_volume() {
@@ -59,21 +60,34 @@ _osd_mute() {
   return 0
 }
 
+_get_player() {
+  for player in "${_PLAYER[@]}"; do
+    if pgrep -x "${player}" 2>&1 >/dev/null; then
+      printf -- "${player}"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # player control with optional osd
 _player_ctrl() {
   local osd="${2-false}"
+  local player="$(_get_player)"
+  local -a p=()
+  [[ -n "${player}" ]] && p=(-p "${player}")
   case $1 in
     previous)
-      playerctl previous
+      playerctl "${p[@]}" previous
       $osd && osdctl -s "Player: Previous Track"
       ;;
     next)
-      playerctl next
+      playerctl "${p[@]}" next
       $osd && osdctl -s "Player: Next Track"
       ;;
     play-pause)
-      playerctl play-pause
-      $osd && osdctl -s "Player: $(playerctl status)"
+      playerctl "${p[@]}" play-pause
+      $osd && osdctl -s "Player: $(playerctl "${p[@]}" status)"
       ;;
     *)
       cl::p_err "Unknown _player_ctrl argument: $1"

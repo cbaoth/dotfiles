@@ -38,9 +38,9 @@ alias xdefaults-reload='xrdb -load ~/.Xdefaults'
 #  -oStrictHostKeyChecking=no'
 
 alias rsync-merge='rsync -abviuzP'
-alias rsync-local='rsync -vurpl'
-alias rsync-local-del='rsync -vurpl --delete'
-alias rsync-local-sizeonly='rsync -vurpl --size-only'
+alias rsync-local='rsync -avuh'
+alias rsync-local-del='rsync -avuh --delete'
+alias rsync-local-sizeonly='rsync -avuh --size-only'
 # }}} - GENERAL --------------------------------------------------------------
 
 # {{{ - SYSTEM ---------------------------------------------------------------

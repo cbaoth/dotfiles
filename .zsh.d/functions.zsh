@@ -221,13 +221,31 @@ wget_mm () {
 # OK - download URL using wget using output file name based on URL
 wget_d () {
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) URL [REFERER]"
-    printf "download URL using wget into dynamic output file based on URL\n"
+    cl::p_usg "$(cl::func_name) URL [wget-args]"
+    cat <<EOF
+
+Download URL (using wget) into a dynamic output file, named based on the URL.
+
+Default wget args:
+  -U "\${UAGENT}"
+  --referer "{base path of given URL}"
+  -O "{out file name based on URL}"
+
+Example:
+  $(cl::func_name) https://foo.bar/resource/1.html -c
+  -> wget -U "\${UAGENT}"
+          --referer "https://foo.bar/resource"
+          -O "foo.bar+resource+1.html"
+          https://foo.bar/resource/1.html
+          -c
+EOF
     return 1
   fi
-  local ref="${2:-$(dirname "$1")}"
-  local outfile="$(sed -E 's/^http:\/\///g;s/\/+$//g;s/\//+/g' <<<"$1")"
-  wget -U "$UAGENT" --referer "$ref" -c "$1" -O "$outfile"
+  local url="$1"
+  shift
+  local ref="$(dirname "${url}")"
+  local outfile="$(sed -E 's/^(\w+):\/\///g;s/\/+$//g;s/\//+/g' <<<"${url}")"
+  wget -U "${UAGENT}" --referer "${ref}" -O "${outfile}" "$@" "${url}"
 }
 
 # attempt to re-download a file that was downloaded using wget_d

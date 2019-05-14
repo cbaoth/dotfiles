@@ -53,11 +53,18 @@ alias midi-keyboard-output="aconnect \$(aconnect -i \
 # {{{ - DEB ------------------------------------------------------------------
 
 if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+  # force update
+  alias apud!='sudo apt update'
+  # update cache, but no more than ones per hour (if sucessfull)
   # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
-  alias apd='sudo apt update'
-  alias api='sudo apt update; sudo apt install'
-  alias apu='sudo apt update; sudo apt upgrade; sudo apt auto-remove'
-  alias apuf='sudo apt update; sudo apt full-upgrade; sudo apt auto-remove'
+  alias apud='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
+                sudo apt update && date +%s > /tmp/last_apt_update
+              else
+                echo "> last apt update less than an hour ago, skipping (use apud! to force) ..."
+              fi'
+  alias api='apud; sudo apt install'
+  alias apu='apud; sudo apt upgrade; sudo apt auto-remove'
+  alias apuf='apud; sudo apt full-upgrade; sudo apt auto-remove'
   alias apr='sudo apt remove' # conflicts with ar
   alias apr!='sudo apt purge'
   alias apra='sudo apt auto-remove'
