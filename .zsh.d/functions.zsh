@@ -648,6 +648,33 @@ OPTIONS:
   done
   ${dir_created} && rmdir --ignore-fail-on-non-empty "${tar}" 2>/dev/null
 }
+
+#
+merge_dirs_same_first_word() {
+  local pattern='^[^%#_+-]+'
+  local noact=false
+  if [[ "${1:-}" = "-n" ]]; then
+    noact=true
+    shift
+  fi
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "merge_dirs_same_first_word [-n] DIR.."
+    echo "merges all DIR.. having the same first word (actually only: ${pattern})"
+    echo "only local dircs allowed (no / or ../)"
+    echo "example: merge_dirs_same_first_word -n [a-z]*/"
+  fi
+  ls -d "$@" | grep -vE '^(\.\.|\/)' | sed -r 's/^\.\///g' | grep -Eo "$pattern" \
+    | tr '/' '\0' | sort | uniq -c \
+    | while read c d; do
+        if (($c > 1)) && [[ -n "$d" ]]; then
+          if ${noact}; then
+            cl::p_msg "merge_dir \"$d\""
+          else
+            merge_dir "$d"
+          fi
+        fi
+      done
+}
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ textfile manipulation
