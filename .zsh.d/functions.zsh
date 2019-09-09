@@ -114,13 +114,32 @@ rm_thumbnail_dirs () {
 # OK - repeat string
 string_repeat() {
   if [[ -z "${2:-}" ]]; then
-    cl::p_usg "string_repeat COUNT STRING" && \
+    cl::p_usg "$(cl::func_name) COUNT STRING" && \
     return 1
   fi
   ! cl::is_int $1 && { cl::p_err "$1 is not an integer"; return 1; }
   #echo $(printf "%0$1d" | sed "s/0/$2/g")
   #printf "$2.0s" {1..$1}
   awk 'BEGIN{$'$1'=OFS="'$2'";print}'
+}
+
+# OK - prefix every line from the input file with a line counter, restart after empty line
+line_counter_prefix_sublines() {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) INFILE" && \
+    return 1
+  fi
+  local infile="$1"
+  local i=0
+  cat "${infile}" | while read l; do
+    if [[ -z "$l" ]]; then
+      i=0
+      continue
+    else
+      i=$((i+1))
+    fi
+    echo "$i: $l"
+  done
 }
 # ----------------------------------------------------------------------------
 # }}}
@@ -1131,6 +1150,23 @@ video-split-screen () {
   esac
   echo ffmpeg -i \"$infile1\" -i \"$infile2\" -filter_complex "'$filter'" -map "'[vid]'" \"$outfile\"
   ffmpeg -i "$infile1" -i "$infile2" -filter_complex "$filter" -map '[vid]' "$outfile"
+}
+
+gifslice-opt() {
+  [[ -z "$3" ]] && cl::p_usg "$(cl::func_name) INFILE [OUTFILE|-ao] OPTION..." && return 1
+  local infile="$1"
+  shift
+  local -a outfile
+  # arg 2 is -ao (auto outfile) then generate output file name by appending timestamp
+  if [[ "$1" = "-ao" ]]; then
+    outfile=(-o "$(cl::p_file_with_suffix _slice_$(date +%s) "${infile}")")
+    shift
+  # arg 2 is not an option? then it must be the outfile name
+  elif [[ "$1" =~ ^[^-] ]]; then
+    outfile=(-o "$1")
+    shift
+  fi
+  gifslice -U "${infile}" "$@" -O2 "${outfile[@]:-}"
 }
 # ----------------------------------------------------------------------------
 # }}} multimeda

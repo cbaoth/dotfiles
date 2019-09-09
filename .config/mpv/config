@@ -17,13 +17,16 @@ cursor-autohide-fs-only                 # don't autohide the cursor in window mo
 cursor-autohide=1000                    # autohide the curser after 1s
 prefetch-playlist=yes
 force-seekable=yes
-no-input-right-alt-gr
+
+no-input-right-alt-gr                   # disable alt-gr numerical input (cocoa and Windows only)
+# consider using this on X instead (global): xmodmap -e 'clear mod5'; xmodmap -e 'keycode 108 = Alt_L'
 
 screenshot-format=png
 screenshot-png-compression=8
 screenshot-template='~/%F @%P %#n'
 
 ytdl-format=bestvideo[vcodec=vp9]+bestaudio[acodec=opus]/bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]/bestvideo[vcodec=vp8]+bestaudio[acodec=opus]/bestvideo[vcodec=vp8]+bestaudio[acodec=vorbis]/bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=webm]+bestaudio[ext=ogg]/best[ext=webm]/bestvideo+bestaudio/best
+
 
 [default]
 
