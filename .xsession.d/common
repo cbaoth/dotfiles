@@ -67,8 +67,15 @@ setxkbmap us -variant colemak
 
 # disable stupid ubuntu shift+backspace -> x terminate
 xmodmap -e 'keycode 0x16 = BackSpace BackSpace BackSpace BackSpace'
-# and add terminate via print button (seldom used) + shift + mod
+# and add terminate via shift+mod+print instead (less common, less risky)
 xmodmap -e 'keycode 0x6B = Print Sys_Req Print Terminate_Server Print Sys_Req'
+
+# disable special right alt (alt-gr) behavior
+#xmodmap -e 'clear mod5'
+# and make right alt behave like left (regular) alt
+#xmodmap -e 'keycode 108 = Alt_L'
+# specifically set right alt to alt-gr
+#xmodmap -e 'keycode 108 = ISO_Level3_Shift NoSymbol ISO_Level3_Shift'
 
 # set background color
 #runbg xsetroot -solid \#400040
