@@ -398,6 +398,9 @@ zplug_cmd "plugins/vscode", from:oh-my-zsh # vs* aliases
 zplug_cmd "plugins/web-search", from:oh-my-zsh
 zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
 #zplug_cmd "zsh-users/zsh-history-substring-search"
+
+# ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
+zplug_cmd "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
 # }}} - OH MY ZSH ------------------------------------------------------------
 
 # activate syntax highlighting, load last to affect everything loaded before
@@ -532,6 +535,14 @@ zstyle ':completion:*' group-name ''
 
 # complete only specific hosts (big host file)
 #zstyle '*' hosts $HOST motoko.intra puppet.intra bateau.intra togusa.intra yav.in
+
+# ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
+# ssh-agent forwarding
+zstyle :omz:plugins:ssh-agent agent-forwarding on
+# ssh-agent identities
+#zstyle :omz:plugins:ssh-agent identities id_rsa ...
+# ssh-agent max identity lifetime
+#zstyle :omz:plugins:ssh-agent lifetime 4h
 
 # file type command detecton
 #compctl -g '*.ebuild' ebuild
@@ -677,3 +688,28 @@ source_ifex_custom $HOME/.zsh.d/aliases
 # include os/host specific zshrc files
 source_ifex_custom $HOME/.zsh.d/zshrc
 # }}} = INCLUDES =============================================================
+
+# {{{ = FINAL LOGIN EXECUTIONS ===============================================
+# {{{ - X WINDOWS ------------------------------------------------------------
+# are we in a x-windows session?
+#if [[ -n "${DESKTOP_SESSION-}" ]]; then
+#  # is gnome-keyring-daemon availlable? use it as ssh agent
+#  if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
+#    export $(gnome-keyring-daemon --start)
+#    # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+#    export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+#  fi
+#fi
+# }}} - X WINDOWS ------------------------------------------------------------
+# {{{ - DTAG -----------------------------------------------------------------
+# enabale dtag (when available)
+#(command -v dtags-activate >& /dev/null \
+#  && eval "$(dtags-activate zsh)" \
+#  || cl::p_war "unable to activate dtags, dtags-activate not found" \
+#) &!
+# }}} - DTAG -----------------------------------------------------------------
+# {{{ - X STUFF --------------------------------------------------------------
+#if [[ -n "$DESKTOP_SESSION" ]]; then
+#fi
+# }}} - X STUFF --------------------------------------------------------------
+# }}} = FINAL LOGIN EXECUTIONS ===============================================
