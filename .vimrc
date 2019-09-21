@@ -34,6 +34,9 @@ set nobackup       " no backup files
 set nowritebackup  " only in case you don't want a backup file while editing
 set noswapfile     " no swap files
 
+" https://unix.stackexchange.com/a/140584
+set mouse=r        " disable visual mode on mouse selection (mouse=a)
+
 abbreviate #b /*********************************************************
 abbreviate #e  *********************************************************/
 set textwidth=0		" Don't wrap words by default
