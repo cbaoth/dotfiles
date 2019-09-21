@@ -400,7 +400,10 @@ zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
 #zplug_cmd "zsh-users/zsh-history-substring-search"
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
-zplug_cmd "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
+# but not on remote machines (use ssh -A agent forwarding if needed)
+if ! cl::is_ssh; then
+  zplug_cmd "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
+fi
 # }}} - OH MY ZSH ------------------------------------------------------------
 
 # activate syntax highlighting, load last to affect everything loaded before
@@ -537,12 +540,15 @@ zstyle ':completion:*' group-name ''
 #zstyle '*' hosts $HOST motoko.intra puppet.intra bateau.intra togusa.intra yav.in
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
-# ssh-agent forwarding
-zstyle :omz:plugins:ssh-agent agent-forwarding on
-# ssh-agent identities
-#zstyle :omz:plugins:ssh-agent identities id_rsa ...
-# ssh-agent max identity lifetime
-#zstyle :omz:plugins:ssh-agent lifetime 4h
+# but not on remote machines (use ssh -A agent forwarding if needed)
+if ! cl::is_ssh; then
+  # ssh-agent forwarding
+  zstyle :omz:plugins:ssh-agent agent-forwarding on
+  # ssh-agent identities
+  #zstyle :omz:plugins:ssh-agent identities id_rsa ...
+  # ssh-agent max identity lifetime
+  #zstyle :omz:plugins:ssh-agent lifetime 4h
+fi
 
 # file type command detecton
 #compctl -g '*.ebuild' ebuild
