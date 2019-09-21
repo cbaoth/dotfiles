@@ -32,9 +32,9 @@ trap '_rc=$?; \
      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
             c"${BASH_COMMAND:-N/A}"; \
-     exit $_rc' ERR
-trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
-#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+     _exit_clean $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; _exit_clean 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; _exit_clean $_rc' EXIT
 
 # constants
 declare -r _MAX=3840
@@ -44,6 +44,15 @@ declare mode=default
 declare tile=""
 declare outfile=""
 declare -a infiles
+declare -a tempfiles
+
+# clean exit (remove temp files)
+_exit_clean() {
+  for f in "${tempfiles[@]}"; do
+    rm -f "${f}"
+  done
+  exit ${1:-0}
+}
 
 # parse arguments
 _parse_args() {
@@ -80,8 +89,20 @@ _parse_args() {
   infiles=("$@")
 }
 
+# resize all infiles to temp file
+_resize_infiles() {
+  local dim="$1"
+  for infile in "${infiles[@]}"; do
+    local outfile="._image-concat_${infile}"
+    #cl::q_overwrite "${outfile}" || _exit_clean 1
+    tempfiles+=("${outfile}")
+    convert "${infile}" -resize ${dim}\> "${outfile}"
+  done
+}
+
+# concatenate images
 _concat() {
-  cl::q_overwrite "${outfile}" || exit 1
+  cl::q_overwrite "${outfile}" || _exit_clean 1
   local min_height="$(identify -format '%h\n' "${infiles[@]}" | sort -n | head -n 1)"
   #min_height="$(echo -e "$min_height\n$((_MAX/$#))" | sort -n | head -n 1)"
   local min_width="$(identify -format '%w\n' "${infiles[@]}" | sort -n | head -n 1)"
@@ -90,28 +111,36 @@ _concat() {
   #args+=(-limit memory 100mb)
   [[ "${tile}" = "x1" ]] && args+=(-tile x1)
   #args+=(-gravity center) # default
+
   case "${mode}" in
     -n)
-      args+=(-geometry +0+0)
+      #args+=(-geometry +0+0)
+      convert -background black +append "${infiles[@]}" "${outfile}"
       ;;
     -w)
-      args+=(-geometry "$(printf "%s\n%s" "${min_width}" "${_MAX}" | sort -n | head -n 1)x")
+      #args+=(-geometry "$(printf "%s\n%s" "${min_width}" "${_MAX}" | sort -n | head -n 1)x")
+      _resize_infiles "$(printf "%s\n%s" "${min_width}" "${_MAX}" | sort -n | head -n 1)x"
+      convert -background black +append "${tempfiles[@]}" "${outfile}"
       ;;
     -h)
-      args+=(-geometry "x${min_height}")
+      #args+=(-geometry "x${min_height}")
+      _resize_infiles "x${min_height}"
+      convert -background black +append "${tempfiles[@]}" "${outfile}"
       ;;
     *)
-      args+=(-geometry "x${min_height}" -extent "${min_width}>x")
+      #args+=(-geometry "x${min_height}" -extent "${min_width}>x")
+      _resize_infiles "x${min_height}" -extent "${min_width}>x"
+      convert -background black +append "${tempfiles[@]}" "${outfile}"
       ;;
   esac
-  montage "${args[@]}" "${infiles[@]}" "${outfile}"
+  #montage "${args[@]}" "${infiles[@]}" "${outfile}"
 }
 
-main() {
+_main() {
   _parse_args "$@"
   _concat
 }
 
-main "$@"
+_main "$@"
 
-exit 0
+_exit_clean 0
