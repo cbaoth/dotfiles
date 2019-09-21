@@ -93,7 +93,7 @@ _parse_args() {
 _resize_infiles() {
   local dim="$1"
   for infile in "${infiles[@]}"; do
-    local outfile="._image-concat_${infile}"
+    local outfile="$HOME/._image-concat_$(basename "${infile}")"
     #cl::q_overwrite "${outfile}" || _exit_clean 1
     tempfiles+=("${outfile}")
     convert "${infile}" -resize ${dim}\> "${outfile}"
