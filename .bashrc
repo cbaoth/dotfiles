@@ -60,7 +60,7 @@ export IRCNAME="Jorus C'Baoth"
 #UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517"
 #UAGENT+=" Mozilla Firebird/0.6"
 UAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
-UAGENT+=" Chrome/59.0.3071.104 Safari/537.36"
+UAGENT+=" Chrome/76.0.3809.132 Safari/537.36"
 export UAGENT
 # }}} - MISC -----------------------------------------------------------------
 # }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
