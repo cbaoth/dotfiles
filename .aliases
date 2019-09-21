@@ -103,7 +103,7 @@ alias proxy-unset="unset all_proxy"
 alias ftp="ftp -p"
 alias nfs-reexport='exportfs -ra'
 
-alias ssh2='ssh -p 8090'
+alias ssh2='ssh -p 8090 -A'
 alias scp2='scp -P 8090'
 
 #alias ssh-tunnel-yavin-proxy='ssh -f yav.in -p 8090 -L 23128:127.0.0.1:3128 -N'
