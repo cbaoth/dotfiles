@@ -20,9 +20,9 @@ fi
 
 # {{{ find files
 # ----------------------------------------------------------------------------
-find-greater-than () {
+find_greater_than () {
   [[ -z "$2" ]] || ! cl::is_int $1 && \
-    cl::p_usg "find-greater-than <max> <dir>...\nmax (bytes)" && return 1
+    cl::p_usg "find_greater_than <max> <dir>...\nmax (bytes)" && return 1
   min="$1"; shift
   for dir in "$@"; do
     find "$dir" -printf "%p %s\n"|while read l; do
@@ -30,9 +30,11 @@ find-greater-than () {
     done
   done
 }
-find-between () {
+
+
+find_between () {
   [[ -z "$3" ]] || ! cl::is_int $1 $2 && \
-    cl::p_usg "find-less-than <min> <max> <dir>...\nmin|max (bytes)" && \
+    cl::p_usg "$(cl::func_name) MIN MAX DIR...\nMIN|MAX (bytes)" && \
     return 1
   min="$1"; max="$2"; shift 2
   for dir in "$@"; do
@@ -42,9 +44,11 @@ find-between () {
     done
   done
 }
-find-less-than () {
+
+
+find_less_than () {
   [[ -z "$2" ]] || ! cl::is_int $1 && \
-    cl::p_usg "find-less-than <max> <dir>...\nmax (bytes)" && \
+    cl::p_usg "$(cl::func_name) MAX DIR..\nMAX (bytes)" && \
     return 1
   max="$1"; shift
   for dir in "$@"; do
@@ -53,6 +57,7 @@ find-less-than () {
     done
   done
 }
+
 
 # OK - find and remove all empty files
 rm_empty_files () {
@@ -72,6 +77,7 @@ rm_empty_files () {
   done
 }
 
+
 # OK - find and remove all empty dirs
 rm_empty_dirs () {
   if [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
@@ -90,6 +96,7 @@ rm_empty_dirs () {
   done
 }
 
+
 # OK - find and remove all .thumbnails dirs
 rm_thumbnail_dirs () {
   if [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
@@ -107,6 +114,7 @@ rm_thumbnail_dirs () {
     find "$dir" ${maxdepth:+${maxdepth[@]}} -type d -iname ".thumbnails" -exec rm -rf {} \;
   done
 }
+
 # ----------------------------------------------------------------------------
 # }}} find files
 # {{{ string
@@ -122,6 +130,7 @@ string_repeat() {
   #printf "$2.0s" {1..$1}
   awk 'BEGIN{$'$1'=OFS="'$2'";print}'
 }
+
 
 # OK - prefix every line from the input file with a line counter, restart after empty line
 line_counter_prefix_sublines() {
@@ -141,6 +150,7 @@ line_counter_prefix_sublines() {
     echo "$i: $l"
   done
 }
+
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ math
@@ -177,6 +187,7 @@ EOF
   bc <<<"${scale}$@"
 }
 
+
 # OK - send expression to python print with imported math package
 py_calc() {
   if [[ "$1" =~ ^(-i|--import)$ ]]; then
@@ -188,6 +199,7 @@ py_calc() {
 ${_py_import+import ${_py_import}}
 print($@)"
 }
+
 
 rnd () {
    printf "%s" "$((($RANDOM % $1)+1))"; }
@@ -220,6 +232,7 @@ calcSum() {
   echo "$arg"
   echo "result: "$(pycalc "$arg")
 }
+
 # ----------------------------------------------------------------------------
 # }}} math
 # {{{ network
@@ -236,6 +249,7 @@ wget_mm () {
     wget -U "$UAGENT" -m -k -K -E -np -N "$1" &
   done
 }
+
 
 # OK - download URL using wget using output file name based on URL
 wget_d () {
@@ -267,6 +281,7 @@ EOF
   wget -U "${UAGENT}" --referer "${ref}" -O "${outfile}" "$@" "${url}"
 }
 
+
 # attempt to re-download a file that was downloaded using wget_d
 wget_d_rev () {
   if [[ -z "${1:-}" ]]; then
@@ -286,6 +301,7 @@ wget_d_rev () {
   done
 }
 
+
 # OK - open ssh tunnel
 ssh_tunnel () {
   if [[ -z "${2:-}" ]]; then
@@ -303,12 +319,14 @@ ssh_tunnel () {
   $SUDO ssh -f "${host}" ${port:+-p ${port}} ${user:+-l $user} -L ${lp}:127.0.0.1:${rp} -N
 }
 
+
 # OK - generate a random mac address
 mac_generate() {
   printf "52:54:%s" "$(dd if=/dev/urandom count=1 2>/dev/null \
                        | md5sum \
                        | sed 's/^\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4/')"
 }
+
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ file renaming
@@ -333,6 +351,7 @@ EOF
       mv -i "$f" "$target"
     done
   }
+  #
 fi
 
 # OK - list all selected files matching the given mime type
@@ -360,52 +379,12 @@ EXAMPLES:
     | sed 's/: .*//g'
 }
 
-spacekill () {
-  if [[ -z "$1" ]]; then
-    cat <<!
-Usage: spacekill [-n] <regex> [target]
-example: spacekill "[0-9]*"  # removes all numbers
-         spacekill ^ 0       # insert 0 in front of each filename
-         spacekill -n - _    # replace the first - with _
-Options: -n      non global replacement
-!
-    return 1
-  fi
-  local mode="g"
-  [[ "$1" = "-n" ]] && \
-    mode="" && \
-    shift
-  local pattern="$1"
-  local target="$2"
-  rename "s/$pattern/$target/$MODE"
-}
-rename2 () {
-  if [[ -z "$2" ]]; then
-    cat <<!
-Usage: rename2 [-n] <regex/target> <file>..
-example: rename2 ^[0-9]*/ [01]*.ogg  # removes all leading numbers
-         rename2 -n -/_ *.ogg        # replace the first - with _
-Options: -n      non global replacement
-!
-    return 1
-  fi
-  local mode="g"
-  [[ "$1" = "-n" ]] && \
-    mode="" && \
-    shift
-  local pattern="$1"
-  shift
-  while [[ -n "$1" ]]; do
-    rename "s/$pattern/$MODE" "$1"
-    shift
-  done
-}
-
+#
 rename_prefix_counter() {
   if [[ -z "$1" ]]; then
     cat <<EOF
-Usage: mvpre-count <file>.."
-example: mvpre-count intro.ogg interlude.ogg final_song.ogg
+Usage: $(cl::func_name) FILE.."
+Example: $(cl::func_name) intro.ogg interlude.ogg final_song.ogg
          -> 01_intro.ogg 02_interlude.ogg 03_final_song.ogg
 EOF
     return 1
@@ -425,6 +404,7 @@ EOF
     shift
   done
 }
+#
 
 rename_prefix_modtime () {
   [[ -n "$2" ]] && cl::p_err "rename-prefix-modtime to many parameters" &&\
@@ -435,6 +415,8 @@ rename_prefix_modtime () {
   echo renaming \"$1\" to \"$target\"
   mv "$1" "$target"
 }
+#
+
 rename_prefix_exiftime () {
   [[ -n "$2" ]] && cl::p_err "rename-prefix-exif-time to many parameters" &&\
     cl::p_usg "rename-prefix-exif-time file" && return 2
@@ -443,7 +425,9 @@ rename_prefix_exiftime () {
   echo renaming \"$1\" to \"$target\"
   mv "$1" "$target"
 }
+#export rename_prefix_exiftime
 
+# OK - add file count (content) to folder name (pre-/suffix)
 rename_dir_filecount () {
   local skip="" digits=0 rec=0 reccount=0 countall=0 verbose=0 test=0 prefix=0 clean=0 cleanonly=0 hidden=0
   while [[ -n "$1" ]]; do
@@ -471,15 +455,15 @@ rename_dir_filecount () {
       -v)
         verbose=1; shift
         ;;
-      -t)
+      -n)
         test=1; shift
         ;;
       -p)
-        (($hidden == 1)) && cl::p_err "-p and -h are mutually exclusive" && return 2
+        (($hidden == 1)) && cl::p_err "-p and -i are mutually exclusive" && return 2
         prefix=1; shift
         ;;
-      -h)
-        (($prefix == 1)) && cl::p_err "-p and -h are mutually exclusive" && return 2
+      -i)
+        (($prefix == 1)) && cl::p_err "-p and -i are mutually exclusive" && return 2
         hidden=1; shift
         ;;
       -c)
@@ -490,6 +474,9 @@ rename_dir_filecount () {
         (($clean == 1)) && cl::p_err "-co and -c are mutually exclusive" && return 2
         cleanonly=1; shift
         ;;
+      -*)
+        cl::p_err "unknown arg: $1" && return 2
+        ;;
       *)
         break
         ;;
@@ -497,25 +484,28 @@ rename_dir_filecount () {
   done
   if [[ -z "$1" ]]; then
     cat <<!
-rename-dir-filecount [OPTION..] DIR
+$(cl::func_name) [OPTION..] DIR
 
 $(cl::fx b)Options:$(cl::fx r)
-  -r        recursive mode, process sub-directories too
-  -rc       count files recursively in all sub-directories (esle: only current)
-  -d N      number of digits, e.g. -d 4 results in 0001, 0002, ...
-  -a        count full dir content including dirs etc. (else: just files)
+  -r        recursive processing mode (rename each sub directory too)
+  -rc       recursive count mode (include in count, else direct content only)
+  -d N      number of digits (add leading zeros, default: none)
+  -a        includ directories in count (default: just count files)
   -s REGEX  skip directories matching the regex pattern (full path matched)
+
   -p        instead of adding suffix " ([count])" add prefix "([count]) "
-  -h        include hidden (dot) directories
+  -i        include hidden (dot) directories
+
   -c        clean potentially exiting prefix / suffix first (caution!)
   -co       like -c but only cleans, doesn't add new prefix /suffix (caution!)
-  -t        test mode, don't do anything, just print move command
+
+  -n        test mode (no act), just print move commands
   -v        verbose mode
 
 $(cl::fx b)Example:$(cl::fx r)
   # add file count suffix (x) to to ~/foo and its sup-directories
   # don't reame directories staring with underscore _
-  $(cl::fx b)rename-dir-filecount -r -s '/_[^/]*$' ~/foo/$(cl::fx r)
+  $(cl::fx b)$(cl::func_name) -r -s '/_[^/]*$' ~/foo/$(cl::fx r)
 
   $(cl::fx blue)~/foo/bar/1.txt
   ~/foo/bar/2.txt
@@ -528,62 +518,64 @@ $(cl::fx b)Example:$(cl::fx r)
 !
      return 2
   fi
-  if [[ -d "$1" ]]; then
-    local dir="${1%%/}" && shift # remove trailing / if existing
-  else
-    cl::p_err "dir not found: $1" && return 2
-  fi
-  [[ -n "$1" ]] && cl::p_err "unknown arg: $1" && return 2
+  for d in "$@"; do
+    if [[ ! -d "${d}" ]]; then
+      cl::p_err "dir not found [$1], skipping ..."
+      continue
+    fi
+    local dir="${d%%/}" # remove trailing / if existing
+    local -a type
+    [[ "$countall" -ne 1 ]] && type=(-type f)
+    local -a maxdepth
+    [[ "$rec" -ne 1 ]] && maxdepth=(-maxdepth 0)
+    local -a maxdepthcount
+    [[ $reccount -ne 1 ]] && maxdepthcount=(-maxdepth 1)
+    local -a nothidden
+    [[ "$hidden" -ne 1 ]] && nothidden=(-not -name ".*")
 
-  local -a type
-  [[ "$countall" -ne 1 ]] && type=(-type f)
-  local -a maxdepth
-  [[ "$rec" -ne 1 ]] && maxdepth=(-maxdepth 0)
-  local -a maxdepthcount
-  [[ $reccount -ne 1 ]] && maxdepthcount=(-maxdepth 1)
-  local -a nothidden
-  [[ "$hidden" -ne 1 ]] && nothidden=(-not -name ".*")
-
-  find "$dir" $maxdepth -depth -type d $nothidden \
-    | while read d; do
-        [[ "$d" = "." ]] && continue
-        if [[ -n "$skip" ]] && echo "$d" | grep -E "$skip" > /dev/null; then
-          (($verbose == 1)) && cl::p_msg "skipping (regex): $d"
-          continue
-        fi
-        # count files in dir and rename dir (possible old count is removed)
-        count="$(find "$d" $maxdepthcount $type | wc -l)"
-        [[ "$digits" -ne 0 ]] && count="$(zerofill $count $digits)"
-        (($countall == 1)) && count="$((count-1))" # -1 to exclude current dir .
-        if (($cleanonly == 1)); then # clean only
-          (($prefix == 1)) \
-            && dest="$(echo \"$d\" | sed -E \"s/((^\.?)?\/)\([0-9]+\)\s+([^/]+)$/\1\3/\")" \
-            || dest="$(echo \"$d\" | sed -E 's/\s+\([0-9]*\)$//')"
-        elif (($clean == 1)); then # clean and add
-          (($prefix == 1)) \
-            && dest="$(echo \"$d\" | sed -E \"s/((^\.?)?\/)\([0-9]+\)\s+([^/]+)$/\1($count) \3/\")" \
-            || dest="$(echo \"$d\" | sed -E 's/\s+\([0-9]*\)$//') ($count)"
-        else # simply add, don't clean first
-          (($prefix == 1)) \
-            && dest="$(echo \"$d\" | sed -E \"s/((^\.?)?\/)([^/]+)$/\1\($count\) \3/\")" \
-            || dest="$d ($count)"
-        fi
-        if [[ "$d" = "$dest" ]]; then
-          (($verbose == 1)) && cl::p_msg "skipping (same name): $d"
-        elif [[ -d "$dest" ]]; then
-          (($verbose == 1)) && cl::p_msg "skipping (exists): $d"
-        else
-          (($verbose == 1)) && cl::p_msg "moving: '$d' -> '$dest'"
-          if (($test == 1)); then
-            echo "mv \"$d\" \"$dest\""
-          else
-            mv "$d" "$dest"
+    find "$dir" $maxdepth -depth -type d $nothidden \
+      | while read d; do
+          [[ "$d" = "." ]] && continue
+          if [[ -n "$skip" ]] && echo "$d" | grep -E "$skip" > /dev/null; then
+            (($verbose == 1)) && cl::p_msg "skipping (regex): $d"
+            continue
           fi
-        fi
-      done
+          # count files in dir and rename dir (possible old count is removed)
+          count="$(find "$d" $maxdepthcount $type | wc -l)"
+          [[ "$digits" -ne 0 ]] && count="$(zerofill $count $digits)"
+          (($countall == 1)) && count="$((count-1))" # -1 to exclude current dir .
+          if (($cleanonly == 1)); then # clean only
+            (($prefix == 1)) \
+              && dest="$(sed -E 's/((^\.?)?\/)?(\([0-9]+\)\s+)+([^/]+)$/\1\4/' <<<"$d")" \
+              || dest="$(sed -E 's/(\s+\([0-9]+\))+$//' <<<"$d")"
+          elif (($clean == 1)); then # clean and add
+            (($prefix == 1)) \
+              && dest="$(sed -E "s/((^\.?)?\/)?(\([0-9]+\)\s+)+([^/]+)$/\1\($count\) \4/" <<<"$d")" \
+              || dest="$(sed -E 's/(\s+\([0-9]*\))_$//' <<<"$d") ($count)"
+          else # simply add, don't clean first
+            (($prefix == 1)) \
+              && dest="$(sed -E "s/((^\.?)?\/)?([^/]+)$/\1\($count\) \3/" <<<"$d")" \
+              || dest="$d ($count)"
+          fi
+          if [[ "$d" = "$dest" ]]; then
+            (($verbose == 1)) && cl::p_msg "skipping (same name): $d"
+          elif [[ -d "$dest" ]]; then
+            (($verbose == 1)) && cl::p_msg "skipping (exists): $d"
+          else
+            (($verbose == 1)) && cl::p_msg "moving: '$d' -> '$dest'"
+            if (($test == 1)); then
+              echo "mv \"$d\" \"$dest\""
+            else
+              mv "$d" "$dest"
+            fi
+          fi
+        done
+  done
 }
+#export rename_dir_filecount
 
 url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
+export url2fname
 # ----------------------------------------------------------------------------
 # }}} renaming
 # {{{ moving
@@ -667,8 +659,8 @@ OPTIONS:
   done
   ${dir_created} && rmdir --ignore-fail-on-non-empty "${tar}" 2>/dev/null
 }
-
 #
+
 merge_dirs_same_first_word() {
   local pattern='^[^%#_+-]+'
   local noact=false
@@ -694,6 +686,7 @@ merge_dirs_same_first_word() {
         fi
       done
 }
+#
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ textfile manipulation
@@ -711,6 +704,7 @@ kill_trailing_spaces () {
 
   perl -pi -e 's/[ ]\+$//g' "$file"
 }
+#
 # ----------------------------------------------------------------------------
 # }}}
 # ----------------------------------------------------------------------------
@@ -735,6 +729,7 @@ git_truncate () {
     && git rebase --onto temp "$id" master \
     && git branch -D temp
 }
+#
 # }}}
 # ----------------------------------------------------------------------------
 # {{{ multimedia
@@ -755,6 +750,8 @@ ytp() {
     | sed '$!N;s/\n/\n  out=/' \
     | aria2c -U "$UAGENT" -c -x4 -j4 -i -
 }
+
+
 # same as ytp but download audio only
 ytap() {
   [[ -z "$1" ]] && cl::p_usg "$(cl::func_name) url.." && return 1
@@ -765,6 +762,7 @@ ytap() {
     | sed '$!N;s/\n/\n  out=/' \
     | aria2c -U "$UAGENT" -c -x4 -j4 -i -
 }
+
 
 # convert infile to mp3 audio file
 to_mp3 () {
@@ -782,7 +780,9 @@ to_mp3 () {
   fi
   ffmpeg -i "$in" -ab "$brate" "$out"
 }
-id3-cover-replace () {
+
+
+id3_cover_replace () {
   [[ -z "$1" ]] && \
     cl::p_usg "$(cl::func_name) [-c COVER] FILE..\n  removes all images from id3 and adds\n  the selected image (default: folder.jpg) as cover" && return 1
   local cover="folder.jpg"
@@ -794,6 +794,8 @@ id3-cover-replace () {
   cl::p_msg "adding new cover"
   eyeD3 --add-image="$cover":FRONT_COVER:"$(basename $cover)" "$@"
 }
+
+
 mpc2mp3 () {
   [[ -z "$1" ]] && \
     cl::p_usg "$(cl::func_name) [-n|--normalize] FILE.." && return 1
@@ -814,6 +816,8 @@ mpc2mp3 () {
     fi
   done
 }
+
+
 ppc2ogg () {
   [[ -z "$1" ]] && \
     cl::p_usg "$(cl::func_name) [-n|--normalize] FILE.." && return 1
@@ -829,6 +833,8 @@ ppc2ogg () {
     rm -f /tmp/mpc2ogg_*.wav
   done
 }
+
+
 ts2ps() {
   [[ -z "$1" ]] &&\
     cl::p_usg "$(cl::func_name) INFILE [OUTFILE]" &&\
@@ -842,6 +848,8 @@ ts2ps() {
   cl::q_overwrite "$outfile" &&\
     mencoder -ovc copy -oac copy -of mpeg -o "$outfile" "$1"
 }
+
+
 mplayer-wavdump () {
     local outfile="./$(basename $1).wav"
     #mplayer -ao pcm:file="$outfile" "$1"
@@ -1279,7 +1287,7 @@ examples:
 }
 # ----------------------------------------------------------------------------
 # }}}
-# {{{ crypto
+# {{{ security & crypto
 # ----------------------------------------------------------------------------
 create-crypto-containe () { # file, size, fstype [, files]
   # get args and check a few things
@@ -1368,12 +1376,81 @@ mount-crypted () {
     -o loop=/dev/loop2,encryption=aes256,gpgkey="$file",offset=8192
     #-o loop=/dev/loop2,encryption=aes,keybits=256
 }
+
+# https://stackoverflow.com/a/10379209
+# OK - securely delete (overwrite) files / directories (recursively)
+shred_secure() {
+  [[ -z "$1" ]] && \
+    cl::p_usg "$(cl::func_name) (FILE|DIR).." && return 1
+  local return_code=0
+  for f in "$@"; do
+    [[ ! -e "${f}" ]] && \
+      cl::p_war "File not found [${f}], skipping ..." && continue
+    if [[ -d "${f}" ]]; then
+      cl::p_msg "Shredding dir recursively: ${f}"
+      # loop over all non-directories (including special types like links or sockets)
+      find "${f}" -depth -not -type d | while read f2; do
+        # file no longer existing? skip fast
+        if [[ -L "${f2}" ]]; then
+          cl::p_msg "Deleting symlink using rm: [${f2}]"
+          rm -f "${f2}" \
+            || return_code=1
+          continue
+        elif [[ -p "${f2}" ]]; then
+          cl::p_msg "Deleting pipe using rm: [${f2}]"
+          rm -f "${f2}" \
+            || return_code=1
+          continue
+        elif [[ -S "${f2}" ]]; then
+          cl::p_msg "Deleting socket using rm: [${f2}]"
+          rm -f "${f2}" \
+            || return_code=1
+          continue
+        elif [[ ! -f "${f2}" ]]; then
+          cl::p_war "File not found (no longer existing?) [${f2}], skipping ..."
+          continue
+        fi
+        cl::p_msg "Shredding file: ${f2}"
+        # overwriting with random data
+        shred -v -n 1 "${f2}"
+        # forcing a sync of the buffers to the disk
+        sync
+        # overwriting with zeroes and remove the file
+        shred -v -n 0 -z -u "${f2}" \
+          || return_code=1
+      done
+      # delete all (now empty) directories, could also be: rm -rf "${f}"
+      cl::p_msg "Deleting remaining (empty) directories."
+      find "${f}" -depth -type d -exec rmdir --ignore-fail-on-non-empty '{}' \;
+      # check if dir itself is gone, if note, some files may still exist
+      if [[ -d "${f}" ]]; then
+        cl::p_err "Shredding of the given dir [${f}] seems to be incomplete, most likely due to unaccessible / newly created files! Please check or try again."
+        return_code=1
+      fi
+    else
+      cl::p_msg "Shredding: ${f}"
+      # overwriting with random data
+      shred -v -n 1 "${f}"
+      # forcing a sync of the buffers to the disk
+      sync
+      # overwriting with zeroes and remove the file
+      shred -v -n 0 -z -u "${f}" \
+        || return_code=1
+    fi
+  done
+  if (( ${return_code} > 0 )); then
+    cl::p_err "At least one ERROR occured while processing!"
+  fi
+  return ${return_code}
+}
+
+
 # ----------------------------------------------------------------------------
-# }}} crypto
+# }}} security & crypto
 # {{{ debian/ubuntu
 # ----------------------------------------------------------------------------
 if command -v apt-key >& /dev/null; then
-  apt-key-import () {
+  apt_key_import () {
     [[ -z "$1" ]] && { cl::p_usg "$(cl::func_name) FINGERPRINT"; return 1; }
     gpg --keyserver wwwkeys.eu.pgp.net --recv-keys "$1" \
       && sudo gpg --armor --export "$1" | apt-key add -

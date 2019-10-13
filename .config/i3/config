@@ -319,8 +319,11 @@ for_window [class="pavucontrol"], move container to workspace $ws10
 for_window [class="nextcloud"], move container to scratchpad
 # }}} - Default Workspaces ---------------------------------------------------
 # {{{ - Window Modes ---------------------------------------------------------
+# float by role (add this custom role where desired)
 for_window [window_role="i3float"] floating enable
-for_window [class="mpv"] floating enable # mpv float
+# float by class
+for_window [class="^(?i)(mpv|galculator)$"] floating enable
+# full screen by class
 for_window [class="streaming_client"] fullscreen enable
 # }}} - Window Modes ---------------------------------------------------------
 # {{{ - Special Rules --------------------------------------------------------
