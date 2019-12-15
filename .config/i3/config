@@ -321,8 +321,9 @@ for_window [class="nextcloud"], move container to scratchpad
 # {{{ - Window Modes ---------------------------------------------------------
 # float by role (add this custom role where desired)
 for_window [window_role="i3float"] floating enable
-# float by class
+# float by class / title
 for_window [class="^(?i)(mpv|galculator)$"] floating enable
+for_window [title="^Task Manager - Google Chrome$"] floating enable
 # full screen by class
 for_window [class="streaming_client"] fullscreen enable
 # }}} - Window Modes ---------------------------------------------------------
