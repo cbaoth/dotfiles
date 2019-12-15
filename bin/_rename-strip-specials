@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# rename-strip-specials: Rename file(s) stripping all special characters
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+declare -r _PWD="$(pwd)"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+   if [[ -f "$f" ]]; then
+     source "$f"
+     break
+   fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+trap '_rc=$?; \
+     printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+            "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+            c"${BASH_COMMAND:-N/A}"; \
+     exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; cd ${_PWD}; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+# constants
+declare -r _PAT_SPACE="s/(\s|%20)/_/g"
+declare -r _PAT_LOWER="y/A-Z/a-z/"
+declare -r _PAT_SPECIAL="s/[^\w()\[\]~&%#@.,+'-]/_/g"
+declare -r _USAGE="${_SCRIPT_FILE} [OPTION..]"
+declare _HELP
+  ! IFS='' read -r -d '' _HELP <<EOF
+Usage: $_USAGE
+
+Strips special characters from file names.
+
+OPTIONS:
+  -h    show this help
+  -r    recursive mode (process sub-directories)
+  -a    remove special characters (all but: \w()[]~&%#@.,+'-)
+  -nl   don't rename to lower case (enabled by default)
+  -ns   don't rename spaces (including %20) to '_' (enabled by default)
+  -v    debug mode (high verbosity)
+EOF
+readonly HELP
+
+# arguments
+declare recursive=false
+declare debug_lvl=0
+declare p_lower=true
+declare p_space=true
+declare p_special=false
+declare pattern=""
+
+# parse arguments
+_parse_args() {
+  while [[ -n "${1:-}" ]]; do
+    case "$1" in
+      "-h"|"--help")
+        printf "%s" "${_HELP}"
+        return 0
+        ;;
+      "-r")
+        recursive=true
+        shift
+        ;;
+      "-a")
+        p_special=true
+        shift
+        ;;
+      "-nl")
+        p_lower=false
+        shift
+        ;;
+      "-ns")
+        p_space=false
+        shift
+        ;;
+      "-v")
+        debug_lvl=1
+        shift
+        ;;
+      *)
+        cl::p_err "unknown argument [$1]"
+        return 1
+        ;;
+    esac
+  done
+
+  if $p_space; then
+    (( ${#pattern} > 0 )) && pattern="${pattern};"
+    pattern+="${_PAT_SPACE}"
+  fi
+  if $p_lower; then
+    (( ${#pattern} > 0 )) && pattern="${pattern};"
+    pattern+="${_PAT_LOWER}"
+  fi
+  if $p_special; then
+    (( ${#pattern} > 0 )) && pattern="${pattern};"
+    pattern+="${_PAT_SPECIAL}"
+  fi
+  if (( ${#pattern} <= 0 )); then
+    cl::p_err "at least one pattern must be active!" \
+      && return 1
+  fi
+  cl::p_dbg ${debug_lvl} 1 "pattern: '${pattern}'"
+
+}
+
+_rename() {
+  local rd=""
+  (( ${debug_lvl:-0} > 0 )) \
+    && rd="-v"
+
+  # hide  "no matches found: *" in zsh (rename will handle it instead)
+  #unsetopt NOMATCH
+  # non-recursive renaming
+  if ! ${recursive}; then
+    rename ${rd} "${pattern}" *
+    return
+  fi
+
+  # recursive renaming
+  #find ./ -type f -exec rename 'y/A-Z/a-z/' {} \;
+  find . -depth -type d | \
+    while read d; do
+      local dir="$(dirname ${d})"
+      local base="$(basename ${d})"
+      local target="$(sed -E "${pattern}" <<<"${base}")"
+      cd "${d}"
+      cl::p_dbg ${debug_lvl} 1 "processing files in ${d}/"
+      rename ${rd} "${pattern}" *
+      cd "${_PWD}"
+      if [[ "${d}" != "." ]]; then
+        if [[ "${target}" != "${base}" ]]; then
+          cl::p_dbg ${debug} 1 "${d} renamed as ${dir}/${target}"
+          mv "${d}" "${dir}"/"${target}"
+        fi
+      fi
+    done
+  cd "${_PWD}"
+  rename ${rd} "${pattern}" *
+}
+
+main() {
+  _parse_args "$@"
+  _rename
+}
+
+main "$@"
+
+exit 0
