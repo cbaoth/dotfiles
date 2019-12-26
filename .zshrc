@@ -135,7 +135,7 @@ $IS_X && export MPLAYER=mpv || export MPLAYER=mpv
 #UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517"
 #UAGENT+=" Mozilla Firebird/0.6"
 UAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
-UAGENT+=" Chrome/76.0.3809.132 Safari/537.36"
+UAGENT+=" Chrome/79.0.3945.88 Safari/537.36"
 export UAGENT
 # }}} - MISC -----------------------------------------------------------------
 # }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
