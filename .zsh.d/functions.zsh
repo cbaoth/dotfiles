@@ -244,6 +244,7 @@ wget_mm () {
     printf "mirror URL (no parent) using wget running 8 background jobs\n"
     return 1
   fi
+  # FIXME use GNU parallel instead
   for i in {1..8}; do
     printf "job(%s): wget -U '%s' -m -k -K -E -np -N '%s' &" "$i" "$UAGENT" "$1"
     wget -U "$UAGENT" -m -k -K -E -np -N "$1" &
