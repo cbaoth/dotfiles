@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+# wget-p: wget using gnu parallel
+
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script wget parallel
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+  if [[ -f "$f" ]]; then
+    source "$f"
+    break
+  fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+#trap '_rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+#             c"${BASH_COMMAND:-N/A}"; \
+#      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+
+# constants
+declare -r _USAGE="${_SCRIPT_FILE} URL.."
+declare _HELP
+  ! IFS='' read -r -d '' _HELP <<EOF
+Usage: $_USAGE
+
+$(cl::fx b)About:$(cl::fx r)
+  Simple wrapper for wget using GNU parallel.
+
+$(cl::fx b)Options:$(cl::fx r)
+    -j|--jobs X     Number of parallel wget worker jobs (default: 8)
+    -ar|--auto-referer
+                    Auto generate a referer URL based on the given URL's path.
+                    Sets wget's --referer option.
+    -d|--dynamic    Generate output file name based on url stripping url
+                      parameters.
+                    Example: https://foo.bar/bla/baz.tar?a=1&b=2
+                             => foo.bar+bla+baz.tar
+                    Mutually exclusive with -df.
+    -df|--dynamic-full
+                    Generate output file name based on url including url
+                      schema and parameters (warning: file extension may not
+                      be last).
+                    Example: https://foo.bar/bla/baz.tar?a=1&b=2
+                             => https%foo.bar+bla+baz.tar?a=1&b=2
+                    Mutually exclusive with -d.
+    -fp|--file-prefix PREFIX
+                    Add the given prefix in front of each output file name.
+                    Example: -d -fp 0_ "https://foo.bar/bla/baz.tar?a=1&b=2"
+                             => 0_foo.bar+bla+baz.tar
+                    Works only in combination with either -d or -df.
+    -v|--verbose    Verbose output mode.
+    -w|--wget WGET_ARG..
+                    Provide one or more wget argument(s) ending with \-
+                    Example: -w -c \- https://...
+                      => passes the -c arguments to the wget command
+                    Use with caution, consider that some arguments like -O or
+                      --referer might already be set by this script.
+EOF
+
+readonly _HELP
+
+# arguments
+declare _dynamic_filename=false
+declare _dynamic_filename_full=false
+declare _auto_referer=false
+declare _file_prefix=""
+declare _jobs=8
+declare _read_wget_args=false
+declare -a _wget_args=()
+declare -a _urls=()
+declare _verbose=false
+
+# parse arguments
+_parse_args() {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "${_USAGE}"
+    exit 1
+  fi
+
+  while [[ -n "${1:-}" ]]; do
+    if ${_read_wget_args}; then
+      # collect -w wget args
+      if [[ "${1:-}" == "\-" ]]; then
+        _read_wget_args=false
+      else
+        _wget_args+=("$1")
+      fi
+      shift
+    else
+      # parse regular script args
+      case $1 in
+      -w|--wget)
+          _read_wget_args=true
+          shift
+        ;;
+      -j|--jobs)
+        if ! cl::is_int "${2:-}"; then
+          cl::p_err "error parsing args: -j argument $2 is not an integer"
+          exit 1
+        fi
+        _jobs=$2
+        shift 2
+        ;;
+      -d|--dynamic)
+        if ${_dynamic_filename_full}; then
+          cl::p_err "error parsing args: -d mutually exclusive with -dp"
+          exit 1
+        fi
+        _dynamic_filename=true
+        shift
+        ;;
+      -df|--dynamic-full)
+        if ${_dynamic_filename}; then
+          cl::p_err "error parsing args: -d mutually exclusive with -dp"
+          exit 1
+        fi
+        _dynamic_filename_full=true
+        shift
+        ;;
+      -ar|--auto_referer)
+        _auto_referer=true
+        shift
+        ;;
+      -fp|--file-prefix)
+        if [[ -z "${2:-}" ]]; then
+          cl::p_err "error parsing args: missing file PREFIX"
+          exit 1
+        fi
+        _file_prefix="$2"
+        shift 2
+        ;;
+      -v|--verbose)
+        _verbose=true
+        shift
+        ;;
+      -h|--help)
+        printf "%s" "${_HELP}"
+        exit 1
+        ;;
+      -*)
+        cl::p_err "unknown argument: $1"
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+      esac
+    fi
+  done
+  if [[ -z "${1:-}" ]]; then
+    cl::p_err "missing url argument"
+    exit 1
+  fi
+  if [[ -n "${_file_prefix}" && !(${_dynamic_filename} || ${_dynamic_filename_full}) ]]; then
+    cl::p_err "file prefix provided but neither -d nor -df enabled"
+    exit 1
+  fi
+
+  _urls=("$@")
+  #cl::p_dbg 0 1 "> URLs: ${_urls[@]}"
+  cl::p_dbg 0 1 "> wget args: ${_wget_args[@]}"
+}
+export _dynamic_filename
+export _dynamic_filename_full
+export _file_prefix
+export _auto_referer
+export _wget_args
+export _urls
+export _verbose
+export _jobs
+
+_wget() {
+  if [[ -z "${1:-}" ]]; then
+    printf "WARNING: missing url argument, skipping\n"
+    return 1
+  fi
+  local url="$1"
+  shift
+
+  local ref
+  if ${_auto_referer}; then
+    ref="$(dirname "${url}")"
+  fi
+
+  local outfile
+  if ${_dynamic_filename}; then
+    outfile="$(sed -E 's/^(\w+):\/+//g;s/\/+$//g;s/\//+/g;s/\?\w+=.*//g' <<<"${url}")"
+  elif ${_dynamic_filename_full}; then
+    outfile="$(sed -E 's/^(\w+):\/\//\1%/g;s/\/+$//g;s/\//+/g' <<<"${url}")"
+  fi
+  if [[ -n "${_file_prefix}" ]]; then
+    if [[ -z "${outfile}" ]]; then
+      printf "WARNING: ignoring provided file prefix [%s], only applicable in combonation with -d or -df\n" "${_file_prefix}"
+    else
+      outfile="${_file_prefix}${outfile}"
+    fi
+  fi
+
+  if ${_verbose}; then
+    echo "\$ wget -U \"{$UAGENT}\" ${ref:+--referer \"${ref}\" }\"${url}\" ${outfile:+-O \"${outfile}\"} $@"
+  fi
+  wget -U "${UAGENT}" ${ref:+--referer "${ref}"} "${url}" ${outfile:+-O "${outfile}"} "$@"
+}
+export -f _wget
+
+_wget_p() {
+  #cl::dbg 0 2 "\$ parallel -j ${_jobs} _wget {} ::: ${_urls[@]}"
+  parallel -j ${_jobs} _wget {} "${_wget_args[@]}" ::: "${_urls[@]}"
+}
+
+main() {
+  _parse_args "$@"
+  _wget_p
+}
+
+main "$@"
+
+exit 0
