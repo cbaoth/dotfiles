@@ -289,7 +289,7 @@ cl::p_war() {
 
 # print debug message in format "> DEBUG({lvl}): [msg].."
 # env DEBUG_LVL supercedes [dbg_lvl] (first arg.) if DEBUG_LVL > dbg_lvl
-# set dbg_lvl to 0 if DEBUG_LVL should be used exclusively
+# set dbg_lvl custom debug level or to 0 if DEBUG_LVL should be used exclusively
 cl::p_dbg() {
   local timestamp
   # timestamp option set?
