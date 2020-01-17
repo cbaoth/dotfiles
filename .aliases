@@ -110,6 +110,8 @@ alias scp2='scp -P 8090'
 
 alias wake-saito='wakeonlan bc:5f:f4:9f:08:dc'
 alias wake-motoko='wakeonlan 1C:1B:0D:E7:BE:B3'
+
+alias speedtest='wget -O - -q https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python'
 # }}} - NETWORK --------------------------------------------------------------
 
 # {{{ - XORG -----------------------------------------------------------------
