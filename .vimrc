@@ -16,7 +16,7 @@ set t_kD=^V
 
 " Normally we use vim-extensions. If you want true vi-compatibility
 " remove change the following statements
-set nocompatible	" Use Vim defaults (much better!)
+set nocompatible	" Use Vim defaults (much better!) BUT regularly enables new default features
 "set backspace=2		" allow backspacing over everything in insert mode
 set backspace=indent,eol,start	" same as above but better ?
 " Now we set some defaults for the editor 
@@ -35,7 +35,8 @@ set nowritebackup  " only in case you don't want a backup file while editing
 set noswapfile     " no swap files
 
 " https://unix.stackexchange.com/a/140584
-set mouse=r        " disable visual mode on mouse selection (mouse=a)
+""https://gist.github.com/u0d7i/01f78999feff1e2a8361"
+set mouse-=a       " disable visual mode on mouse selection (using shift) and allow copy & paste
 
 abbreviate #b /*********************************************************
 abbreviate #e  *********************************************************/
