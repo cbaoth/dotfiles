@@ -51,6 +51,19 @@ alias rsync-sync-safe-remote='rsync -avuh --safe-links -Piz --delete --backup'
 
 # {{{ - SYSTEM ---------------------------------------------------------------
 alias ls-disk-uuid='sudo blkid -c /dev/null'
+# query standby status without warking the drive
+alias smartctl-sbstatus='sudo smartctl -n standby -i'
+alias smartctl-sbstatus-all='for d in /dev/sd[a-z]; do 
+    echo $d; sudo smartctl -n standby -i $d;
+  done'
+alias smartctl-sbstatus-all-short='for d in /dev/sd[a-z]; do
+    echo $d; sudo smartctl -n standby -i $d | grep -o "Device is in STANDBY mode" \
+      || echo "Device is ACTIVE";
+  done'
+# send drive to standby (not -Y sleep, which will wake e.g. on query)
+alias hdparm-standby='sudo dparm -y'
+alias hdparm-standby-all='sudo dparm -y /dev/sd[a-z]'
+alias udevadm-reload-and-apply='sudo udevadm control --reload-rules && sudo udevadm trigger'
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - SECURITY -------------------------------------------------------------
@@ -74,6 +87,13 @@ alias authlog-ssh-ip-user='sudo grep "Failed" /var/log/auth.log \
 alias authlog-ssh-ip-user-all='sudo zgrep "Failed" /var/log/auth.* \
   | sed "s/.*for\( invalid user\)* \([^ ]*\) from \([^ ]*\) .*/\3\t\2/" \
   | grep -v sudo: | sort | uniq -c | sort -n'
+
+alias fail2ban-yesterday='grep " Ban " /var/log/fail2ban.log | grep $(date +%Y-%m-%d -d yesterday)'
+alias fail2ban-count-yesterday='grep " Ban " /var/log/fail2ban.log | grep $(date +%Y-%m-%d -d yesterday) | wc -l'
+alias fail2ban-count-per-jail='grep " Ban " /var/log/fail2ban.log | sed -r "s/.*\[([^\]+)\]\s+Ban\s+([0-9.]{7,15})([^0-9].*|$)/\1/g" | sort | uniq -c | sort -nr'
+alias fail2ban-count-per-jail-yesterday='grep " Ban " /var/log/fail2ban.log | grep $(date +%Y-%m-%d -d yesterday) | sed -r "s/.*\[([^\]+)\]\s+Ban\s+([0-9.]{7,15})([^0-9].*|$)/\1/g" | sort | uniq -c | sort -nr'
+alias fail2ban-count-per-ip='grep " Ban " /var/log/fail2ban.log | sed -r "s/.*\[([^\]+)\]\s+Ban\s+([0-9.]{7,15})([^0-9].*|$)/\2 \1/g" | sort | uniq -c | sort -nr | sed -r "s/\s*([0-9]+)\s([0-9.]+)\s+(.*)/\2\t\3\t\1/g"'
+alias fail2ban-count-per-ip-yesterday='grep " Ban " /var/log/fail2ban.log | grep $(date +%Y-%m-%d -d yesterday) | sed -r "s/.*\[([^\]+)\]\s+Ban\s+([0-9.]{7,15})([^0-9].*|$)/\2 \1/g" | sort | uniq -c | sort -nr | sed -r "s/\s*([0-9]+)\s([0-9.]+)\s+(.*)/\2\t\3\t\1/g"'
 # }}} - SECURITY -------------------------------------------------------------
 
 # {{{ - MAIL -----------------------------------------------------------------
@@ -206,8 +226,8 @@ alias cat-utf8-to-iso-8859-1='iconv -f utf-8 -t ISO-8859-1'
 alias cal-month='ncal -wM -m'
 alias cal-year='ncal -ywM'
 
-alias rm-dupes='jdupes -dN'
-alias rm-dupes-rec='jdupes -dNrO'
+alias rm-dupes='jdupes -dNO'
+alias rm-dupes-rec='jdupes -dNOr'
 
 alias mysqlr='mysql -u root -p'
 alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'
