@@ -23,6 +23,6 @@ rem echo %git-bash% -c "export PATH="$PATH:%_path%"; image-concat %_args%"
 rem %git-bash% -c "export PATH=""$PATH:%_path%""; echo ""$PATH""; read; echo image-concat %_args%; read"
 
 rem run
-%git-bash% -c "export PATH=""$PATH:%_path%""; echo ""$PATH""; image-concat %_args%; read"
+%git-bash% -c "export PATH=""$PATH:%_path%""; echo ""$PATH""; image-concat %_args%"
 
 pause
