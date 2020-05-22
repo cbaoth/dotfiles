@@ -201,10 +201,10 @@ else
       && rm -rf ~/.zplug
   fi
 
-  if command -v curl >& /dev/null; then
-    _url_cmd=(curl l -sL --proot-rdir -all,https)
-  elif command -v wget >& /dev/null; then
+  if command -v wget >& /dev/null; then
     _url_cmd=(wget -qO -)
+  elif command -v curl >& /dev/null; then
+    _url_cmd=(curl l -sL --proot-rdir -all,https)
   else
     _url_cmd=false
   fi
