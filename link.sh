@@ -12,6 +12,12 @@ LINK_FILE=$(realpath $0)
 DOTFILES=$(dirname $LINK_FILE)
 BAKDIR=$HOME/dofile_bak_$(date +%s)
 
+COPY_FILES=false
+if [[ "$1" == "-c" ]]; then
+  COPY_FILES=true
+  shift
+fi
+
 cd "$DOTFILES"
 # safety check before we create wrong links
 [ ! -d ".git" ] \
@@ -48,7 +54,7 @@ find "$DOTFILES" -regextype sed \
   else
     if [ -e "$target" ]; then # target exists?
       # is a link pointing to the desired target?
-      if [[ -L "$target" && "$(readlink $target)" -ef "$f" ]]; then
+      if [[ -L "$target" && "$(readlink $target)" -ef "$f" && ! $COPY_FILES ]]; then
         echo "> INFO: correct link alreardy exists, skipping .."
         continue
       fi
@@ -57,8 +63,13 @@ find "$DOTFILES" -regextype sed \
       mkdir -p "$BAKDIR/`dirname $targetrel`"
       mv "$target" "$BAKDIR/$targetrel"
     fi
-    echo "> creating link: '$f' -> '$target'"
-    ln -s "$f" "$target"
+    if $COPY_FILES; then
+      echo "> creating copy: '$f' -> '$target'"
+      cp "$f" "$target"
+    else
+      echo "> creating link: '$f' -> '$target'"
+      ln -s "$f" "$target"
+    fi
   fi
 done
 
