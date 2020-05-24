@@ -61,8 +61,8 @@ alias smartctl-sbstatus-all-short='for d in /dev/sd[a-z]; do
       || echo "Device is ACTIVE";
   done'
 # send drive to standby (not -Y sleep, which will wake e.g. on query)
-alias hdparm-standby='sudo dparm -y'
-alias hdparm-standby-all='sudo dparm -y /dev/sd[a-z]'
+alias hdparm-standby='sudo hdparm -y'
+alias hdparm-standby-all='sudo hdparm -y /dev/sd[a-z]'
 alias udevadm-reload-and-apply='sudo udevadm control --reload-rules && sudo udevadm trigger'
 # }}} - SYSTEM ---------------------------------------------------------------
 
