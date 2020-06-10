@@ -51,6 +51,7 @@ $(cl::fx b)General:$(cl::fx r)
 
 $(cl::fx b)XClip:$(cl::fx r)
   -x, --xclip           monitor X clipboard instead of reading terminal input
+                        or windows clipboard in WSL
   --pollrate X          XClip mode poll-rate in seconds (default: 0.2s)
 
 $(cl::fx b)Filter Input:$(cl::fx r)
@@ -125,6 +126,12 @@ declare delimiter=$'\n'
 declare regex=""
 declare pollrate=.2
 declare cmd_arg
+
+# Are we in a Windows Subsystem Linux?
+IS_WSL=false
+if [[ $(uname -r) = *Microsoft* ]]; then
+  IS_WSL=true
+fi
 
 # parse arguments
 _parse_args() {
@@ -233,7 +240,11 @@ _read_loop() {
       if ! $first; then
         sleep ${pollrate} # poll rate
       fi
-      input="$(xclip -selection clip-board -o -l)"
+      if ${IS_WSL}; then
+        input="$(powershell.exe Get-Clipboard)"
+      else
+        input="$(xclip -selection clip-board -o -l)"
+      fi
     else
       IFS='' read -r -d $'\n' input
     fi
