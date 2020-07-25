@@ -27,6 +27,8 @@ alias llg="ls -al | grep -Ei --color"
 # {{{ - SYSTEM ---------------------------------------------------------------
 alias fontcache-refresh="xset fp rehash; sudo fc-cache -f -v"
 alias remount-exec="sudo mount -o remount,exec"
+alias sleep-enable="sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target"
+alias sleep-disable="sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target"
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
