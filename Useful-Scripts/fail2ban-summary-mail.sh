@@ -25,10 +25,10 @@ mail_summary() {
     printf "A total of %s bans were detected.<br/><br/>" "${ban_count}" >> "${BODY}"
     printf -- "---<br/><br/>" "${ban_count}" >> "${BODY}"
     # count per jail
-    grep " Ban " /var/log/fail2ban.log | grep "${YESTERDAY}" | sed -r "s/.*\[([^\]+)\]\s+Ban\s+([0-9.]{7,15})([^0-9].*|$)/\1/g" | sort | uniq -c | sort -nr | sed -r 's/$/<br\/>/g' >> "${BODY}"
+    grep " Ban " /var/log/fail2ban.log | grep "${YESTERDAY}" | sed -r "s/.*\[([^\]+)\]\s+Ban\s+([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})([^0-9].*|$)/\1/g" | sort | uniq -c | sort -nr | sed -r 's/$/<br\/>/g' >> "${BODY}"
     printf -- "<br/>---<br/><br/>" "${ban_cout}" >> "${BODY}"
     # count per IP
-    grep " Ban " /var/log/fail2ban.log | grep "${YESTERDAY}" | sed -r "s/.*\[([^\]+)\]\s+Ban\s+([0-9.]{7,15})([^0-9].*|$)/\2 \1/g" | sort | uniq -c | sort -nr | sed -r "s/\s*([0-9]+)\s([0-9.]+)\s+(.*)/\2\t\3\t\1/g" | sed -r 's/$/<br\/>/g' >> "${BODY}"
+    grep " Ban " /var/log/fail2ban.log | grep "${YESTERDAY}" | sed -r "s/.*\[([^\]+)\]\s+Ban\s+([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})([^0-9].*|$)/\2 \1/g" | sort | uniq -c | sort -nr | sed -r "s/\s*([0-9]+)\s([0-9.]+)\s+(.*)/\2\t\3\t\1/g" | sed -r 's/$/<br\/>/g' >> "${BODY}"
     printf -- "<br/>---<br/><br/>" "${ban_cout}" >> "${BODY}"
   fi
 
