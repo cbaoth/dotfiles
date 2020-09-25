@@ -9,6 +9,10 @@
 # TODO:
 # look into https://github.com/clvv/fasd
 
+# PROFILING (DEBUG)
+#zmodload zsh/zprof
+#echo "zprof start: $(date)"
+
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 # For login shell / general variable like PATH see ~/.zshenv
 
@@ -30,7 +34,7 @@ export DBG_LVL=0
 # shared session
 export HISTSIZE=10000 # set in-memory history limit
 export SAVEHIST=10000 # set history file limit
-export HISTFILE="~/.history" # set history file
+export HISTFILE="~/.zhistory" # set history file
 
 setopt INC_APPEND_HISTORY # write immediately (default: on exit only)
 #setopt HIST_IGNORE_DUPS # don't add duplicates
@@ -56,7 +60,7 @@ umask 022
 # {{{ - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
 # Are we in a Windows Subsystem Linux?
 IS_WSL=false
-if [[ $(uname -r) = *Microsoft* ]]; then
+if [[ $(uname -r) = *icrosoft* ]]; then
   IS_WSL=true
   # See https://github.com/Microsoft/BashOnWindows/issues/1887
   unsetopt BG_NICE
@@ -185,43 +189,33 @@ is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # }}} = CORE FUNCTIONS & ALIASES =============================================
 
 # {{{ = ZPLUG PREPARE ========================================================
+# disable oh-my-zsh auto update, we'll do it below via zplug
+export DISABLE_AUTO_UPDATE=true
+#export DISABLE_UPDATE_PROMPT=true
+#export UPDATE_ZSH_DAYS=30
+
 # apt: zplug - https://github.com/zplug/zplug
-alias zplug_cmd=zplug
-#if [[ -f "/usr/share/zplug/init.zsh" ]]; then
-#  cl::p_dbg 0 2 'zplug found in /usr/share/zplug, loading ...'
-#  source /usr/share/zplug/init.zsh
-# TODO clean this up, much too complicate (separate functions or don't cover all unlikely cases)
-if [[ -f "$HOME/.zplug/init.zsh" ]]; then
-  cl::p_dbg 0 2 'zplug found in ~/.zplug, loading ...'
-  source "$HOME/.zplug/init.zsh"
+# skip zplug all together on WSL (much too slow)
+IS_ZPLUG=true
+if $IS_WSL; then
+  cl::p_war "WSL, skipping zplug"
+  alias zplug_cmd=:
+  IS_ZPLUG=false
 else
-  cl::p_war 'init.zsh not found in ~/.zplug'
+  alias zplug_cmd=zplug
+fi  
+if [[ -f "$HOME/.zplug/init.zsh" ]]; then
+  cl::p_dbg 0 2 "zplug found in ~/.zplug, loading ..."
+  time source "$HOME/.zplug/init.zsh"
+else
   if [[ -d "$HOME/.zplug" ]]; then
-    cl::q_yesno "zplug not found but $HOME/.zplug exist, should I delete it?" \
-      && rm -rf ~/.zplug
-  fi
-
-  if command -v wget >& /dev/null; then
-    _url_cmd=(wget -qO -)
-  elif command -v curl >& /dev/null; then
-    _url_cmd=(curl l -sL --proot-rdir -all,https)
+    cl::p_war "init.zsh not found in ~/.zplug, try re-installing:"
+    cl::p_msg "% rm -rf .zplug"
   else
-    _url_cmd=false
+    cl::p_war "~/.zplug not found, try installing:"
   fi
-  "${_url_cmd[@]}" https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh
-  unset _url_cmd
-
-  if (($? == 0)); then
-    if [[ -f "$HOME/.zplug/init.zsh" ]]; then
-      source "$HOME/.zplug/init.zsh"
-    else
-      cl::p_err "$(cl::tputs 'setaf 1')zplug $(cl::tputs 'setaf 3')installation seem to have faild, $HOME/.zplug not found."
-    fi
-  else
-    cl::p_err "$(cl::tputs 'setaf 1')zplug $(cl::tputs 'setaf 3')download failed."
-    # temporary dummy zplug alias so all commannds below will exit gracefully
-    alias zplug_cmd=false
-  fi
+  cl::p_msg "% wget -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
+  cl::p_msg "% source $HOME/.zplug/init.zsh"
 fi
 
 # self-manage zplug (zplug update will upldate zplug itself)
@@ -375,6 +369,7 @@ zplug_cmd "zsh-users/zaw"
 
 # {{{ - OH MY ZSH ------------------------------------------------------------
 # https://github.com/robbyrussell/oh-my-zsh/wiki/Plugins
+# skip some in WSL (too slow)
 
 zplug_cmd "plugins/catimg", from:oh-my-zsh
 #plugins/common-aliases
@@ -384,8 +379,8 @@ zplug_cmd "plugins/dirhistory", from:oh-my-zsh
 zplug_cmd "plugins/docker", from:oh-my-zsh # docker autocompletion
 zplug_cmd "plugins/encode64", from:oh-my-zsh # encode64/decode64
 #https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
-zplug_cmd "plugins/git", from:oh-my-zsh
-zplug_cmd "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
+$IS_WSL || zplug_cmd "plugins/git", from:oh-my-zsh
+$IS_WSL || zplug_cmd "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
 zplug_cmd "plugins/httpie", from:oh-my-zsh # completion for apt:httpie (http)
 zplug_cmd "plugins/jsontools", from:oh-my-zsh # *_json
 zplug_cmd "plugins/mvn", from:oh-my-zsh # maven completion
@@ -414,8 +409,13 @@ fi
 # }}} = ZPLUG PLUGINS ========================================================
 
 # {{{ = ZPLUG LOAD ===========================================================
-zplug_cmd check --verbose \
-  || { cl::q_yesno "Install missing zplug packages" && zplug install }
+# check for updates no more than every 14 days
+if [[ ! $IS_ZPLUG && -n ~/.zplugcheck(#qN.mh+336) ]]; then
+  cl::p_msg "More than 14 days have passed since the last update check, checking ..."
+  zplug_cmd check --verbose \
+    || { cl::q_yesno "Install missing zplug packages" && zplug install }
+  touch ~/.zplugcheck
+fi
 
 # load local plugins
 #zplug_cmd "~/.zsh.d", from:local
@@ -455,8 +455,15 @@ setopt extendedglob
 # include hidden (dot-files) in glob selections (note: also inverse selection!)
 #setopt dotglob
 # enable new style completion system
-autoload -U compinit
-compinit
+autoload -Uz compinit
+# check cache only once per day (can be slow)
+# https://gist.github.com/ctechols/ca1035271ad134841284
+if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
+  compinit
+  touch .zcompdump
+else
+  compinit -C
+fi
 
 # {{{ - COMPLETION -----------------------------------------------------------
 # menu
@@ -671,11 +678,13 @@ if zplug check "zsh-users/zaw"; then
   bindkey '^[v^[s' zaw-git-status # alt-v, alt-s
 
   # filterlist bindings
-  bindkey -M filterselect '^r' down-line-or-history
-  bindkey -M filterselect '^w' up-line-or-history
-  bindkey -M filterselect '^ ' accept-search
-  bindkey -M filterselect '\e' send-break # esc
-  bindkey -M filterselect '^[' send-break # esc
+  if $IS_ZPLUG; then
+    bindkey -M filterselect '^r' down-line-or-history
+    bindkey -M filterselect '^w' up-line-or-history
+    bindkey -M filterselect '^ ' accept-search
+    bindkey -M filterselect '\e' send-break # esc
+    bindkey -M filterselect '^[' send-break # esc
+  fi
 
   # filterlist style
   zstyle ':filter-select:highlight' matched fg=green
@@ -719,3 +728,7 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 #fi
 # }}} - X STUFF --------------------------------------------------------------
 # }}} = FINAL LOGIN EXECUTIONS ===============================================
+
+# PROFILING (DEBUG)
+#echo "zprof result: $(date)"
+#time zprof
