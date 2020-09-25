@@ -145,6 +145,9 @@ export UAGENT
 # }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 
 # {{{ = CORE FUNCTIONS & ALIASES =============================================
+# pre-requirements
+setopt extendedglob
+
 # include core functions, must simply be there (used everywhere)
 source $HOME/lib/commons.sh
 
@@ -251,8 +254,12 @@ ZSH_THEME="powerlevel9k/powerlevel9k"
 # load pewerlevel9k (if availlable)
 # apt: zsh-theme-powerlevel9k - https://github.com/bhilburn/powerlevel9k
 #source_ifex /usr/share/powerlevel9k/powerlevel9k.zsh-theme
-zplug_cmd "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme \
-  && POWERLEVEL9K_ISACTIVE=true || POWERLEVEL9K_ISACTIVE=false
+if $IS_ZPLUG; then
+  zplug_cmd "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme \
+    && POWERLEVEL9K_ISACTIVE=true || POWERLEVEL9K_ISACTIVE=false
+else
+  POWERLEVEL9K_ISACTIVE=false
+fi
 
 # {{{ - - General ------------------------------------------------------------
 POWERLEVEL9K_DISABLE_RPROMPT=false
@@ -410,11 +417,11 @@ fi
 
 # {{{ = ZPLUG LOAD ===========================================================
 # check for updates no more than every 14 days
-if [[ ! $IS_ZPLUG && -n ~/.zplugcheck(#qN.mh+336) ]]; then
+if $IS_ZPLUG && [[ ! -f ~/.zplug/lastcheck || -n ~/.zplug/lastcheck(#qN.mh+336) ]]; then
   cl::p_msg "More than 14 days have passed since the last update check, checking ..."
   zplug_cmd check --verbose \
     || { cl::q_yesno "Install missing zplug packages" && zplug install }
-  touch ~/.zplugcheck
+  touch ~/.zplug/lastcheck
 fi
 
 # load local plugins
