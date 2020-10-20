@@ -169,8 +169,18 @@ alias yta="youtube-dl \
                 /best[ext=webm]/best[ext=ogg]/best' \
             -i -x -o '%(title)s [%(id)s].ogg'"
 
-alias mp3gain-track='echo "replaygain -r 89 --no-album'
-alias mp3gain-album='echo "replaygain -r 89'
+#alias yta-mp3="youtube-dl \
+#            --audio-format mp3 --audio-quality 160K \
+#            -i -x -o '%(title)s [%(id)s].mp3'"
+
+alias yta-m4a="youtube-dl \
+            -f 'bestaudio[ext=m4a]' \
+            -i -x -o '%(title)s [%(id)s].m4a'"
+
+#alias mp3gain-track='replaygain -r 89 --no-album'
+#alias mp3gain-album='replaygain -r 89'
+alias mp3gain-track='mp3gain -p -e'
+alias mp3gain-album='mp3gain -p -a'
 alias mp3gain-ape2id3='ape2id3.py -v -f'
 
 alias vorbisgain-track='vorbisgain -s'
@@ -201,20 +211,20 @@ alias rename-strip-specials="rename \"s/[^ \w()\[\]~&%#@.,+'-]/_/g\""
 alias rename-strip-specials-rec="find . -type f -depth -execdir rename \"s/^\.\///g;
   s/[^ \w()\[\]~&%#@.,+'-]/_/g; s/^/\.\//\" '{}' +"
 
-alias rename-to-titlecase="rename 's/(^|[\s_-])([a-z])/\1\u\2/g'"
-alias rename-to-camelcase="rename 's/(^|[\s_-])([a-z])/\u\2/g'"
+alias rename-to-titlecase="rename 's/(^|[\s_-])([a-z])/$1\u$2/g'"
+alias rename-to-camelcase="rename 's/(^|[\s_-])([a-z])/\u$2/g'"
 
 alias rename-exif-date-prefix='exiv2 -v -F -k -r %Y-%m-%d_%H%M%S_:basename:'
 
-alias sed-to-titlecase="sed -E 's/(^|[\s_-])([a-z])/\1\u\2/g'"
-alias sed-to-camelcase="sed -E 's/(^|[\s_-])([a-z])/\u\2/g'"
+alias sed-to-titlecase="sed -E 's/(^|[\s_-])([a-z])/$1\u$2/g'"
+alias sed-to-camelcase="sed -E 's/(^|[\s_-])([a-z])/\u$2/g'"
 
 alias sed-url-clean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi;
                           s/%3d/:/gi; s/%3f/?/gi'"
 alias sed-url-clean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
                            s/%3f/?/gi'"
 
-alias sed-url-decode="sed -E 's/%([0-9A-F][0-9A-F])/\\\\\\\\x\1/g' | while read l;
+alias sed-url-decode="sed -E 's/%([0-9A-F][0-9A-F])/\\\\\\\\x$1/g' | while read l;
   do echo -e \"\$l\"; done"
 
 alias cat-utf16-to-utf8='iconv -f utf-16 -t utf-8'
