@@ -65,15 +65,19 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
                 echo "> last apt update less than an hour ago, skipping (use apud! to force) ..."
               fi'
   alias api='apud; sudo apt install'
+  alias apiB='apud; sudo apt -t buster-backports install'
   alias apu='apud; sudo apt upgrade; sudo apt auto-remove'
   alias apuf='apud; sudo apt full-upgrade; sudo apt auto-remove'
   alias apr='sudo apt remove' # conflicts with ar
   alias apr!='sudo apt purge'
   alias apra='sudo apt auto-remove'
+  alias apsB='apt -t buster-backports search'
   alias aps='apt search'
   alias apss='apt show'
   alias apl='apt list'
   alias apli='apt list --installed'
+  alias aplo='sudo aptitude search \?obsolete' # list obsolete packages
+  alias appo='sudo aptitude purge \?obsolete' # purge obsolete packages
 fi
 
 if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
