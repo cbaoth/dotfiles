@@ -11,9 +11,16 @@ xset -dpms
 xset dpms 0 0 0
 
 # enable "natural scrolling" (invert) on logitech touch pad
-input  set-prop "pointer:Logitech K400" 299 1
+xinput  set-prop "pointer:Logitech K400" 299 1
+
+# use qt5ct theme (if installed)
+command -v qt5ct && export QT_QPA_PLATFORMTHEME=qt5ct
+
+# run stuff
+barrierc --enable-crypto -d ERROR puppet
 
 # delete previous log file
 rm -f ~/i3.log 2>&1 >/dev/null
 # run i3 windowmanager
 exec i3 -V >> ~/i3.log 2>&1
+
