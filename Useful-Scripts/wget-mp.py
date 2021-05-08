@@ -41,6 +41,7 @@ PROCESSTIMEOUT = 0 # 10*60
 # debug level
 BASENAME = os.path.basename(sys.argv[0])
 DYNNAME = 0
+REFETCH = 0
 DEBUG = 0
 # wget timeouts (0 = disabled)
 CONNECTTIMEOUT=0  # wget default: 0, connection time
@@ -138,8 +139,16 @@ class ProcessPool:
 
 def url2filename(url):
     target = re.sub("^(https?|ftp|file):/+", "", url)
+    target = re.sub("/+$", "", target)
     target = target.replace("/", "+")
     target = target.replace(" ", "_")
+    return target
+
+
+def guessUrlFromFilename(filename):
+    target = re.sub(".*/", "", filename) # strip file path
+    target = re.sub("^", "http://", target) # we assume http protoclo
+    target = target.replace("+", "/")
     return target
 
 
@@ -165,6 +174,9 @@ def main():
     aparse.add_argument('-d', '--dynname', action='store_true', default=DYNNAME \
                         , help="dynamically name output file, example:"
                              + " http://foo.bar/bla/baz.tar => foo.bar+bla+baz.tar")
+    aparse.add_argument('-rf', '--refetch', action='store_true', default=REFETCH \
+                        , help='try to refetch corrupted files by guessing the url from'
+                             + ' the file name (only for files loaded with the -d option)')
     aparse.add_argument('-s', '--skipifexists', action='store_true', default=False \
                         , help="skip if the output file already exists, instead of"
                              + " continuing (only in combination with --dynname)")
@@ -202,7 +214,16 @@ def main():
         for url in args.url:
             cmd = cmd_base
             p_msg('URL: %s' % (url))
-            if (args.dynname):
+            if (args.refetch):
+                target = url
+                # we don't care if the file doesn't exist, we have the name and can try to re-fetch it
+                #if (not os.path.isfile(target)):
+                #   p_msg('   => SKIPPING (file not found)')
+                #   continue
+                url = guessUrlFromFilename(url)
+                p_msg('  <= ASSUMED URL: %s' % (url))
+                cmd = cmd + ['-O', target]
+            elif (args.dynname):
                 target = url2filename(url)
                 if (args.skipifexists and os.path.isfile(target)):
                     p_msg('  => SKIPPING (target exists)')
