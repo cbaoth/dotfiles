@@ -1,0 +1,276 @@
+-- ~/.conky/conkyrc-sysmon2: system monitor 2
+conky.config={
+    -- ====================================================================
+    -- Core settings
+    -- ====================================================================
+    -- set to yes if you want Conky to be forked in the background
+    background=true,
+
+    cpu_avg_samples=2,
+    net_avg_samples=2,
+
+    out_to_console=false,
+    --out_to_ncurses=true,
+
+    -- X font when Xft is disabled, you can pick one with program xfontsel
+    --font="7x12",
+    --font="6x10",
+    --font="7x13",
+    --font="8x13",
+    --font="7x12",
+    --font="*mintsmild.se*",
+    --font="-*-*-*-*-*-*-34-*-*-*-*-*-*-*",
+    --font="-artwiz-snap-normal-r-normal-*-*-100-*-*-p-*-iso8859-1",
+    --font="snap-8",
+
+    -- Use Xft?
+    use_xft=true,
+    override_utf8_locale=yes, -- force utf8 (only with xft),
+
+    -- Xft font when Xft is enabled
+    --font="Bitstream Vera Sans Mono:size=8",
+    --font="Terminus:size=12",
+    --font="Lucida Grande:size=8",
+    --font="DejaVu Sans Condensed:size=8",
+    font="Fira Code Medium:size=7",
+    --font="DejaVu Sans Mono:size=11",
+    --font="Monospace:size=9",
+    --font="AvantGarde LT Medium:bold:size=10",
+    --font="Lucida Sans:size=9",
+
+    -- Text alpha when using Xft
+    --xftalpha=0.8,
+    xftalpha=1,
+
+    -- mail spool
+    --mail_spool="$MAIL",
+
+    -- Update interval in seconds
+    update_interval=1,
+
+    -- Create own window instead of using desktop (required in nautilus)
+    own_window=true,
+    --own_window=false,
+
+    -- fluxbox + xcompmgr, real transparency (composite manager needed)
+    --own_window_transparent=true,
+    own_window_hints="undecorated,below,sticky,skip_taskbar,skip_pager",
+    own_window_colour="black",
+    own_window_type="override", -- required for: i3
+    --own_window_type="desktop",
+    --own_window_type="normal",
+    -- transparency, type 1
+    own_window_argb_visual=true, -- problems with override (above)
+    own_window_argb_value=190, -- 0 transp. 255 opaque
+    -- alternative transparency (warning: may be combined with the above)
+    --- optionally add the following to your ~/.fluxbox/apps
+    --- note that this also changes opacity of foreground (text etc.)
+    ---[app]=(class=conky),
+    ---  [Alpha]   {150}
+    ---[end]
+    --- fluxbox + compton (no shadows)
+    own_window_class="conky",
+
+    -- fluxbox, slit
+    --own_window_hints="undecorated,below,sticky,skip_taskbar,skip_pager",
+    --own_window_colour="black",
+    --own_window_type="dock",
+
+    -- fluxbox
+    --own_window_transparent=true,
+    --own_window_hints="undecorated,below,sticky,skip_taskbar,skip_pager",
+    --own_window_type="override",
+    --own_window_type="normal",
+    --own_window_class="conky",
+
+    -- gnome
+    --own_window_transparent=true,
+    --own_window_hints="undecorated,below,sticky,skip_taskbar,skip_pager",
+    --own_window_type="desktop",
+
+    -- Use double buffering (reduces flicker, may not work for everyone)
+    double_buffer=true,
+
+    -- Draw shades?
+    draw_shades=false,
+
+    -- Draw outlines?
+    draw_outline=false,
+
+    -- Draw borders around text
+    --draw_borders=false,
+    draw_borders=true,
+
+    -- Stippled borders?
+    stippled_borders=0,
+
+    -- border margins
+    border_inner_margin=6,
+    border_outer_margin=2,
+
+    -- border width
+    border_width=1,
+
+    -- Default colors and also border colors
+    default_color="white",
+    default_shade_color="black",
+    default_outline_color="grey",
+
+    -- Aligned position on screen
+    -- top_left, top_right, top_middle, bottom_left, bottom_right,
+    -- bottom_middle, middle_left, middle_middle, middle_right, or none
+    -- also can be abreviated as tl, tr, tm, bl, br, bm, ml, mm, mr
+    alignment="top_left",
+
+    -- Gap between borders of screen and text
+    gap_x=50,
+    gap_y=50,
+
+    -- Minimum size of text area
+    minimum_width=270,
+    maximum_width=270,
+
+    -- Add spaces to keep things from moving about?
+    -- This only affects certain objects.
+    use_spacer="none",
+
+    -- Subtract file system buffers from used memory?
+    no_buffers=true,
+
+    -- set to yes if you want all text to be in uppercase
+    uppercase=false,
+
+    -- print values in human readable format
+    format_human_readable=true,
+
+    -- ====================================================================
+    -- Monitoring
+    -- ====================================================================
+
+    -- variable is given either in format $variable or in ${variable}. Latter
+    -- allows characters right after the variable and must be used in network
+    -- stuff because of an argument
+    --${font=Dungeon:style=Bold:pixelsize=10}I can change the font as well,
+    --${font=Verdana:size=10}as many times as I choose,
+    --${font=Perry:size=10}Including UTF-8,
+    -- stuff after "TEXT" will be formatted on screen
+    --${font=Grunge:size=12}${time %a  %b  %d}${alignr --25}${time %k:%M},
+
+    -- == CPU STATUS ======================================================
+    -- hwmon: tree /sys/class/hwmon /sys/class/hwmon/hwmon*
+    template0 = [[
+${font :bold:size=11}${color #0077FF}CPU Core Status:${voffset 5}${font}
+${goto 14}${color #FFD000}${goto 14}${execi 1000 cat /proc/cpuinfo | egrep "^model name" | sed -r 's/.*:\s*//g;s/\((R|TM)\)//g;s/ CPU /, /g;s/\s+/ /g'|head -n 1}${font}
+${goto 24}${font}${color #61BEFF}Core 1: ${goto 84}${color lightgrey}${hwmon 1 temp 1}°C ${alignr}${font :size=8}${freq_g 1} GHz  ${color #61BEFF}${cpubar cpu1 6,55}${font}
+${goto 24}${font}${color #61BEFF}Core 2: ${goto 84}${color lightgrey}${hwmon 1 temp 1}°C ${alignr}${font :size=8}${freq_g 2} GHz  ${color #61BEFF}${cpubar cpu2 6,55}${font}
+${goto 24}${font}${color #61BEFF}Core 3: ${goto 84}${color lightgrey}${hwmon 1 temp 1}°C ${alignr}${font :size=8}${freq_g 3} GHz  ${color #61BEFF}${cpubar cpu3 6,55}${font}
+${goto 24}${font}${color #61BEFF}Core 4: ${goto 84}${color lightgrey}${hwmon 1 temp 1}°C ${alignr}${font :size=8}${freq_g 4} GHz  ${color #61BEFF}${cpubar cpu4 6,55}${font}
+
+${voffset 5}${goto 14}${color #FFD000}${execi 1000 cat /sys/devices/virtual/dmi/id/board_name}
+${goto 24}${font}${color #61BEFF}System: ${goto 84}${color lightgrey}${hwmon 1 temp 3}°C${font}
+${hr 2}
+]],
+    --${color #0077FF}${cpugauge cpu1 20 25} ${color #0077FF}${cpugauge cpu2 20 25} ${color #0077FF}${cpugauge cpu3 20 25} ${color #0077FF}${cpugauge cpu4 20 25}
+
+    -- == GPU STATUS ======================================================
+    --     template1 = [[
+    -- ${font :bold:size=11}${color #0077FF}GPU Status:${voffset 5}${font}
+
+    -- ${color #FFD000} Nvidia ${execi 1000 cat /proc/driver/nvidia/gpus/0/information|grep '^Model'|sed -r 's/^[^:]+:\s+//g'}
+    -- ${color #61BEFF}  GPU Freq.: ${goto 90}${color lightgrey}${nvidia gpufreq} MHz ${goto 140}(${nvidia temp}°C)
+    -- ${color #61BEFF}  Mem Freq.: ${goto 90}${color lightgrey}${nvidia memfreq} MHz
+    -- ${stippled_hr}
+    -- ]],
+
+    -- == SYS HEALTH ======================================================
+    -- i2c: ls /sys/bus/i2c/devices/*/
+    -- hwmon: tree /sys/class/hwmon /sys/class/hwmon/hwmon*
+    --     template2 = [[
+    -- ${font :bold:size=11}${color #0077FF}System Health:${voffset 5}${font}
+    -- ${color lightgrey}${execi 1 sensors | grep "°C" | sed -r 's/\s*\(.*//g;s/\s{2,10}/|/g;s/^/ /g' | awk -F '|' '{printf "%-20s %s\n", $1, $2}'}
+    -- ${color lightgrey}${execi 1 sensors | grep -i voltage | sed -r 's/\s*\(.*//g;s/\s{2,10}/|/g;s/^\s*/ /g' | awk -F '|' '{printf "%-17s %10s\n", $1, $2}'}
+    -- ${color #FFD000} ${execi 1000 echo `cat /sys/devices/virtual/dmi/id/board_vendor` `cat /sys/devices/virtual/dmi/id/board_name`}
+    -- ${goto 14}${color #FFD000}${execi 1000 cat /sys/devices/virtual/dmi/id/board_name}
+    -- ${goto 14}${color #61BEFF}SYS Temp.: ${goto 110}${color lightgrey}${hwmon 1 temp 2}°C / ${hwmon 1 temp 3}°C
+    -- ${goto 14}${color #61BEFF}CPU Voltage:  ${goto 140}${color lightgrey}${voltage_v}V
+    -- ${goto 14}${color #61BEFF}Sys Voltage:  ${goto 140}${color lightgrey}${hwmon 1 vol 1}V / #${hwmon 1 vol 2}V / ${hwmon 1 vol 3}V
+    -- ${goto 14}${color #61BEFF}CPU Fan 1:    ${goto 140}${color lightgrey}${hwmon 1 fan 1} RPM (water)
+    -- ${goto 14}${color #61BEFF}CPU Fan 2:    ${goto 140}${color lightgrey}${hwmon 1 fan 2} RPM (water)
+    -- ${goto 14}${color #61BEFF}Chassi Fan 1: ${goto 140}${color lightgrey}${hwmon 2 fan 3} RPM
+    -- ${goto 14}${color #61BEFF}Chassi Fan 2: ${goto 140}${color lightgrey}${hwmon 2 fan 4} RPM
+    -- ${goto 14}${color #61BEFF}Chassi Fan 3: ${goto 140}${color lightgrey}${hwmon 2 fan 5} RPM${color lightgrey}${stippled_hr}
+    -- ]],
+
+    -- == HD STATUS =======================================================
+    -- The hddtemp demon must be installed and running.
+    -- Add to sudoers to a) allow access w/o pw and b) don't log every event:
+    --  Cmnd_Alias HDDTEMP_NOLOG=/usr/sbin/hddtemp
+    --  Defaults!HDDTEMP_NOLOG !syslog, !pam_session
+    --  %sudo saito = NOPASSWD: HDDTEMP_NOLOG
+
+    -- -- SSD -------------------------------------------------------------
+    template3 = [[
+${font :bold:size=11}${color #0077FF}HD Status:${voffset 5}${font}
+${voffset 0}${goto 14}${color lightgrey}${font :size=8}/ ${alignr}${fs_used_perc /}% ${color #FFD000}${fs_bar 6,55 /}
+${voffset 0}${goto 14}${color lightgrey}${font :size=8}/boot ${alignr}${fs_used_perc /boot}% ${color #FFD000}${fs_bar 6,55 /boot}
+${voffset 2}${color #0077FF}${diskiograph sda 16,270 000000 FFD000}
+${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sda ${goto 80}${color lightgrey}${diskio sda}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sda 2>&1 | sed -r 's/.*:\s*//'}
+${stippled_hr}
+]],
+
+    -- -- RAID5 DATA ------------------------------------------------------
+    template4 = [[
+${voffset 0}${goto 14}${color lightgrey}${font :size=8}/media/data ${alignr}${fs_used_perc /media/data}% ${color #61BEFF}${fs_bar 6,55 /media/data}
+${voffset 2}${color #0077FF}${diskiograph sdb 16,270 000000 61BEFF}
+${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdb ${goto 80}${color lightgrey}${diskio sdb}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdb 2>&1 | sed -r 's/.*:\s*//'}
+${voffset 1}${color #0077FF}${diskiograph sdc 16,270 000000 61BEFF}
+${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdc ${goto 80}${color lightgrey}${diskio sdc}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdc 2>&1 | sed -r 's/.*:\s*//'}
+${voffset 1}${color #0077FF}${diskiograph sdd 16,270 000000 61BEFF}
+${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdd ${goto 80}${color lightgrey}${diskio sdd}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdd 2>&1 | sed -r 's/.*:\s*//'}
+${stippled_hr}
+]],
+
+    -- -- WD RED ----------------------------------------------------------
+    template5 = [[
+${voffset 0}${goto 14}${color lightgrey}${font :size=8}/media/safe ${alignr}${fs_used_perc /media/safe}% ${color #61BEFF}${fs_bar 6,55 /media/safe}
+${voffset 2}${color #0077FF}${diskiograph sde 16,270 000000 61BEFF}
+${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sde ${goto 80}${color lightgrey}${diskio sde}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sde 2>&1 | sed -r 's/.*:\s*//'}
+${voffset 1}${color #0077FF}${diskiograph sdf 16,270 000000 61BEFF}
+${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdf ${goto 80}${color lightgrey}${diskio sdf}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdf 2>&1 | sed -r 's/.*:\s*//'}
+${voffset 1}${color #0077FF}${diskiograph sdg 16,270 000000 61BEFF}
+${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdg ${goto 80}${color lightgrey}${diskio sdg}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdg 2>&1 | sed -r 's/.*:\s*//'}
+${hr 2}
+]],
+    --${color #0077FF}HD IO: ${color lightgrey}${diskio} ${alignr}${color #0077FF}Temperature: ${color lightgrey}${execi 300 nc localhost 7634 | sed 's/|\/dev\//\n/g' | grep sdb | cut -d \| -f 3}C
+    --${color #0077FF}HD IO: ${color lightgrey}${diskio} ${alignr}${color #0077FF}Temperature(s): ${color lightgrey}${hddtemp /dev/sdb}°C
+
+    -- == TOP =============================================================
+    template9 = [[
+${font :bold:size=11}${color #0077FF}TOP Processes:
+${voffset 2}${goto 14}${font DejaVu Sans Mono:bold:size=9}${color #0077FF}TOP CPU${goto 150}PID ${goto 195}CPU% ${goto 245}MEM%${font DejaVu Sans Mono:size=8}
+${goto 14}${color #FFD000}${top name 1} ${goto 140}${top pid 1} ${goto 185}${top cpu 1} ${goto 235}${top mem 1}
+${goto 14}${color #61BEFF}${top name 2} ${color lightgrey}${goto 140}${top pid 2} ${goto 185}${top cpu 2} ${goto 235}${top mem 2}
+${goto 14}${color #61BEFF}${top name 3} ${color lightgrey}${goto 140}${top pid 3} ${goto 185}${top cpu 3} ${goto 235}${top mem 3}
+
+${voffset 5}${goto 14}${font DejaVu Sans Mono:bold:size=9}${color #0077FF}TOP Memory${goto 150}PID ${goto 195}CPU% ${goto 245}MEM%${font DejaVu Sans Mono:size=8}
+${goto 14}${color #FFD000}${top_mem name 1} ${goto 140}${top_mem pid 1} ${goto 185}${top_mem cpu 1} ${goto 235}${top_mem mem 1}
+${goto 14}${color #61BEFF}${top_mem name 2} ${color lightgrey}${goto 140}${top_mem pid 2} ${goto 185}${top_mem cpu 2} ${goto 235}${top_mem mem 2}
+${goto 14}${color #61BEFF}${top_mem name 3} ${color lightgrey}${goto 140}${top_mem pid 3} ${goto 185}${top_mem cpu 3} ${goto 235}${top_mem mem 3}${font}${voffset 10}
+
+${voffset 5}${goto 14}${font DejaVu Sans Mono:bold:size=9}${color #0077FF}TOP I/O${goto 150}PID ${goto 195}CPU% ${goto 245}MEM%${font DejaVu Sans Mono:size=8}
+${goto 14}${color #FFD000}${top_io name 1} ${goto 140}${top_io pid 1} ${goto 185}${top_io cpu 1} ${goto 235}${top_io mem 1}
+${goto 14}${color #61BEFF}${top_io name 2} ${color lightgrey}${goto 140}${top_io pid 2} ${goto 185}${top_io cpu 2} ${goto 235}${top_mem mem 2}
+${goto 14}${color #61BEFF}${top_io name 3} ${color lightgrey}${goto 140}${top_io pid 3} ${goto 185}${top_io cpu 3} ${goto 235}${top_io mem 3}${font}${voffset 10}
+]]
+
+}
+
+conky.text=[[
+${template 0 CPU}
+${template 3 SSD}
+${template 4 RAID5\ DATA}
+${template 5 RAID5\ OLD}
+${template 9 TOP}
+]]
+--${template 1 GPU}
+--${template 2 SYS}
