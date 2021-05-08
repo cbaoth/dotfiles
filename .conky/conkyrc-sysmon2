@@ -160,7 +160,7 @@ conky.config={
     -- hwmon: tree /sys/class/hwmon /sys/class/hwmon/hwmon*
     template0 = [[
 ${font :bold:size=11}${color #0077FF}CPU Core Status:${voffset 5}${font}
-${goto 14}${color #FFD000}${goto 14}${execi 1000 cat /proc/cpuinfo | egrep "^model name" | sed -r 's/.*:\s*//g;s/\((R|TM)\)//g;s/ CPU /, /g;s/\s+/ /g'|head -n 1}${font}
+${goto 14}${color #FFD000}${goto 14}${execi 1000 cat /proc/cpuinfo | egrep "^model name" | sed -r 's/.*:\s*//g;s/\\((R|TM)\\)//g;s/ CPU /, /g;s/\s+/ /g'|head -n 1}${font}
 ${goto 24}${font}${color #61BEFF}Core 1: ${goto 84}${color lightgrey}${hwmon 1 temp 1}°C ${alignr}${font :size=8}${freq_g 1} GHz  ${color #61BEFF}${cpubar cpu1 6,55}${font}
 ${goto 24}${font}${color #61BEFF}Core 2: ${goto 84}${color lightgrey}${hwmon 1 temp 1}°C ${alignr}${font :size=8}${freq_g 2} GHz  ${color #61BEFF}${cpubar cpu2 6,55}${font}
 ${goto 24}${font}${color #61BEFF}Core 3: ${goto 84}${color lightgrey}${hwmon 1 temp 1}°C ${alignr}${font :size=8}${freq_g 3} GHz  ${color #61BEFF}${cpubar cpu3 6,55}${font}
