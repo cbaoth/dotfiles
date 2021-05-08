@@ -27,16 +27,19 @@ screenshot-template='~/%F @%P %#n'
 
 ytdl-format=bestvideo[vcodec=vp9]+bestaudio[acodec=opus]/bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]/bestvideo[vcodec=vp8]+bestaudio[acodec=opus]/bestvideo[vcodec=vp8]+bestaudio[acodec=vorbis]/bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=webm]+bestaudio[ext=ogg]/best[ext=webm]/bestvideo+bestaudio/best
 
+# a profile that can be enabled with --profile=big-cache
+[big-cache]
+cache=yes
+demuxer-max-bytes=100M
+demuxer-readahead-secs=30
+
 
 [default]
 
 # =======
 #  Cache
 # =======
-
-cache=yes
-cache-default=5000000                   # size in KB (default: 75000)
-#cache-backbuffer=75000                  # size in KB (default: 75000)
+cache=auto
 #cache-initial=0                         # start playback when your cache is filled up with x KB (default: 0)
 cache-secs=10                           # how many seconds of audio/video to prefetch if the cache is active
 
@@ -122,7 +125,7 @@ audio-pitch-correction=yes              # automatically insert scaletempo when p
 
 # Defaults for all profiles
 # mpv vo=help for a list of supported oucl::tputs
-vo=opengl                                # video output driver (default: gpu)
+vo=gpu                                # video output driver (default: gpu)
 #vo=sdl
 #vo=wayland
 #tscale=oversample                        # [sharp] oversample <-> linear (triangle) <-> catmull_rom <-> mitchell (default) <-> gaussian <-> bicubic [smooth]
