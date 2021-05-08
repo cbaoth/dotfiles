@@ -4,7 +4,7 @@
 	name = cbaoth
 	email = dev@cbaoth.de
 [pull]
-	rebase = preserve
+	rebase = true
 [core]
 	fileMode = false
     editor = code --wait
