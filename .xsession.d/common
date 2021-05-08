@@ -169,7 +169,9 @@ runbg osdsh -c crimson -o 1 -f '-*-terminus-bold-*-*-*-26-*-*-*-*-*-*-*'
 #runbg gwibber
 #runbg gajim
 #runbg pidgin
-runbg nextcloud
+runbg keepassxc
+# delay nc client, kp keyring must be unlocked first
+(sleep 1m; nextcloud) &
 
 #aterm -display :0.1 -fade 65 -sh 50 -tr -tint rgb:60/60/c0 -fn 6x10 -fb 6x10 -g 100x10+0-21 -T syslog -e sudo tail -f /var/log/syslog &
 #runbg xmms2tray

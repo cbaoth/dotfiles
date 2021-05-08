@@ -6,10 +6,10 @@
 # Keywords: dotfile xorg
 
 # include common session
-. ~/.xsession.d/common
+. $HOME/.xsession.d/common
 
 # include custom host session or fallback to default session if none found
-[ -f "~/.xsession.d/$(hostname)" ] \
-  && . ~/.xsession.d/$(hostname) \
-  || . ~/.xsession.d/default
+[ -f "$HOME/.xsession.d/$(hostname)" ] \
+  && . $HOME/.xsession.d/$(hostname) \
+  || . $HOME/.xsession.d/default
 
