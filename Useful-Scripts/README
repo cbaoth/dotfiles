@@ -17,8 +17,8 @@ Some other scripts:
                    preserve previous backup on ftp
 - clear-cache.sh   clean up home folder by removing (known) local caches, temp
                    files etc.
+- dbbackup.sh      backup script for mysql and postgresql
 - gallery.sh       create a very simple image gallery (static html file with
                    static thumbs)
 - pdfprint.sh      print a pdf/ps file using psnup for multi page per sheet
                    printing
-
