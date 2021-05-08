@@ -6,6 +6,11 @@
 # Common aliases for all shells
 
 # {{{ - GENERAL --------------------------------------------------------------
+# allow sudo and other commands to use aliases as arguments
+# https://askubuntu.com/a/22043/234212
+alias sudo='sudo '
+alias watch='watch '
+
 # change directory shortcuts
 alias ..='cd ..'
 alias ...='cd ../..'
@@ -31,39 +36,76 @@ done
 alias psa='ps uxaw --cols 64000'
 alias psf='ps aw --forest --cols 64000'
 alias killall9='pkill -9 -x'
+alias kill-suspend='kill -TSTP'
+alias kill-resume='kill -CONT'
 
 # backup source to target (no deletion but overwrite)
 # show progress, ignoring ext. links
-alias rsync-backup='rsync -avuh --safe-links --progress'
+alias rsync-backup='rsync -axvuh --safe-links --info=progress2'
 # in addition to the above, compress and keep partial files
-alias rsync-backup-remote='rsync -avuh --safe-links -Pz'
+alias rsync-backup-remote='rsync -axvuh --safe-links -Pz'
 # same as above but backup files that are to be overwritten/deleted (target)
-alias rsync-backup-safe='rsync -avuh --safe-links --progress --backup'
-alias rsync-backup-safe-remote='rsync -avuh --safe-links -Pz --backup'
+alias rsync-backup-safe='rsync -axvuh --safe-links --info=progress2 --backup'
+alias rsync-backup-safe-remote='rsync -axvuh --safe-links -Pz --backup'
 
 # sync source to target (delete files in target if missing in source)
-alias rsync-sync='rsync -avuh --safe-links --progress -i --delete'
-alias rsync-sync-remote='rsync -avuh --safe-links -Piz --delete'
+alias rsync-sync='rsync -axvuh --safe-links --info=progress2 -i --delete'
+alias rsync-sync-remote='rsync -axvuh --safe-links -Piz --delete'
 # same as above but backup files that are to be overwritten/deleted (target)
-alias rsync-sync-safe='rsync -avuh --safe-links --progress -i --delete --backup'
-alias rsync-sync-safe-remote='rsync -avuh --safe-links -Piz --delete --backup'
+alias rsync-sync-safe='rsync -axvuh --safe-links --info=progress2 -i --delete --backup'
+alias rsync-sync-safe-remote='rsync -axvuh --safe-links -Piz --delete --backup'
+
+# clone with permissions, links, etc.
+alias rsync-clone='rsync -axHAWXS --numeric-ids --info=progress2'
+# compare source and target, list all files that are different/new/missing
+alias rsync-diff='rsync -axvnc'
+alias rsync-diff-quick='rsync -axvnu'
 # }}} - GENERAL --------------------------------------------------------------
 
 # {{{ - SYSTEM ---------------------------------------------------------------
 alias ls-disk-uuid='sudo blkid -c /dev/null'
+alias ls-part='sudo fdisk -l | egrep "Disk /dev/(sd|md)" | sort | cut -d, -f1'
+
+alias fsck-y='sudo fsck -fyv'
+alias fsck-bby='sudo fsck -ccfyv'
+alias fsck-bbp='sudo fsck -ccfpv'
+
+alias smart-test='sudo smartctl -t long'
+alias smart-test-abort='sudo smartctl -X'
+alias smart-error='sudo smartctl -l error'
+alias smart-errorx='sudo smartctl -l xerror'
+alias smart-attr='sudo smartctl -A'
+
 # query standby status without warking the drive
-alias smartctl-sbstatus='sudo smartctl -n standby -i'
-alias smartctl-sbstatus-all='for d in /dev/sd[a-z]; do 
+alias smart-sbstatus='sudo smartctl -n standby -i'
+alias smart-sbstatus-all='for d in /dev/sd[a-z]; do 
     echo $d; sudo smartctl -n standby -i $d;
   done'
-alias smartctl-sbstatus-all-short='for d in /dev/sd[a-z]; do
+alias smart-sbstatus-all-short='for d in /dev/sd[a-z]; do
     echo $d; sudo smartctl -n standby -i $d | grep -o "Device is in STANDBY mode" \
       || echo "Device is ACTIVE";
   done'
+alias smart-stats-all='for d in /dev/sd?; do
+    echo -n "------\nSMART Device:     $d\n"
+    sudo smartctl -a $d | egrep -i "^(Device Model|User Capacity|self-assessment test|\s*[0-9]+ .*0x)"
+  done | egrep --color " ([1-9]|[0-9]+[0-9])\$|"'
+
 # send drive to standby (not -Y sleep, which will wake e.g. on query)
 alias hdparm-standby='sudo hdparm -y'
 alias hdparm-standby-all='sudo hdparm -y /dev/sd[a-z]'
 alias udevadm-reload-and-apply='sudo udevadm control --reload-rules && sudo udevadm trigger'
+
+# raid
+alias mdstat='cat /proc/mdstat'
+alias mdstat-md=$'awk \'/^md/ {printf "%s: ", $1}; /blocks/ {print $NF}\' /proc/mdstat'
+alias mdstat-sync='cat /sys/block/md*/md/sync_action'
+alias mddetails='sudo mdadm --detail /dev/md*'
+
+alias mdscrub='echo check | sudo tee /sys/block/md0/md/sync_action'
+alias mdscrub-abort='echo idle | sudo tee /sys/block/md0/md/sync_action'
+alias mdscrub-stats='sudo cat /sys/block/md0/md/mismatch_cnt'
+
+alias mdcheck='/usr/share/mdadm/checkarray'
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - SECURITY -------------------------------------------------------------
@@ -102,6 +144,9 @@ alias fetchmail='command -v fetchmail.sh >/dev/null \
   && fetchmail.sh \
   || fetchmail --mda "/usr/bin/spamc -e /usr/lib/dovecot/deliver" \
                -f $HOME/.fetchmailrc --bad-header accept'
+alias mailq-flush='mailq -q'
+alias mailq-del-all='sudo postsuper -d ALL'
+alias mailq-del-deref='sudo postsuper -d ALL deferred'
 # }}} - MAIL -----------------------------------------------------------------
 
 # {{{ - DEV ------------------------------------------------------------------
@@ -127,6 +172,7 @@ alias ssh2='ssh -p 8090 -A'
 alias scp2='scp -P 8090'
 
 #alias ssh-tunnel-yavin-proxy='ssh -f yav.in -p 8090 -L 23128:127.0.0.1:3128 -N'
+alias ssh-tunnel-yavin-rspamd='ssh -f yav.in -p 8090 -L 11334:127.0.0.1:11334 -N'
 
 alias wake-saito='wakeonlan bc:5f:f4:9f:08:dc'
 alias wake-motoko='wakeonlan 1C:1B:0D:E7:BE:B3'
@@ -149,6 +195,7 @@ alias xprop-basic="xprop WM_CLASS WM_NAME WM_WINDOW_ROLE _NET_WM_WINDOW_TYPE \
   |& sed -E 's/^\w*WM_(WINDOW_)?([^ (]+)(\(\w+\))?(:| = )/\2:\t/g;
              s/^NAME/TITLE/g;s/^(CLASS:\s+\"[^\"]*\"), (.*)/\1\nNAME:\t\2/g;
              s/\s*not found\.//g'"
+alias barrierc='barrierc --enable-crypto -d ERROR'
 # }}} - XORG -----------------------------------------------------------------
 
 # {{{ - MULTIMEDIA -----------------------------------------------------------
