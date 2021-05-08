@@ -20,18 +20,23 @@
 trap 'exit 1' INT TERM SIGTERM
 
 # -- options ----------------------------------------------------------------
-VERSION="080726"
+VERSION="160424"
 PROG="`basename $0`"
-zext="gz,tgz,bz2,zip,rar,ace"
-aext="ogg,mp4,mp3,mp2,wav,mid,mod,sid,wma"
-vext="mpeg,mpg,avi,divx,asf,asx,wmv"
+zext="gz,tgz,bz2,zip,rar,ace,7z"
+aext="ogg,mp4,mp3,mp2,wav,mid,mod,sid,wma,m4a,aac"
+vext="mpeg,mpg,avi,divx,asf,asx,wmv,webm,mp4,m4v"
 gext="jpg,jpeg,png,gif,xcf"
 pre="" # default prefix
+html_tags="(a|source|meta|div)"
+html_args="(href|src|content|data(-[a-z0-9]*)?)"
 autopre=0 # dynamic prefix (!0 -> true)
 dirsep="+" # replacement character for / in urls (used for dynamic prefixing)
-uagent="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517 Mozilla Firebird/0.6"
+#uagent="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517 Mozilla Firebird/0.6"
+uagent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.75 Safari/537.36"
 errorlog=0
 errorlogfile="$HOME/getbyext-error.log"
+#clobber="-nc" # skip existing files (wget)
+clobber="-c" # continue if file exists
 verbosity=1
 stdout=0
 # ---------------------------------------------------------------------------
@@ -65,13 +70,13 @@ ext:
   -ev          video [$vext]
   -em          media -a -g -v
   -a           all (-e*)
+
+options:
+  -u user:pw   http authentication
   -i EXP       ignore files matching regexp EXP (case insensitive)
   -iu          match whole url when using -i
   -m EXP       just get files matching regexp EXP (case insensitive)
   -mu          match whole url when using -m
-  -u user:pw   auth
-
-options:
   -p PREFIX    outputfile prefix
   -d           dynamic output filename, '/' in url are replaced by '$dirsep'
   -x           exit on first error
@@ -79,7 +84,7 @@ options:
   --dir D      destination directory
   --post D     post data string
   --stdout     print links only instead of downloading them
-               verbotity set to 0 in this case! example usage:
+               note: verbotity set to 0 in this case (can be overridden)
   --verb X     set verbosity level [$verbosity]
 
 examples:
@@ -112,6 +117,7 @@ function urlappend {
 ignoreexp=""; ignoreexpurl=0; matchexp=""; matchexpurl=0
 auth=""; ref=""; dir=""
 wgetargs=()
+verbosity_custom=0
 while [ -n "$1" ]; do
   case "$1" in
   -ez|-EZ)
@@ -198,6 +204,7 @@ while [ -n "$1" ]; do
     ;;
   --verb|--verbosity)
     ([ -z "$2" ] || ! isint "$2") && p_err "parsing args" && exit 1
+    verbosity_custom=1
     verbosity=$2
     shift 2
     ;;
@@ -216,11 +223,13 @@ while [ -n "$1" ]; do
   esac
 done
 
-[ $stdout -gt 0 ] && verbosity=0
+[ $stdout -gt 0 ] && [ $verbosity_custom -eq 0 ] && verbosity=0
 [ -z "$ext" ] && usage "no ext given" && exit 1
 [ -z "$urls" ] && usage "no url given" && exit 1
 
-ext="$(echo $ext|sed 's/,/\\\|/g')"
+ext_regex="($(echo $ext|sed 's/,/\|/g'))"
+p_msg2 $verbosity 2 "ext: $ext"
+p_msg2 $verbosity 2 "ext_regex: $ext_regex"
 
 get_last () {
   string="$1"
@@ -237,6 +246,86 @@ else
   auth=""
 fi
 
+wgetargs=(${wgetargs[*]} --no-check-certificate $clobber)
+[ $verbosity -lt 2 ] && wgetargs=(${wgetargs[*]} --quiet)
+
+process_url () {
+  l="$1"
+  #echo "> l: $l"
+  if [ "$(echo $l | egrep -i '^http')" ]; then
+    link="$l"
+  else
+    if [ "`echo $l | cut -c -1`" == '/' ]; then
+      host="`echo $url | sed 's/http:\/\///g ; s/\/.*//g'`"
+      url="http://$host"
+    elif [ -n "$(echo $url| grep -i '.php\|.htm\|.asp\|.cgi')" ]; then
+      url="`dirname $url`"
+    fi
+    link="`echo $url | sed 's/[&?].*//g'`/$l"
+  fi
+  #echo "> link: $link"
+  if [ -n "$(echo ${link##*.}| grep -iE "$ext_regex")" ]; then
+    fname=`basename "$link"`
+    file=""
+    [ -n "$pre" ] && \
+      file="$pre"
+    if [ $autopre -eq 1 ]; then
+      file="$file`echo $link | sed \"s/http:\/\///g ; s/[&?].*//g ; s/\//$dirsep/g ; s/${dirsep}+/$dirsep/g\"`"
+    else
+      file="${file}`echo ${link##*/} | sed 's/[&?].*//g'`"
+    fi
+    file="`echo $file | sed 's/\(%20\|[ ]\)/_/g'`"
+    if [ -n "$ignoreexp" ]; then
+      if [ $igoreexpurl -gt 0 ]; then
+        if [ -n "`echo \"$link\" | egrep -i \"$ignoreexp\"`" ]; then
+          p_msg2 $verbosity 2 "ignoing '$fname'"
+          continue
+        fi
+      elif [ -n "`echo \"$fname\" | egrep -i \"$ignoreexp\"`" ]; then
+        p_msg2 $verbosity 2 "ignoing '$fname'"
+        continue
+      fi
+    fi
+    if [ -n "$matchexp" ]; then
+      if [ $matchexpurl -gt 0 ]; then
+        if [ -n "`echo \"$link\" | egrep -vi \"$matchexp\"`" ]; then
+          p_msg2 $verbosity 2 "ignoing '$fname'"
+          continue
+        fi
+      elif [ -n "`echo \"$fname\" | egrep -vi \"$matchexp\"`" ]; then
+        p_msg2 $verbosity 2 "ignoing '$fname'"
+        continue
+      fi
+    fi
+    file="`echo $file | cut -d \\\" -f 1`"
+    link="`echo $link | cut -d \\\" -f 1`"
+    if [ -n "`echo $link | grep 'javascript:'`" ]; then
+      p_msg2 $verbosity 2 "skipping js link '$link'"
+    elif [ -z "`echo $link | grep -E '\.\w+$'`" ]; then
+      p_msg2 $verbosity 2 "skipping link '$link'"
+    else
+      if [ $stdout -gt 0 ]; then
+        echo $link
+      else
+        p_msg2 $verbosity 1 "getting '$link' -> '$file' "
+        if [ $errorlog -gt 0 ]; then
+          p_err2 "wget -U "$uagent" $auth --referer=\"$referer\" \"$link\" -O \"$dir$file\" ${wgetargs[*]}"
+          wget ${wgetargs[*]} -U "$uagent" $auth --referer="$referer" "$link" \
+            -O "$dir$file" 2>> "$errorlogfile"
+        else
+          wget ${wgetargs[*]} -U "$uagent" $auth --referer="$referer" "$link" \
+            -O "$dir$file"
+        fi
+        if [ $? == 0 ]; then
+          p_msg2 $verbosity 2 ".. done\n"
+        else
+          p_err ".. wget error or skipped (file exists)!\n"
+        fi
+      fi
+    fi
+  fi
+}
+
 p_msg2 $verbosity 1 "initialising transfer"
 for url in $urls; do
   if [ -n "$ref" ]; then
@@ -245,84 +334,18 @@ for url in $urls; do
     referer="$url"
   fi
   p_msg2 $verbosity 1 "url: $url"
-  wget --quiet -U "$uagent" -O - "$url"| \
-  sed 's/<[ \t]*[a][ \t]*/\n/gi'| \
-  grep -i href| grep -i "$ext"| \
-  sed "s/^.*href=[\"']*//i ; s/[\"']*[ \t]*>.*$/ >/i ;
-    s/\([\"'][^>]*\|[ \t]\+[^> \t]\+\=[^>]*\|[ \t]*\)>.*$//i"| \
-  while read l; do
-    #echo "> l: $l"
-    if [ "$(echo $l | egrep -i '^http')" ]; then
-      link="$l"
-    else
-      if [ "`echo $l | cut -c -1`" == '/' ]; then
-        host="`echo $url | sed 's/http:\/\///g ; s/\/.*//g'`"
-        url="http://$host"
-      elif [ -n "$(echo $url| grep -i '.php\|.htm\|.asp\|.cgi')" ]; then
-        url="`dirname $url`"
-      fi
-      link="`echo $url | sed 's/[&?].*//g'`/$l"
-    fi
-    #echo "> link: $link"
-    if [ -n "$(echo ${link##*.}| grep -i $ext)" ]; then
-      fname=`basename "$link"`
-      file=""
-      [ -n "$pre" ] && \
-        file="$pre"
-      if [ $autopre -eq 1 ]; then
-        file="$file`echo $link | sed \"s/http:\/\///g ; s/[&?].*//g ; s/\//$dirsep/g ; s/${dirsep}+/$dirsep/g\"`"
-      else
-        file="${file}`echo ${link##*/} | sed 's/[&?].*//g'`"
-      fi
-      file="`echo $file | sed 's/\(%20\|[ ]\)/_/g'`"
-      if [ -n "$ignoreexp" ]; then
-        if [ $igoreexpurl -gt 0 ]; then
-          if [ -n "`echo \"$link\" | egrep -i \"$ignoreexp\"`" ]; then
-            p_msg2 $verbosity 2 "ignoing '$fname'"
-            continue
-          fi
-        elif [ -n "`echo \"$fname\" | egrep -i \"$ignoreexp\"`" ]; then
-          p_msg2 $verbosity 2 "ignoing '$fname'"
-          continue
-        fi
-      fi
-      if [ -n "$matchexp" ]; then
-        if [ $matchexpurl -gt 0 ]; then
-          if [ -n "`echo \"$link\" | egrep -vi \"$matchexp\"`" ]; then
-            p_msg2 $verbosity 2 "ignoing '$fname'"
-            continue
-          fi
-        elif [ -n "`echo \"$fname\" | egrep -vi \"$matchexp\"`" ]; then
-          p_msg2 $verbosity 2 "ignoing '$fname'"
-          continue
-        fi
-      fi
-      file="`echo $file | cut -d \\\" -f 1`"
-      link="`echo $link | cut -d \\\" -f 1`"
-      if [ -n "`echo $link | grep 'javascript:'`" ]; then
-        p_msg2 $verbosity 2 "skipping js link '$link'"
-      elif [ -z "`echo $link | grep -E '\.\w+$'`" ]; then
-        p_msg2 $verbosity 2 "skipping link '$link'"
-      else
-        p_msg2 $verbosity 1 "getting '$link' -> '$file' "
-        if [ $stdout -gt 0 ]; then
-          echo $link
-        else
-          if [ $errorlog -gt 0 ]; then
-            p_err2 "wget --quiet $auth -c -U \"$uagent\" --referer=\"$referer\" \"$link\" -O \"$dir$file\" ${wgetargs[*]}"
-            wget --quiet $auth -c -U "$uagent" --referer="$referer" "$link" -O "$dir$file" ${wgetargs[*]} 2>> "$errorlogfile"
-          else
-            wget --quiet $auth -c -U "$uagent" --referer="$referer" "$link" -O "$dir$file" ${wgetargs[*]}
-          fi
-          if [ $? == 0 ]; then
-            p_msg2 $verbosity 2 ".. done\n"
-          else
-            p_err ".. error, or already retrieved!\n"
-          fi
-        fi
-      fi
-    fi
-  done
+  wget -U "$uagent" $auth ${wgetargs[*]} -O - "$url" \
+    | tr '\n' ' ' \
+    | grep -iEo "<$html_tags[^>]+>" \
+    | grep -iEo "$html_args=[\"'][^\"']*\.$ext_regex[\"']" \
+    | sed -r "s/^[^=]*=.(.*)./\1/i" \
+    | sort -u \
+    | while read l; do
+        process_url "$l"
+      done
 done
 
 p_msg2 $verbosity 1 ".. tranfer complete"
+
+exit 0
+
