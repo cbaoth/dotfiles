@@ -4,7 +4,7 @@
 # Author:   Andreas Weyer <dev@cbaoth.de>
 # Keywords: bash shell-script backup
 
-PATH=/usr/local/bin:/usr/bin:/bin
+PATH=/opt/bin:/usr/local/bin:/usr/bin:/bin
 
 # cron example - fixed days of the month (full: 1, incr.: 8, 15, 22)
 #0 4 1 * * cronic backup full
@@ -25,6 +25,9 @@ readonly DIRECTORIES
 # backup target directory
 declare -r BACKUPDIR="/backup"
 declare -r ERRORLOG="$BACKUPDIR/backup.err"
+# backup mount point (if set, backup will fail in case mp is not mounted)
+# to prevent writing backups to root fs (potentially running out of space)
+#declare -r BACKUPMOUNTPOINT="/backup"
 # file holding the date of the last full backup
 declare -r FULLDATE="$BACKUPDIR/full-date"
 # take excluded directories from /etc/backup-exclude
@@ -34,7 +37,7 @@ declare -a TARARGS=(-C / -cp)
 readonly TARARGS
 
 declare -r TAR=/bin/tar
-declare -r DATE=`date +%Y-%m-%d`
+declare -r DATE=$(date +%Y-%m-%d)
 
 help() { # call: help()
   cat <<HELP
@@ -97,6 +100,14 @@ inc() { # call: inc(DATE)  # where DATE is date of last full backup
   printf "System backups complete, status: %s\n" "$?" | wall 2>/dev/null
 }
 
+check_mountpoint () {
+  # no mountpoint provided or not mounted?
+  ([ -z "$1" ] || mountpoint -q "$1" >/dev/null) \
+    && return 0
+  error "unknown mountpoint: $1"
+  return 1
+}
+
 main() {
   if [[ -z "${1:-}" ]]; then
     help
@@ -109,12 +120,16 @@ main() {
         shift
         ;;
       full)
+        # check if backup mount point (if set) is mounted, exit if not
+        check_mountpoint "${BACKUPMOUNTPOINT}" || exit 1
         full
         exit $?
         ;;
       inc)
         [[ ! -f "${FULLDATE}" ]] && error "no record of existing full-backup"
         local fulldate=$(cat ${FULLDATE})
+        # check if backup mount point (if set) is mounted, exit if not
+        check_mountpoint "${BACKUPMOUNTPOINT}" || exit 1
         inc $fulldate
         exit $?
         ;;
