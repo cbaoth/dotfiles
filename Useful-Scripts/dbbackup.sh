@@ -23,7 +23,7 @@ typeset -r _USER
 typeset -r _DB_USER_PGSQL="postgres"
 typeset -r _DB_USER_MYSQL
 
-# internal constants and variables
+# constats and variables
 typeset -r _SCRIPT_FILE="$(basename "$0")"
 typeset -r _USAGE="Usage: ${_SCRIPT_FILE} [OPTION..] DBMS DB.."
 typeset _HELP
@@ -35,13 +35,11 @@ DBMS: pgsql
 
   Default db user: ${_DB_USER_PGSQL:--}
 
-  The --config option must point to a valid 'mysqldump --defaults-file' file
-    If not set mysql will use ~/.mylogin.cnf, example (only pass mandatory):
+  The --config option must point to a valid pgpass file
+    If not set the pgsql will use ~/.pgpass, example:
 
-      [client]
-      user = myuser
-      password = "mypassword"
-      host = 127.0.0.1
+      myhost:5432:mydb:myuser:mypassword
+      localhost:*:*:postgres:secret
 
 
 DBMS: mysql
@@ -49,11 +47,13 @@ DBMS: mysql
 
   Default db user: ${_DB_USER_MYSQL:--}
 
-  The --config option must point to a valid pgpass file
-    If not set the pgsql will use ~/.pgpass, example:
+  The --config option must point to a valid 'mysqldump --defaults-file' file
+    If not set mysql will use ~/.mylogin.cnf, example (only pass mandatory):
 
-      myhost:5432:mydb:myuser:mypassword
-      localhost:*:*:postgres:secret
+      [client]
+      user = myuser
+      password = "mypassword"
+      host = 127.0.0.1
 
 
 Options:
@@ -65,7 +65,9 @@ Options:
   -c | --config F      client config / credential file (default: see DBMS)
   -x | --expire DAYS   delete old DB backups for the given DBMS in the given dir
                          older than TODAY-DAYS with filename DBMS_DB_*.EXT
-
+  --full               perform full dump (all databases, including users etc.)
+                         requiring no specific db name list (ignored)
+                         admin user required e.g. -u root or -u postgres
 
 Authentication:
   Passwords must be stored in a secure, DBMS specific config file (see above).
@@ -80,6 +82,7 @@ typeset _user
 typeset _db_user
 typeset _config_file
 typeset _expire_days
+typeset _backup_full=false
 
 # print error and exit with given code
 _exit() {
@@ -134,6 +137,10 @@ _parse_args() {
         _expire_days="$2"
         shift 2
         ;;
+      --full)
+        _backup_full=true
+        shift
+        ;;
       -h|--help)
         printf "%s" "${_HELP}"
         exit 0
@@ -155,7 +162,11 @@ _parse_args() {
 
   # dbms or dbs unset?
   [[ -z "${_dbms:-}" ]] && _exit 1 "No DBMS provided."
-  [[ -z "${_dbs:-}" ]] && _exit 1 "No DB provided."
+  if [[ -z "${_dbs:-}" ]]; then
+    ${_backup_full} || _exit 1 "No DB provided."
+  else
+    ${_backup_full} && echo "WARNING: Ignoring specifically provided DB name(s) [${_dbs[@]}], full backup will be performed instead." >&2 
+  fi
 
   # set defaults where needed
   [[ -z "${_backup_dir}" ]] && _set_backup_dir "${_BACKUP_DIR}"
@@ -207,8 +218,26 @@ _backup_pgsql() {
   sudo ${_user:+-u "${_user}"} \
     ${_config_file:+env PGPASSFILE="${_config_file}"} \
     pg_dump ${_db_user:+-U "${_db_user}"} -w -Fc ${_db} \
-      > "${_outfilepath}"
-  # pg_dumpall | gzip > /backup/postgres/$(date +\%Y-\%m-\%d).gz
+      | gzip > "${_outfilepath}"
+  return 0
+}
+
+# backup all postgresql dbs
+_backup_pgsql_full() {
+  local _outfile="${_dbms}_full_${_DATE}.gz"
+  local _outfilepath="${_dir}/${_outfile}"
+
+  [[ -f "${_outfilepath}" ]] \
+    && printf "WARNING: File exists [${_outfilepath}], will be owerridden ..\n" >&2
+
+  # detele old db backups (if expire days provided)
+  _delete_old ".*\/${_dbms}_full_[^/]*.gz"
+
+  # backup dbs
+  sudo ${_user:+-u "${_user}"} \
+    ${_config_file:+env PGPASSFILE="${_config_file}"} \
+    pg_dumpall ${_db_user:+-U "${_db_user}"} -w -c \
+      | gzip > "${_outfilepath}"
   return 0
 }
 
@@ -229,10 +258,32 @@ _backup_mysql() {
   sudo ${_user:+-u "${_user}"} \
     mysqldump ${_db_user:+-u "${_db_user}"} \
       ${_config_file:+--defaults-file="${_config_file}"} \
+      --extended-insert --disable-keys --quick \
       ${_db} | gzip > "${_outfilepath}"
-  #mysqldump -u root -p --all-databases --skip-lock-tables >
   return 0
 }
+
+# backup all mysql dbs
+_backup_mysql_full() {
+  local _outfile="${_dbms}_full_${_DATE}.gz"
+  local _outfilepath="${_dir}/${_outfile}"
+
+  [[ -f "${_outfilepath}" ]] \
+    && echo "WARNING: File exists [${_outfilepath}], will be overridden .." >&2
+
+  # detele old db backups (if expire days provided)
+  _delete_old ".*\/${_dbms}_full_[^/]*.gz"
+
+  # backup dbs
+  sudo ${_user:+-u "${_user}"} \
+    mysqldump ${_db_user:+-u "${_db_user}"} \
+      ${_config_file:+--defaults-file="${_config_file}"} \
+      --extended-insert --disable-keys --quick \
+      --all-databases --add-drop-database --flush-privileges \
+      --events --ignore-table=mysql.event \
+      | gzip > "${_outfilepath}"
+  return 0
+} 
 
 _backup() {
   local _dir="${_backup_dir}"
@@ -240,12 +291,19 @@ _backup() {
   printf "> Sarting [%s] backup%s%s\n" \
     "${_dbms}" "${_user:+ as [${_user}]}" \
     "${_db_user:+ connecting as [${_db_user}]}"
-  for _db in "${_dbs[@]}"; do
-    local _outfile="${_dbms}_${_DATE}_${_db}.gz"
-    printf ">> Creating backup for DB [%s] ..\n" "${_db}"
-    _backup_${_dbms} "${_db}"
+
+  if ${_backup_full}; then
+    printf ">> Creating full DB backup ..\n"
+    _backup_${_dbms}_full
     printf ">> .. done\n"
-  done
+  else
+    for _db in "${_dbs[@]}"; do
+      local _outfile="${_dbms}_${_DATE}_${_db}.gz"
+      printf ">> Creating backup for DB [%s] ..\n" "${_db}"
+      _backup_${_dbms} "${_db}"
+      printf ">> .. done\n"
+    done
+  fi
   printf "> Finished [%s] backup(s)" "${_dbms}"
   return 0
 }
@@ -261,3 +319,4 @@ _main() {
 _main "$@"
 
 exit 0
+
