@@ -20,6 +20,7 @@ order += "ethernet eth0"
 #order += "run_watch DHCP"
 #order += "run_watch OPENVPN"
 order += "path_exists VPN"
+order += "path_exists VPN2"
 #order += "cpu_temperature 0"
 order += "load"
 order += "battery 0"
@@ -50,7 +51,16 @@ path_exists VPN {
     # path exists when a VPN tunnel is active
     path = "/proc/sys/net/ipv4/conf/tun0"
     format = "VPN"
-    format_down = "NO VPN"
+    format_down = "↓VPN↓"
+    color_good = "#00ff00"
+}
+
+path_exists VPN2 {
+    # path exists when a 2nd VPN tunnel is active
+    path = "/proc/sys/net/ipv4/conf/tun1"
+    format = "VPN2"
+    format_down = "↓VPN2↓"
+    color_good = "#00ff00"
 }
 
 #run_watch DHCP {
