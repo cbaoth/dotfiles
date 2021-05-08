@@ -7,5 +7,22 @@
 	rebase = preserve
 [core]
 	fileMode = false
+    editor = code --wait
 [credential]
 	helper = store
+[merge]
+    conflictstyle = diff3
+    tool = vimdiff
+    guitool = meld
+[mergetool]
+    prompt = false
+[mergetool "meld"]
+    cmd = meld --auto-merge $LOCAL $BASE $REMOTE --output=$MERGED --diff $BASE $LOCAL --diff $BASE $REMOTE
+[diff]
+    conflictstyle = diff3
+    tool = vimdiff
+    guitool = meld
+[difftool]
+    prompt = false
+[difftool "meld"]
+    cmd = meld --auto-merge $LOCAL $BASE $REMOTE --output=$MERGED --diff $BASE $LOCAL --diff $BASE $REMOTE
