@@ -1,130 +1,132 @@
-#!/bin/bash
-# backup.sh
+#!/usr/bin/env bash
+# backup.sh: Backup system
 
-# == Description ============================================================
-# make incremental or full backup of some important folders
-# use of exclude list is possible
-
-# == License ================================================================
-# Copyright (c) 2008, cbaoth
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# * Redistributions of source code must retain the above copyright notice,
-#   this list of conditions and the following disclaimer.
-# * Redistributions in binary form must reproduce the above copyright
-#   notice, this list of conditions and the following disclaimer in the
-#   documentation and/or other materials provided with the distribution.
-
+# Author:   Andreas Weyer <dev@cbaoth.de>
+# Keywords: bash shell-script backup
 
 PATH=/usr/local/bin:/usr/bin:/bin
 
-# cron example
-#0 4 1 * * clear-cache.sh; backup full /home /root /etc
-#0 4 8,15,22 * * clear-cache.sh; backup inc /home /root /etc
-# or
-#0  3    1-7  * *    root    [ `date +\%w` -eq 1 ] && backup full && backup2ftp /backup/`date +\%Y-\%m-\%d`-full
-#0  3    8-31 * *    root    [ `date +\%w` -eq 1 ] && backup inc
+# cron example - fixed days of the month (full: 1, incr.: 8, 15, 22)
+#0 4 1 * * cronic backup full
+#0 4 8,15,22 * * cronic backup inc
+
+# cron example - fixed week day (full: 1st monday, incr.: other mondays)
+#0 3 1-7 * * root [[ $(date +\%w) -eq 1 ]] && cronic backup full
+#0 3 8-31 * * root [[ $(date +\%w) -eq 1 ]] && cronic backup inc
 
 # default directories, will be backed up if no dir(s) given as parameter(s)
 declare -a DIRECTORIES
-DIRECTORIES+=(etc boot usr/local var/log var/lib var/spool/cron var/svn var/www opt srv)
+DIRECTORIES+=(etc boot usr/local opt srv)
+DIRECTORIES+=(var/log var/lib var/spool/cron var/www)
 DIRECTORIES+=(home root)
+#DIRECTORIES+=($DIRECTORIES var/lib/postgresql) # pgsql only (if var/lib is not included)
 #DIRECTORIES+=(usr/lib/oracle/xe/app/oracle/product/10.2.0/server/dbs usr/lib/oracle/xe/app/oracle/flash_recovery_area usr/lib/oracle/xe/oradata/XE/)
-DIRECTORIES+=(var/lib/postgresql)
-#BACKUPDIR="/backup/$HOST"
-BACKUPDIR="/backup"
-ERRORLOG="$BACKUPDIR/backup.err"
+readonly DIRECTORIES
+# backup target directory
+declare -r BACKUPDIR="/backup"
+declare -r ERRORLOG="$BACKUPDIR/backup.err"
 # file holding the date of the last full backup
-FULLDATE="$BACKUPDIR/full-date"
-# take excluded directories (backup blacklist) from /etc/backup-exclude
-# file/files includes a list of folders that should be excluded separated by newline
-EXCLUDEFILE="/etc/backup-exclude"
+declare -r FULLDATE="$BACKUPDIR/full-date"
+# take excluded directories from /etc/backup-exclude
+declare -r EXCLUDEFILE="/etc/backup-exclude"
+declare -a TARARGS=(-C / -cp)
+[[ -f "${EXCLUDEFILE:-}" ]] && TARARGS+=(--exclude-from "$EXCLUDEFILE")
+readonly TARARGS
 
-TAR=/bin/tar
-DATE=`date +%Y-%m-%d`
+declare -r TAR=/bin/tar
+declare -r DATE=`date +%Y-%m-%d`
 
 help() { # call: help()
-    cat <<HELP
-usage: `basename $0` (full|inc) [files/dirs]
+  cat <<HELP
+Usage: $(basename $0) [-v] (full|inc)
 HELP
 }
 
+declare _verbose
+
 error() { # call: error(message..)
-    echo "error: $*" 1>&2
-    exit -1
+  printf "Error: %s\n" "$*" >&2
+  exit 1
 }
 
 full() { # call: full()
-    echo "Staring full backup .." | wall
-    echo "-- `date` --------------------------------------------" >> $ERRORLOG
-    TARGETDIR="$BACKUPDIR/$DATE-full"
-    mkdir -p $TARGETDIR
-    [ -n "$1" ] && DIRECTORIES=($*)
-    #for dir in `[ -z "$1" ] && echo ${DIRECTORIES[@]} || echo $*`; do
-    for dir in ${DIRECTORIES[@]}; do
-        dir="`echo $dir | sed 's/^\/*//'`"
-        [ ! -d "$dir" ] && echo "Skipping '/$dir', no such directory" | tee -a $ERRORLOG && continue
-        #EXCLUDE=""
-        #[ -f $dir/.backup-exclude ] && EXCLUDE="`cat $dir/.backup-exclude|grep -v ^#`"
-        TARGET=$TARGETDIR/`echo $dir | tr / +`.tar
-        [ -f "$TARGET" ] && echo "Skipping '/$dir', target file exists" | tee -a $ERRORLOG && continue
-        echo "Processing '/$dir' .." #|wall
-        if [ -f "$EXCLUDEFILE" ]; then
-            $TAR -C / -cpf $TARGET --exclude-from "$EXCLUDEFILE" $dir 1>/dev/null 2>> $ERRORLOG
-        else
-            $TAR -C / -cpf $TARGET $dir 1>/dev/null 2>> $ERRORLOG
-        fi
-    done
-    echo "System backups complete, status: $?" | wall
-    echo $DATE > $FULLDATE
+  printf "Staring full backup ..\n" | wall 2>/dev/null
+  printf -- "-- ${DATE} --------------------------------------------\n" >> "${ERRORLOG}"
+  local targetdir="${BACKUPDIR}/${DATE}-full"
+  mkdir -p "${targetdir}"
+  for dir in "${DIRECTORIES[@]}"; do
+    #[ -f $dir/.backup-exclude ] && EXCLUDE="`cat $dir/.backup-exclude|grep -v ^#`"
+    local target="${targetdir}/${dir//\//+}.tar"
+    if [[ -f "${target}" ]]; then
+      printf "Skipping [/%s], backup file exists\n" "${dir}"
+      continue
+    fi
+    printf "Processing [/%s] ..\n" "${dir}" #|wall 2>/dev/null
+    [[ -n "${_verbose}" ]] \
+      && echo "\$ $TAR ${TARARGS[@]} ${_verbose:+-v} -f ${target} ${dir} |& tee -a ${ERRORLOG}"
+    $TAR "${TARARGS[@]}" ${_verbose:+-v} -f "${target}"  "${dir}" |& tee -a "${ERRORLOG}"
+  done
+  printf "System backups complete, status: %s\n" "$?" | wall 2>/dev/null
+  printf "%s" "$DATE" > $FULLDATE
 }
 
 inc() { # call: inc(DATE)  # where DATE is date of last full backup
-    [ -z "$1" ] && error "missing previous full date" && exit 1
-    lastfulldate="$1"; shift
-    [ ! -d "$BACKUPDIR/${lastfulldate}-full" ] && error "can't find last full-backup"
-    echo "Starting incremental backup (newer: ${lastfulldate}) .." | wall
-    echo "-- `date` --------------------------------------------" >> $ERRORLOG
-    TARGETDIR="$BACKUPDIR/$DATE-inc"
-    mkdir -p $TARGETDIR
-    [ -n "$1" ] && DIRECTORIES=($*)
-    #for dir in `[ -z "$1" ] && echo ${DIRECTORIES[@]} || echo $*`; do
-    for dir in ${DIRECTORIES[@]}; do
-        dir="`echo $dir | sed 's/^\/*//'`"
-        [ ! -d "$dir" ] && echo "Skipping '/$dir', no such directory" | tee -a $ERRORLOG && continue
-        #EXCLUDE=""
-        #[ -f $dir/.backup-exclude ] && EXCLUDE="`cat $dir/.backup-exclude|grep -v ^#`"
-        TARGETFILE=`echo $dir | tr / +`.tar
-        [ ! -f "$BACKUPDIR/${lastfulldate}-full/$TARGETFILE" ] && \
-            echo "warning: no full-backup of /$dir found" | tee -a $ERRORLOG
-        TARGET=$TARGETDIR/$TARGETFILE
-        [ -f "$TARGET" ] && echo "Skipping '/$dir', target file exists" | tee -a $ERRORLOG && continue
-        echo "Processing '/$dir' .."
-        if [ -f "$EXCLUDEFILE" ]; then
-            $TAR --newer ${lastfulldate} -C / -cpf $TARGET --exclude-from "$EXCLUDEFILE" $dir 1>/dev/null 2>> $ERRORLOG
-        else
-            $TAR --newer ${lastfulldate} -C / -cpf $TARGET $dir 1>/dev/null 2>> $ERRORLOG
-        fi
-    done
-    echo "System backups complete, status: $?" | wall
+  local fullbackupdate="$1"
+  local fullbackup="${BACKUPDIR}/${fullbackupdate}-full"
+  [[ ! -d "${fullbackup}" ]] \
+    && error "can't find last full-backup"
+  printf "Starting incremental backup (newer: %s) ..\n" "$fullbackupdate" | wall 2>/dev/null
+  printf -- "-- %s --------------------------------------------\n" "${DATE}" >> "${ERRORLOG}"
+  local targetdir="${BACKUPDIR}/${DATE}-inc"
+  mkdir -p "${targetdir}"
+  for dir in "${DIRECTORIES[@]}"; do
+    #[ -f $dir/.backup-exclude ] && EXCLUDE="`cat $dir/.backup-exclude|grep -v ^#`"
+    local tarfile="${dir//\//+}.tar"
+    local target="${targetdir}/${tarfile}"
+    [[ ! -f "${fullbackup}/${tarfile}" ]] && \
+      printf "Warning: no full-backup of [/%s] found\n" "${dir}"
+    if [[ -f "${target}" ]]; then
+      printf "Skipping [/%s], backup file exists" "${dir}"
+      continue
+    fi
+    printf "Processing [/%s] ..\n" "${dir}"
+    [[ -n "${_verbose}" ]] \
+      && echo "\$ $TAR --newer $1 ${TARARGS[@]} ${_verbose:+-v} -f ${target} ${dir} |& tee -a ${ERRORLOG}"
+    $TAR --newer $1 "${TARARGS[@]}" ${_verbose:+-v} -f "${target}" "${dir}" |& tee -a "${ERRORLOG}"
+  done
+  printf "System backups complete, status: %s\n" "$?" | wall 2>/dev/null
 }
 
-type=$1; shift
-case $type in
-    full)
-        full $*
+main() {
+  if [[ -z "${1:-}" ]]; then
+    help
+    exit 1
+  fi
+  while [[ -n "${1:-}" ]]; do
+    case $1 in
+      -v)
+        _verbose=true
+        shift
         ;;
-    inc)
-        [ ! -f "$FULLDATE" ] && error "no record of existing full-backup"
-        inc `cat $FULLDATE` $*
+      full)
+        full
+        exit $?
         ;;
-    *)
+      inc)
+        [[ ! -f "${FULLDATE}" ]] && error "no record of existing full-backup"
+        local fulldate=$(cat ${FULLDATE})
+        inc $fulldate
+        exit $?
+        ;;
+      *)
         help
-        exit -1
+        exit 1
         ;;
-esac
+    esac
+  done
+}
+
+main "$@"
 
 exit 0
 

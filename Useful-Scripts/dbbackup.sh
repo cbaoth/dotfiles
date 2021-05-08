@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dbbackup: Backup databases
+# dbbackup.sh: Backup databases
 
 # Author:   Andreas Weyer <dev@cbaoth.de>
 # Keywords: bash shell-script postgresql mysql db backup
@@ -8,6 +8,10 @@
 # TODO error handling, delete partial backups on interrupt / error
 # TODO add default variables for config files and expire days (optional system wide default config)
 # TODO introduce an interactive mode or skip-if-exists
+
+# cron example
+#@daily root cronic dbbackup --expire 30 --backup-dir /backup/postgres --user postgres pgsql postgres
+#@daily root cronic dbbackup --expire 30 --backup-dir /backup/mysql --config /root/.mylogin.cnf mysql
 
 set -o errtrace
 set -o errexit
