@@ -23,10 +23,9 @@ CFILES=()
 
 # dot cache
 CFILES+=(.cache/*)
-# firefox
-CFILES+=(.mozilla/firefox/*.*/{OfflineCache,Cache})
-# opera
-CFILES+=(.opera/cache)
+# browser
+CFILES+=(.mozilla/firefox/**/{OfflineCache,Cache,Crash\ Reports})
+CFILES+=(.opera/{cache,opcache})
 # gnome/nautilus trash
 CFILES+=(.Trash .local/share/Trash)
 # java
@@ -36,11 +35,15 @@ CFILES+=({.adobe,.macromedia}/Flash_Player)
 # evolution
 CFILES+=(.evolution/cache)
 # thunderbird (imap and message db)
-CFILES+=(.thunderbird/*.*/{ImapMail,global-messages-db.sqlite})
+#CFILES+=(.thunderbird/*.*/{ImapMail,global-messages-db.sqlite})
 # openoffice / libreoffice
 CFILES+=(.{openoffice.org,libreoffice}*/{?/user,user}/{temp,backup})
 # gqview/geeqie (if not configured to use .thumbnails)
 CFILES+=(.{gqview,geeqie}/thumbnails)
+CFILES+=(**/.thumbnails)
+# kodi cache
+CFILES+=(.kodi/temp)
+#CFILES+=(.kodi/userdata/Thumbnails)
 # pidgin logs
 #CFILES+=(.purple/logs/*/*)
 # vlc cache
@@ -55,11 +58,15 @@ CFILES+=(.zcompdump)
 CFILES+=(.winetrickscache)
 # wine temp
 CFILES+=(.wine/drive_c/users/*/Temp)
-CFILES+=(.wine/drive_c/users/*/[Ll]ocal\ [Ss]ettings/[Tt]emporary\ [Ii]nternet\ [Ff]iles)
+#CFILES+=(.wine/drive_c/users/*/[Ll]ocal\ [Ss]ettings/[Tt]emporary\ [Ii]nternet\ [Ff]iles)  # needs to be fixed, issues with spaces
 # google earth
 CFILES+=(.googleearth/Cache)
 # sql developer
 CFILES+=(.sqldeveloper/tmp)
+# jdownloader logs
+CFILES+=({jd2,.jdownloader2}/{logs,backup,tmp})
+# swap files
+CFILES+=(**/.*.swp)
 
 # history files (e.g. bash, grun, mysql etc.)
 CFILES+=(.*[-_]history)
@@ -142,7 +149,11 @@ for f in ${CFILES[@]}; do
      echo "$file" | grep -vE "^${BASEDIR}/\.?$" >/dev/null; then #&&\
      #[ -e "$file" ]; then
     #echo "rm -rf $file"
-    [ $noact -ne 1 ] && rm -rf $file
+    if [ $noact -ne 1 ]; then
+        rm -rf $file
+    else
+        echo "rm -rf $file"
+    fi
   else
      echo "> skipping .."
   fi
@@ -157,10 +168,11 @@ else
   echo=""
 fi
 
-echo "> find: processing thumbnail caches"
-find "$BASEDIR" -depth -type d -iname '.thumbnails' -print0 | xargs -0 -r $xargs_v $echo rm -rf
+#echo "> find: processing thumbnail caches"
+#find "$BASEDIR" -depth -type d -iname '.thumbnails' -print0 | xargs -0 -r $xargs_v $echo rm -rf
 echo "> find: processing local backup/temp files '*~'"
 find "$BASEDIR" -depth -type f -iname '*~' -print0 | xargs -0 -r $xargs_v $echo rm -f
-echo "> find: processing swap files '.*.swp'"
-find "$BASEDIR" -depth -type f -iname '.*.swp' -print0 | xargs -0 -r $xargs_v $echo rm -f
-
+#echo "> find: processing swap files '.*.swp'"
+#find "$BASEDIR" -depth -type f -iname '.*.swp' -print0 | xargs -0 -r $xargs_v $echo rm -f
+echo "> clearing journal, keeping last 2 days"
+sudo journalctl --vacuum-time=2d
