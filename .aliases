@@ -290,4 +290,7 @@ alias mysqlr='mysql -u root -p'
 alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'
 alias sleep-usb='sudo ~/bin/scsi-idle 900&'
 alias rpm-extract='rpm2cpio "$1" | cpio -ivd'
+
+alias occ='sudo -u www-data php --define apc.enable_cli=1 /var/www/nextcloud/occ'
+alias occd='cd /var/www/nextcloud; sudo -u www-data php --define apc.enable_cli=1 occ'
 # }}} - MISC -----------------------------------------------------------------
