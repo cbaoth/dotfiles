@@ -131,12 +131,13 @@ chmod_rec_022 () {
   fi
   [[ -n "${1:-}" ]] && dirs="$@"
   for dir in "${dirs[@]}"; do
-    find "$dir" -type d -exec chmod 755 {} \;
-    find "$dir" -type f -exec chmod 644 {} \;
+    cl::file_p W -d "${dir}" || continue
+    find "${dir}" -type d -exec chmod 755 {} \;
+    find "${dir}" -type f -exec chmod 644 {} \;
   done
 }
 
- 
+
 # ----------------------------------------------------------------------------
 # }}} find files
 # {{{ string
@@ -223,9 +224,12 @@ print($@)"
 }
 
 
-rnd () {
-   printf "%s" "$((($RANDOM % $1)+1))"; }
+rnd () { printf "%s" "$((($RANDOM % $1)+1))"; }
+
+
 hex2dec() { echo "ibase=16; $(echo ${1##0x} | tr '[a-f]' '[A-F]')" | bc; }
+
+
 # TODO: fix overflow (eg. 125 @ 2 digits)
 zerofill () { #inserts leading zeros (number, digits)
   [[ -z "$2" ]] && \
@@ -233,6 +237,8 @@ zerofill () { #inserts leading zeros (number, digits)
   ! cl::is_int $1 || ! cl::is_int $2 && cl::p_err "$i is not an integer" && return 1
     echo $(printf "%0$2d" $1)
 }
+
+
 calcSum() {
   line=""; arg=""
   while true; do
@@ -353,6 +359,7 @@ mac_generate() {
 # ----------------------------------------------------------------------------
 # }}}
 # {{{ file renaming
+
 # OK - if rename is not available, provide a simple replace implementation
 if ! cl::cmd_p rename >& /dev/null; then
   # OK - simple rename implemenation (if rename command not available)
@@ -370,8 +377,10 @@ EOF
     local pattern="$1"
     shift
     for f in "$@"; do
-      target="$(sed -E $pattern <<<"$f")"
-      mv -i "$f" "$target"
+      cl::file_p E -e -w "${f}" || continue
+      target="$(sed -r ${pattern} <<<"${f}")"
+      [[ "${f}" != "${target}" ]] \
+        && mv -i "${f}" "${target}"
     done
   }
   #
@@ -402,6 +411,25 @@ EXAMPLES:
     | sed 's/: .*//g'
 }
 
+# OK - swap file names
+rename_swap() {
+  if [[ -z "$2" ]]; then
+    cat <<EOF
+Usage: $(cl::func_name) FILE_A FILE_B
+Example: $(cl::func_name) file_a.ogg file_b.ogg
+> swapping file names: file_a.ogg <-> file_b.ogg
+EOF
+    return 1
+  fi
+  cl::file_p E -e -w "$1" || return 1
+  cl::file_p E -e -w "$2" || return 1
+  local tmpf="_SWAP_$1"
+  cl::p_msg "swapping file names: '$1' <-> '$2'"
+  mv -i "$1" "${tmpf}" || return 1
+  mv -i "$2" "$1" || return 1
+  mv -i "${tmpf}" "$2"
+}
+
 #
 rename_prefix_counter() {
   if [[ -z "$1" ]]; then
@@ -414,29 +442,51 @@ EOF
   fi
   i=1
   while [[ -n "$1" ]]; do
-    local prefix="$(zerofill $i 2)"
-    local target="${prefix}_$1"
-     if [[ ! -e "$target" ]]; then
-      cl::p_msg "$target"
-      mv "$1" "$target"
-    else
-      cl::p_err "skipping '$target', file exists !"
-    fi
+    if cl::file_p E -e -w "${1}"; then
+      local prefix="$(zerofill $i 2)"
+      local target="${prefix}_$1"
+      if [[ ! -e "${target}" ]]; then
+        cl::p_msg "${target}"
+        mv "$1" "${target}"
+      else
+        cl::p_war "skipping '${target}', file exists !"
+      fi
       [[ "$?" -ne 0 ]] && cl::p_err "something went wrong" #&& return 1
+    fi
     i="$(($i+1))"
     shift
   done
 }
-#
 
+#
 rename_prefix_modtime () {
-  [[ -n "$2" ]] && cl::p_err "rename-prefix-modtime to many parameters" &&\
-    cl::p_usg "rename-prefix-modtime file" && return 2
-  [[ -z "$1" ]] && cl::p_usg "rename-prefix-modtime file" && return 2
-  local ls="$(which -a ls|grep -v alias|head -n 1)"
-  local target="$($ls -l --time-style '+%Y-%m-%d@%H.%M' \"$1\"|cut -d \  -f 6) $1"
-  echo renaming \"$1\" to \"$target\"
-  mv "$1" "$target"
+  local format="+%Y-%m-%d@%H.%M "
+  if [[ "$1" = "-f" ]]; then
+    [[ "$2" != +* ]] && cl::p_err "date format must start with +" && return 1
+    format="$2"
+    shift 2
+  fi
+  if [[ -z "$1" ]]; then
+    cat <<!
+Usage: $(cl::func_name) [-f FORMAT] FILE..
+
+Arguments:
+  -f FORMAT   Set date format (default: "${format}")
+
+Examples:
+  # Add date prefix with space separator to all log files
+  $(cl::func_name) -f "+Y-%m-%d " *.log
+!
+    return 1
+  fi
+  for f in "$@"; do
+    cl::file_p W -e -w "${f}" || continue
+    local mtime="$(date -r "${f}" ${format} 2>/dev/null || printf ERROR)"
+    [[ "${mtime}" = "ERROR" ]] && cl::p_err "invalid date format: ${format}" && return 1
+    local target="${mtime}${f}"
+    cl::p_msg "renaming: [${f}] -> [${target}]"
+    echo mv -i "${f}" "${target}"
+  done
 }
 #
 
@@ -1205,6 +1255,24 @@ gifslice-opt() {
     shift
   fi
   gifslice -U "${infile}" "$@" -O2 "${outfile[@]:-}"
+}
+
+# OK - mkv set title
+mkv_set_title () {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) FILE [TITLE]"
+    printf "Examples:\n"
+    printf "$(cl::func_name) Movie.mkv \"My Movie\"\n"
+    printf "-> Title: My Movie\n"
+    printf "$(cl::func_name) S01E01\ My\ Episode.mkv\n"
+    printf "-> Title: My Episode\n"
+    return 1
+  fi
+  cl::file_p -w "$1" || return 1
+  local title="$2"
+  [[ -z "$title" ]] \
+    && title="$(echo "$1" | sed -r 's/^S[0-9]+E[0-9]+[ _-]+//i;s/\.[^.]+$//')"
+  echo mkvpropedit "$1" --edit info --set "title=${title}"
 }
 # ----------------------------------------------------------------------------
 # }}} multimeda

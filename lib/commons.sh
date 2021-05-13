@@ -474,6 +474,153 @@ cl::is_number() { # may contain .
   done
   return 0
 }
+
+# predicate: checks [file] against all given [predicates] using [[
+cl::file_p() {
+  local _print=:
+  case $1 in
+    W|WARN)
+      _print=cl::p_war
+      shift
+      ;;
+    E|ERROR)
+      _print=cl::p_err
+      shift
+      ;;
+  esac
+
+  if [[ -z "$1" ]]; then
+    cl::p_usg "$(cl::func_name) [W(ARNING)|E(RROR)] PREDICATE.. FILE"
+    return 1
+  fi
+
+  # get the last argument (file name) and remove it from the argument list
+  local file="${@: -1}"
+  set -- "${@:1:$(($# - 1))}"
+  while [[ -n "$1" ]]; do
+    case $1 in
+      -b)
+        [[ ! -b "${file}" ]] \
+          && ${_print} "file not found or not ablock special: ${file}" \
+          && return 1
+        shift
+        ;;
+      -c)
+        [[ ! -c "${file}" ]] \
+          && ${_print} "file not found or not a character special: ${file}" \
+          && return 1
+        shift
+        ;;
+      -d)
+        [[ ! -d "${file}" ]] \
+          && ${_print} "file not found or not a directory: ${file}" \
+          && return 1
+        shift
+        ;;
+      -e)
+        [[ ! -e "${file}" ]] \
+          && ${_print} "file not found: ${file}" \
+          && return 1
+        shift
+        ;;
+      -f)
+        [[ ! -f "${file}" ]] \
+          && ${_print} "file not found or not a regular file: ${file}" \
+          && return 1
+        shift
+        ;;
+      -g)
+        [[ ! -g "${file}" ]] \
+          && ${_print} "file not found or set-group-ID bit is not (s)et: ${file}" \
+          && return 1
+        shift
+        ;;
+      -G)
+        [[ ! -G "${file}" ]] \
+          && ${_print} "file not found or not owned by the effective group ID [${GID}]: ${file}" \
+          && return 1
+        shift
+        ;;
+      -h|-L)
+        [[ ! -h "${file}" ]] \
+          && ${_print} "file not found or not a symbolic link: ${file}" \
+          && return 1
+        shift
+        ;;
+      -k)
+        [[ ! -k "${file}" ]] \
+          && ${_print} "file not found or s(t)icky bit not set: ${file}" \
+          && return 1
+        shift
+        ;;
+      -N)
+        [[ ! -N "${file}" ]] \
+          && ${_print} "file not found or not modified since it was last read: ${file}" \
+          && return 1
+        shift
+        ;;
+      -O)
+        [[ ! -O "${file}" ]] \
+          && ${_print} "file not found or not owned by the effective user ID [${UID}]: ${file}" \
+          && return 1
+        shift
+        ;;
+      -p)
+        [[ ! -p "${file}" ]] \
+          && ${_print} "file not found or not a named pipe: ${file}" \
+          && return 1
+        shift
+        ;;
+      -r)
+        [[ ! -r "${file}" ]] \
+          && ${_print} "file not found or no (r)ead permission granted: ${file}" \
+          && return 1
+        shift
+        ;;
+      -s)
+        [[ ! -s "${file}" ]] \
+          && ${_print} "file not found or size not greater than zero: ${file}" \
+          && return 1
+        shift
+        ;;
+      -S)
+        [[ ! -S "${file}" ]] \
+          && ${_print} "file not found or not a socket: ${file}" \
+          && return 1
+        shift
+        ;;
+      -t)
+        [[ ! -t "${file}" ]] \
+          && ${_print} "file descriptor not opened on a terminal: ${file}" \
+          && return 1
+        shift
+        ;;
+      -u)
+        [[ ! -u "${file}" ]] \
+          && ${_print} "file not found or set-user-ID bit is not (s)et: ${file}" \
+          && return 1
+        shift
+        ;;
+      -w)
+        [[ ! -w "${file}" ]] \
+          && ${_print} "file not found or no (w)rite permission granted: ${file}" \
+          && return 1
+        shift
+        ;;
+      -x)
+        [[ ! -x "${file}" ]] \
+          && ${_print} "file not found or no e(x)ecute permission granted: ${file}" \
+          && return 1
+        shift
+        ;;
+      *)
+        cl::p_err "unknown predicate: $1"
+        return 1
+        ;;
+    esac
+  done
+  return 0
+}
 # }}} = PREDICATES ===========================================================
 
 # {{{ = COMMAND EXECUTION ====================================================
