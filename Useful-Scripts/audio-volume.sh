@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/env bash
 # audio-vol-hotkey.sh
 
 # == Description ============================================================
@@ -13,15 +13,33 @@
 # XF86AudioRaiseVolume :Exec /home/cbaoth/bin/audio-volume 5%+
 # XF86AudioLowerVolume :Exec /home/cbaoth/bin/audio-volume 5%-
 
-
 ## WORKAROUND (for snd_hda_intel?)
 ## sometimes muting master also mutes speaker etc., but on master unmute those
 ## controls are not unmuted again, so we just mute/unmute all those output controls
 #MUTE_WORKAROUND=1
 ##MUTE_WORKAROUND=0
 
-usage() {
-  echo "usage: `basename $0` [vol%[+/-]|mute|unmute|toggle]"
+_usage() {
+  cat <<!
+Usage: $(basename $0) [[+/-]VOL%|mute|unmute|toggle]
+Arguments:
+  VOL%          set volume to VOL%
+  +/-VOL%       increase/decrease volume by VOL %
+  VOL%+/-       same as above (deprecated, backward compatibility)
+  mute | 1      mute audio
+  unmute | 0    unmute audio
+  toggle        toggle mute audio
+
+Examples:
+  # toggle mute
+  $(basename $0) toggle
+
+  # set volume to 100%
+  $(basename $0) 100%
+
+  # decrease volume by 10%
+  $(basename $0) -10%
+!
 }
 
 [ -z "$1" ] &&\
@@ -67,16 +85,16 @@ _pactl_mute () {
 }
 
 param="$1"
-card="$2"
-[ -z "$card" ] && card=0
-if [ -n "`echo \"$param\"|grep '^\(mute\|unmute\|toggle\)$'`" ]; then
+#card="$2"
+#[ -z "$card" ] && card=0
+if [[ ${param} =~ ^(mute|1|unmute|0|toggle)$ ]]; then
   #_amixer_mute $card "$param"
   _pactl_mute $(echo $param | sed -r 's/^mute/1/;s/^unmute/0/')
-elif [ -n "`echo \"$param\"|grep '^\([0-9]\|[1-9][0-9]\|100\)%[+-]\?$'`" ]; then
+elif [[ ${param} =~ ^([+-]?([0-9]|[1-9][0-9]|1[0-9][0-9]|200)%|([0-9]|[1-9][0-9]|1[0-9][0-9]|200)%[+-]?)$ ]]; then
   #_amixer_volume $card "$param"
-  _pactl_volume $(echo $param | sed -r 's/(.*%)([+-]?)$/\2\1/')
+  _pactl_volume $( echo $param | sed -r 's/(.*%)([+-]?)$/\2\1/' )
 else
-  usage &&\
+  _usage &&\
     exit 1
 fi
 
