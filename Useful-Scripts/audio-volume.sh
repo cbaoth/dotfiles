@@ -1,6 +1,8 @@
 #!/bin/env bash
 # audio-vol-hotkey.sh
 
+# DEPRECATED: see dotfiles/bin/media-keys instead
+
 # == Description ============================================================
 # Toggle mute and change volume of your main sound device using simple commands.
 # This script is meant to be used with hotkeys in your wm (e.g. xmonad, fluxbox etc.)
