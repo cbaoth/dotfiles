@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
-# ~/bin/media-keys.sh: Control media player and pa volume, optional OSD
+# ~/bin/media-keys: Control media player and pa volume, optional OSD
 
 # Author:   Andreas Weyer <dev@cbaoth.de>
 # Keywords: bash shell-script
+
+# # Example config for i3 using media-keys:
+# # volume media keys: volume up/down/topple-mute (req.: pulseaudio, osdsh)
+# bindsym XF86AudioRaiseVolume exec --no-startup-id media-keys -o vol+
+# bindsym XF86AudioLowerVolume exec --no-startup-id media-keys -o vol-
+# bindsym XF86AudioMute exec --no-startup-id media-keys -o mute
+#
+# # mod4-mod1-=/-/0: same as above (alt. keys)
+# bindsym Mod4 Mod1 equal exec --no-startup-id media-keys -o vol+
+# bindsym Mod4 Mod1 minus exec --no-startup-id media-keys -o vol-
+# bindsym Mod4 Mod1 0 exec --no-startup-id media-keys -o mute
 
 declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
 declare -r _SCRIPT_FILE="$(basename "$0")"
