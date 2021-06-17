@@ -219,9 +219,9 @@ _backup_pgsql() {
   _delete_old ".*\/${_dbms}_${_db}_[^/]*.gz"
 
   # backup db
-  sudo ${_user:+-u "${_user}"} \
+  sudo ${_user:+-u${_user}} \
     ${_config_file:+env PGPASSFILE="${_config_file}"} \
-    pg_dump ${_db_user:+-U "${_db_user}"} -w -Fc ${_db} \
+    pg_dump ${_db_user:+-U${_db_user}} -w -Fc ${_db} \
       | gzip > "${_outfilepath}"
   return 0
 }
@@ -238,9 +238,9 @@ _backup_pgsql_full() {
   _delete_old ".*\/${_dbms}_full_[^/]*.gz"
 
   # backup dbs
-  sudo ${_user:+-u "${_user}"} \
+  sudo ${_user:+-u${_user}} \
     ${_config_file:+env PGPASSFILE="${_config_file}"} \
-    pg_dumpall ${_db_user:+-U "${_db_user}"} -w -c \
+    pg_dumpall ${_db_user:+-U${_db_user}} -w -c \
       | gzip > "${_outfilepath}"
   return 0
 }
@@ -259,9 +259,9 @@ _backup_mysql() {
   _delete_old ".*\/${_dbms}_${_db}_[^/]*.gz"
 
   # backup db
-  sudo ${_user:+-u "${_user}"} \
-    mysqldump ${_db_user:+-u "${_db_user}"} \
-      ${_config_file:+--defaults-file="${_config_file}"} \
+  sudo ${_user:+-u${_user}} \
+    mysqldump ${_config_file:+--defaults-file="${_config_file}"} \
+      ${_db_user:+-u${_db_user}} \
       --extended-insert --disable-keys --quick \
       ${_db} | gzip > "${_outfilepath}"
   return 0
@@ -279,9 +279,9 @@ _backup_mysql_full() {
   _delete_old ".*\/${_dbms}_full_[^/]*.gz"
 
   # backup dbs
-  sudo ${_user:+-u "${_user}"} \
-    mysqldump ${_db_user:+-u "${_db_user}"} \
-      ${_config_file:+--defaults-file="${_config_file}"} \
+  sudo ${_user:+-u${_user}} \
+    mysqldump ${_config_file:+--defaults-file="${_config_file}"} \
+      ${_db_user:+-u${_db_user}} \
       --extended-insert --disable-keys --quick \
       --all-databases --add-drop-database --flush-privileges \
       --events --ignore-table=mysql.event \
