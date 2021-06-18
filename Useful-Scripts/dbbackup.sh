@@ -314,6 +314,7 @@ _backup() {
 
 # main function
 _main() {
+  cd /
   _parse_args "$@"
   _backup
   return 0
