@@ -50,6 +50,7 @@ trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 # constants
 declare -r _USAGE="${_SCRIPT_FILE} [-o] (volume-up|volume-down|play-pause|previous|next)"
 declare -r -a _PLAYER=(spotify quodlibet gmusicbrowser mpv mplayer vlc)
+declare -r PA_SINK="@DEFAULT_SINK@"
 
 # osd: show current volume
 _osd_volume() {
@@ -122,22 +123,24 @@ main() {
   while [[ -n "${1:-}" ]]; do
     case "$1" in
       vol+|volume-up)
-        #pactl set-sink-volume $SINK +5%
-        amixer -D pulse sset Master unmute
+        pactl set-sink-mute ${PA_SINK} off
+        pactl set-sink-volume ${PA_SINK} +5%
+        #amixer -D pulse sset Master unmute
         vol=$(amixer -D pulse sset Master 5%+ | grep -E '\[[0-9]*%\]'|head -n 1|sed -r 's/.*\[([0-9]*)%\].*/\1/g')
         $_osd && _osd_volume "${vol}"
         shift
         ;;
       vol-|volume-down)
-        #pactl set-sink-volume $SINK -5%
-        amixer -D pulse sset Master unmute
+        pactl set-sink-mute ${PA_SINK} off
+        pactl set-sink-volume ${PA_SINK} -5%
+        #amixer -D pulse sset Master unmute
         vol=$(amixer -D pulse sset Master 5%- | grep -E '\[[0-9]*%\]'|head -n 1|sed -r 's/.*\[([0-9]*)%\].*/\1/g')
         $_osd && _osd_volume "${vol}"
         shift
         ;;
       mute)
-        #pactl set-sink-mute $SINK toggle
-        amixer -D pulse sset Master toggle >/dev/null
+        pactl set-sink-mute ${PA_SINK} toggle
+        #amixer -D pulse sset Master toggle >/dev/null
         $_osd && _osd_mute
         shift
         ;;
