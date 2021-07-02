@@ -65,7 +65,6 @@ cl::include_lib() {
 #set +o allexport
 # }}} = LIBRARIES ============================================================
 
-
 # {{{ = TEXT FX ==============================================================
 declare -A +r FX_MAP  # +r just in case this cript is re-loaded, see -r below
 # initialize fx map, skip if term unsuported
@@ -209,7 +208,6 @@ cl::color_table() {
 }
 # }}} = TEXT FX ==============================================================
 
-
 # {{{ = FUNC FUNCTIONS =======================================================
 # get function name (for bash and zsh)
 cl::func_name() {
@@ -248,7 +246,7 @@ cl::p_msg() {
 cl::p_err() {
   local timestamp
   # timestamp option set?
-  if [[ -n "${1:-}" && "$1" =~ (-t|--timestamp) ]]; then
+  if [[ "${1:-}" =~ (-t|--timestamp) ]]; then
     timestamp=${CL_TIMESTAMP_FORMAT:+"$(date +"${CL_TIMESTAMP_FORMAT}")"}
     shift
   fi
@@ -343,6 +341,24 @@ cl::p_file_with_suffix() {
     printf "%s" "$1${suffix}"
   fi
 }
+
+# internal: get print function based on optional argument
+_cl::p_get_func() {
+  case $1 in
+    -WAR)
+      printf "cl::p_war"
+      return 0
+      ;;
+    -ERR)
+      printf "cl::p_err"
+      return 0
+      ;;
+    *)
+      printf ":"
+      return 1
+      ;;
+  esac
+}
 # }}} = PRINT FUNCTONS =======================================================
 
 # {{{ = ARRAY ================================================================
@@ -370,7 +386,7 @@ cl::join_by_n() {
 
   IFS=$'\n' printf "%s\n" "$@"
 }
-# {{{ = ARRAY ================================================================
+# }}} = ARRAY ================================================================
 
 # {{{ = PREDICATES ===========================================================
 # predicate: is current shell zsh?
@@ -406,25 +422,39 @@ cl::is_ssh() {
 # predicate: is CMD available?
 # why not use which? https://stackoverflow.com/a/677212/7393995
 cl::cmd_p() {
+  local _print=:
+  _cl::p_get_func "$1" >/dev/null && _print=$(_cl::p_get_func "$1") && shift
+
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) CMD"
+    cl::p_usg "$(cl::func_name) [-WAR|-ERR] CMD.."
     return 1
   fi
 
-  command -v "$1" >& /dev/null \
-    && return 0
-  return 1
+  for c in "$@"; do
+    if ! command -v "${c}" >& /dev/null; then
+      ${_print} "command not found: ${c}"
+      return 1
+    fi
+    shift
+  done
+  return 0
 }
 
 # predicate: is given [number] an integer?
 # number may NOT contain decimal separator "."
 cl::is_int() {
-  if [[ -z "$1" ]]; then
-     cl::cl::p_usg "$(cl::func_name) NUMBER.."
+  local _print=:
+  _cl::p_get_func "$1" >/dev/null && _print=$(_cl::p_get_func "$1") && shift
+  if [[ -z "${1:-}" ]]; then
+     cl::cl::p_usg "$(cl::func_name) [-WAR|-ERR] NUMBER.."
      return 1
   fi
+
   for n in "$@"; do
-    [[ "$n" =~ ^\ *[+-]?[0-9]+\ *$ ]] || return 1
+    if [[ ! "$n" =~ ^\ *[+-]?[0-9]+\ *$ ]]; then
+      ${_print} "not an integer: ${n}"
+      return 1
+    fi
     shift
   done
   return 0
@@ -433,13 +463,19 @@ cl::is_int() {
 # predicate: is given [number] a decimal number?
 # number MUST contain decimal separator "." (optional, scale can be 0)
 cl::is_decimal() {
-  if [[ -z "$1" ]]; then
-    cl::p_usg "$(cl::func_name) NUMBER.."
+  local _print=:
+  _cl::p_get_func "$1" >/dev/null && _print=$(_cl::p_get_func "$1") && shift
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [-WAR|-ERR] NUMBER.."
     return 1
   fi
+
   for n in "$@"; do
-    [[ "$n" =~ ^\ *[+-]?([0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] \
-      || return 1
+    if [[ ! "$n" =~ ^\ *[+-]?([0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]]; then
+      ${_print} "not a decimal number ${n}"
+      return 1
+    fi
     shift
   done
   return 0
@@ -448,13 +484,19 @@ cl::is_decimal() {
 # predicate: is given [number] positive?
 # number MAY contain decimal separator "." (optional, can be integer)
 cl::is_positive() {
-  if [[ -z "$1" ]]; then
-    cl::p_usg "$(cl::func_name) NUMBER.."
+  local _print=:
+  _cl::p_get_func "$1" >/dev/null && _print=$(_cl::p_get_func "$1") && shift
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [-WAR|-ERR] NUMBER.."
     return 1
   fi
+
   for n in "$@"; do
-    [[ ! "$n" =~ ^\ *- ]] \
-      || return 1
+    if [[ "$n" =~ ^\ *- ]]; then
+      ${_print} "not positive ${n}"
+      return 1
+    fi
     shift
   done
   return 0
@@ -463,13 +505,19 @@ cl::is_positive() {
 # predicate: is given [value] a number? (either integer or decimal)
 # number MAY contain decimal separator "." (optional, scale can be 0)
 cl::is_number() { # may contain .
-  if [[ -z "$1" ]]; then
-    cl::p_usg "$(cl::func_name) NUMBER.."
+  local _print=:
+  _cl::p_get_func "$1" >/dev/null && _print=$(_cl::p_get_func "$1") && shift
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [-WAR|-ERR] NUMBER.."
     return 1
   fi
+
   for n in "$@"; do
-    [[ "$n" =~ ^\ *[+-]?([0-9]+|[0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]] \
-      || return 1
+    if [[ ! "$n" =~ ^\ *[+-]?([0-9]+|[0-9]*[.][0-9]+|[0-9]+[.][0-9]*)\ *$ ]]; then
+      ${_print} "not a number: ${n}"
+      return 1
+    fi
     shift
   done
   return 0
@@ -478,19 +526,10 @@ cl::is_number() { # may contain .
 # predicate: checks [file] against all given [predicates] using [[
 cl::file_p() {
   local _print=:
-  case $1 in
-    W|WARN)
-      _print=cl::p_war
-      shift
-      ;;
-    E|ERROR)
-      _print=cl::p_err
-      shift
-      ;;
-  esac
+  _cl::p_get_func "$1" >/dev/null && _print=$(_cl::p_get_func "$1") && shift
 
-  if [[ -z "$1" ]]; then
-    cl::p_usg "$(cl::func_name) [W(ARNING)|E(RROR)] PREDICATE.. FILE"
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [-WAR|-ERR] PREDICATE.. FILE"
     return 1
   fi
 
@@ -703,7 +742,7 @@ cl::mv_add_suffix() {
 
 # rename given file(s) by adding the given prefix
 cl::mv_add_prefix() {
-  if [[ -z "$1" ]]; then
+  if [[ -z "${1:-}" ]]; then
     cat <<EOF
 Usage: $(cl::func_name) <prefix> <file>..
 example: $(cl::func_name) myband_-_ *.ogg
@@ -722,7 +761,7 @@ EOF
 #   py_print "192,168,0,1,sep='.'"
 #   py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"
 cl::py_print() {
-  if [[ -z "$1" ]]; then
+  if [[ -z "${1:-}" ]]; then
     cl::p_usg "$(cl::func_name) [-i IMPORT] PY_CODE.."
     return 1
   fi
