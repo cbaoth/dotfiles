@@ -18,137 +18,45 @@ if ! command -v "cl::cmd_p" >& /dev/null; then
   return 1
 fi
 
-# {{{ base
-# ----------------------------------------------------------------------------
+# {{{ = INTERNAL =============================================================
+# internal: run command with single dir argument
+# args:
+#   1:  {caller arg count}
+#   2:  {caller arg (dir), provide empty string if missing}
+#   3:  {additional usage arg(s), provide empty string if not used}
+#   4*: {cmd array with \"\${DIR}\"" to be substituded with caller arg}
+_exec_dir() {
+  local caller_arg_cnt="${1:-}"
+  local dir="${2:-}"
+  local usage_args="${3:-}"
+  shift 3
+  if [[ ${caller_arg_cnt} -ne 1 ]]; then
+    cat <<!
+Usage: $(cl::func_caller) DIR ${usage_args}
+> $@
+!
+    return 1
+  fi
+  cl::file_p -ERR -e -d "${dir}" || return 1
+  local -a cmd=("$(echo "$@" | sed -r 's/"\$\{DIR\}"/"${dir}"/g')")
+  echo "> ${cmd[@]}"
+  eval "${cmd[@]}"
+}
+# }}} = INTERNAL =============================================================
+
+# {{{ = BASE =================================================================
+# run comand using sudo in new z-shell instance
 zsudo () { sudo zsh -c "$functions[$1]" "$@"; }
-# ----------------------------------------------------------------------------
-# }}} base
+# }}} = BASE =================================================================
 
-# {{{ find files
-# ----------------------------------------------------------------------------
-find_greater_than () {
-  [[ -z "$2" ]] || ! cl::is_int $1 && \
-    cl::p_usg "find_greater_than <max> <dir>...\nmax (bytes)" && return 1
-  min="$1"; shift
-  for dir in "$@"; do
-    find "$dir" -printf "%p %s\n"|while read l; do
-      ((${l##*[ ]} == $min)) && echo $l;
-    done
-  done
-}
-
-
-find_between () {
-  [[ -z "$3" ]] || ! cl::is_int $1 $2 && \
-    cl::p_usg "$(cl::func_name) MIN MAX DIR...\nMIN|MAX (bytes)" && \
-    return 1
-  min="$1"; max="$2"; shift 2
-  for dir in "$@"; do
-    find "$dir" -printf "%p %s\n"|while read l; do
-      size="${l##*[ ]}"
-      (($size > $min)) && (($size < $max)) && echo $l;
-    done
-  done
-}
-
-
-find_less_than () {
-  [[ -z "$2" ]] || ! cl::is_int $1 && \
-    cl::p_usg "$(cl::func_name) MAX DIR..\nMAX (bytes)" && \
-    return 1
-  max="$1"; shift
-  for dir in "$@"; do
-    find "$dir" -printf "%p %s\n"|while read l; do
-      ((${l##*[ ]} < $max)) && echo $l;
-    done
-  done
-}
-
-
-# OK - find and remove all empty files
-rm_empty_files () {
-  if [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
-    cl::p_usg "$(cl::func_name) [-r] DIR"
-    return 1
-  fi
-  local -a maxdepth=(-maxdepth 1)
-  if [[ "${1:-}" = "-r" ]]; then
-    unset maxdepth
-    shift
-  fi
-  local -a dirs=(.)
-  [[ -n "${1:-}" ]] && dirs="$@"
-  for dir in "${dirs[@]}"; do
-    find "$dir" ${maxdepth:+${maxdepth[@]}} -type f -empty -delete
-  done
-}
-
-
-# OK - find and remove all empty dirs
-rm_empty_dirs () {
-  if [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
-    cl::p_usg "$(cl::func_name) [DIR]"
-    return 0
-  fi
-  local -a maxdepth=(-maxdepth 1)
-  if [[ "${1:-}" = "-r" ]]; then
-    unset maxdepth
-    shift
-  fi
-  local -a dirs=(.)
-  [[ -n "${1:-}" ]] && dirs="$@"
-  for dir in "${dirs[@]}"; do
-    find "$dir" ${maxdepth:+${maxdepth[@]}} -depth -type d -empty -delete
-  done
-}
-
-
-# OK - find and remove all .thumbnails dirs
-rm_thumbnail_dirs () {
-  if [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
-    cl::p_usg "$(cl::func_name) [DIR]"
-    return 0
-  fi
-  local -a maxdepth=(-maxdepth 1)
-  if [[ "${1:-}" = "-r" ]]; then
-    unset maxdepth
-    shift
-  fi
-  local -a dirs=(.)
-  [[ -n "${1:-}" ]] && dirs="$@"
-  for dir in "${dirs[@]}"; do
-    find "$dir" ${maxdepth:+${maxdepth[@]}} -type d -iname ".thumbnails" -exec rm -rf {} \;
-  done
-}
-
-
-# OK - find an chmod files to 022 single-user system mask
-chmod_rec_022 () {
-  if [[ -z "${1:-}" || "${1:-}" =~ ^(-h|--help)$ ]]; then
-    cl::p_usg "$(cl::func_name) [DIR]"
-    cl::p_msg "recursive 755 dir and 644 file chmod"
-    return 0
-  fi
-  [[ -n "${1:-}" ]] && dirs="$@"
-  for dir in "${dirs[@]}"; do
-    cl::file_p W -d "${dir}" || continue
-    find "${dir}" -type d -exec chmod 755 {} \;
-    find "${dir}" -type f -exec chmod 644 {} \;
-  done
-}
-
-
-# ----------------------------------------------------------------------------
-# }}} find files
-# {{{ string
-# ----------------------------------------------------------------------------
-# OK - repeat string
+# {{{ = STRING ===============================================================
+# repeat string
 string_repeat() {
   if [[ -z "${2:-}" ]]; then
-    cl::p_usg "$(cl::func_name) COUNT STRING" && \
+    cl::p_usg "$(cl::func_name) COUNT STRING"
     return 1
   fi
-  ! cl::is_int $1 && { cl::p_err "$1 is not an integer"; return 1; }
+  cl::is_int -ERR $1 || return 1
   #echo $(printf "%0$1d" | sed "s/0/$2/g")
   #printf "$2.0s" {1..$1}
   awk 'BEGIN{$'$1'=OFS="'$2'";print}'
@@ -158,26 +66,34 @@ string_repeat() {
 # OK - prefix every line from the input file with a line counter, restart after empty line
 line_counter_prefix_sublines() {
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) INFILE" && \
+    cat <<!
+Usage: $(cl::func_name) [-e] FILE
+Options:
+  -e    Print empty lines (else: skip)
+!
     return 1
   fi
+
+  local print_empty=false
+  [[ "$1" = "-e" ]] && print_empty=true && shift
+  cl::file_p -ERR -e -w "$1" || return 1
   local infile="$1"
   local i=0
-  cat "${infile}" | while read l; do
+
+  while read l; do
     if [[ -z "$l" ]]; then
       i=0
+      ${print_empty} && printf "\n"
       continue
     else
       i=$((i+1))
     fi
-    echo "$i: $l"
-  done
+    printf "%s: %s\n" "${i}" "${l}"
+  done < "${infile}"
 }
+# }}} = STRING ===============================================================
 
-# ----------------------------------------------------------------------------
-# }}}
-# {{{ math
-# ----------------------------------------------------------------------------
+# {{{ = MATH =================================================================
 # OK - send expression to dc (simple wrapper)
 calc() {
   local HELP USG="$(cl::func_name) [OPTION..] EXPR.."
@@ -261,104 +177,57 @@ calcSum() {
   echo "result: "$(pycalc "$arg")
 }
 
-# ----------------------------------------------------------------------------
-# }}} math
-# {{{ network
-# ----------------------------------------------------------------------------
-# OK - multi-threaded (8 jobs) wget mirror
-wget_mm () {
-  if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) URL"
-    printf "mirror URL (no parent) using wget running 8 background jobs\n"
-    return 1
-  fi
-  # FIXME use GNU parallel instead
-  for i in {1..8}; do
-    printf "job(%s): wget -U '%s' -m -k -K -E -np -N '%s' &" "$i" "$UAGENT" "$1"
-    wget -U "$UAGENT" -m -k -K -E -np -N "$1" &
-  done
+# }}} = MATH =================================================================
+
+# {{{ = FILE OPERATIONS ======================================================
+# {{{ - Find / Bulk Update ---------------------------------------------------
+
+# find files larger than given size
+find_greater_than() {
+  local -a cmd=(find \"\${DIR}\" -type f -size +"${2:-\${MAX_SIZE\}}" -print)
+  _exec_dir "$(( $# == 2 ? 1 : 0))" "${1:-1}" "MAX_SIZE" "${cmd[@]}"
 }
 
-
-# OK - download URL using wget using output file name based on URL
-wget_d () {
-  if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) URL [wget-args]"
-    cat <<EOF
-
-Download URL (using wget) into a dynamic output file, named based on the URL.
-
-Default wget args:
-  -U "\${UAGENT}"
-  --referer "{base path of given URL}"
-  -O "{out file name based on URL}"
-
-Example:
-  $(cl::func_name) https://foo.bar/resource/1.html -c
-  -> wget -U "\${UAGENT}"
-          --referer "https://foo.bar/resource"
-          -O "foo.bar+resource+1.html"
-          https://foo.bar/resource/1.html
-          -c
-EOF
-    return 1
-  fi
-  local url="$1"
-  shift
-  local ref="$(dirname "${url}")"
-  local outfile="$(sed -E 's/^(\w+):\/\///g;s/\/+$//g;s/\//+/g' <<<"${url}")"
-  wget -U "${UAGENT}" --referer "${ref}" -O "${outfile}" "$@" "${url}"
+# find files with size between the two given file sizes
+find_between () {
+  local -a cmd=(find \"\${DIR}\" -type f -size +"${2:-\${MIN_SIZE\}}" -size -"${3:-\${MAX_SIZE\}}" -print)
+  _exec_dir "$(( $# == 3 ? 1 : 0))" "${1:-1}" "MIN_SIZE MAX_SIZE" "${cmd[@]}"
 }
 
-
-# attempt to re-download a file that was downloaded using wget_d
-wget_d_rev () {
-  if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) FILE.."
-    printf "attempt to re-download a file that was downloaded using wget_d\n"
-    return 1
-  fi
-  for f in "$@"; do
-    local url="http://$(tr '+' '/' <<<"$f")"
-    local ref="$(dirname "$url")"
-    cl::p_msg "Trying to re-download: $url"
-    wget -U "$UAGENT" --referer "$ref" "$url" -O "$f"
-    [[ $? == 0 ]] && continue
-    cl::p_err "Attempt to re-donwload via http failed, trying https ..."
-    url="${url/http:/https:}"
-    wget -U "$UAGENT" --referer "$ref" "$url" -O "$f"
-  done
+# find files smaller than given size
+find_less_than () {
+  local -a cmd=(find \"\${DIR}\" -type f -size -"${2:-\${MIN_SIZE\}}" -print)
+  _exec_dir "$(( $# == 2 ? 1 : 0))" "${1:-1}" "MIN_SIZE" "${cmd[@]}"
 }
 
-
-# OK - open ssh tunnel
-ssh_tunnel () {
-  if [[ -z "${2:-}" ]]; then
-    cl::p_usg "$(cl::func_name) [USER@]HOST[:PORT] LOCALPORT [REMOTEPORT]"
-    return 1
-  fi
-  local host="${${1#*@}%:*}"
-  local user
-  [[ "$1" = *@* ]] && user="${1%@*}"
-  local port
-  [[ "$1" = *:* ]] && port="${1#*:}"
-  local lp="$2"
-  local rp="${3:-$lp}"
-  (($lp < 1024)) && ! cl::is_su && local SUDO="sudo"
-  $SUDO ssh -f "${host}" ${port:+-p ${port}} ${user:+-l $user} -L ${lp}:127.0.0.1:${rp} -N
+# recursively delete empty files
+rm_empty_files () {
+  local -a cmd=(find \"\${DIR}\" -type f -size 0 -delete -print)
+  _exec_dir "$#" "${1:-1}" "" "${cmd[@]}"
 }
 
-
-# OK - generate a random mac address
-mac_generate() {
-  printf "52:54:%s" "$(dd if=/dev/urandom count=1 2>/dev/null \
-                       | md5sum \
-                       | sed 's/^\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4/')"
+# recursively delete empty directories
+rm_empty_dirs () {
+  local -a cmd=(find \"\${DIR}\" -depth -type d -empty -delete -print)
+  _exec_dir "$#" "${1:-1}" "" "${cmd[@]}"
 }
 
-# ----------------------------------------------------------------------------
-# }}}
-# {{{ file renaming
+# recursively delete thumbnail directories
+rm_thumbnail_dirs () {
+  local -a cmd=(find \"\${DIR}\" -depth -type d -iname "'.thumbnails'" -exec rm -vrf "\"{}\"" "\;")
+  _exec_dir "$#" "${1:-1}" "" "${cmd[@]}"
+}
+
+# find an chmod files to 022 single-user system mask
+chmod_rec_022 () {
+  local -a cmd=(find \"\${DIR}\" -type d -exec chmod 755 "\"{}\"" "\;" \;)
+  cmd+=(find \"\${DIR}\" -type f -exec chmod 644 "\"{}\"" "\;")
+  _exec_dir "$#" "${@:-}" "" "${cmd[@]}"
+}
+
+# }}} - Find / Bulk Update ---------------------------------------------------
+
+# {{{ - Renaming / Moving ----------------------------------------------------
 
 # OK - if rename is not available, provide a simple replace implementation
 if ! cl::cmd_p rename >& /dev/null; then
@@ -377,7 +246,7 @@ EOF
     local pattern="$1"
     shift
     for f in "$@"; do
-      cl::file_p E -e -w "${f}" || continue
+      cl::file_p -WAR -e -w "${f}" || continue
       target="$(sed -r ${pattern} <<<"${f}")"
       [[ "${f}" != "${target}" ]] \
         && mv -i "${f}" "${target}"
@@ -421,8 +290,8 @@ Example: $(cl::func_name) file_a.ogg file_b.ogg
 EOF
     return 1
   fi
-  cl::file_p E -e -w "$1" || return 1
-  cl::file_p E -e -w "$2" || return 1
+  cl::file_p -ERR -e -w "$1" || return 1
+  cl::file_p -ERR -e -w "$2" || return 1
   local tmpf="_SWAP_$1"
   cl::p_msg "swapping file names: '$1' <-> '$2'"
   mv -i "$1" "${tmpf}" || return 1
@@ -433,16 +302,16 @@ EOF
 #
 rename_prefix_counter() {
   if [[ -z "$1" ]]; then
-    cat <<EOF
+    cat <<!
 Usage: $(cl::func_name) FILE.."
 Example: $(cl::func_name) intro.ogg interlude.ogg final_song.ogg
          -> 01_intro.ogg 02_interlude.ogg 03_final_song.ogg
-EOF
+!
     return 1
   fi
   i=1
   while [[ -n "$1" ]]; do
-    if cl::file_p E -e -w "${1}"; then
+    if cl::file_p -ERR -e -w "${1}"; then
       local prefix="$(zerofill $i 2)"
       local target="${prefix}_$1"
       if [[ ! -e "${target}" ]]; then
@@ -458,7 +327,7 @@ EOF
   done
 }
 
-#
+# OK - rename
 rename_prefix_modtime () {
   local format="+%Y-%m-%d@%H.%M "
   if [[ "$1" = "-f" ]]; then
@@ -480,7 +349,7 @@ Examples:
     return 1
   fi
   for f in "$@"; do
-    cl::file_p W -e -w "${f}" || continue
+    cl::file_p -WAR -e -w "${f}" || continue
     local mtime="$(date -r "${f}" ${format} 2>/dev/null || printf ERROR)"
     [[ "${mtime}" = "ERROR" ]] && cl::p_err "invalid date format: ${format}" && return 1
     local target="${mtime}${f}"
@@ -649,10 +518,7 @@ $(cl::fx b)Example:$(cl::fx r)
 
 url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
 export url2fname
-# ----------------------------------------------------------------------------
-# }}} renaming
-# {{{ moving
-# ----------------------------------------------------------------------------
+
 merge_dir () {
   local verbose=false wild=false noact=false ignore_case
   while [[ "${1:-}" == -* ]]; do
@@ -759,29 +625,395 @@ merge_dirs_same_first_word() {
         fi
       done
 }
-#
-# ----------------------------------------------------------------------------
-# }}}
-# {{{ textfile manipulation
-# ----------------------------------------------------------------------------
-kill_trailing_spaces () {
-  if [[ -z "$1" ]]; then
-    cl::p_usg "kill_trailing_spaces <file>"
-    return 1
-  fi
-  local file="$1"
-  if [[ ! -w "$file" ]]; then
-    cl::p_err "file [$file] does not exist or is not writable"
-    return 1
-  fi
+# }}} - Renaming / Moving ----------------------------------------------------
 
-  perl -pi -e 's/[ ]\+$//g' "$file"
+# {{{ = SYSTEM ===============================================================
+# {{{ - Core -----------------------------------------------------------------
+pnice () {
+  [[ -z "$1" ]] && cl::p_usg "$(cl::func_name) PROC_NAME_REGEX" && return 1
+  local p="$(ps ax -T | grep -iE "$@" | grep -vE '0:00.*grep')"
+  (($#p <= 0)) && cl::p_err "no matching processes/threads found" && return 1
+  cl::p_msg "niceness of the following processes/threads will be changed:"
+  echo "$p"
+  if cl::q_yesno "> process?"; then
+    echo $p|cut -d \  -f 2|xargs sudo renice -n 19 -p
+  fi
 }
-#
-# ----------------------------------------------------------------------------
-# }}}
-# ----------------------------------------------------------------------------
-# {{{ delevopment
+pniceio () {
+  [[ -z "$1" ]] && cl::p_usg "$(cl::func_name) PROC_NAME_REGEX" && return 1
+  local p="$(ps ax -T | grep -iE "$@" | grep -vE '0:00.*grep')"
+  (($#p <= 0)) && cl::p_err "no matching processes/threads found" && return 1
+  cl::p_msg "niceness of the following processes/threads will be changed:"
+  echo "$p"
+  if cl::q_yesno "> process?"; then
+    echo $p|cut -d \  -f 2|xargs sudo ionice -c 3 -p
+  fi
+}
+pniceloop () {
+  [[ -z "$1" ]] && cl::p_usg "$(cl::func_name) PROC_NAME_REGEX" && return 1
+  while true; do
+    local p="$(ps ax -T | grep -iE "$@" | grep -vE '0:00.*grep')"
+    (($#p <= 0)) && cl::p_err "no matching processes/threads found" && return 1
+    cl::p_msg "niceness of the following processes/threads will be changed:"
+    echo "$p"
+  #if  cl::q_yesno "> process"; then
+    echo $p|cut -d \  -f 2|xargs sudo renice -n 19 -p
+    echo $p|cut -d \  -f 2|xargs sudo ionice -c 3 -p
+  #fi
+    sleep 10 # repeat every 10 sec
+  done
+}
+iso-quickmount () {
+  if [[ -z "$1" ]]; then
+    cat <<!
+Usage: $(cl::func_name) [ISO_FILE [DIR]|DIR]
+
+examples:
+  # quick mount iso file to default dir (will be created)
+  # dir name pattern: filename without extension, same base dir as given iso
+  $(cl::func_name) freebsd.iso
+
+  # quick mount iso to specific dir (will be created)
+  $(cl::func_name) ~/isos/freebsd.iso ./freebsd/
+
+  # umount quickmount iso dir (and remove dir again)
+  $(cl::func_name) freebsd/
+!
+    return 1
+  fi
+  local mountdir
+  if [[ -d "$1" ]]; then
+    mountdir="$1"
+    if sudo umount "$MOUNTDIR"; then
+      cl::p_msg "Successfully un-mounted: $MOUNTDIR"
+      if ! sudo rmdir "$MOUNTDIR" 2>/dev/null; then
+        cl::p_war "Unable to remove mount dir!" #: $MOUNTDIR"
+        #return 1
+      fi
+      return 0
+    else
+      cl::p_err "Unable to un-mount given dir!" #: $MOUNTDIR"
+      return 1
+    fi
+  elif [[ -f "$1" ]]; then
+    local isofile="$1"
+    if ! file --mime-type "$ISOFILE" | grep 'iso9660' 2>&1 >/dev/null; then
+      cl::p_err "Given argument doesn't seem to be a valid iso image: $ISOFILE"
+      return 1
+    fi
+    mountdir="${1%.*}"
+    [[ -n "$2" ]] && mountdir="$2" # \
+    #  && [[ -d "$2" ]] && cl::p_err "Given mount dir does already exist '$2'!" \
+    #  && return 1
+    if ! sudo mkdir "$mountdir" 2>&1 \
+        | grep -v ': File exists'; then
+      if [[ ! -d "$mountdir" ]]; then
+        cl::p_err "Unable to create dir: $mountdir"
+        return 1
+      fi
+    fi
+    if rsp="$(sudo mount -r -o loop -t iso9660 "$isofile" "$mountdir" 2>&1)"; then
+      cl::p_msg "Successfully mounted iso file to: $mountdir"
+      return 0
+    else
+      am=0
+      echo $rsp | grep 'according to mtab.*is already mounted'  >/dev/null \
+        && msg=" The file seems to be mounted already!" && am=1
+      cl::p_err "Unable to mount iso file!$msg" #: $isofile"
+      if ! sudo rmdir "$mountdir" 2>/dev/null && (( "$am" != 1 )); then
+        cl::p_war "Unable to remove mount dir: $mountdir"
+        #return 1
+      fi
+      return 1
+    fi
+  else
+    cl::p_err "Given argument neither seems to be an iso file nor a directory: $1"
+    return 1
+  fi
+  return 0
+}
+# }}} - Core -----------------------------------------------------------------
+
+# {{{ - Network --------------------------------------------------------------
+# OK - multi-threaded (8 jobs) wget mirror
+wget_mm () {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) URL"
+    printf "mirror URL (no parent) using wget running 8 background jobs\n"
+    return 1
+  fi
+  # FIXME use GNU parallel instead
+  for i in {1..8}; do
+    printf "job(%s): wget -U '%s' -m -k -K -E -np -N '%s' &" "$i" "$UAGENT" "$1"
+    wget -U "$UAGENT" -m -k -K -E -np -N "$1" &
+  done
+}
+
+
+# OK - download URL using wget using output file name based on URL
+wget_d () {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) URL [wget-args]"
+    cat <<EOF
+
+Download URL (using wget) into a dynamic output file, named based on the URL.
+
+Default wget args:
+  -U "\${UAGENT}"
+  --referer "{base path of given URL}"
+  -O "{out file name based on URL}"
+
+Example:
+  $(cl::func_name) https://foo.bar/resource/1.html -c
+  -> wget -U "\${UAGENT}"
+          --referer "https://foo.bar/resource"
+          -O "foo.bar+resource+1.html"
+          https://foo.bar/resource/1.html
+          -c
+EOF
+    return 1
+  fi
+  local url="$1"
+  shift
+  local ref="$(dirname "${url}")"
+  local outfile="$(sed -E 's/^(\w+):\/\///g;s/\/+$//g;s/\//+/g' <<<"${url}")"
+  wget -U "${UAGENT}" --referer "${ref}" -O "${outfile}" "$@" "${url}"
+}
+
+
+# attempt to re-download a file that was downloaded using wget_d
+wget_d_rev () {
+  local print_only=false
+  [[ "${1:-}" = "-p" ]] && print_only=true && shift
+  if [[ -z "${1:-}" ]]; then
+    cat <<!
+Usage: wget_d_rev [-p] FILE..
+
+Attempt to re-download a file that was downloaded using wget_d.\n"
+Recovering the original URL from the file name may not be possible.\n"
+
+Options:
+  -p     print recovered URLs only (no wget)
+!
+    return 1
+  fi
+  for f in "$@"; do
+    local url="http://$(tr '+' '/' <<<"$f")"
+    local ref="$(dirname "$url")"
+    if [[ ${print_only} ]]; then
+      printf "%s\n" "${url}"
+    else
+      cl::p_msg "Trying to re-download: $url"
+      wget -U "$UAGENT" --referer "$ref" "$url" -O "$f"
+      [[ $? == 0 ]] && continue
+      cl::p_err "Attempt to re-donwload via http failed, trying https ..."
+      url="${url/http:/https:}"
+      wget -U "$UAGENT" --referer "$ref" "$url" -O "$f"
+    fi
+  done
+}
+
+
+# OK - open ssh tunnel
+ssh_tunnel () {
+  if [[ -z "${2:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [USER@]HOST[:PORT] LOCALPORT [REMOTEPORT]"
+    return 1
+  fi
+  local host="${${1#*@}%:*}"
+  local user
+  [[ "$1" = *@* ]] && user="${1%@*}"
+  local port
+  [[ "$1" = *:* ]] && port="${1#*:}"
+  local lp="$2"
+  local rp="${3:-$lp}"
+  (($lp < 1024)) && ! cl::is_su && local SUDO="sudo"
+  $SUDO ssh -f "${host}" ${port:+-p ${port}} ${user:+-l $user} -L ${lp}:127.0.0.1:${rp} -N
+}
+
+
+# OK - generate a random mac address
+mac_generate() {
+  printf "52:54:%s" "$(dd if=/dev/urandom count=1 2>/dev/null \
+                       | md5sum \
+                       | sed 's/^\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4/')"
+}
+# }}} - Network --------------------------------------------------------------
+
+# {{{ - Security & Crypto ----------------------------------------------------
+create-crypto-containe () { # file, size, fstype [, files]
+  # get args and check a few things
+  local file="$1" # container file
+  #[ -f "$file" ]] && cl::p_err "file '$file' does exist" && return 1
+  local dir="$(dirname "$1")"; shift # dirname
+  [[ ! -d "$dir" ]] && cl::p_err "no such dir '$dir'" && return 1
+  local size="$1"; shift # container size (mb)
+  ! cl::is_int $size && cl::p_err "no valid size '$size'" && return 1
+  local blocks="$(($size*1024))" # container size (blocks)
+  local space="$(df "$dir" | grep -v Filesystem | awk '{print $3}')"
+  (($space < $blocks)) && \
+    cl::p_err "not enough space on target drive" && return 1
+  local fs="$1"; shift # container filesystem
+  local bs=1024 # set block size
+
+  # check superuser status
+  local sudo=""
+  ! cl::is_su && sudo="sudo" && \
+    cl::p_msg "you might be asked to enter your sudo password"
+  #seed="$(head -c 15 /dev/random | uuencode -m - | head -2 | tail -1)"
+  #muli key mode !!! CBC
+  if [[ "$fs" = 'iso9660' ]]; then
+    (($size < 1000)) && bs=512 # set block size
+    [[ -z "$@" ]] && cl::p_err "missing files" && return 1
+    #cl::p_msg "creating empty container"
+    #$sudo dd if=/dev/zero of="$file" bs="$bs" count="$blocks"
+    #cl::p_msg "creating random data"
+    #$sudo shred -n 1 -v "$file"
+    #cl::p_msg "please enter passphrase"
+    #$sudo losetup -e AES256 -k 256 /dev/loop2 "$file"
+    #cl::p_msg "building fs"
+    #$sudo mkisofs -r -o /dev/loop2 "$@"
+    #$sudo losetup -d /dev/loop2
+    cl::p_msg "creating empty container"
+    dd if=/dev/zero of="$file" bs="$bs" count=16 &&\
+    cl::p_msg "generating symmetric key (entropy !)" &&\
+    head -c 2880 /dev/random | uuencode -m - | head -n 65 | tail -n 64 \
+    | gpg --symmetric -a | dd of="$file" conv=notrunc &&\
+    cl::p_msg "creating crypted isofs (this may take a while)" &&\
+    mkisofs -r "$@" | aespipe -e aes256 -w 5 -T \
+      -K "$file" -O 16 >> "$file" &&\
+    cl::p_msg "try: growisofs -dvd-compat -Z /dev/dvd="$file""
+  elif [[ "$fs" = 'ext2' ]]; then
+    cl::p_msg "creating empty container"
+    $sudo dd if=/dev/zero of="$file" bs="$bs" count="$blocks" &&\
+    cl::p_msg "creating random data" &&\
+    $sudo shred -n 1 -v "$file" &&\
+    cl::p_msg "please enter passphrase" &&\
+    $sudo losetup -e aes -k 256 /dev/loop2 "$file" &&\
+    cl::p_msg "building fs" &&\
+    $sudo mkfs -t ext2 /dev/loop2 &&\
+    $sudo losetup -d /dev/loop2
+  else
+    cl::p_err "wrong fs '$fs'" && return 1
+  fi
+  cl::p_msg "done"
+  return 0
+}
+mkcc-cd () {
+  [[ -z "$2" ]] && \
+    cl::p_usg "$(cl::func_name) CONTAINER FILE.." && return 1
+  file="$1"; shift
+  create-crypto-containe "$file" 700 'iso9660' "$@"
+}
+mkcc-dvd () {
+  [[ -z "$2" ]] && \
+    cl::p_usg "$(cl::func_name) CONTAINER FILE.." && return 1
+  local file="$1"; shift
+  create-crypto-containe "$file" 4400 'iso9660' "$@"
+}
+mkcc-ext2 () {
+  [[ -z "$2" ]] && \
+    cl::p_usg "$(cl::func_name) CONTAINER SIZE" && return 1
+  create-crypto-containe "$1" "$2" 'ext2'
+}
+mount-crypted () {
+  [[ -z "$1" ]] && \
+    cl::p_usg "$(cl::func_name) CONTAINER" && return 1
+  local fs=ext2
+  [[ "${1##*.}" = "iso" ]] && fs=iso9660
+  local sudo=""
+  ! cl::is_su && sudo="sudo" && \
+    cl::p_msg "you might be asked to enter your sudo password"
+  $sudo mount "$1" /mnt/crypted -t $fs \
+    -o loop=/dev/loop2,encryption=aes256,gpgkey="$file",offset=8192
+    #-o loop=/dev/loop2,encryption=aes,keybits=256
+}
+
+# https://stackoverflow.com/a/10379209
+# OK - securely delete (overwrite) files / directories (recursively)
+shred_secure() {
+  [[ -z "$1" ]] && \
+    cl::p_usg "$(cl::func_name) (FILE|DIR).." && return 1
+  local return_code=0
+  for f in "$@"; do
+    [[ ! -e "${f}" ]] && \
+      cl::p_war "File not found [${f}], skipping ..." && continue
+    if [[ -d "${f}" ]]; then
+      cl::p_msg "Shredding dir recursively: ${f}"
+      # loop over all non-directories (including special types like links or sockets)
+      find "${f}" -depth -not -type d | while read f2; do
+        # file no longer existing? skip fast
+        if [[ -L "${f2}" ]]; then
+          cl::p_msg "Deleting symlink using rm: [${f2}]"
+          rm -f "${f2}" \
+            || return_code=1
+          continue
+        elif [[ -p "${f2}" ]]; then
+          cl::p_msg "Deleting pipe using rm: [${f2}]"
+          rm -f "${f2}" \
+            || return_code=1
+          continue
+        elif [[ -S "${f2}" ]]; then
+          cl::p_msg "Deleting socket using rm: [${f2}]"
+          rm -f "${f2}" \
+            || return_code=1
+          continue
+        elif [[ ! -f "${f2}" ]]; then
+          cl::p_war "File not found (no longer existing?) [${f2}], skipping ..."
+          continue
+        fi
+        cl::p_msg "Shredding file: ${f2}"
+        # overwriting with random data
+        shred -v -n 1 "${f2}"
+        # forcing a sync of the buffers to the disk
+        sync
+        # overwriting with zeroes and remove the file
+        shred -v -n 0 -z -u "${f2}" \
+          || return_code=1
+      done
+      # delete all (now empty) directories, could also be: rm -rf "${f}"
+      cl::p_msg "Deleting remaining (empty) directories."
+      find "${f}" -depth -type d -exec rmdir --ignore-fail-on-non-empty '{}' \;
+      # check if dir itself is gone, if note, some files may still exist
+      if [[ -d "${f}" ]]; then
+        cl::p_err "Shredding of the given dir [${f}] seems to be incomplete, most likely due to unaccessible / newly created files! Please check or try again."
+        return_code=1
+      fi
+    else
+      cl::p_msg "Shredding: ${f}"
+      # overwriting with random data
+      shred -v -n 1 "${f}"
+      # forcing a sync of the buffers to the disk
+      sync
+      # overwriting with zeroes and remove the file
+      shred -v -n 0 -z -u "${f}" \
+        || return_code=1
+    fi
+  done
+  if (( ${return_code} > 0 )); then
+    cl::p_err "At least one ERROR occured while processing!"
+  fi
+  return ${return_code}
+}
+
+# }}} - Security & Crypto ----------------------------------------------------
+
+# {{{ - Debian/Ubuntu --------------------------------------------------------
+
+if command -v apt-key >& /dev/null; then
+  apt_key_import () {
+    [[ -z "$1" ]] && { cl::p_usg "$(cl::func_name) FINGERPRINT"; return 1; }
+    gpg --keyserver wwwkeys.eu.pgp.net --recv-keys "$1" \
+      && sudo gpg --armor --export "$1" | apt-key add -
+  }
+fi
+
+# }}} - Debian/Ubuntu --------------------------------------------------------
+
+# }}} = SYSTEM ===============================================================
+
+
+# {{{ = DEVELOPMENT ==========================================================
 # https://web.archive.org/web/20130116195128/http://bogdan.org.ua/2011/03/28/how-to-truncate-git-history-sample-script-included.html
 git_truncate () {
   if [[ -z "$1" ]]; then
@@ -803,10 +1035,9 @@ git_truncate () {
     && git branch -D temp
 }
 #
-# }}}
-# ----------------------------------------------------------------------------
-# {{{ multimedia
-# ----------------------------------------------------------------------------
+# }}} = DEVELOPMENT ==========================================================
+
+# {{{ = MULTIMEDIA ===========================================================
 # youtube-dl download using aria2 (4 concurrent downloades, 4 threads per host)
 # use output filenames generated by youtube-dl
 ytp() {
@@ -1268,291 +1499,26 @@ mkv_set_title () {
     printf "-> Title: My Episode\n"
     return 1
   fi
-  cl::file_p -w "$1" || return 1
+  cl::file_p -ERR -e -w "$1" || return 1
   local title="$2"
   [[ -z "$title" ]] \
     && title="$(echo "$1" | sed -r 's/^S[0-9]+E[0-9]+[ _-]+//i;s/\.[^.]+$//')"
   echo mkvpropedit "$1" --edit info --set "title=${title}"
 }
-# ----------------------------------------------------------------------------
-# }}} multimeda
-# ----------------------------------------------------------------------------
-# }}} crypto
-# {{{ system
-# ----------------------------------------------------------------------------
-pnice () {
-  [[ -z "$1" ]] && cl::p_usg "$(cl::func_name) PROC_NAME_REGEX" && return 1
-  local p="$(ps ax -T | grep -iE "$@" | grep -vE '0:00.*grep')"
-  (($#p <= 0)) && cl::p_err "no matching processes/threads found" && return 1
-  cl::p_msg "niceness of the following processes/threads will be changed:"
-  echo "$p"
-  if cl::q_yesno "> process?"; then
-    echo $p|cut -d \  -f 2|xargs sudo renice -n 19 -p
-  fi
-}
-pniceio () {
-  [[ -z "$1" ]] && cl::p_usg "$(cl::func_name) PROC_NAME_REGEX" && return 1
-  local p="$(ps ax -T | grep -iE "$@" | grep -vE '0:00.*grep')"
-  (($#p <= 0)) && cl::p_err "no matching processes/threads found" && return 1
-  cl::p_msg "niceness of the following processes/threads will be changed:"
-  echo "$p"
-  if cl::q_yesno "> process?"; then
-    echo $p|cut -d \  -f 2|xargs sudo ionice -c 3 -p
-  fi
-}
-pniceloop () {
-  [[ -z "$1" ]] && cl::p_usg "$(cl::func_name) PROC_NAME_REGEX" && return 1
-  while true; do
-    local p="$(ps ax -T | grep -iE "$@" | grep -vE '0:00.*grep')"
-    (($#p <= 0)) && cl::p_err "no matching processes/threads found" && return 1
-    cl::p_msg "niceness of the following processes/threads will be changed:"
-    echo "$p"
-  #if  cl::q_yesno "> process"; then
-    echo $p|cut -d \  -f 2|xargs sudo renice -n 19 -p
-    echo $p|cut -d \  -f 2|xargs sudo ionice -c 3 -p
-  #fi
-    sleep 10 # repeat every 10 sec
-  done
-}
-iso-quickmount () {
+# }}} = MULTIMEDIA ===========================================================
+
+# {{{ = MISC =================================================================
+kill_trailing_spaces () {
   if [[ -z "$1" ]]; then
-    cat <<!
-Usage: $(cl::func_name) [ISO_FILE [DIR]|DIR]
-
-examples:
-  # quick mount iso file to default dir (will be created)
-  # dir name pattern: filename without extension, same base dir as given iso
-  $(cl::func_name) freebsd.iso
-
-  # quick mount iso to specific dir (will be created)
-  $(cl::func_name) ~/isos/freebsd.iso ./freebsd/
-
-  # umount quickmount iso dir (and remove dir again)
-  $(cl::func_name) freebsd/
-!
+    cl::p_usg "kill_trailing_spaces <file>"
     return 1
   fi
-  local mountdir
-  if [[ -d "$1" ]]; then
-    mountdir="$1"
-    if sudo umount "$MOUNTDIR"; then
-      cl::p_msg "Successfully un-mounted: $MOUNTDIR"
-      if ! sudo rmdir "$MOUNTDIR" 2>/dev/null; then
-        cl::p_war "Unable to remove mount dir!" #: $MOUNTDIR"
-        #return 1
-      fi
-      return 0
-    else
-      cl::p_err "Unable to un-mount given dir!" #: $MOUNTDIR"
-      return 1
-    fi
-  elif [[ -f "$1" ]]; then
-    local isofile="$1"
-    if ! file --mime-type "$ISOFILE" | grep 'iso9660' 2>&1 >/dev/null; then
-      cl::p_err "Given argument doesn't seem to be a valid iso image: $ISOFILE"
-      return 1
-    fi
-    mountdir="${1%.*}"
-    [[ -n "$2" ]] && mountdir="$2" # \
-    #  && [[ -d "$2" ]] && cl::p_err "Given mount dir does already exist '$2'!" \
-    #  && return 1
-    if ! sudo mkdir "$mountdir" 2>&1 \
-        | grep -v ': File exists'; then
-      if [[ ! -d "$mountdir" ]]; then
-        cl::p_err "Unable to create dir: $mountdir"
-        return 1
-      fi
-    fi
-    if rsp="$(sudo mount -r -o loop -t iso9660 "$isofile" "$mountdir" 2>&1)"; then
-      cl::p_msg "Successfully mounted iso file to: $mountdir"
-      return 0
-    else
-      am=0
-      echo $rsp | grep 'according to mtab.*is already mounted'  >/dev/null \
-        && msg=" The file seems to be mounted already!" && am=1
-      cl::p_err "Unable to mount iso file!$msg" #: $isofile"
-      if ! sudo rmdir "$mountdir" 2>/dev/null && (( "$am" != 1 )); then
-        cl::p_war "Unable to remove mount dir: $mountdir"
-        #return 1
-      fi
-      return 1
-    fi
-  else
-    cl::p_err "Given argument neither seems to be an iso file nor a directory: $1"
+  local file="$1"
+  if [[ ! -w "$file" ]]; then
+    cl::p_err "file [$file] does not exist or is not writable"
     return 1
   fi
-  return 0
-}
-# ----------------------------------------------------------------------------
-# }}}
-# {{{ security & crypto
-# ----------------------------------------------------------------------------
-create-crypto-containe () { # file, size, fstype [, files]
-  # get args and check a few things
-  local file="$1" # container file
-  #[ -f "$file" ]] && cl::p_err "file '$file' does exist" && return 1
-  local dir="$(dirname "$1")"; shift # dirname
-  [[ ! -d "$dir" ]] && cl::p_err "no such dir '$dir'" && return 1
-  local size="$1"; shift # container size (mb)
-  ! cl::is_int $size && cl::p_err "no valid size '$size'" && return 1
-  local blocks="$(($size*1024))" # container size (blocks)
-  local space="$(df "$dir" | grep -v Filesystem | awk '{print $3}')"
-  (($space < $blocks)) && \
-    cl::p_err "not enough space on target drive" && return 1
-  local fs="$1"; shift # container filesystem
-  local bs=1024 # set block size
 
-  # check superuser status
-  local sudo=""
-  ! cl::is_su && sudo="sudo" && \
-    cl::p_msg "you might be asked to enter your sudo password"
-  #seed="$(head -c 15 /dev/random | uuencode -m - | head -2 | tail -1)"
-  #muli key mode !!! CBC
-  if [[ "$fs" = 'iso9660' ]]; then
-    (($size < 1000)) && bs=512 # set block size
-    [[ -z "$@" ]] && cl::p_err "missing files" && return 1
-    #cl::p_msg "creating empty container"
-    #$sudo dd if=/dev/zero of="$file" bs="$bs" count="$blocks"
-    #cl::p_msg "creating random data"
-    #$sudo shred -n 1 -v "$file"
-    #cl::p_msg "please enter passphrase"
-    #$sudo losetup -e AES256 -k 256 /dev/loop2 "$file"
-    #cl::p_msg "building fs"
-    #$sudo mkisofs -r -o /dev/loop2 "$@"
-    #$sudo losetup -d /dev/loop2
-    cl::p_msg "creating empty container"
-    dd if=/dev/zero of="$file" bs="$bs" count=16 &&\
-    cl::p_msg "generating symmetric key (entropy !)" &&\
-    head -c 2880 /dev/random | uuencode -m - | head -n 65 | tail -n 64 \
-    | gpg --symmetric -a | dd of="$file" conv=notrunc &&\
-    cl::p_msg "creating crypted isofs (this may take a while)" &&\
-    mkisofs -r "$@" | aespipe -e aes256 -w 5 -T \
-      -K "$file" -O 16 >> "$file" &&\
-    cl::p_msg "try: growisofs -dvd-compat -Z /dev/dvd="$file""
-  elif [[ "$fs" = 'ext2' ]]; then
-    cl::p_msg "creating empty container"
-    $sudo dd if=/dev/zero of="$file" bs="$bs" count="$blocks" &&\
-    cl::p_msg "creating random data" &&\
-    $sudo shred -n 1 -v "$file" &&\
-    cl::p_msg "please enter passphrase" &&\
-    $sudo losetup -e aes -k 256 /dev/loop2 "$file" &&\
-    cl::p_msg "building fs" &&\
-    $sudo mkfs -t ext2 /dev/loop2 &&\
-    $sudo losetup -d /dev/loop2
-  else
-    cl::p_err "wrong fs '$fs'" && return 1
-  fi
-  cl::p_msg "done"
-  return 0
+  perl -pi -e 's/[ ]\+$//g' "$file"
 }
-mkcc-cd () {
-  [[ -z "$2" ]] && \
-    cl::p_usg "$(cl::func_name) CONTAINER FILE.." && return 1
-  file="$1"; shift
-  create-crypto-containe "$file" 700 'iso9660' "$@"
-}
-mkcc-dvd () {
-  [[ -z "$2" ]] && \
-    cl::p_usg "$(cl::func_name) CONTAINER FILE.." && return 1
-  local file="$1"; shift
-  create-crypto-containe "$file" 4400 'iso9660' "$@"
-}
-mkcc-ext2 () {
-  [[ -z "$2" ]] && \
-    cl::p_usg "$(cl::func_name) CONTAINER SIZE" && return 1
-  create-crypto-containe "$1" "$2" 'ext2'
-}
-mount-crypted () {
-  [[ -z "$1" ]] && \
-    cl::p_usg "$(cl::func_name) CONTAINER" && return 1
-  local fs=ext2
-  [[ "${1##*.}" = "iso" ]] && fs=iso9660
-  local sudo=""
-  ! cl::is_su && sudo="sudo" && \
-    cl::p_msg "you might be asked to enter your sudo password"
-  $sudo mount "$1" /mnt/crypted -t $fs \
-    -o loop=/dev/loop2,encryption=aes256,gpgkey="$file",offset=8192
-    #-o loop=/dev/loop2,encryption=aes,keybits=256
-}
-
-# https://stackoverflow.com/a/10379209
-# OK - securely delete (overwrite) files / directories (recursively)
-shred_secure() {
-  [[ -z "$1" ]] && \
-    cl::p_usg "$(cl::func_name) (FILE|DIR).." && return 1
-  local return_code=0
-  for f in "$@"; do
-    [[ ! -e "${f}" ]] && \
-      cl::p_war "File not found [${f}], skipping ..." && continue
-    if [[ -d "${f}" ]]; then
-      cl::p_msg "Shredding dir recursively: ${f}"
-      # loop over all non-directories (including special types like links or sockets)
-      find "${f}" -depth -not -type d | while read f2; do
-        # file no longer existing? skip fast
-        if [[ -L "${f2}" ]]; then
-          cl::p_msg "Deleting symlink using rm: [${f2}]"
-          rm -f "${f2}" \
-            || return_code=1
-          continue
-        elif [[ -p "${f2}" ]]; then
-          cl::p_msg "Deleting pipe using rm: [${f2}]"
-          rm -f "${f2}" \
-            || return_code=1
-          continue
-        elif [[ -S "${f2}" ]]; then
-          cl::p_msg "Deleting socket using rm: [${f2}]"
-          rm -f "${f2}" \
-            || return_code=1
-          continue
-        elif [[ ! -f "${f2}" ]]; then
-          cl::p_war "File not found (no longer existing?) [${f2}], skipping ..."
-          continue
-        fi
-        cl::p_msg "Shredding file: ${f2}"
-        # overwriting with random data
-        shred -v -n 1 "${f2}"
-        # forcing a sync of the buffers to the disk
-        sync
-        # overwriting with zeroes and remove the file
-        shred -v -n 0 -z -u "${f2}" \
-          || return_code=1
-      done
-      # delete all (now empty) directories, could also be: rm -rf "${f}"
-      cl::p_msg "Deleting remaining (empty) directories."
-      find "${f}" -depth -type d -exec rmdir --ignore-fail-on-non-empty '{}' \;
-      # check if dir itself is gone, if note, some files may still exist
-      if [[ -d "${f}" ]]; then
-        cl::p_err "Shredding of the given dir [${f}] seems to be incomplete, most likely due to unaccessible / newly created files! Please check or try again."
-        return_code=1
-      fi
-    else
-      cl::p_msg "Shredding: ${f}"
-      # overwriting with random data
-      shred -v -n 1 "${f}"
-      # forcing a sync of the buffers to the disk
-      sync
-      # overwriting with zeroes and remove the file
-      shred -v -n 0 -z -u "${f}" \
-        || return_code=1
-    fi
-  done
-  if (( ${return_code} > 0 )); then
-    cl::p_err "At least one ERROR occured while processing!"
-  fi
-  return ${return_code}
-}
-
-
-# ----------------------------------------------------------------------------
-# }}} security & crypto
-# {{{ debian/ubuntu
-# ----------------------------------------------------------------------------
-if command -v apt-key >& /dev/null; then
-  apt_key_import () {
-    [[ -z "$1" ]] && { cl::p_usg "$(cl::func_name) FINGERPRINT"; return 1; }
-    gpg --keyserver wwwkeys.eu.pgp.net --recv-keys "$1" \
-      && sudo gpg --armor --export "$1" | apt-key add -
-  }
-fi
-# ----------------------------------------------------------------------------
-# }}}
+# }}} = MISC =================================================================
