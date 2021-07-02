@@ -165,6 +165,10 @@ bindsym $mod+8 workspace number $ws8
 bindsym $mod+9 workspace number $ws9
 bindsym $mod+0 workspace number $ws10
 
+# switch workspace previous/next
+bindsym $mod+Ctrl+Right workspace next
+bindsym $mod+Ctrl+Left workspace prev
+
 # move focused container to workspace (and disable sticky mode)
 bindsym $mod+Shift+1 sticky disable; move container to workspace $ws1
 bindsym $mod+Shift+2 sticky disable; move container to workspace $ws2
@@ -336,7 +340,7 @@ for_window [class="(?i)XnView(MP)?"], move container to workspace $ws5
 for_window [class="spotify"], move container to workspace $ws9
 # WS 10
 for_window [class="pavucontrol"], move container to workspace $ws10
-for_window [class="(?i)keepassxc.*"] move to workspace $ws10
+for_window [class="(?i)keepassxc.*" window_type="normal"] move to workspace $ws10
 for_window [class="nextcloud"] move to workspace $ws10
 # WS SCRATCHPAD
 #for_window [class="nextcloud"], move container to scratchpad
@@ -380,4 +384,3 @@ exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-sysmon2
 # barrier client
 #exec barrierc --enable-crypto -d ERROR puppet
 # }}} = Launch Apps ==========================================================
-
