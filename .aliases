@@ -181,6 +181,7 @@ alias speedtest='wget -O - -q https://raw.githubusercontent.com/sivel/speedtest-
 # }}} - NETWORK --------------------------------------------------------------
 
 # {{{ - XORG -----------------------------------------------------------------
+alias xdisplay-local0='export DISPLAY=:0.0'
 alias xdefaults-reload='xrdb -load ~/.Xdefaults'
 
 alias xlog-multitail='multitail ~/{.xsession-errors,i3.log}'
