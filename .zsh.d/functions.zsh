@@ -230,30 +230,30 @@ chmod_rec_022 () {
 # {{{ - Renaming / Moving ----------------------------------------------------
 
 # OK - if rename is not available, provide a simple replace implementation
-if ! cl::cmd_p rename >& /dev/null; then
-  # OK - simple rename implemenation (if rename command not available)
-  rename () {
-    cl::p_war "rename command not available, using simplified implementation"
-    cl::cmd_p zmv && cl::p_war "consider using available zmv command instead"
-    if (( $# < 2 )); then
-      cat <<EOF
-Usage: $(cl::func_name) PATTERN FILE..
-
-Example: $(cl::func_name) 's/ /_/g' *.txt
-EOF
-      return 1
-    fi
-    local pattern="$1"
-    shift
-    for f in "$@"; do
-      cl::file_p -WAR -e -w "${f}" || continue
-      target="$(sed -r ${pattern} <<<"${f}")"
-      [[ "${f}" != "${target}" ]] \
-        && mv -i "${f}" "${target}"
-    done
-  }
-  #
-fi
+#if ! cl::cmd_p rename >& /dev/null; then
+#  # OK - simple rename implemenation (if rename command not available)
+#  rename () {
+#    cl::p_war "rename command not available, using simplified implementation"
+#    cl::cmd_p zmv && cl::p_war "consider using available zmv command instead"
+#    if (( $# < 2 )); then
+#      cat <<EOF
+#Usage: $(cl::func_name) PATTERN FILE..
+#
+#Example: $(cl::func_name) 's/ /_/g' *.txt
+#EOF
+#      return 1
+#    fi
+#    local pattern="$1"
+#    shift
+#    for f in "$@"; do
+#      cl::file_p -WAR -e -w "${f}" || continue
+#      target="$(sed -r ${pattern} <<<"${f}")"
+#      [[ "${f}" != "${target}" ]] \
+#        && mv -i "${f}" "${target}"
+#    done
+#  }
+#  #
+#fi
 
 # OK - list all selected files matching the given mime type
 ls_mime () {
