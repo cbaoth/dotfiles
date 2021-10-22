@@ -61,9 +61,36 @@ umask 022
 # Are we in a Windows Subsystem Linux?
 IS_WSL=false
 if [[ $(uname -r) = *icrosoft* ]]; then
+  echo "WSL detected, doing some extra stuff ..."
   IS_WSL=true
   # See https://github.com/Microsoft/BashOnWindows/issues/1887
   unsetopt BG_NICE
+  # See https://github.com/BlackReloaded/wsl2-ssh-pageant
+  wsl2_ssh_pageant_bin="${HOME}/.ssh/wsl2-ssh-pageant.exe"
+  if [[ ! -f "${wsl2_ssh_pageant_bin}" ]]; then
+    cat <<EOL
+WARNING: ${wsl2_ssh_pageant_bin} not found, if you want to use pageant run:
+# wget -O "${wsl2_ssh_pageant_bin}" \\
+    "https://github.com/BlackReloaded/wsl2-ssh-pageant/releases/latest/download/wsl2-ssh-pageant.exe"; \\
+    chmod +x "${wsl2_ssh_pageant_bin}"
+EOL
+  elif ! command -v socat 2>&1 >/dev/null; then
+    cat <<EOL
+WARNING: socat not found, if you want to use wsl2-ssh-pageant run:
+# sudo apt-get install socat
+EOL
+  else
+    export SSH_AUTH_SOCK="${HOME}/.ssh/agent.sock"
+    if ! ss -a | grep -q "${SSH_AUTH_SOCK}"; then
+      rm -f "${SSH_AUTH_SOCK}"
+      if [[ -x "${wsl2_ssh_pageant_bin}" ]]; then
+        (setsid nohup socat UNIX-LISTEN:"${SSH_AUTH_SOCK},fork" EXEC:"${wsl2_ssh_pageant_bin}" >/dev/null 2>&1 &)
+      else
+        echo >&2 "WARNING: ${wsl2_ssh_pageant_bin} is not executable."
+      fi
+    fi
+  fi
+  unset wsl2_ssh_pageant_bin
 fi
 
 # Is X available? Unreliable for ssh x-forwading., suffi. for local sessions.
@@ -403,8 +430,8 @@ zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
 #zplug_cmd "zsh-users/zsh-history-substring-search"
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
-# but not on remote machines (use ssh -A agent forwarding if needed)
-if ! cl::is_ssh; then
+# but not on remote machines and wsl (use ssh -A agent forwarding if needed)
+if ! cl::is_ssh && ! $IS_WSL; then
   zplug_cmd "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
 fi
 # }}} - OH MY ZSH ------------------------------------------------------------
