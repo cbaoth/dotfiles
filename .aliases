@@ -108,6 +108,10 @@ alias mdscrub-stats='sudo cat /sys/block/md0/md/mismatch_cnt'
 alias mdcheck='/usr/share/mdadm/checkarray'
 # }}} - SYSTEM ---------------------------------------------------------------
 
+# {{{ - MOUNT ----------------------------------------------------------------
+alias mount-saito-data='sudo mount -t cifs -o username=cbaoth,credentials=/etc/samba/cred-file,uid=cbaoth,gid=cbaoth,file_mode=0777,dir_mode=0777 //saito/data /media/data'
+# }}} - MOUNT ----------------------------------------------------------------
+
 # {{{ - SECURITY -------------------------------------------------------------
 alias authlog-ssh-ip='sudo grep "Failed" /var/log/auth.log \
   | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" \
@@ -278,7 +282,7 @@ alias sed-url-decode="sed -E 's/%([0-9A-F][0-9A-F])/\\\\\\\\x$1/g' | while read 
 alias cat-utf16-to-utf8='iconv -f utf-16 -t utf-8'
 alias cat-utf16-to-iso-8859-1='iconv -f utf-16 -t ISO-8859-1'
 alias cat-utf8-to-iso-8859-1='iconv -f utf-8 -t ISO-8859-1'
-# }}} - SUBSTITUTIO ----------------------------------------------------------
+# }}} - SUBSTITUTION ---------------------------------------------------------
 
 # {{{ - MISC -----------------------------------------------------------------
 alias cal-month='ncal -wM -m'
