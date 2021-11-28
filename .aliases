@@ -109,7 +109,7 @@ alias mdcheck='/usr/share/mdadm/checkarray'
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - MOUNT ----------------------------------------------------------------
-alias mount-saito-data='sudo mount -t cifs -o username=cbaoth,credentials=/etc/samba/cred-file,uid=cbaoth,gid=cbaoth,file_mode=0777,dir_mode=0777 //saito/data /media/data'
+alias mount-saito-data='sudo mount -t cifs -o username=cbaoth,credentials=/etc/samba/cred-file,uid=cbaoth,gid=cbaoth,file_mode=0777,dir_mode=0777,iocharset=utf8 //saito/data /media/data'
 # }}} - MOUNT ----------------------------------------------------------------
 
 # {{{ - SECURITY -------------------------------------------------------------
