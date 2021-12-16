@@ -10,7 +10,7 @@
 
 LINK_FILE=$(realpath $0)
 DOTFILES=$(dirname $LINK_FILE)
-BAKDIR=$HOME/dofile_bak_$(date +%s)
+BAKDIR=$HOME/dotfile_bak_$(date +%s)
 
 COPY_FILES=false
 if [[ "$1" == "-c" ]]; then
@@ -24,14 +24,25 @@ cd "$DOTFILES"
   && echo "error: .git not found, this doesn't seem to be the right folder" \
   && exit 1
 
+# create backup dir
 mkdir -p "$BAKDIR"
+
+
+# -regex "$DOTFILES/\(\.\w.*\|lib\(/.*\)?\|bin\(/.*\)\)" \
+# create links
 find "$DOTFILES" -regextype sed \
-     -regex "$DOTFILES/\(\.\w\|lib\|bin\).*" \
      ! -regex '.*/\(link.sh\|\.git\|\.gitignore\|\.vscode\)\(/.*\)\?' \
 | while read f; do
+  echo "$f"
+done
+
+exit 1
+
+while ((1)); do
   targetrel=$(realpath --relative-to "$DOTFILES" $f)
+  echo "> SRC: $targetrel"
   target=$HOME/$targetrel
-  echo "> target: $target"
+  echo "> TAR: $target"
   #if [[ "$target" =~ "$DOTFILES" ]]; then
   #  echo "> ERROR: target location inside dotfiles git repository, skipping: $target" >&2
   #  continue
@@ -74,3 +85,4 @@ find "$DOTFILES" -regextype sed \
 done
 
 rmdir --ignore-fail-on-non-empty "$BAKDIR"
+
