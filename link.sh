@@ -33,12 +33,6 @@ mkdir -p "$BAKDIR"
 find "$DOTFILES" -regextype sed \
      ! -regex '.*/\(link.sh\|\.git\|\.gitignore\|\.vscode\)\(/.*\)\?' \
 | while read f; do
-  echo "$f"
-done
-
-exit 1
-
-while ((1)); do
   targetrel=$(realpath --relative-to "$DOTFILES" $f)
   echo "> SRC: $targetrel"
   target=$HOME/$targetrel
