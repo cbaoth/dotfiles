@@ -51,6 +51,8 @@ find "$DOTFILES" -regextype sed \
         mv "$target" "$BAKDIR/$targetrel"
       elif [ -L "$target" ]; then
         echo "> WARNING: target is a symlink (directory), please check if this is intended: $target"
+      else
+	echo "> skipping, directory exists: $target"
       fi
     else
       echo "> creating missing directory: $target"
