@@ -220,11 +220,9 @@ alias yta="youtube-dl \
             -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]
                 /best[ext=webm]/best[ext=ogg]/best' \
             -i -x -o '%(title)s [%(id)s].ogg'"
-
-#alias yta-mp3="youtube-dl \
-#            --audio-format mp3 --audio-quality 160K \
-#            -i -x -o '%(title)s [%(id)s].mp3'"
-
+alias yta-mp3="youtube-dl \
+            --audio-format mp3 \
+            -i -x -o '%(title)s [%(id)s].mp3'"
 alias yta-m4a="youtube-dl \
             -f 'bestaudio[ext=m4a]' \
             -i -x -o '%(title)s [%(id)s].m4a'"
