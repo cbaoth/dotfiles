@@ -1,4 +1,4 @@
-# ~/.zsh/zshrc-freebsd.zsh: Common zshrc for host [yav.in]
+# ~/.zsh/zshrc-freebsd.zsh: Common zshrc for freebsd systems
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zsh zshrc shell-script
