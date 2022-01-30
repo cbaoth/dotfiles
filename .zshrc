@@ -579,7 +579,7 @@ zstyle ':completion:*:corrections' format '%B%d (errors: %e)%b'
 zstyle ':completion:*' group-name ''
 
 # complete only specific hosts (big host file)
-#zstyle '*' hosts $HOST motoko.intra puppet.intra bateau.intra togusa.intra yav.in
+#zstyle '*' hosts $HOST motoko.intra puppet.intra bateau.intra togusa.intra 11001001.org
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
 # but not on remote machines (use ssh -A agent forwarding if needed)

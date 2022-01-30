@@ -318,8 +318,8 @@ bindsym $mod+d exec doublecmd
 # mod-ESC: run htop
 bindsym $mod Escape exec i3-sensible-terminal -r i3float -e htop
 
-# mod-F1: open ssh session to yav.in
-bindsym $mod F1 exec i3-sensible-terminal -e env $(gnome-keyring-daemon --start) ssh -p 8090 -A yav.in
+# mod-F1: open ssh session to 11001001.org
+bindsym $mod F1 exec i3-sensible-terminal -e env $(gnome-keyring-daemon --start) ssh -p 8090 -A 11001001.org
 # }}} - Run Apps -------------------------------------------------------------
 # }}} = Key Bindings =========================================================
 

@@ -54,7 +54,7 @@ My core configuration (dot) files, shell functions and utility scripts.
  `link:.zsh.d/zshrc-motoko.zsh[]` +
  `link:.zsh.d/zshrc-puppet.zsh[]` +
  `link:.zsh.d/zshrc-saito.zsh[]` +
- `link:.zsh.d/zshrc-yav_in.zsh[]`|{icon-shell} ZSH|OS, distirbution, and/or host specific ZSH configs.
+ `link:.zsh.d/zshrc-11001001_org.zsh[]`|{icon-shell} ZSH|OS, distirbution, and/or host specific ZSH configs.
 |`link:.zsh.d/aliases.zsh[]`|{icon-shell} SH|Common aliases
 |`link:.zsh.d/aliases-freebsd.zsh[]` +
  `link:.zsh.d/aliases-linux.zsh[]`|{icon-shell} SH|OS, distirbution, and/or host specific specific aliases.

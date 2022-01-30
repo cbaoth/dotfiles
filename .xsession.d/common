@@ -155,7 +155,7 @@ runbg blueman-applet
 #xterm -fn edges -fb edges -T isdn-incoming -g 100x8+0-63 -e hose bateau 9444 -i cat &
 #xterm -fn edges -fb edges -T isdn-incoming -g 100x8+0-0 -e socket bateau 9444 &
 #runbg xclock -digital -padding 2 -update 1 -g -0+0 -fn edges -fg white -bg rgb:33/33/33
-#aterm -sh 90 -tr -tint rgb:60/60/c0 -T centericq -g 80x50+30+45 -e ssh yav.in &
+#aterm -sh 90 -tr -tint rgb:60/60/c0 -T centericq -g 80x50+30+45 -e ssh 11001001.org &
 #runbg xclock -digital -strftime "%a %d.%m.%y / %H:%M:%S" -padding 2 -update 1 -g -0+0 -fg white -bg rgb:33/33/33
 #runbg gkrellm --display :0.1 & # --geometry -0-100 & #-0-82
 runbg osdsh -c crimson -o 1 -f '-*-terminus-bold-*-*-*-26-*-*-*-*-*-*-*'
