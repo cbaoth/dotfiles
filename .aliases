@@ -175,8 +175,8 @@ alias nfs-reexport='exportfs -ra'
 alias ssh2='ssh -p 8090 -A'
 alias scp2='scp -P 8090'
 
-#alias ssh-tunnel-yavin-proxy='ssh -f yav.in -p 8090 -L 23128:127.0.0.1:3128 -N'
-alias ssh-tunnel-yavin-rspamd='ssh -f yav.in -p 8090 -L 11334:127.0.0.1:11334 -N'
+#alias ssh-tunnel-11001001-proxy='ssh -f 11001001.org -p 8090 -L 23128:127.0.0.1:3128 -N'
+alias ssh-tunnel-11001001-rspamd='ssh -f 11001001.org -p 8090 -L 11334:127.0.0.1:11334 -N'
 
 alias wake-saito='wakeonlan bc:5f:f4:9f:08:dc'
 alias wake-motoko='wakeonlan 1C:1B:0D:E7:BE:B3'
