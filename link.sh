@@ -31,11 +31,12 @@ mkdir -p "$BAKDIR"
 # -regex "$DOTFILES/\(\.\w.*\|lib\(/.*\)?\|bin\(/.*\)\)" \
 # create links
 find "$DOTFILES" -regextype sed \
-     ! -regex '.*/\(link.sh\|\.git\|\.gitignore\|\.vscode\)\(/.*\)\?' \
+     ! -regex '.*/\(link.sh\|\.git\|\.gitignore\|\.vscode\|adoc_assets\|README.adoc\|LICENSE\)\(/.*\)\?' \
 | while read f; do
-  targetrel=$(realpath --relative-to "$DOTFILES" $f)
-  echo "> SRC: $targetrel"
-  target=$HOME/$targetrel
+  # get relative target/source file location
+  relpath=$(realpath --relative-to "$DOTFILES" $f)
+  echo "> SRC: $relpath"
+  target=$HOME/$relpath
   echo "> TAR: $target"
   #if [[ "$target" =~ "$DOTFILES" ]]; then
   #  echo "> ERROR: target location inside dotfiles git repository, skipping: $target" >&2
@@ -43,12 +44,13 @@ find "$DOTFILES" -regextype sed \
   #fi
   #rmExistingLink "$target"
   if [ -d "$f" ]; then # is dir?
+    [ "$relpath" = "." ] && continue
     if [ -e "$target" ]; then # target exists?
       if [ ! -d "$target" ]; then
-        targetbak="$BAKDIR/$targetrel"
+        targetbak="$BAKDIR/$relpath"
         echo "> WARNING: target exists but is not a directory, moving to $targetbak" >&2
-        mkdir -p "$BAKDIR/`dirname $targetrel`"
-        mv "$target" "$BAKDIR/$targetrel"
+        mkdir -p "$BAKDIR/`dirname $relpath`"
+        mv "$target" "$BAKDIR/$relpath"
       elif [ -L "$target" ]; then
         echo "> WARNING: target is a symlink (directory), please check if this is intended: $target"
       else
@@ -65,17 +67,17 @@ find "$DOTFILES" -regextype sed \
         echo "> INFO: correct link alreardy exists, skipping .."
         continue
       fi
-      targetbak="$BAKDIR/$targetrel"
+      targetbak="$BAKDIR/$relpath"
       echo "> WARNING: file '$target' exists, moving to '$targetbak'" >&2
-      mkdir -p "$BAKDIR/`dirname $targetrel`"
-      mv "$target" "$BAKDIR/$targetrel"
+      mkdir -p "$BAKDIR/`dirname $relpath`"
+      mv "$target" "$BAKDIR/$relpath"
     fi
     if $COPY_FILES; then
       echo "> creating copy: '$f' -> '$target'"
       cp "$f" "$target"
     else
       echo "> creating link: '$f' -> '$target'"
-      ln -s "$f" "$target"
+      ln -sf "$f" "$target"
     fi
   fi
 done
