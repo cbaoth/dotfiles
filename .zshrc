@@ -243,10 +243,13 @@ else
     cl::p_war "init.zsh not found in ~/.zplug, try re-installing:"
     cl::p_msg "% rm -rf .zplug"
   else
-    cl::p_war "~/.zplug not found, try installing:"
+    cl::p_war "~/.zplug not found, some features might be disabled, install zplug via:"
   fi
   cl::p_msg "% wget -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
   cl::p_msg "% source $HOME/.zplug/init.zsh"
+  cl::p_war "WSL, skipping zplug"
+  alias zplug_cmd=:
+  IS_ZPLUG=false
 fi
 
 # self-manage zplug (zplug update will upldate zplug itself)
