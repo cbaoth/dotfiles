@@ -34,7 +34,7 @@ export DBG_LVL=0
 # shared session
 export HISTSIZE=10000 # set in-memory history limit
 export SAVEHIST=10000 # set history file limit
-export HISTFILE="~/.zhistory" # set history file
+export HISTFILE="$HOME/.zhistory" # set history file
 
 setopt INC_APPEND_HISTORY # write immediately (default: on exit only)
 #setopt HIST_IGNORE_DUPS # don't add duplicates
@@ -44,7 +44,7 @@ setopt SHARE_HISTORY # share history between sesions
 setopt HIST_IGNORE_SPACE # don't record lines stating with a space (privacy)
 #setopt HIST_REDUCE_BLANKS # remove unnecessary spaces
 #setopt HIST_VERIFY # don't execute immediately after history expansion
-setopt HIST_NO_STORE # don't store history / fc commands
+#setopt HIST_NO_STORE # don't store history / fc commands
 setopt HIST_NO_FUNCTIONS # don't store function definitions
 # }}} - SECURITY & PRIVACY ---------------------------------------------------
 
@@ -214,6 +214,14 @@ source_ifex $HOME/.zsh.d/aliases.zsh
 
 # include common and zsh specific aliases
 source_ifex $HOME/.zsh.d/functions.zsh
+
+# hashes
+hash -d data=/media/data
+if ${IS_WSL}; then
+  for d in /mnt/[a-z]; do
+    hash -d ${d}=/mnt/${d}
+  done
+fi
 
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # }}} = CORE FUNCTIONS & ALIASES =============================================
