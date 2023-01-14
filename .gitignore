@@ -1,3 +1,4 @@
 .gitconfig
 .vscode
 .zcompdump
+.zsh.d/**/*.zwc

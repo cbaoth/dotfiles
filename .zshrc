@@ -174,6 +174,8 @@ export UAGENT
 # {{{ = CORE FUNCTIONS & ALIASES =============================================
 # pre-requirements
 setopt extendedglob
+# allow # comments in shell
+setopt interactivecomments
 
 # include core functions, must simply be there (used everywhere)
 source $HOME/lib/commons.sh
@@ -648,9 +650,9 @@ bindkey '^ ' autosuggest-accept
 
 #http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Standard-Widgets
 # emacs key bindings
-#bindkey -e
+bindkey -e
 # vi key bindings
-bindkey -v
+#bindkey -v
 
 bindkey '^x^x' execute-named-cmd # in addition to alt-x (if alt not working)
 bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working)
@@ -743,7 +745,8 @@ fi
 
 # {{{ = INCLUDES =============================================================
 # include os/host specific functon files
-source_ifex_custom $HOME/.zsh.d/functions
+#source_ifex_custom $HOME/.zsh.d/functions
+fpath=($HOME/.zsh.d/functions $fpath)
 # include os/host specific aliase files
 source_ifex_custom $HOME/.zsh.d/aliases
 # include os/host specific zshrc files
