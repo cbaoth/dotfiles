@@ -286,8 +286,10 @@ alias cat-utf8-to-iso-8859-1='iconv -f utf-8 -t ISO-8859-1'
 alias cal-month='ncal -wM -m'
 alias cal-year='ncal -ywM'
 
-alias rm-dupes='jdupes -dNO'
-alias rm-dupes-rec='jdupes -dNOr'
+alias rm-dupes='jdupes -dNO -o time'
+alias rm-dupes-noact='jdupes -O -o time'
+alias rm-dupes-rec='jdupes -dNOr -o time'
+alias rm-dupes-rec-noact='jdupes -Or -o time'
 
 alias mysqlr='mysql -u root -p'
 alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'
