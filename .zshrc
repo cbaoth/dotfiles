@@ -221,7 +221,7 @@ source_ifex $HOME/.zsh.d/functions.zsh
 hash -d data=/media/data
 if ${IS_WSL}; then
   for d in /mnt/[a-z]; do
-    hash -d ${d}=/mnt/${d}
+    hash -d "${d#*/*/}"=${d}
   done
 fi
 
