@@ -26,6 +26,9 @@ alias vim='vim -N'
 alias vi='vim -N'
 alias v='vim -N'
 
+# find
+alisa findre='find -regextype posix-extended'
+
 # add --color option to all grep commands and add -i aliases
 for c in '' e f r z; do
   alias ${c}grep="${c}grep --color"
