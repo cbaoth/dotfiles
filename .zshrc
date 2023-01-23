@@ -238,13 +238,13 @@ export DISABLE_AUTO_UPDATE=true
 # skip zplug all together on WSL (much too slow)
 IS_ZPLUG=true
 alias zplug_cmd=zplug
-#if $IS_WSL; then
-#  cl::p_war "WSL, skipping zplug"
-#  alias zplug_cmd=:
-#  IS_ZPLUG=false
-#else
-#  alias zplug_cmd=zplug
-#fi  
+if $IS_WSL; then
+  cl::p_war "WSL, skipping zplug (too slow most of the time)"
+  alias zplug_cmd=:
+  IS_ZPLUG=false
+else
+  alias zplug_cmd=zplug
+fi
 if [[ -f "$HOME/.zplug/init.zsh" ]]; then
   cl::p_dbg 0 2 "zplug found in ~/.zplug, loading ..."
   time source "$HOME/.zplug/init.zsh"
