@@ -61,36 +61,46 @@ umask 022
 # Are we in a Windows Subsystem Linux?
 IS_WSL=false
 if [[ $(uname -r) = *icrosoft* ]]; then
-  echo "WSL detected, doing some extra stuff ..."
   IS_WSL=true
+  IS_WSL1=true
+  IS_WSL2=false
+  if uname -r | tr '[:upper:]' '[:lower:]' | grep wsl2 >/dev/null; then
+    IS_WSL1=false
+    IS_WSL2=true
+  fi
   # See https://github.com/Microsoft/BashOnWindows/issues/1887
   unsetopt BG_NICE
-  # See https://github.com/BlackReloaded/wsl2-ssh-pageant
-  wsl2_ssh_pageant_bin="${HOME}/.ssh/wsl2-ssh-pageant.exe"
-  if [[ ! -f "${wsl2_ssh_pageant_bin}" ]]; then
-    cat <<EOL
+  if ! $IS_WSL2; then
+    echo "WSL1 detected, not all features loaded, consider upgrading."
+  else
+    echo "WSL2 detected, doing some extra stuff ..."
+    # See https://github.com/BlackReloaded/wsl2-ssh-pageant
+    wsl2_ssh_pageant_bin="${HOME}/.ssh/wsl2-ssh-pageant.exe"
+    if [[ ! -f "${wsl2_ssh_pageant_bin}" ]]; then
+      cat <<EOL
 WARNING: ${wsl2_ssh_pageant_bin} not found, if you want to use pageant run:
 # wget -O "${wsl2_ssh_pageant_bin}" \\
     "https://github.com/BlackReloaded/wsl2-ssh-pageant/releases/latest/download/wsl2-ssh-pageant.exe"; \\
     chmod +x "${wsl2_ssh_pageant_bin}"
 EOL
-  elif ! command -v socat 2>&1 >/dev/null; then
-    cat <<EOL
+    elif ! command -v socat 2>&1 >/dev/null; then
+      cat <<EOL
 WARNING: socat not found, if you want to use wsl2-ssh-pageant run:
 # sudo apt-get install socat
 EOL
-  else
-    export SSH_AUTH_SOCK="${HOME}/.ssh/agent.sock"
-    if ! ss -a | grep -q "${SSH_AUTH_SOCK}"; then
-      rm -f "${SSH_AUTH_SOCK}"
-      if [[ -x "${wsl2_ssh_pageant_bin}" ]]; then
-        (setsid nohup socat UNIX-LISTEN:"${SSH_AUTH_SOCK},fork" EXEC:"${wsl2_ssh_pageant_bin}" >/dev/null 2>&1 &)
-      else
-        echo >&2 "WARNING: ${wsl2_ssh_pageant_bin} is not executable."
+    else
+      export SSH_AUTH_SOCK="${HOME}/.ssh/agent.sock"
+      if ! ss -a | grep -q "${SSH_AUTH_SOCK}"; then
+        rm -f "${SSH_AUTH_SOCK}"
+        if [[ -x "${wsl2_ssh_pageant_bin}" ]]; then
+          (setsid nohup socat UNIX-LISTEN:"${SSH_AUTH_SOCK},fork" EXEC:"${wsl2_ssh_pageant_bin}" >/dev/null 2>&1 &)
+        else
+          echo >&2 "WARNING: ${wsl2_ssh_pageant_bin} is not executable."
+        fi
       fi
     fi
+    unset wsl2_ssh_pageant_bin
   fi
-  unset wsl2_ssh_pageant_bin
 fi
 
 # Is X available? Unreliable for ssh x-forwading., suffi. for local sessions.
