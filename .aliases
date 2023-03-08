@@ -302,3 +302,6 @@ alias rpm-extract='rpm2cpio "$1" | cpio -ivd'
 alias occ='sudo -u www-data php --define apc.enable_cli=1 /var/www/nextcloud/occ'
 alias occd='cd /var/www/nextcloud; sudo -u www-data php --define apc.enable_cli=1 occ'
 # }}} - MISC -----------------------------------------------------------------
+
+[[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"
+
