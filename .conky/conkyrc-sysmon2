@@ -208,41 +208,35 @@ ${hr 2}
     --  Defaults!HDDTEMP_NOLOG !syslog, !pam_session
     --  %sudo saito = NOPASSWD: HDDTEMP_NOLOG
 
-    -- -- SSD -------------------------------------------------------------
+    -- -- SSD1 ------------------------------------------------------------
     template3 = [[
 ${font :bold:size=11}${color #0077FF}HD Status:${voffset 5}${font}
 ${voffset 0}${goto 14}${color lightgrey}${font :size=8}/ ${alignr}${fs_used_perc /}% ${color #FFD000}${fs_bar 6,55 /}
 ${voffset 0}${goto 14}${color lightgrey}${font :size=8}/boot ${alignr}${fs_used_perc /boot}% ${color #FFD000}${fs_bar 6,55 /boot}
 ${voffset 2}${color #0077FF}${diskiograph sda 16,270 000000 FFD000}
-${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sda ${goto 80}${color lightgrey}${diskio sda}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sda 2>&1 | sed -r 's/.*:\s*//'}
+${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sda ${goto 80}${color lightgrey}${diskio sda}/s ${alignr}${execi 10 $HOME/.conky/hddtemp.sh -q /dev/sda 2>&1 | sed -r 's/.*:\s*//'}
 ${stippled_hr}
 ]],
 
-    -- -- RAID5 DATA ------------------------------------------------------
+    -- -- SSD2 ------------------------------------------------------------
     template4 = [[
-${voffset 0}${goto 14}${color lightgrey}${font :size=8}/media/data ${alignr}${fs_used_perc /media/data}% ${color #61BEFF}${fs_bar 6,55 /media/data}
-${voffset 2}${color #0077FF}${diskiograph sdb 16,270 000000 61BEFF}
-${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdb ${goto 80}${color lightgrey}${diskio sdb}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdb 2>&1 | sed -r 's/.*:\s*//'}
-${voffset 1}${color #0077FF}${diskiograph sdc 16,270 000000 61BEFF}
-${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdc ${goto 80}${color lightgrey}${diskio sdc}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdc 2>&1 | sed -r 's/.*:\s*//'}
-${voffset 1}${color #0077FF}${diskiograph sdd 16,270 000000 61BEFF}
-${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdd ${goto 80}${color lightgrey}${diskio sdd}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdd 2>&1 | sed -r 's/.*:\s*//'}
+${voffset 0}${goto 14}${color lightgrey}${font :size=8}/home ${alignr}${fs_used_perc /home}% ${color #61BEFF}${fs_bar 6,55 /home}
+${voffset 2}${color #0077FF}${diskiograph sdb 16,270 000000 FFD000}
+${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sdb ${goto 80}${color lightgrey}${diskio sdb}/s ${alignr}${execi 10 $HOME/.conky/hddtemp.sh -q /dev/sdb 2>&1 | sed -r 's/.*:\s*//'}
 ${stippled_hr}
 ]],
 
-    -- -- WD RED ----------------------------------------------------------
-    template5 = [[
-${voffset 0}${goto 14}${color lightgrey}${font :size=8}/media/safe ${alignr}${fs_used_perc /media/safe}% ${color #61BEFF}${fs_bar 6,55 /media/safe}
-${voffset 2}${color #0077FF}${diskiograph sde 16,270 000000 61BEFF}
-${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sde ${goto 80}${color lightgrey}${diskio sde}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sde 2>&1 | sed -r 's/.*:\s*//'}
-${voffset 1}${color #0077FF}${diskiograph sdf 16,270 000000 61BEFF}
-${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdf ${goto 80}${color lightgrey}${diskio sdf}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdf 2>&1 | sed -r 's/.*:\s*//'}
-${voffset 1}${color #0077FF}${diskiograph sdg 16,270 000000 61BEFF}
-${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdg ${goto 80}${color lightgrey}${diskio sdg}/s ${alignr}${execi 10 sudo hddtemp -q /dev/sdg 2>&1 | sed -r 's/.*:\s*//'}
-${hr 2}
-]],
-    --${color #0077FF}HD IO: ${color lightgrey}${diskio} ${alignr}${color #0077FF}Temperature: ${color lightgrey}${execi 300 nc localhost 7634 | sed 's/|\/dev\//\n/g' | grep sdb | cut -d \| -f 3}C
-    --${color #0077FF}HD IO: ${color lightgrey}${diskio} ${alignr}${color #0077FF}Temperature(s): ${color lightgrey}${hddtemp /dev/sdb}°C
+--    -- -- RAID5 DATA ------------------------------------------------------
+--    template4 = [[
+--${voffset 0}${goto 14}${color lightgrey}${font :size=8}/media/data ${alignr}${fs_used_perc /media/data}% ${color #61BEFF}${fs_bar 6,55 /media/data}
+--${voffset 2}${color #0077FF}${diskiograph sdb 16,270 000000 61BEFF}
+--${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdb ${goto 80}${color lightgrey}${diskio sdb}/s ${alignr}${execi 10 $HOME/.conky/hddtemp.sh -q /dev/sdb 2>&1 | sed -r 's/.*:\s*//'}
+--${voffset 1}${color #0077FF}${diskiograph sdc 16,270 000000 61BEFF}
+--${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdc ${goto 80}${color lightgrey}${diskio sdc}/s ${alignr}${execi 10 $HOME/.conky/hddtemp.sh -q /dev/sdc 2>&1 | sed -r 's/.*:\s*//'}
+--${voffset 1}${color #0077FF}${diskiograph sdd 16,270 000000 61BEFF}
+--${voffset -2}${goto 14}${font :size=6}${color #61BEFF}/dev/sdd ${goto 80}${color lightgrey}${diskio sdd}/s ${alignr}${execi 10 $HOME/.conky/hddtemp.sh -q /dev/sdd 2>&1 | sed -r 's/.*:\s*//'}
+--${stippled_hr}
+--]],
 
     -- == TOP =============================================================
     template9 = [[
