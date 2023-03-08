@@ -10,7 +10,7 @@
 
 LINK_FILE=$(realpath $0)
 DOTFILES=$(dirname $LINK_FILE)
-BAKDIR=$HOME/dotfile_bak_$(date +%s)
+BAKDIR=$HOME/dotfiles_bak_$(date +%s)
 
 COPY_FILES=false
 if [[ "$1" == "-c" ]]; then

@@ -1,0 +1,71 @@
+[global_config]
+  focus = mouse
+[keybindings]
+[profiles]
+  [[default]]
+    cursor_color = "#aaaaaa"
+    scrollback_lines = 10000
+    bold_is_bright = True
+    copy_on_selection = True
+[layouts]
+  [[default]]
+    [[[window0]]]
+      type = Window
+      parent = ""
+    [[[child1]]]
+      type = Terminal
+      parent = window0
+      profile = default
+  [[split]]
+    [[[child0]]]
+      type = Window
+      parent = ""
+      order = 0
+      position = 0:20
+      maximised = False
+      fullscreen = False
+      size = 1938, 1420
+      title = /bin/zsh
+      last_active_term = c3affe79-5386-494c-b5ee-2a19e30aa633
+      last_active_window = True
+    [[[terminal1]]]
+      type = Terminal
+      parent = child0
+      order = 0
+      profile = default
+      uuid = c3affe79-5386-494c-b5ee-2a19e30aa633
+    [[[child2]]]
+      type = Window
+      parent = ""
+      order = 0
+      position = 0:20
+      maximised = False
+      fullscreen = False
+      size = 1938, 1420
+      title = /bin/zsh
+      last_active_term = 7758a93c-a57c-4ae3-b19b-d1e542566f40
+      last_active_window = False
+    [[[terminal3]]]
+      type = Terminal
+      parent = child2
+      order = 0
+      profile = default
+      uuid = 7758a93c-a57c-4ae3-b19b-d1e542566f40
+    [[[child4]]]
+      type = Window
+      parent = ""
+      order = 0
+      position = 0:20
+      maximised = False
+      fullscreen = False
+      size = 1938, 1420
+      title = /bin/zsh
+      last_active_term = 75896570-115a-44aa-8261-8ba4cb8a6107
+      last_active_window = False
+    [[[terminal5]]]
+      type = Terminal
+      parent = child4
+      order = 0
+      profile = default
+      uuid = 75896570-115a-44aa-8261-8ba4cb8a6107
+[plugins]

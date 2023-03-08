@@ -14,7 +14,8 @@ conky.config={
     -- Font style
     use_xft=true,
     override_utf8_locale=true, -- force utf8 (only with xft)
-    font="Fira Code Medium:size=7",
+    -- font="Fira Code Regular:size=9",
+    font="FuraMono Nerd Font:size=7",
     xftalpha=1,
 
     -- Update interval in seconds

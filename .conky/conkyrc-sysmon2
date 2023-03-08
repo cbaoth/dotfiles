@@ -32,7 +32,7 @@ conky.config={
     --font="Terminus:size=12",
     --font="Lucida Grande:size=8",
     --font="DejaVu Sans Condensed:size=8",
-    font="Fira Code Medium:size=7",
+    font="Fira Code Regular:size=9",
     --font="DejaVu Sans Mono:size=11",
     --font="Monospace:size=9",
     --font="AvantGarde LT Medium:bold:size=10",
