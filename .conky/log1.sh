@@ -1,6 +1,6 @@
 printf "%s\n---\n%s\n---\n%s" \
     "$(egrep -v '^Personal' /proc/mdstat)" \
-    "$(journalctl -l -n 30 -o short --no-pager | fold -w140 | tail -n 30)" \
+    "$(journalctl -l -n 50 -o short --no-pager | fold -w140 | tail -n 50)" \
     "$(tail -n 10 ~/i3.log | fold -w140 | tail -n 10)" \
     | sed -r 's/\$/$$/g;
               s/(error|exception|fail(ed)?|refused)/${color #ff6666}\0${color}/gi;

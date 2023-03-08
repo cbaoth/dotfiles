@@ -6,7 +6,7 @@
 # Keywords: zsh zshrc zshenv shell-script
 
 # {{{ - PATH -----------------------------------------------------------------
-export PATH="$HOME/bin:/opt/bin:/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin:/usr/bin/X11:/usr/X11R6/bin:/usr/games:$PATH"
+export PATH="$HOME/bin:/opt/bin:/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin:/usr/bin/X11:/usr/X11R6/bin:/usr/games:/snap/bin/:$PATH"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/lib"
 # }}} - PATH -----------------------------------------------------------------
 
