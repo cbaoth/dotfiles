@@ -2,8 +2,8 @@
 # see https://i3wm.org/docs/userguide.html for a complete reference
 #
 # install related apps:
-# sudo apt install i3 zsh firefox terminator keepassxc conky-all doublecmd \
-#   flameshot feh
+# sudo apt install i3 zsh firefox terminator keepassxc conky-all \
+#   doublecmd-gtk flameshot feh
 
 # {{{ = Styles ===============================================================
 # default font
