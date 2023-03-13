@@ -247,33 +247,42 @@ export DISABLE_AUTO_UPDATE=true
 # apt: zplug - https://github.com/zplug/zplug
 # skip zplug all together on WSL (much too slow)
 IS_ZPLUG=true
-alias zplug_cmd=zplug
+ZPLUG_CMD=zplug
 if $IS_WSL; then
   cl::p_war "WSL, skipping zplug (too slow most of the time)"
-  alias zplug_cmd=:
-  IS_ZPLUG=false
+  IS_ZPLUG=false; ZPLUG_CMD=:
 else
-  alias zplug_cmd=zplug
-fi
-if [[ -f "$HOME/.zplug/init.zsh" ]]; then
-  cl::p_dbg 0 2 "zplug found in ~/.zplug, loading ..."
-  time source "$HOME/.zplug/init.zsh"
-else
-  if [[ -d "$HOME/.zplug" ]]; then
-    cl::p_war "init.zsh not found in ~/.zplug, try re-installing:"
-    cl::p_msg "% rm -rf .zplug"
+  if [[ -f "$HOME/.zplug/init.zsh" ]]; then
+    cl::p_dbg 0 2 "zplug found in ~/.zplug, loading ..."
+    time source "$HOME/.zplug/init.zsh"
   else
-    cl::p_war "~/.zplug not found, some features might be disabled, install zplug via:"
+    IS_ZPLUG=false; ZPLUG_CMD=:
+    if [[ -d "$HOME/.zplug" ]]; then
+      cl::p_war "init.zsh not but ~/.zplug exists, try removing the folder and restart zsh:"
+      cl::p_msg "% rm -rf .zplug"
+    else
+      cl::p_war "~/.zplug not found, some features will not be available!"
+      if [[ ! -f "$HOME/.zplug-skip-install-query" ]] \
+         && cl::q_yesno "Install zplug now (or never ask again)?"; then
+        cl::p_msg "Downloading zplug .."
+        wget -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh \
+          && cl::p_msg "Zplug installed, to enable all features resart zsh!" \
+          || cl::p_err "Error installing zplug, not all features will be available!"
+      else
+        cl::p_msg "Manual install and load zplug as follows:"
+        cl::p_msg "% wget -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
+        cl::p_msg "% source $HOME/.zplug/init.zsh"
+        if [[ ! -f "$HOME/.zplug-skip-install-query" ]]; then
+          cl::p_msg "Creating file ~/.zplug-skip-install-query to not ask again, delete file to r-enable this query."
+          touch ~/.zplug-skip-install-query
+        fi
+      fi
+    fi
   fi
-  cl::p_msg "% wget -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
-  cl::p_msg "% source $HOME/.zplug/init.zsh"
-  cl::p_war "WSL, skipping zplug"
-  alias zplug_cmd=:
-  IS_ZPLUG=false
 fi
 
 # self-manage zplug (zplug update will upldate zplug itself)
-zplug 'zplug/zplug', hook-build:'zplug --self-manage'
+$ZPLUG_CMD 'zplug/zplug', hook-build:'zplug --self-manage'
 # }}} = ZPLUG PREPARE ========================================================
 
 # {{{ = PROMPT ===============================================================
@@ -306,7 +315,7 @@ ZSH_THEME="powerlevel9k/powerlevel9k"
 # apt: zsh-theme-powerlevel9k - https://github.com/bhilburn/powerlevel9k
 #source_ifex /usr/share/powerlevel9k/powerlevel9k.zsh-theme
 if $IS_ZPLUG; then
-  zplug_cmd "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme \
+  $ZPLUG_CMD "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme \
     && POWERLEVEL9K_ISACTIVE=true || POWERLEVEL9K_ISACTIVE=false
 else
   POWERLEVEL9K_ISACTIVE=false
@@ -419,43 +428,43 @@ POWERLEVEL9K_VCS_MODIFIED_BACKGROUND='yellow'
 
 # {{{ = ZPLUG PLUGINS ========================================================
 #https://github.com/zsh-users/zsh-autosuggestions
-zplug_cmd "zsh-users/zsh-autosuggestions"
+$ZPLUG_CMD "zsh-users/zsh-autosuggestions"
 ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=25
 
 # https://github.com/zsh-users/zaw
-zplug_cmd "zsh-users/zaw"
+$ZPLUG_CMD "zsh-users/zaw"
 
 # {{{ - OH MY ZSH ------------------------------------------------------------
 # https://github.com/robbyrussell/oh-my-zsh/wiki/Plugins
 # skip some in WSL (too slow)
 
-zplug_cmd "plugins/catimg", from:oh-my-zsh
+$ZPLUG_CMD "plugins/catimg", from:oh-my-zsh
 #plugins/common-aliases
-zplug_cmd "plugins/command-not-found", from:oh-my-zsh
+$ZPLUG_CMD "plugins/command-not-found", from:oh-my-zsh
 #plugins/debian
-zplug_cmd "plugins/dirhistory", from:oh-my-zsh
-zplug_cmd "plugins/docker", from:oh-my-zsh # docker autocompletion
-zplug_cmd "plugins/encode64", from:oh-my-zsh # encode64/decode64
+$ZPLUG_CMD "plugins/dirhistory", from:oh-my-zsh
+$ZPLUG_CMD "plugins/docker", from:oh-my-zsh # docker autocompletion
+$ZPLUG_CMD "plugins/encode64", from:oh-my-zsh # encode64/decode64
 #https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
-$IS_WSL || zplug_cmd "plugins/git", from:oh-my-zsh
-$IS_WSL || zplug_cmd "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
-zplug_cmd "plugins/httpie", from:oh-my-zsh # completion for apt:httpie (http)
-zplug_cmd "plugins/jsontools", from:oh-my-zsh # *_json
-zplug_cmd "plugins/mvn", from:oh-my-zsh # maven completion
-zplug_cmd "plugins/sudo", from:oh-my-zsh # add sudo via 2xESC
-zplug_cmd "plugins/systemd", from:oh-my-zsh # systemd sc-* aliases
-zplug_cmd "plugins/tmux", from:oh-my-zsh
-zplug_cmd "plugins/urltools", from:oh-my-zsh # urlencode/-decode
-zplug_cmd "plugins/vagrant", from:oh-my-zsh
-zplug_cmd "plugins/vscode", from:oh-my-zsh # vs* aliases
-zplug_cmd "plugins/web-search", from:oh-my-zsh
-zplug_cmd "plugins/wd", from:oh-my-zsh # wd (warp directory)
-#zplug_cmd "zsh-users/zsh-history-substring-search"
+$IS_WSL || $ZPLUG_CMD "plugins/git", from:oh-my-zsh
+$IS_WSL || $ZPLUG_CMD "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
+$ZPLUG_CMD "plugins/httpie", from:oh-my-zsh # completion for apt:httpie (http)
+$ZPLUG_CMD "plugins/jsontools", from:oh-my-zsh # *_json
+$ZPLUG_CMD "plugins/mvn", from:oh-my-zsh # maven completion
+$ZPLUG_CMD "plugins/sudo", from:oh-my-zsh # add sudo via 2xESC
+$ZPLUG_CMD "plugins/systemd", from:oh-my-zsh # systemd sc-* aliases
+$ZPLUG_CMD "plugins/tmux", from:oh-my-zsh
+$ZPLUG_CMD "plugins/urltools", from:oh-my-zsh # urlencode/-decode
+$ZPLUG_CMD "plugins/vagrant", from:oh-my-zsh
+$ZPLUG_CMD "plugins/vscode", from:oh-my-zsh # vs* aliases
+$ZPLUG_CMD "plugins/web-search", from:oh-my-zsh
+$ZPLUG_CMD "plugins/wd", from:oh-my-zsh # wd (warp directory)
+#$ZPLUG_CMD "zsh-users/zsh-history-substring-search"
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
 # but not on remote machines and wsl (use ssh -A agent forwarding if needed)
 if ! cl::is_ssh && ! $IS_WSL; then
-  zplug_cmd "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
+  $ZPLUG_CMD "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
 fi
 # }}} - OH MY ZSH ------------------------------------------------------------
 
@@ -463,24 +472,22 @@ fi
 # apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
 [[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] \
   && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
-  || zplug "zsh-users/zsh-syntax-highlighting"
+  || $ZPLUG_CMD "zsh-users/zsh-syntax-highlighting"
 # }}} = ZPLUG PLUGINS ========================================================
 
 # {{{ = ZPLUG LOAD ===========================================================
 # check for updates no more than every 14 days
 if $IS_ZPLUG && [[ ! -f ~/.zplug/lastcheck || -n ~/.zplug/lastcheck(#qN.mh+336) ]]; then
   cl::p_msg "More than 14 days have passed since the last update check, checking ..."
-  zplug_cmd check --verbose \
+  $ZPLUG_CMD check --verbose \
     || { cl::q_yesno "Install missing zplug packages" && zplug install }
   touch ~/.zplug/lastcheck
 fi
 
 # load local plugins
-#zplug_cmd "~/.zsh.d", from:local
+#$ZPLUG_CMD "~/.zsh.d", from:local
 
-zplug_cmd load
-# remove temporary alias
-unalias zplug_cmd
+$ZPLUG_CMD load
 # }}} = ZPLUG LOAD ===========================================================
 
 # {{{ = ZPLUG SETTINGS =======================================================
@@ -726,7 +733,7 @@ bindkey -M vicmd '^v' edit-command-line
 # }}} - VI MODE --------------------------------------------------------------
 # {{{ - ZAW ------------------------------------------------------------------
 # https://github.com/zsh-users/zaw
-if zplug check "zsh-users/zaw"; then
+if $ZPLUG_CMD check "zsh-users/zaw"; then
   bindkey '^[r' zaw # alt-r
   bindkey '^r' zaw-history # ctrl-r
 
@@ -791,3 +798,4 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 # PROFILING (DEBUG)
 #echo "zprof result: $(date)"
 #time zprof
+
