@@ -16,15 +16,15 @@ set t_kD=^V
 
 " Normally we use vim-extensions. If you want true vi-compatibility
 " remove change the following statements
-set nocompatible	" Use Vim defaults (much better!) BUT regularly enables new default features
-"set backspace=2		" allow backspacing over everything in insert mode
-set backspace=indent,eol,start	" same as above but better ?
+set nocompatible    " Use Vim defaults (much better!) BUT regularly enables new default features
+"set backspace=2        " allow backspacing over everything in insert mode
+set backspace=indent,eol,start    " same as above but better ?
 " Now we set some defaults for the editor 
 "set expandtab
-set ts=4			" set tab stop width to 4
-set sw=4			" set the shift width to 4 spaces
+set ts=4            " set tab stop width to 4
+set sw=4            " set the shift width to 4 spaces
 " 4 spaces will be treated like a tab (eg. when using backspace)
-set sts=4			" set the soft tabstop to 4 spaces
+set sts=4            " set the soft tabstop to 4 spaces
 "set smarttab
 set expandtab
 " don't expand tabs (replace the with spaces) in python mode
@@ -40,14 +40,14 @@ set mouse-=a       " disable visual mode on mouse selection (using shift) and al
 
 abbreviate #b /*********************************************************
 abbreviate #e  *********************************************************/
-set textwidth=0		" Don't wrap words by default
-"set textwidth=78   " wrap words
+set textwidth=0        " Don't wrap words by default
+"set textwidth=78       " wrap words
 "set foldmethod=indent
-"set nobackup		" Don't keep a backup file
-set viminfo='20,\"50	" read/write a .viminfo file, don't store more than
-			" 50 lines of registers
-set history=50		" keep 50 lines of command line history
-set ruler		" show the cursor position all the time
+"set nobackup           " Don't keep a backup file
+set viminfo='20,\"50   " read/write a .viminfo file, don't store more than
+                       " 50 lines of registers
+set history=50         " keep 50 lines of command line history
+set ruler              " show the cursor position all the time
 
 " Suffixes that get lower priority when doing tab completion for filenames.
 " These are files we are not likely to want to edit or read.
@@ -63,7 +63,7 @@ endif
 " Vim5 comes with syntaxhighlighting. If you want to enable syntaxhightlighting
 " by default uncomment the next three lines. 
 if has("syntax")
-  syntax on		" Default to no syntax highlightning 
+  syntax on        " Default to no syntax highlightning 
 endif
 
 " Debian uses compressed helpfiles. We must inform vim that the main
@@ -92,24 +92,24 @@ augroup END
 "  au!
 
   " Enable editing of gzipped files
-  "	  read:	set binary mode before reading the file
-  "		uncompress text in buffer after reading
-  "	 write:	compress file after writing
-  "	append:	uncompress file, append, compress file
-"  autocmd BufReadPre,FileReadPre	*.gz set bin
-"  autocmd BufReadPre,FileReadPre	*.gz let ch_save = &ch|set ch=2
-"  autocmd BufReadPost,FileReadPost	*.gz '[,']!gunzip
-"  autocmd BufReadPost,FileReadPost	*.gz set nobin
-"  autocmd BufReadPost,FileReadPost	*.gz let &ch = ch_save|unlet ch_save
-"  autocmd BufReadPost,FileReadPost	*.gz execute ":doautocmd BufReadPost " . expand("%:r")
+  "      read:    set binary mode before reading the file
+  "        uncompress text in buffer after reading
+  "     write:    compress file after writing
+  "    append:    uncompress file, append, compress file
+"  autocmd BufReadPre,FileReadPre    *.gz set bin
+"  autocmd BufReadPre,FileReadPre    *.gz let ch_save = &ch|set ch=2
+"  autocmd BufReadPost,FileReadPost    *.gz '[,']!gunzip
+"  autocmd BufReadPost,FileReadPost    *.gz set nobin
+"  autocmd BufReadPost,FileReadPost    *.gz let &ch = ch_save|unlet ch_save
+"  autocmd BufReadPost,FileReadPost    *.gz execute ":doautocmd BufReadPost " . expand("%:r")
 
-"  autocmd BufWritePost,FileWritePost	*.gz !mv <afile> <afile>:r
-"  autocmd BufWritePost,FileWritePost	*.gz !gzip <afile>:r
+"  autocmd BufWritePost,FileWritePost    *.gz !mv <afile> <afile>:r
+"  autocmd BufWritePost,FileWritePost    *.gz !gzip <afile>:r
 
-"  autocmd FileAppendPre			*.gz !gunzip <afile>
-"  autocmd FileAppendPre			*.gz !mv <afile>:r <afile>
-"  autocmd FileAppendPost		*.gz !mv <afile> <afile>:r
-"  autocmd FileAppendPost		*.gz !gzip <afile>:r
+"  autocmd FileAppendPre            *.gz !gunzip <afile>
+"  autocmd FileAppendPre            *.gz !mv <afile>:r <afile>
+"  autocmd FileAppendPost        *.gz !mv <afile> <afile>:r
+"  autocmd FileAppendPost        *.gz !gzip <afile>:r
 "augroup END
 
 "augroup bzip2
@@ -140,17 +140,17 @@ endif " has ("autocmd")
 
 " Some Debian-specific things
 augroup filetype
-  au BufRead reportbug.*		set ft=mail
+  au BufRead reportbug.*        set ft=mail
 augroup END
 
 " The following are commented out as they cause vim to behave a lot
 " different from regular vi. They are highly recommended though.
 set makeprg=gmake
-set showcmd		" Show (partial) command in status line.
-set showmatch		" Show matching brackets.
-set ignorecase		" Do case insensitive matching
-set incsearch		" Incremental search
-set autowrite		" Automatically save before commands like :next and :make
+set showcmd          " Show (partial) command in status line.
+set showmatch        " Show matching brackets.
+set ignorecase       " Do case insensitive matching
+set incsearch        " Incremental search
+set autowrite        " Automatically save before commands like :next and :make
 
 " XML formatter
 function! DoFormatXML() range
