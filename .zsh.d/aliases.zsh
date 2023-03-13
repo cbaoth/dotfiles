@@ -38,6 +38,7 @@ alias -g .....='../../../..'
 alias -g @N='> /dev/null 2>&1'
 alias -g @eN='2> /dev/null'
 
+alias -g @@='|'
 alias -g @G='| egrep'
 alias -g @eG='|& egrep'
 alias -g @Gi='| egrep -i'
