@@ -68,6 +68,7 @@ if [[ $(uname -r) = *icrosoft* ]]; then
     IS_WSL1=false
     IS_WSL2=true
   fi
+  #export PATH="$PATH:$(wslpath "$(wslvar USERPROFILE)")/bin"
   # See https://github.com/Microsoft/BashOnWindows/issues/1887
   unsetopt BG_NICE
   if ! $IS_WSL2; then
@@ -225,7 +226,7 @@ source_ifex $HOME/.aliases
 source_ifex $HOME/.zsh.d/aliases.zsh
 
 # include common and zsh specific aliases
-source_ifex $HOME/.zsh.d/functions.zsh
+source_ifex $HOME/.zsh.d/functions/functions.zsh
 
 # hashes
 hash -d data=/media/data
@@ -798,4 +799,3 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 # PROFILING (DEBUG)
 #echo "zprof result: $(date)"
 #time zprof
-
