@@ -14,6 +14,8 @@ alias reload-functions='. $HOME/.zsh.d/functions.zsh;
   source_ifex_custom $HOME/.zsh.d/functions'
 alias reload-aliases='. $HOME/.zsh.d/aliases.zsh;
   source_ifex_custom $HOME/.zsh.d/aliases'
+
+alias zsh-history-fix='mv $HOME/.zsh_history $HOME/.zsh_history_corrupt && strings $HOME/.zsh_history_corrupt > $HOME/.zsh_history && fc -R $HOME/.zsh_history && rm $HOME/.zsh_history_corrupt'
 # }}} - GENERAL --------------------------------------------------------------
 
 # {{{ - SUFFIX ALIASES -------------------------------------------------------
