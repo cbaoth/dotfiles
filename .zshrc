@@ -57,6 +57,13 @@ umask 022
 #umask 007
 # }}} - UMASK ----------------------------------------------------------------
 
+# {{{ - SHELL TOOLS ----------------------------------------------------------
+# make 'less' not strip color coding, if source doesn't strip it (most do
+# when pide, but some support e.g. --color=always)
+export LESS="-R"
+# TODO consider general code highlighting in less: https://superuser.com/a/337640 
+# }}} - SHELL TOOLS ----------------------------------------------------------
+
 # {{{ - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
 # Are we in a Windows Subsystem Linux?
 IS_WSL=false
@@ -449,6 +456,7 @@ $ZPLUG_CMD "plugins/encode64", from:oh-my-zsh # encode64/decode64
 #https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
 $IS_WSL || $ZPLUG_CMD "plugins/git", from:oh-my-zsh
 $IS_WSL || $ZPLUG_CMD "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
+$IS_WSL && $ZPLUG_CMD "plugins/git-fast", from:oh-my-zsh
 $ZPLUG_CMD "plugins/httpie", from:oh-my-zsh # completion for apt:httpie (http)
 $ZPLUG_CMD "plugins/jsontools", from:oh-my-zsh # *_json
 $ZPLUG_CMD "plugins/mvn", from:oh-my-zsh # maven completion
@@ -794,8 +802,34 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 #if [[ -n "$DESKTOP_SESSION" ]]; then
 #fi
 # }}} - X STUFF --------------------------------------------------------------
+# {{{ - DEV ------------------------------------------------------------------
+# https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
+if [[ -d "$HOME/.nvm" ]]; then
+  export NVM_DIR="$HOME/.nvm"
+  # load: nvm
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  # load: nvm bash_completion
+  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+fi
+
+# miniconda
+if [[ -f "$HOME/miniconda3/bin/conda" ]]; then
+  __conda_setup="$("$HOME/miniconda3/bin/conda" 'shell.zsh' 'hook' 2> /dev/null)"
+  if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+  else
+    if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+      . "$HOME/miniconda3/etc/profile.d/conda.sh"
+    else
+      export PATH="/$HOME/miniconda3/bin:$PATH"
+    fi
+  fi
+  unset __conda_setup
+fi
+# }}} - DEV ------------------------------------------------------------------
 # }}} = FINAL LOGIN EXECUTIONS ===============================================
 
 # PROFILING (DEBUG)
 #echo "zprof result: $(date)"
 #time zprof
+
