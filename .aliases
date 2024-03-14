@@ -42,24 +42,27 @@ alias killall9='pkill -9 -x'
 alias kill-suspend='kill -TSTP'
 alias kill-resume='kill -CONT'
 
+# dmesg piped to less with timestamp format and colors
+alias dmesg-less='sudo dmesg -wT --color=always | less -R'
+
 # backup source to target (no deletion but overwrite)
 # show progress, ignoring ext. links
-alias rsync-backup='rsync -axvuh --safe-links --info=progress2'
+alias rsync-backup='rsync -axvu --safe-links --info=progress2'
 # in addition to the above, compress and keep partial files
-alias rsync-backup-remote='rsync -axvuh --safe-links -Pz'
+alias rsync-backup-remote='rsync -axvu --safe-links -Pz'
 # same as above but backup files that are to be overwritten/deleted (target)
-alias rsync-backup-safe='rsync -axvuh --safe-links --info=progress2 --backup'
-alias rsync-backup-safe-remote='rsync -axvuh --safe-links -Pz --backup'
+alias rsync-backup-safe='rsync -axvu --safe-links --info=progress2 --backup'
+alias rsync-backup-safe-remote='rsync -axvu --safe-links -Pz --backup'
 
 # sync source to target (delete files in target if missing in source)
-alias rsync-sync='rsync -axvuh --safe-links --info=progress2 -i --delete'
-alias rsync-sync-remote='rsync -axvuh --safe-links -Piz --delete'
+alias rsync-sync='rsync -axvu --safe-links --info=progress2 -i --delete'
+alias rsync-sync-remote='rsync -axvu --safe-links -Piz --delete'
 # same as above but backup files that are to be overwritten/deleted (target)
-alias rsync-sync-safe='rsync -axvuh --safe-links --info=progress2 -i --delete --backup'
-alias rsync-sync-safe-remote='rsync -axvuh --safe-links -Piz --delete --backup'
+alias rsync-sync-safe='rsync -axvu --safe-links --info=progress2 -i --delete --backup'
+alias rsync-sync-safe-remote='rsync -axvu --safe-links -Piz --delete --backup'
 
 # clone with permissions, links, etc.
-alias rsync-clone='rsync -axHAWXS --numeric-ids --info=progress2'
+alias rsync-clone='rsync -axWS --numeric-ids --info=progress2'
 # compare source and target, list all files that are different/new/missing
 alias rsync-diff='rsync -axvnc'
 alias rsync-diff-quick='rsync -axvnu'
