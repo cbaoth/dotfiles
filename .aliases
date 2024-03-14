@@ -163,6 +163,7 @@ alias mailq-del-deref='sudo postsuper -d ALL deferred'
 alias ocamli='ledit ocaml'
 alias cmucl="rlwrap -b \$BREAK_CHARS cmucl"
 alias python-profile="python -m cProfile -s time"
+alias git-editor-vim="export GIT_EDITOR=vim"
 # }}} - DEV ------------------------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
