@@ -61,7 +61,7 @@ umask 022
 # make 'less' not strip color coding, if source doesn't strip it (most do
 # when pide, but some support e.g. --color=always)
 export LESS="-R"
-# TODO consider general code highlighting in less: https://superuser.com/a/337640 
+# TODO consider general code highlighting in less: https://superuser.com/a/337640
 # }}} - SHELL TOOLS ----------------------------------------------------------
 
 # {{{ - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
@@ -109,6 +109,7 @@ EOL
     fi
     unset wsl2_ssh_pageant_bin
   fi
+  export DISPLAY=:0
 fi
 
 # Is X available? Unreliable for ssh x-forwading., suffi. for local sessions.
@@ -832,4 +833,3 @@ fi
 # PROFILING (DEBUG)
 #echo "zprof result: $(date)"
 #time zprof
-
