@@ -237,7 +237,8 @@ source_ifex $HOME/.zsh.d/aliases.zsh
 source_ifex $HOME/.zsh.d/functions/functions.zsh
 
 # hashes
-hash -d data=/media/data
+hash -d d=/media/data
+hash -d s=/media/stash
 if ${IS_WSL}; then
   for d in /mnt/[a-z]; do
     hash -d "${d#*/*/}"=${d}
