@@ -814,16 +814,21 @@ if [[ -d "$HOME/.nvm" ]]; then
   [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 fi
 
-# miniconda
-if [[ -f "$HOME/miniconda3/bin/conda" ]]; then
-  __conda_setup="$("$HOME/miniconda3/bin/conda" 'shell.zsh' 'hook' 2> /dev/null)"
+# anaconda3 / miniconda3
+if [[ -f "$HOME/anaconda3/bin/conda" ]]; then
+  _MY_CONDA="$HOME/anaconda3"
+elif [[ -f  "$HOME/miniconda3/bin/conda" ]]; then
+  _MY_CONDA="$HOME/miniconda3"
+fi
+if [[ -n "${_MY_CONDA:-}" ]]; then
+  __conda_setup="$("$_MY_CONDA/bin/conda" 'shell.zsh' 'hook' 2> /dev/null)"
   if [ $? -eq 0 ]; then
     eval "$__conda_setup"
   else
-    if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-      . "$HOME/miniconda3/etc/profile.d/conda.sh"
+    if [ -f "$_MY_CONDA/etc/profile.d/conda.sh" ]; then
+      . "$_MY_CONDA/etc/profile.d/conda.sh"
     else
-      export PATH="/$HOME/miniconda3/bin:$PATH"
+      export PATH="/$_MY_CONDA/bin:$PATH"
     fi
   fi
   unset __conda_setup
