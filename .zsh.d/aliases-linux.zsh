@@ -33,6 +33,7 @@ alias sleep-disable="sudo systemctl mask sleep.target suspend.target hibernate.t
 
 # {{{ - NETWORK --------------------------------------------------------------
 alias route-newdefault='sudo route delete default; sudo route add default gw'
+alias wifi-status='nmcli d wifi list; echo; iw dev wlp2s0 link'
 # }}} - NETWORK --------------------------------------------------------------
 
 # {{{ - MULTIMEDIA -----------------------------------------------------------
