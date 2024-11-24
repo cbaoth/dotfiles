@@ -82,8 +82,8 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
 fi
 
 if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
-  alias dgs="dpkg --get-selections" # see "apt list --installed" too
-  alias dca="dpkg --configure -a"
+  alias dpgs="dpkg --get-selections" # see "apt list --installed" too
+  alias dpca="dpkg --configure -a" # configure unpackde but on yet configured packages (e.g. continue interrupted upgrade)
 fi
 
 if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
