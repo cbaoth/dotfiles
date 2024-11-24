@@ -55,6 +55,11 @@ alias midi-keyboard-output="aconnect \$(aconnect -i \
 # {{{ = DISTRIBUTION SPECIFIC ================================================
 # {{{ - DEB ------------------------------------------------------------------
 
+if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
+  alias dpgs='dpkg --get-selections' # see "apt list --installed" too
+  alias dpca='sudo dpkg --configure -a' # configure unpackde but on yet configured packages (e.g. continue interrupted upgrade)
+fi
+
 if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
   # force update
   alias apud!='sudo apt update'
@@ -69,6 +74,7 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
   alias apiB='apud; sudo apt -t buster-backports install'
   alias apu='apud; sudo apt upgrade; sudo apt auto-remove'
   alias apuf='apud; sudo apt full-upgrade; sudo apt auto-remove'
+  alias apuo='sudo apt-get intsall --only-upgrade' # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
   alias apr='sudo apt remove' # conflicts with ar
   alias apr!='sudo apt purge'
   alias apra='sudo apt auto-remove'
@@ -77,13 +83,16 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
   alias apss='apt show'
   alias apl='apt list'
   alias apli='apt list --installed'
-  alias aplo='sudo aptitude search \?obsolete' # list obsolete packages
-  alias appo='sudo aptitude purge \?obsolete' # purge obsolete packages
+  alias apif='sudo apt install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
+
+  #if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
+  #  alias apt-fix='dpca; apif'
+  #fi
 fi
 
-if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
-  alias dpgs="dpkg --get-selections" # see "apt list --installed" too
-  alias dpca="dpkg --configure -a" # configure unpackde but on yet configured packages (e.g. continue interrupted upgrade)
+if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
+  alias aplo='sudo aptitude search \?obsolete' # list obsolete packages
+  alias appo='sudo aptitude purge \?obsolete' # purge obsolete packages
 fi
 
 if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
