@@ -299,6 +299,8 @@ cl::p_dbg() {
   # sufficient arguments?
   if [[ -z "$3" ]]; then
     echo "Usage: cl::p_dbg [-t|--timestamp] DBG_LVL SHOW_AT_LVL MSG.."
+    echo
+    echo "Note: \$DEBUG_LVL supercedes the (local script) DBG_LVL argument"
     return 1
   fi
   # parse arguments
