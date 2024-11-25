@@ -298,9 +298,14 @@ cl::p_dbg() {
   readonly timestamp
   # sufficient arguments?
   if [[ -z "$3" ]]; then
-    echo "Usage: cl::p_dbg [-t|--timestamp] DBG_LVL SHOW_AT_LVL MSG.."
-    echo
-    echo "Note: \$DEBUG_LVL supercedes the (local script) DBG_LVL argument"
+    cat <<EOF
+Usage: cl::p_dbg [-t|--timestamp] <0|DBG_LVL> SHOW_AT_LVL MSG..
+
+Mandatory Arguments:
+  DBG_LVL          The local log level up to which debug messages should be shown. Use 0 if no such
+                   setting exists. Generally, if \$DEBUG_LVL is set, it supersedes the DBG_LVL argument.
+  SHOW_AT_LVL      The log level from which the debug message should be shown.
+EOF
     return 1
   fi
   # parse arguments
