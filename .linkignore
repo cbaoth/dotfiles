@@ -1,0 +1,7 @@
+# Add files to ignore when using link.sh, one per line, using regular expressions
+\.git
+\.gitignore
+\.vscode
+adoc_assets
+README\.adoc
+LICENSE

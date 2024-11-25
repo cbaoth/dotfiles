@@ -27,14 +27,19 @@ cd "$DOTFILES"
 # create backup dir
 mkdir -p "$BAKDIR"
 
+# Define the ignore file
+IGNORE_FILE=".linkignore"
 
-# -regex "$DOTFILES/\(\.\w.*\|lib\(/.*\)?\|bin\(/.*\)\)" \
-# create links
-find "$DOTFILES" -regextype sed \
-     ! -regex '.*/\(link.sh\|\.git\|\.gitignore\|\.vscode\|adoc_assets\|README.adoc\|LICENSE\)\(/.*\)\?' \
-| while read f; do
+# Read the ignore file and create a regex pattern
+IGNORE_PATTERN=$(grep -vE "^\s*#" "$IGNORE_FILE" | sed ':a;N;$!ba;s/\n/\\|/g')
+IGNORE_PATTERN=".*/\($(basename $0)\|\.linkignore\|${IGNORE_PATTERN}\)\(/.*\)\?"
+echo "Ignoring ($IGNORE_FILE): $IGNORE_PATTERN"
+
+# Use the pattern in the find command
+find "$DOTFILES" -regextype sed ! -regex "$IGNORE_PATTERN" \
+| while read -r f; do
   # get relative target/source file location
-  relpath=$(realpath --relative-to "$DOTFILES" $f)
+  relpath=$(realpath --relative-to "$DOTFILES" "$f")
   echo "> SRC: $relpath"
   target=$HOME/$relpath
   echo "> TAR: $target"
