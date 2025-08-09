@@ -258,7 +258,8 @@ export DISABLE_AUTO_UPDATE=true
 # skip zplug all together on WSL (much too slow)
 IS_ZPLUG=true
 ZPLUG_CMD=zplug
-if $IS_WSL; then
+SKIP_ZPLUP_ON_WSL=false
+if $IS_WSL && $SKIP_ZPLUP_ON_WSL; then
   cl::p_war "WSL, skipping zplug (too slow most of the time)"
   IS_ZPLUG=false; ZPLUG_CMD=:
 else
