@@ -1,4 +1,4 @@
-# ~/.zsh/zshrc-freebsd.zsh: Windows Subsystem Linux zshrc
+# ~/.zsh/zshrc-linux_wsl.zsh: Windows Subsystem Linux zshrc
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: zsh zshrc shell-script linux wsl
@@ -9,3 +9,4 @@
 
 # set display (e.g. to use with https://sourceforge.net/projects/vcxsrv/)
 export DISPLAY=:0
+
