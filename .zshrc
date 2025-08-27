@@ -25,6 +25,11 @@ export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 
 # globally raise (but never lower) the default debug level of cl::p_dbg
 export DBG_LVL=0
+
+export ZDOTDIR="$HOME/.zsh"
+#export ZDOTDIR="$HOME"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_CACHE_HOME="$HOME/.cache"
 # }}} - CORE -----------------------------------------------------------------
 
 # {{{ - SECURITY & PRIVACY ---------------------------------------------------
@@ -34,7 +39,7 @@ export DBG_LVL=0
 # shared session
 export HISTSIZE=10000 # set in-memory history limit
 export SAVEHIST=10000 # set history file limit
-export HISTFILE="$HOME/.zhistory" # set history file
+export HISTFILE="$ZDOTDIR/.zhistory" # set history file
 
 setopt INC_APPEND_HISTORY # write immediately (default: on exit only)
 #setopt HIST_IGNORE_DUPS # don't add duplicates
@@ -82,32 +87,33 @@ if [[ $(uname -r) = *icrosoft* ]]; then
     echo "WSL1 detected, not all features loaded, consider upgrading."
   else
     echo "WSL2 detected, doing some extra stuff ..."
-    # See https://github.com/BlackReloaded/wsl2-ssh-pageant
-    wsl2_ssh_pageant_bin="${HOME}/.ssh/wsl2-ssh-pageant.exe"
-    if [[ ! -f "${wsl2_ssh_pageant_bin}" ]]; then
-      cat <<EOL
-WARNING: ${wsl2_ssh_pageant_bin} not found, if you want to use pageant run:
-# wget -O "${wsl2_ssh_pageant_bin}" \\
-    "https://github.com/BlackReloaded/wsl2-ssh-pageant/releases/latest/download/wsl2-ssh-pageant.exe"; \\
-    chmod +x "${wsl2_ssh_pageant_bin}"
-EOL
-    elif ! command -v socat 2>&1 >/dev/null; then
-      cat <<EOL
-WARNING: socat not found, if you want to use wsl2-ssh-pageant run:
-# sudo apt-get install socat
-EOL
-    else
-      export SSH_AUTH_SOCK="${HOME}/.ssh/agent.sock"
-      if ! ss -a | grep -q "${SSH_AUTH_SOCK}"; then
-        rm -f "${SSH_AUTH_SOCK}"
-        if [[ -x "${wsl2_ssh_pageant_bin}" ]]; then
-          (setsid nohup socat UNIX-LISTEN:"${SSH_AUTH_SOCK},fork" EXEC:"${wsl2_ssh_pageant_bin}" >/dev/null 2>&1 &)
-        else
-          echo >&2 "WARNING: ${wsl2_ssh_pageant_bin} is not executable."
-        fi
-      fi
-    fi
-    unset wsl2_ssh_pageant_bin
+#    if [[ ! -f "${HOME}/home/wincrypt-wsl.sock" ]]; then
+#      cat <<EOL
+#WARNING: ${HOME}/home/wincrypt-wsl.sock not found, if you want to use pageant in wsl:
+#
+#  # See https://github.com/buptczq/WinCryptSSHAgent for details
+#  # Run this in in an elevated windows cmd.exe:
+#  > choco install wincrypt-sshagent
+#EOL
+#    else
+#      export SSH_AUTH_SOCK=${HOME}/home/wincrypt-wsl.sock
+#    fi
+# TODO check if this works, if so then check if it is already running (currently started repetedly resulting in error)
+#    if [[ -e "${HOME}/bin/wsl-ssh-pageant.exe" ]]; then
+#      export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
+#      if ! ss -a | grep -q "$SSH_AUTH_SOCK"; then
+#        rm -f "$SSH_AUTH_SOCK"
+#        echo "Starting 'wsl-ssh-pageant.exe -force -systray -wsl \"$SSH_AUTH_SOCK\"' ..."
+#        wsl-ssh-pageant.exe -force -systray -wsl "$SSH_AUTH_SOCK" &
+#      fi
+#    else
+#      cat <<EOL
+#WARNING: ${HOME}/bin/wsl-ssh-pageant-amd64-gui.exe not found, if you want to use pageant in wsl:
+#
+#wget -O ~/bin/wsl-ssh-pageant.exe "https://github.com/benpye/wsl-ssh-pageant/releases/latest/download/wsl-ssh-pageant-amd64-gui.exe"
+#chmod +x ~/bin/wsl-ssh-pageant.exe
+#EOL
+#    fi
   fi
   export DISPLAY=:0
 fi
@@ -255,11 +261,12 @@ export DISABLE_AUTO_UPDATE=true
 #export UPDATE_ZSH_DAYS=30
 
 # apt: zplug - https://github.com/zplug/zplug
-# skip zplug all together on WSL (much too slow)
+# optionally skip zplug all together in WSL (may be pretty slow)
+WSL_LIGHT=false
+
 IS_ZPLUG=true
 ZPLUG_CMD=zplug
-SKIP_ZPLUP_ON_WSL=false
-if $IS_WSL && $SKIP_ZPLUP_ON_WSL; then
+if $IS_WSL && $WSL_LIGHT; then
   cl::p_war "WSL, skipping zplug (too slow most of the time)"
   IS_ZPLUG=false; ZPLUG_CMD=:
 else
@@ -447,7 +454,7 @@ $ZPLUG_CMD "zsh-users/zaw"
 
 # {{{ - OH MY ZSH ------------------------------------------------------------
 # https://github.com/robbyrussell/oh-my-zsh/wiki/Plugins
-# skip some in WSL (too slow)
+# WSL: May be skipped (see above)
 
 $ZPLUG_CMD "plugins/catimg", from:oh-my-zsh
 #plugins/common-aliases
@@ -531,16 +538,17 @@ setopt extendedglob
 
 # include hidden (dot-files) in glob selections (note: also inverse selection!)
 #setopt dotglob
+export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump"
 # enable new style completion system
 autoload -Uz compinit
-# check cache only once per day (can be slow)
+# check cache only once per day (can be slow when done more frequently)
 # https://gist.github.com/ctechols/ca1035271ad134841284
-if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
-  compinit
-  touch .zcompdump
-else
-  compinit -C
-fi
+#if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
+#  compinit
+#  #touch .zcompdump
+#else
+#  compinit -C
+#fi
 
 # {{{ - COMPLETION -----------------------------------------------------------
 # menu
@@ -625,7 +633,7 @@ zstyle ':completion:*' group-name ''
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
 # but not on remote machines (use ssh -A agent forwarding if needed)
-if ! cl::is_ssh; then
+if ! cl::is_ssh && ! $IS_WSL; then
   # ssh-agent forwarding
   zstyle :omz:plugins:ssh-agent agent-forwarding on
   # ssh-agent identities
