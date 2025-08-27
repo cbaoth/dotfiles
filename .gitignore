@@ -2,3 +2,4 @@
 .vscode
 .zcompdump
 *.zwc
+.crush
