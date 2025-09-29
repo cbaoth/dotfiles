@@ -262,14 +262,17 @@ export DISABLE_AUTO_UPDATE=true
 
 # apt: zplug - https://github.com/zplug/zplug
 # optionally skip zplug all together in WSL (may be pretty slow)
-WSL_LIGHT=false
+ZPLUG_SKIP_IN_WSL=false
 
 IS_ZPLUG=true
 ZPLUG_CMD=zplug
-if $IS_WSL && $WSL_LIGHT; then
-  cl::p_war "WSL, skipping zplug (too slow most of the time)"
+if $IS_WSL && ${ZPLUG_SKIP_IN_WSL:-false}; then
+  cl::p_war ".zshrc (WSL): zplug is disabled, set ZPLUG_SKIP_IN_WSL=false to enable zplug in WSL (default)"
   IS_ZPLUG=false; ZPLUG_CMD=:
 else
+  if $IS_WSL; then
+    cl::p_dbg 0 1 ".zshrc (WSL): Initializing zplug ..., to disable zplug in WSL set ZPLUG_SKIP_IN_WSL=true"
+  fi
   if [[ -f "$HOME/.zplug/init.zsh" ]]; then
     cl::p_dbg 0 2 "zplug found in ~/.zplug, loading ..."
     time source "$HOME/.zplug/init.zsh"
