@@ -845,9 +845,16 @@ if [[ -n "${_MY_CONDA:-}" ]]; then
   fi
   unset __conda_setup
 fi
+
+# angular CLI autocompletion, if ng is avaiable
+(command -v ng 2>&1 >/dev/null) \
+  && source <(ng completion script)
 # }}} - DEV ------------------------------------------------------------------
-# }}} = FINAL LOGIN EXECUTIONS ===============================================
 
 # PROFILING (DEBUG)
 #echo "zprof result: $(date)"
 #time zprof
+
+# }}} = FINAL LOGIN EXECUTIONS ===============================================
+
+
