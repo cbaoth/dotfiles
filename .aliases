@@ -218,7 +218,7 @@ alias barrierc='barrierc --enable-crypto -d ERROR'
 alias mpv-nr='mpv --no-resume-playback'
 
 # http://askubuntu.com/a/634655
-alias yt="youtube-dl \
+alias yt="yt-dlp \
             -f 'bestvideo[vcodec=vp9]+bestaudio[acodec=opus]
                 /bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]
                 /bestvideo[vcodec=vp8]+bestaudio[acodec=opus]
@@ -227,14 +227,14 @@ alias yt="youtube-dl \
                 /bestvideo[ext=webm]+bestaudio[ext=ogg]
                 /best[ext=webm]/bestvideo+bestaudio/best' \
             -i -o '%(title)s [%(id)s].%(ext)s'"
-alias yta="youtube-dl \
+alias yta="yt-dlp \
             -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]
                 /best[ext=webm]/best[ext=ogg]/best' \
             -i -x -o '%(title)s [%(id)s].ogg'"
-alias yta-mp3="youtube-dl \
+alias yta-mp3="yt-dlp \
             --audio-format mp3 \
             -i -x -o '%(title)s [%(id)s].mp3'"
-alias yta-m4a="youtube-dl \
+alias yta-m4a="yt-dlp \
             -f 'bestaudio[ext=m4a]' \
             -i -x -o '%(title)s [%(id)s].m4a'"
 
