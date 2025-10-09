@@ -88,7 +88,7 @@ log_line "... done"
 
 # 4) Check if any updates are available (check only, no auto update)
 log_line "Running app:update --all --showonly"
-run_occ app:update --all --showonly  # Oder `--dry-run`, je nach Version
+run_occ app:update --all --showonly
 
 log_line "Running update:check"
 run_occ update:check
