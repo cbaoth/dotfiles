@@ -1,0 +1,27 @@
+Some bash/python script.
+
+Created and intended for my personal use only. Use (or read :)) at your own risk.
+
+- nextcloud-maintenance.sh
+                   intended for use in cron to perform maintenance tasks and
+                   integrity/update checks on nextcloud servers
+- openvpn-client-cfg.sh
+                   a small openvpn client cretificate and config helper tool
+- audio-volume.sh  toggle mute and change volume using hotkeys within the wm
+- backup.sh        backup script with exclusion list, supports full and
+                   incremental backups
+- backup2ftp.sh    capo last backup (made by backup.sh) to an ftp server,
+                   preserve previous backup on ftp
+- clear-cache.sh   clean up home folder by removing (known) local caches, temp
+                   files etc.
+- dbbackup.sh      backup script for mysql and postgresql
+- gallery.sh       create a very simple image gallery (static html file with
+                   static thumbs)
+- pdfprint.sh      print a pdf/ps file using psnup for multi page per sheet
+                   printing
+- smfetch.sn       fetch rtmp / http(s) streams from some known (mostly german) tv
+                   stations and pages like youtube using wget and rtmpdump
+- wgetmp.py        fetch multiple files in parallel using wget
+- getbyext.sh      fetch all media files (or specific files by ext.) from a given
+                   url using wget
+
