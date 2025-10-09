@@ -1,27 +1,90 @@
-Some bash/python script.
+## Some random bash/python scripts
 
-Created and intended for my personal use only. Use (or read :)) at your own risk.
+Created and intended for my personal use only. Some of these are ancient and most not well maintaind, so if anyone stumbles upon this repo: Be warned, read/use at your own risk. :)
 
-- nextcloud-maintenance.sh
-                   intended for use in cron to perform maintenance tasks and
-                   integrity/update checks on nextcloud servers
-- openvpn-client-cfg.sh
-                   a small openvpn client cretificate and config helper tool
-- audio-volume.sh  toggle mute and change volume using hotkeys within the wm
-- backup.sh        backup script with exclusion list, supports full and
-                   incremental backups
-- backup2ftp.sh    capo last backup (made by backup.sh) to an ftp server,
-                   preserve previous backup on ftp
-- clear-cache.sh   clean up home folder by removing (known) local caches, temp
-                   files etc.
-- dbbackup.sh      backup script for mysql and postgresql
-- gallery.sh       create a very simple image gallery (static html file with
-                   static thumbs)
-- pdfprint.sh      print a pdf/ps file using psnup for multi page per sheet
-                   printing
-- smfetch.sn       fetch rtmp / http(s) streams from some known (mostly german) tv
-                   stations and pages like youtube using wget and rtmpdump
-- wgetmp.py        fetch multiple files in parallel using wget
-- getbyext.sh      fetch all media files (or specific files by ext.) from a given
-                   url using wget
+### nextcloud-maintenance.sh
 
+Intended for use in cron with cronic (for info mail) to perform maintenance tasks and integrity/update checks on nextcloud servers, or simply to run before/after an update.
+
+Stuff like:
+
+* `occ db:add-missing-indices`
+* `occ maintenance:repair`
+* `occ integrity:check-core`
+* `occ integrity:check-app "$app"`
+* `occ app:update --all --showonly`
+* `occ update:check`
+
+### openvpn-client-cfg.sh
+
+A small openvpn client cretificate and config helper tool
+
+```
+Usage:
+  openvpn-client-cfg CLIENT_NAME [--ip IP] [--remote HOST] [--routes "NET1/MASK,NET2/MASK"] [--no-split] [--force]
+  openvpn-client-cfg --list
+  openvpn-client-cfg --delete CLIENT_NAME
+  openvpn-client-cfg --revoke CLIENT_NAME
+
+Options:
+  --ip IP           Assign static IP via CCD (topology subnet; /24 mask assumed)
+  --remote HOST     Override remote host (default: 11001001.org)
+  --routes CSV      Extra routes for split-tunnel (e.g. "192.168.1.0/24,10.23.0.0/16")
+  --no-split        Do NOT add route-nopull (internet / non-vpn traffic routed through vpn)
+  --force|-f        Override safety checks (IP duplicate/subnet/CCD overwrite)
+
+  --list|-l         List CCDs with optional IPs and cert expiry
+
+  --delete|-d NAME  Disable a client by moving CCD to ccd.disabled (no revoke)
+  --revoke|-r NAME  Revoke client's cert, refresh CRL, disable CCD
+
+Example:
+  # Create a new client configuration named "myworkstation" using static IP 10.10.0.5
+  openvpn-client-cfg myworkstation --ip 10.10.0.5
+
+Env overrides:
+  EASYRSA_DIR=/home/cbaoth/openvpn-ca
+  SERVER_CONF=/etc/openvpn/server/server.conf
+  CCD_DIR=/etc/openvpn/ccd
+  OUTPUT_DIR=/home/cbaoth
+```
+
+### audio-volume.sh
+
+Toggle mute and change volume using hotkeys within the wm.
+
+### backup.sh
+
+Backup script with exclusion list, supports full and incremental backups.
+
+### backup2ftp.sh
+
+Upload last backup (made by backup.sh) to an ftp server, preserve previous backup on ftp.
+
+### clear-cache.sh
+
+Clean up home folder by removing (known) local caches, temp files etc.
+
+### dbbackup.sh
+
+Backup script for mysql and postgresql.
+
+### gallery.sh
+
+Create a very simple image gallery (static html file with static thumbs).
+
+### pdfprint.sh
+
+Print a pdf/ps file using psnup for multi page per sheet printing.
+
+### smfetch.sn
+
+Fetch rtmp / http(s) streams from some known (mostly german) tv stations and pages like youtube using wget and rtmpdump.
+
+### wgetmp.py
+
+Fetch multiple files in parallel using wget.
+
+### getbyext.sh
+
+Fetch all media files (or specific files by ext.) from a given url using wget.
