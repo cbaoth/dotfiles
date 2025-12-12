@@ -121,6 +121,19 @@ if [[ -n "$(command -v apt-key 2>/dev/null)" ]]; then
 fi
 # {{{ - DEB ------------------------------------------------------------------
 
+# {{{ - Flatpak --------------------------------------------------------------
+if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
+  alias fp='flatpak'
+  alias fpu='flatpak update'
+  alias fps='flatpak search'
+  alias fpi='flatpak install'
+  alias fpr='flatpak uninstall'
+  alias fpl='flatpak list'
+  alias fpd='flatpak info'
+  alias fph='flatpak history'
+fi
+# }}} - Flatpak --------------------------------------------------------------
+
 # {{{ - PACMAN ---------------------------------------------------------------
 if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
   alias pmi="sudo pacman -S"
