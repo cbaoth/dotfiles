@@ -24,13 +24,11 @@
 #echo "zprof start: $(date)"
 
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
-# For login shell / general variable like PATH see ~/.zshenv
+# For login shell / general variable like PATH see ~/.zshenv (incl. ~/.myenv)
 
-# {{{ - CORE -----------------------------------------------------------------
-export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
-#export COLORTERM=xterm
-#[ -n "$(echo $TERMCAP|grep -i screen)" ]] && TERM=screen
-# }}} - CORE -----------------------------------------------------------------
+# globally raise (but never lower) the default debug level of cl::p_dbg
+# this is set in ~/.myenv to be available for all shells, override here if needed
+#export DBG_LVL=0
 
 # {{{ - SECURITY & PRIVACY ---------------------------------------------------
 # private session
@@ -39,7 +37,7 @@ export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 # shared session
 export HISTSIZE=10000 # set in-memory history limit
 export SAVEHIST=10000 # set history file limit
-export HISTFILE="$ZDOTDIR/.zhistory" # set history file
+export HISTFILE="$ZDOTDIR/.zhistory" # set history file (default: ~/.zsh_history)
 
 setopt INC_APPEND_HISTORY # write immediately (default: on exit only)
 #setopt HIST_IGNORE_DUPS # don't add duplicates
@@ -52,6 +50,7 @@ setopt HIST_IGNORE_SPACE # don't record lines stating with a space (privacy)
 #setopt HIST_NO_STORE # don't store history / fc commands
 setopt HIST_NO_FUNCTIONS # don't store function definitions
 # }}} - SECURITY & PRIVACY ---------------------------------------------------
+
 
 # {{{ - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
 # Are we in a Windows Subsystem Linux?
@@ -734,14 +733,17 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 # {{{ = FINAL LOGIN EXECUTIONS ===============================================
 # {{{ - X WINDOWS ------------------------------------------------------------
 # are we in a x-windows session?
-#if [[ -n "${DESKTOP_SESSION-}" ]]; then
-#  # is gnome-keyring-daemon availlable? use it as ssh agent
-#  if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
-#    export $(gnome-keyring-daemon --start)
-#    # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
-#    export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
-#  fi
-#fi
+if [[ -n "${DESKTOP_SESSION-}" ]]; then
+  # is gnome-keyring-daemon availlable? use it as ssh agent
+  if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
+    # start unless already running
+    if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
+      export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
+      # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+      export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+    fi
+  fi
+fi
 # }}} - X WINDOWS ------------------------------------------------------------
 # {{{ - DTAG -----------------------------------------------------------------
 # enabale dtag (when available)
@@ -752,6 +754,7 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 # }}} - DTAG -----------------------------------------------------------------
 # {{{ - X STUFF --------------------------------------------------------------
 #if [[ -n "$DESKTOP_SESSION" ]]; then
+#    ...
 #fi
 # }}} - X STUFF --------------------------------------------------------------
 # {{{ - DEV ------------------------------------------------------------------
