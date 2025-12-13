@@ -55,8 +55,9 @@ umask 022
 # }}} - UMASK ----------------------------------------------------------------
 
 # {{{ - ENV STATE ------------------------------------------------------------
-export OS="${$(uname >& /dev/null):l}"
-export HOST="${$(hostname >& /dev/null):l}"
+export OS="${$(uname 2> /dev/null):l}"
+export HOST="${$(hostname 2> /dev/null):l}"
+
 # Is X available? Unreliable for ssh x-forwading., suffi. for local sessions.
 export IS_X=false
 if [[ ! -t 0 ]] && xset b off >& /dev/null; then
