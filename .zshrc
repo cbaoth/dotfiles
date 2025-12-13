@@ -275,6 +275,12 @@ if $IS_ZPLUG; then
 fi
 
 # {{{ - - General ------------------------------------------------------------
+# TODO review after switching to powerlevel10k
+# The 9K parameters should be backward compatible but in it's current state it
+# is not identical to the original 9k layout (parts are missing).
+# The default seems fine though, so we'll keep it for now until i have more
+# time to investigate/improve.
+
 POWERLEVEL9K_DISABLE_RPROMPT=false
 POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable vcs) # disk_usage
 # POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline context) # root_indicator
