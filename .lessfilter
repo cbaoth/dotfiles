@@ -1,0 +1,128 @@
+#!/bin/bash
+# ~/.lessfilter: Enable general highlighting in less (if tools available on system)
+
+# Original Source: https://superuser.com/a/337640
+# Author:  cbaoth <dev@cbaoth.de>
+# Keywords: zsh zshrc zshenv shell-script
+
+# Usage example for .bashrc/.zshenv/.zshrc:
+# # Note: Ensure that ~/.lessfilter is executable: chmod u+x ~/.lessfilter
+# [[ -x ~/.lessfilter ]] \
+#   && command -v pygmentize >& /dev/null \
+#   && export LESSOPEN="|~/.lessfilter %s"
+# # Enable auto extraction of zip files (e.g.: less log.gz)
+# # This supports a custom ~/.lessfilter as well
+# command -v lesspipe >& /dev/null \
+#   && eval "$(lesspipe)"
+
+# {{{ = CONFIGURATION ========================================================
+# Optionally enable highlighting (calling pygmentize) for all files no matter
+# if this script recognizes the file type or not.
+
+# By default, this is disabled to avoid slowdowns on large files.
+# The script contains a list of file extensions that should be supported by
+# pygmentize. For files that are not identified by this script, pygmentize
+# will not be called.
+_ENABLE_FOR_UNKNOWN_FILE_TYPES=false
+
+# If enabled, pygmentize will be used for all files and try to auto-detect the
+# file type on its own. This may however lead to slowdowns on large files.
+#_ENABLE_FOR_UNKNOWN_FILE_TYPES=true
+# }}} = CONFIGURATION ========================================================
+
+_PYGMENTIZE=$(command -v pygmentize)
+[ -z "$_PYGMENTIZE" ] && exit 1
+
+_filename="$(basename "$1")"
+[ -z "$_filename" ] && exit 1
+
+# Enable extended globbing (required for @() below)
+shopt -s extglob
+
+# File extensions and corresponding pygmentize lexers
+# https://pygments.org/docs/lexers/
+# https://pygments.org/docs/formatters/
+case "$_filename" in
+    # C/C++ family languages
+    *.[ch]|*.[ch]pp|*.[ch]xx|*.cc|*.hh|*.cu|*.cuh|*.hpp)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Java-like languages
+    *.java|*.groovy|*.gradle|*.kt|*.kts|*.scala|*.cs|*.fs|*.fsi|*.fsx)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Web languages
+    *.js|*.mjs|*.cjs|*.ts|*.tsx|*.jsx|*.coffee|*.dart|*.ts)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Python and Python-related
+    *.py|*.pyx|*.pxd|*.pxi|*.ipy)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Ruby and Perl
+    *.rb|*.rbw|*.rake|*.gemspec|*.rbx|*.duby|*.pl|*.pm|*.t|*.perl)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Lisp family
+    *.lisp|*.cl|*.el|*.lsp|*.fnl|*.fnlm|*.hy|*.janet|*.jdn|*.rkt|*.rktd|*.rktl|*.scm|*.ss|*.shen|*.xtm)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Functional languages
+    *.hs|*.hx|*.ml|*.mli|*.mll|*.mly|*.erl|*.hrl|*.es|*.escript)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Shell scripts and scripting
+    *.sh|*.zsh|*.bash|*.fish|*.tcl|*.lua|*.luau|*.pl)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Assembly and low-level
+    *.asm|*.s|*.S|*.ll|*.mir)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Database and query languages
+    *.sql|*.sqlite|*.h2|*.mysql|*.pgsql)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Markup and data serialization
+    *.xml|*.xsl|*.xslt|*.html|*.htm|*.svg|*.json|*.json5|*.yaml|*.yml|*.toml|*.ini|*.cfg)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Configuration files
+    *.conf|*.config|*.properties|*.gradle|*.maven|*.pom)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Documentation and markup
+    *.md|*.markdown|*.rst|*.asciidoc|*.adoc|*.tex|*.latex|*.pod|*.pod6)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Go, Rust, and modern systems languages
+    *.go|*.rs|*.rs.in|*.nim|*.nimrod|*.d|*.di)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Other languages
+    *.pas|*.p|*.php|*.php[345]|*.awk|*.groff|*.m4|*.r3|*.reb|*.nix|*.gd|*.vim)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Binary/archive adjacent formats
+    *.diff|*.patch|*.pov|*.inc)
+        $_PYGMENTIZE -f 256 "$1"
+    ;;
+    # Dot files commonly used for shell/environment configuration
+    @(/etc/|.)@(zshenv|zprofile|zshrc|zlogin|zlogout|profile|bashrc|aliases|env))
+        $_PYGMENTIZE -f 256 -l sh "$1"
+    ;;
+    # Fallback for unknown file types (based on filename only)
+    *)
+        # Check for shebangs for shell scripts in which case we use sh lexer
+        if grep -qE '^#\!(/usr)?(/s?bin/?)?(/?env\s+)?(sh|bash|zsh)' "$1" >& /dev/null; then
+            $_PYGMENTIZE -f 256 -l sh "$1"
+        # If unknown file type handling is enabled, let pygmentize try to detect the file type
+        elif [[ "$_ENABLE_FOR_UNKNOWN_FILE_TYPES" = true ]]; then
+            $_PYGMENTIZE -f 256 "$1"
+        else
+            exit 1
+        fi
+    ;;
+esac
+
+exit 0
