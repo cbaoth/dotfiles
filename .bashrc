@@ -8,84 +8,34 @@
 #   (folding-add-to-marks-list 'shell-script-mode "# {{{ " "# }}}" nil t)
 
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
-# For login shell / general variable like PATH see ~/.zshenv
+# For login shell / general variable like PATH see ~/.profile (incl. ~/.myenv)
 
-# {{{ - PATH -----------------------------------------------------------------
-export PATH="${HOME}/bin:${HOME}/.local/bin:/opt/bin:/snap/bin"\
-":/usr/local/bin:/usr/bin:/bin"\
-":/usr/local/sbin:/usr/sbin:/sbin"\
-":/usr/bin/X11:/usr/X11R6/bin:/usr/games"\
-":/opt/oracle/instantclient_21_4"\
-"${PATH:+:${PATH}}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}/usr/local/lib"
-# }}} - PATH -----------------------------------------------------------------
+# {{{ - ENV STATE ------------------------------------------------------------
+# This is already done in ~/.myenv, but kept here for reference / override
+# export OS=$(uname | tr '[A-Z]' '[a-z]')
+# [[ -z "${HOST-}" ]] && export HOST=$HOSTNAME
+# }}} - ENV STATE ------------------------------------------------------------
 
-# {{{ - LOCALE ---------------------------------------------------------------
-#export LANG=C
-export LANG="en_US.UTF-8"
-export LC_ALL="en_US.utf8"
-export LC="en_US.utf8"
-export LESSCHARSET="utf-8"
-#export BREAK_CHARS="\"#'(),;\`\\|\!?[]{}"
-# }}} - LOCALE ---------------------------------------------------------------
+# {{{ - CUSTOM VARIABLES -----------------------------------------------------
+# globally raise (but never lower) the default debug level of cl::p_dbg
+# this is set in ~/.myenv to be available for all shells, override here if needed
+#export DBG_LVL=0
+# }}} - CUSTOM VARIABLES -----------------------------------------------------
+# }}} = ENVIRONMENT (ALL SHELLS) =============================================
 
 # {{{ - PRIVACY --------------------------------------------------------------
+# private session
 #export HISTFILE="" # don't create shell history file
-#export HISTFILESIZE=0 # set shell history to zero
+#export SAVEHIST=0 # set shell history file limit to zero
+# shared session
+export HISTSIZE=10000 # set in-memory history limit
+export SAVEHIST=10000 # set history file limit
+export HISTFILE="$HOME/.bhistory" # set history file (default: ~/.bash_history)
 # }}} - PRIVACY --------------------------------------------------------------
-
-# {{{ - CORE -----------------------------------------------------------------
-export OS=$(uname | tr '[A-Z]' '[a-z]')
-[[ -z "${HOST-}" ]] && export HOST=$HOSTNAME
-
-export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
-export COLORTERM=xterm
-#[[ -n "$(echo $TERMCAP|grep -i screen)" ]] && TERM=screen
-
-# globally raise (but never lower) the default debug level of cl::p_dbg
-export DBG_LVL=0
-# }}} - CORE -----------------------------------------------------------------
-
-# {{{ - SHELL TOOLS ----------------------------------------------------------
-# Make `less` not strip color coding, if source doesn't strip it (most do
-# when pide, but some support e.g. `--color=always`)
-export LESS="-R"
-
-# Enable general highlighting in less (if tools available on system)
-# https://superuser.com/a/337640
-# Note: Ensure that ~/.lessfilter is executable: chmod u+x ~/.lessfilter
-[[ -x ~/.lessfilter ]] \
-  && command -v pygmentize >& /dev/null \
-  && export LESSOPEN="|~/.lessfilter %s"
-# Enable auto extraction of zip files (e.g.: less log.gz)
-# This supports a custom ~/.lessfilter as well
-command -v lesspipe >& /dev/null \
-  && eval "$(lesspipe)"
-# }}} - SHELL TOOLS ----------------------------------------------------------
-
-# {{{ - DBMS -----------------------------------------------------------------
-#export ORACLE_SID=XE
-#export ORACLE_HOME="/usr/lib/oracle/xe/app/oracle/product/10.2.0/server"
-#export PATH="$PATH:$ORACLE_HOME/bin"
-# }}} - DBMS -----------------------------------------------------------------
-
-# {{{ - IRC ------------------------------------------------------------------
-export IRCNICK="cbaoth"
-export IRCNAME="Jorus C'Baoth"
-#export IRCUSER="cbaoth"
-# }}} - IRC ------------------------------------------------------------------
-
-# {{{ - MISC -----------------------------------------------------------------
-#UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517"
-#UAGENT+=" Mozilla Firebird/0.6"
-UAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
-UAGENT+=" Chrome/76.0.3809.132 Safari/537.36"
-export UAGENT
-# }}} - MISC -----------------------------------------------------------------
 # }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 
 # {{{ = PROMPT ===============================================================
-export LANG=C
+#export LANG=C
 export PS1="\[\e[0;37m\](\w)\[\\033[0;39m\]
 [\[\\033[0;34m\]\u\[\\033[0;39m\]@\[\\033[4;38m\]\h\[\\033[0;39m\]]\$ "
 # }}} = PROMPT ===============================================================
@@ -100,18 +50,21 @@ source $HOME/.aliases
 if [[ -n "${DESKTOP_SESSION-}" ]]; then
   # is gnome-keyring-daemon availlable? use it as ssh agent
   if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
-    export $(gnome-keyring-daemon --start)
-    # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
-    export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+    # start unless already running
+    if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
+      export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
+      # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+      export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+    fi
   fi
 fi
 # }}} - X WINDOWS ------------------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # print welcome message (if top-level shell)
 if (($SHLVL == 1)); then
-   print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
-   # on %F{green}#%l%f%b"
-   print -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"
+    print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
+    # on %F{green}#%l%f%b"
+    print -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"
 fi
 # }}} - MOTD -----------------------------------------------------------------
 # }}} = FINAL EXECUTIONS =====================================================

@@ -107,8 +107,12 @@ case "$_filename" in
     *.diff|*.patch|*.pov|*.inc)
         $_PYGMENTIZE -f 256 "$1"
     ;;
-    # Dot files commonly used for shell/environment configuration
-    @(/etc/|.)@(zshenv|zprofile|zshrc|zlogin|zlogout|profile|bashrc|aliases|env))
+    # This file
+    .lessfilter)
+        $_PYGMENTIZE -f 256 -l sh "$1"
+    ;;
+    # Common shell and environment config files
+    @(/etc/|.)@(zshenv|zprofile|zshrc|zlogin|zlogout|profile|bashrc|aliases|env|environment|bash_profile|bash_logout))
         $_PYGMENTIZE -f 256 -l sh "$1"
     ;;
     # Fallback for unknown file types (based on filename only)
