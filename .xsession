@@ -10,8 +10,7 @@
 #Exec=/etc/X11/Xsession
 
 # include profile (most likely missing when using display manager)
-. ~/.profile
+source ~/.profile
 
 # include .xinitrc (includes custom .xsession.d and starts wm)
-. ~/.xinitrc
-
+source ~/.xinitrc
