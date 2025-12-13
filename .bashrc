@@ -45,7 +45,23 @@ export COLORTERM=xterm
 # globally raise (but never lower) the default debug level of cl::p_dbg
 export DBG_LVL=0
 # }}} - CORE -----------------------------------------------------------------
-# }}} - DEV ------------------------------------------------------------------
+
+# {{{ - SHELL TOOLS ----------------------------------------------------------
+# Make `less` not strip color coding, if source doesn't strip it (most do
+# when pide, but some support e.g. `--color=always`)
+export LESS="-R"
+
+# Enable general highlighting in less (if tools available on system)
+# https://superuser.com/a/337640
+# Note: Ensure that ~/.lessfilter is executable: chmod u+x ~/.lessfilter
+[[ -x ~/.lessfilter ]] \
+  && command -v pygmentize >& /dev/null \
+  && export LESSOPEN="|~/.lessfilter %s"
+# Enable auto extraction of zip files (e.g.: less log.gz)
+# This supports a custom ~/.lessfilter as well
+command -v lesspipe >& /dev/null \
+  && eval "$(lesspipe)"
+# }}} - SHELL TOOLS ----------------------------------------------------------
 
 # {{{ - DBMS -----------------------------------------------------------------
 #export ORACLE_SID=XE
