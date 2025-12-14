@@ -121,12 +121,26 @@ if [[ -n "$(command -v apt-key 2>/dev/null)" ]]; then
 fi
 # {{{ - DEB ------------------------------------------------------------------
 
+# {{{ - SNAP -----------------------------------------------------------------
+if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
+  alias sn='sudo snap'
+  alias sns='snap search'
+  alias sni='sudo snap install'
+  alias snu='sudo snap refresh'
+  alias snr='sudo snap remove'
+  alias snl='snap list'
+  alias snlg='snap list | grep -i --color'
+  alias snd='snap info'
+  alias snh='snap changes'
+fi
+# }}} - SNAP -----------------------------------------------------------------
+
 # {{{ - Flatpak --------------------------------------------------------------
 if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
   alias fp='flatpak'
-  alias fpu='flatpak update'
   alias fps='flatpak search'
   alias fpi='flatpak install'
+  alias fpu='flatpak update'
   alias fpr='flatpak uninstall'
   alias fpl='flatpak list'
   alias fplg='flatpak list | grep -i --color'

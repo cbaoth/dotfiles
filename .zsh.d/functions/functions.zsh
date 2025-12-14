@@ -999,7 +999,7 @@ shred_secure() {
 # }}} - Security & Crypto ----------------------------------------------------
 
 # {{{ - Debian/Ubuntu --------------------------------------------------------
-
+# OK - import apt key from keyserver by given fingerprint
 if command -v apt-key >& /dev/null; then
   apt_key_import () {
     [[ -z "$1" ]] && { cl::p_usg "$(cl::func_name) FINGERPRINT"; return 1; }
@@ -1007,6 +1007,91 @@ if command -v apt-key >& /dev/null; then
       && sudo gpg --armor --export "$1" | apt-key add -
   }
 fi
+
+# OK - seach for package in various repositories
+pkg-search () {
+  local _do_grep=false
+  local _do_grep_name=false
+  local -a _grep_args=(--color)
+  local _stxt=""
+  # parse args
+  while [[ -n "$1" ]]; do
+    case "$1" in
+      -o|--filter-output)
+        _do_grep=true
+        cl::p_dbg -t 0 1 "Output filter enabled [-o|--filter-output]"
+        shift
+      ;;
+      -n|--filter-name)
+        _do_grep=true; _do_grep_name=true
+        cl::p_dbg -t 0 1 "Name filter enabled [-n|--filter-name]"
+        shift
+      ;;
+      -i|--filter-ignore-case)
+        cl::p_dbg -t 0 1 "Case insensitive filter enabled [-i|--filter-ignore-case]"
+        _grep_args+=(-i)
+        shift
+      ;;
+      -*)
+        cl::p_err "unknown arg: $1" && return 2
+      ;;
+      *)
+        [[ -z "$1" ]] && {
+          cl::p_usg "$(cl::func_name) [Option..] SEARCH_TEXT"
+          echo
+          cl::p_msg "Options:"
+          cl::p_msg "  -o, --filter-output   in addition to the package search filter (may search in various meta data), filter the output by SEARCH_TEXT as well"
+          cl::p_msg "  -n, --filter-name     same as above but filter package names / app ids only"
+          cl::p_msg "  -i, --filter-ignore-case   make output filter case insensitive (only applies to output filter -o or -n)"
+          cl::p_msg "Search for SEARCH_TEXT in apt-cache, snap and flatpak"
+          cl::p_msg "Note that some tools support regex and other do not, plus this function uses grep to highlight the search text which may not work when using regex patterns."
+          return 1
+        }
+        [[ -z "${_stxt}" ]] && {
+          _stxt="$1"
+          shift
+          continue
+        }
+        cl::p_war "Only one SEARCH_TEXT allowed, ignoring unknown arg: $1"
+        shift
+      ;;
+    esac
+  done
+
+  [[ $_grep_args =~ -i ]] && ! $_do_grep && cl::p_war "Case insensitive filter enabled [-i|--filter-ignore-case] but output filter (-o or -n) not enabled, ignoring .."
+  echo
+  local _grep=()
+  ! ${_do_grep} && _grep="cat" || {
+    ${_do_grep_name} && _grep=(grep "${_grep_args[@]}" -E "^[^ ]*${_stxt}") \
+      || _grep=(grep "${_grep_args[@]}" "${_stxt}")
+  }
+  local _search=()
+  _search=(apt-cache search "${_stxt}")
+  cl::p_msg "$(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
+  #apt-cache search "^${_stxt}$|^${_stxt} | ${_stxt} "
+  apt-cache search "${_stxt}" | "${_grep[@]}" \
+      || cl::p_msg ".. no matching apt package found"
+
+  echo
+  ! ${_do_grep} && _grep="cat" || {
+    ${_do_grep_name} && _grep=(grep "${_grep_args[@]}" -E "^[^ ]*${_stxt}") \
+      || _grep=(grep "${_grep_args[@]}" "${_stxt}")
+  }
+  _search=(snap find "${_stxt}")
+  cl::p_msg "$(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
+  snap find "${_stxt}" | "${_grep[@]}" \
+      || cl::p_msg ".. no matching snap package found"
+
+  echo
+  ! ${_do_grep} && _grep="cat" || {
+    ${_do_grep_name} && _grep=(grep "${_grep_args[@]}" -E "^([^ ]+\.)*${_stxt}(\.[^ ]+)*\s") \
+      || _grep=(grep "${_grep_args[@]}" "${_stxt}")
+  }
+  _search=(flatpak search --columns=application,name,version,branch,remotes,description "${_stxt}")
+  cl::p_msg "$(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
+  flatpak search --columns=application,name,version,branch,remotes,description "${_stxt}" | "${_grep[@]}" \
+      || cl::p_msg ".. no matching flatpak package found"
+}
 
 # }}} - Debian/Ubuntu --------------------------------------------------------
 
