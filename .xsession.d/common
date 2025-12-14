@@ -105,15 +105,18 @@ runbg xsetroot -solid black
 
 # network + gnome applets
 #runbg indicator-weather
+# Ensure that Gnome Key Ring allows access to SSH keys
+# Disabled e.g. in favor of KeePassXC (Secret Service Integration)
+#
 #runbg gnome-keyring-daemon --start --components=secrets
 # is gnome-keyring-daemon availlable? use it as ssh agent
 # if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
-#   # start unless already running
-#   if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
-#     export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
-#     # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
-#     export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
-#   fi
+#     # start unless already running
+#     if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
+#         export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
+#         # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+#         export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+#     fi
 # fi
 
 #runbg nm-applet
