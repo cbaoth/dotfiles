@@ -13,6 +13,11 @@ typeset -r CL_SCRIPT_FILE="$(basename "$0")"
 # used given date format for print/log messages
 typeset -r CL_TIMESTAMP_FORMAT="%Y-%m-%dT%H:%M:%S%z"  # full timestamp
 
+declare +r CL_PATTERN_SINGLE_QUOTE='['"'"']'
+declare -r CL_PATTERN_SINGLE_QUOTE
+declare +r CL_PATTERN_NEED_QUOTES='[ |&;()<>*?"\`$\\'"'"']'
+declare -r CL_PATTERN_SINGLE_QUOTE
+
 # {{{ = LIBRARIES ============================================================
 # include shell script library SCRIPT_FILE searching in:
 # SCRIPT_PATH, SCRIPT_PATH/lib/, SCRIPT_PATH/../lib/, ~/lib/, /lib/, /usr/lib/
@@ -221,6 +226,33 @@ cl::func_caller() {
 # }}} = FUNC FUNCTIONS =======================================================
 
 # {{{ = PRINT FUNCTONS =======================================================
+# print command array adding quotes as needed
+# usage: cl::p_cmd CMD_ARRAY..
+# example:
+#   # instead of the basic scenario in which quotes are lost:
+#   _grep=(grep -i -E "^[0-9]+ foo")
+#   echo "> ${_grep[@]}"
+#   > grep -i -E ^[0-9]+ foo
+#   # this function will restore quotes where needed:
+#   echo "> $(cl::p_cmd "${_grep[@]})"
+#   > grep -i -E "^[0-9]+ foo"
+cl::p_cmd() {
+  local cmd=("$@")
+  local output=""  # Initialize an empty string for the output
+
+  for arg in "${cmd[@]}"; do
+    # Check if the argument requires quoting
+    if [[ $arg =~ $CL_PATTERN_NEED_QUOTES ]]; then
+      output+="\"$arg\" "  # Append the quoted argument and a space
+    else
+      output+="$arg "  # Append the non-quoted argument and a space
+    fi
+  done
+
+  # Trim the trailing space and echo the result
+  echo "${output% }"
+}
+
 # print usage in format: "Usage: USAGE.."
 # alternative: ${1?"Usage: $0 [msg]"} (but less nice)
 cl::p_usg() {
@@ -242,6 +274,7 @@ cl::p_msg() {
   printf "> %s\n" "$@"
 }
 
+# TODO consider using cl::p_dbg with added ERROR level instead? cl::p_err can use it for backward compatibility (if needed) and cl::p_dbg could be renamed to cl::log
 # print error message in format "> ERROR : [msg]..", Usage: p_err [msg]
 cl::p_err() {
   local timestamp
@@ -264,6 +297,7 @@ cl::p_err() {
     "$@" "$(cl::fx r)" >&2
 }
 
+# TODO consider using cl::p_dbg with added WARNING level instead? cl::p_war can use it for backward compatibility (if needed) and cl::p_dbg could be renamed to cl::log
 # print error message in format "> WARNING: [msg]..", Usage: p_war [msg]
 cl::p_war() {
   local timestamp
@@ -285,6 +319,93 @@ cl::p_war() {
     "$(cl::fx r)" "$@"
 }
 
+# log level lookup tables
+declare -a +r CL_LOG_LEVEL_NAMES
+CL_LOG_LEVEL_NAMES=(INFO DEBUG TRACE)
+declare -r CL_LOG_LEVEL_NAMES
+
+# convert debug level names to their numeric representation (0-3)
+cl::_convert_debug_level() {
+  if [[ -z "${1:-}" ]]; then
+    return 1
+  fi
+
+  # normalize input: strip spaces and lowercase
+  local lvl
+  lvl="$(printf "%s" "$1" | tr '[:upper:]' '[:lower:]')"
+  lvl="${lvl//[[:space:]]/}"
+
+  # numeric input that matches our known range
+  if [[ "$lvl" =~ ^[0-9]+$ ]] && (( lvl >= 0 && lvl <= ${#CL_LOG_LEVEL_NAMES[@]} )); then
+    printf "%s" "$lvl"
+    return 0
+  fi
+
+  # name input (case-insensitive)
+  local idx=0 name_lower
+  while (( idx <= ${#CL_LOG_LEVEL_NAMES[@]} )); do
+    name_lower="$(printf "%s" "${CL_LOG_LEVEL_NAMES[$idx]}" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$lvl" == "$name_lower" ]]; then
+      printf "%s" "$idx"
+      return 0
+    fi
+    (( idx++ ))
+  done
+
+  return 1
+}
+
+# convert numeric debug level to its uppercase name
+cl::_debug_level_name() {
+  if [[ -z "${1:-}" ]]; then
+    return 1
+  fi
+  local lvl="$1"
+  if [[ "$lvl" =~ ^[0-9]+$ ]] && (( lvl >= 0 && lvl <= ${#CL_LOG_LEVEL_NAMES[@]} )); then
+    printf "%s" "${CL_LOG_LEVEL_NAMES[$lvl]}"
+    return 0
+  fi
+  return 1
+}
+
+# convert numeric debug level to its uppercase NAME(lvl) formatted for terminal output
+cl::_debug_level_name_for_term() {
+  if [[ -z "${1:-}" ]]; then
+    return 1
+  fi
+  local lvl="$1"
+  local lvl_name="$(cl::_debug_level_name ${lvl})"
+  case "$lvl_name" in
+    INFO)
+      printf "%s%s(%s)%s" "$(cl::fx black b_green)" "${lvl_name}" "${lvl}" "$(cl::fx r)"
+      ;;
+    DEBUG)
+      printf "%s%s(%s)%s" "$(cl::fx black b_yellow)" "${lvl_name}" "${lvl}" "$(cl::fx r)"
+      ;;
+    TRACE)
+      printf "%s%s(%s)%s" "$(cl::fx black b_cyan)" "${lvl_name}" "${lvl}" "$(cl::fx r)"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# get all supported log level arguments (names and numbers)
+cl::_get_all_log_level_args() {
+  local all_log_level_args=()
+  local is_first=true
+  for i in $(seq 1 "${#CL_LOG_LEVEL_NAMES[@]}"); do
+    $is_first || { all_log_level_args+=","; is_first=false }
+    all_log_level_args+="$i, ${CL_LOG_LEVEL_NAMES[i]}"
+  done
+  printf "%s" "${all_log_level_args[*]}"
+}
+
+# TODO consider option (vs. mandatory arg) to set local debug level (e.g. -l|--local-lvl or -0, -1, -2, -3)
+# TODO consider renaming to cl::log and cl::p_dbg becoming a wrapper for backward compatibility (if needed)
+# TODO consider adding ERROR level and using cl::p_err for backward compatibility (if needed)
+# TODO consider adding WARNING level and using cl::p_war for backward compatibility (if needed)
 # print debug message in format "> DEBUG({lvl}): [msg].."
 # env DEBUG_LVL supercedes [dbg_lvl] (first arg.) if DEBUG_LVL > dbg_lvl
 # set dbg_lvl custom debug level or to 0 if DEBUG_LVL should be used exclusively
@@ -304,22 +425,52 @@ Usage: cl::p_dbg [-t|--timestamp] <0|DBG_LVL> SHOW_AT_LVL MSG..
 Mandatory Arguments:
   DBG_LVL          The local log level up to which debug messages should be shown. Use 0 if no such
                    setting exists. Generally, if \$DEBUG_LVL is set, it supersedes the DBG_LVL argument.
+        Supported Levels (both numbers and names are supported):
+          - 0        -> No level, only allowed as argument (fallback to \$DEBUG_LVL) and as value for \$DEBUG_LVL itself (no output)
+          - 1, INFO  -> Info level
+          - 2, DEBUG -> Debug level
+          - 3, TRACE -> Trace level
+
   SHOW_AT_LVL      The log level from which the debug message should be shown.
+
+Examples:
+  export DEBUG_LVL=2                                    # global debug level, used if higher than local
+  local dbg_lvl=1                                       # local debug level, optionally used below
+  cl::p_dbg -t \$dbg_lvl 1 "This is an info message"     # will be shown (\$DEBUG_LVL > \$dbg_lvl >= 1)
+  cl::p_dbg -t \$dbg_lvl 2 "This is a debug message"     # will NOT be shown (\$DEBUG_LVL >= 2 > \$dbg_lvl)
+  cl::p_dbg -t 0        2 "This is a debug message"     # will be shown (\$DEBUG_LVL >= 2)
+  cl::p_dbg -t \$dbg_lvl 3 "This is a verbose message"   # will NOT be shown (3 > \$DEBUG_LVL > \$dbg_lvl)
 EOF
     return 1
   fi
-  # parse arguments
-  local dbg_lvl="$(( ${DEBUG_LVL:-0} > $1 ? ${DEBUG_LVL:-0} : $1 ))"
+  # parse arguments - convert debug level names to numbers
+  local dbg_lvl="$1"
+  dbg_lvl=$(cl::_convert_debug_level "$dbg_lvl")
+  if [[ $? -ne 0 ]]; then
+    cl::p_err "Invalid DBG_LVL: $1 (valid values: 0, $(cl::_get_all_log_level_args))"
+    return 1
+  fi
   shift
-  local show_at_lvl=$1
+
+  local show_at_lvl="$1"
+  show_at_lvl=$(cl::_convert_debug_level "$show_at_lvl")
+  if [[ $? -ne 0 ]] || [[ $show_at_lvl -eq 0 ]]; then
+    cl::p_err "Invalid SHOW_AT_LVL: $1 (valid values: $(cl::_get_all_log_level_args))"
+    return 1
+  fi
   shift
+
+  # compare against DEBUG_LVL if set
+  dbg_lvl=$(( ${DEBUG_LVL:-$dbg_lvl} > dbg_lvl ? ${DEBUG_LVL:-$dbg_lvl} : dbg_lvl ))
   (( $dbg_lvl < $show_at_lvl )) \
     && return 0
 
+  local show_at_lvl_name
+  show_at_lvl_name=$(cl::_debug_level_name_for_term "$show_at_lvl") || show_at_lvl_name="$show_at_lvl"
+
   # print debug message
-  printf "%s%sDEBUG(%s):%s %s\n" \
-    "${timestamp:+${timestamp} }" "$(cl::fx black b_cyan)" "${show_at_lvl}" \
-    "$(cl::fx r)" "$@"
+  printf "%s%s: %s\n" \
+    "${timestamp:+${timestamp} }" "${show_at_lvl_name}" "$@"
 }
 
 # print 'yes' in green color
