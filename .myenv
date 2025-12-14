@@ -18,10 +18,12 @@ export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}/usr/local/lib"
 # {{{ - LOCALE ---------------------------------------------------------------
 #export LANG=C
 export LANG="en_US.UTF-8"
-export LC_ALL="en_US.utf8"
-export LC="en_US.utf8"
-export LC_CTYPE="en_US.UTF-8"
-export LESSCHARSET="utf-8"
+# LC_* should not be set globally since they are usually inherited from LANG
+# If really needed use temporary env override(s) instead
+#export LC_ALL="en_US.UTF-8"
+#export LC="en_US.UTF-8"
+#export LC_CTYPE="en_US.UTF-8"
+#export LESSCHARSET="utf-8"
 #export BREAK_CHARS="\"#'(),;\`\\|\!?[]{}"
 # }}} - LOCALE ---------------------------------------------------------------
 
