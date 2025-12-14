@@ -732,17 +732,20 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 
 # {{{ = FINAL LOGIN EXECUTIONS ===============================================
 # {{{ - X WINDOWS ------------------------------------------------------------
+# Ensure that Gnome Key Ring allows access to SSH keys
+# Disabled e.g. in favor of KeePassXC (Secret Service Integration)
+#
 # are we in a x-windows session?
 if [[ -n "${DESKTOP_SESSION-}" ]]; then
-  # is gnome-keyring-daemon availlable? use it as ssh agent
-  if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
-    # start unless already running
-    if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
-      export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
-      # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
-      export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+    # is gnome-keyring-daemon availlable? use it as ssh agent
+    if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
+        # start unless already running
+        if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
+            export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
+            # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+            export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+        fi
     fi
-  fi
 fi
 # }}} - X WINDOWS ------------------------------------------------------------
 # {{{ - DTAG -----------------------------------------------------------------
