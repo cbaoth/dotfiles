@@ -51,25 +51,14 @@ setopt HIST_IGNORE_SPACE # don't record lines stating with a space (privacy)
 setopt HIST_NO_FUNCTIONS # don't store function definitions
 # }}} - SECURITY & PRIVACY ---------------------------------------------------
 
-
-# {{{ - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
-# Are we in a Windows Subsystem Linux?
-IS_WSL=false
-if [[ $(uname -r) = *icrosoft* ]]; then
-  IS_WSL=true
-  IS_WSL1=true
-  IS_WSL2=false
-  if uname -r | tr '[:upper:]' '[:lower:]' | grep wsl2 >/dev/null; then
-    IS_WSL1=false
-    IS_WSL2=true
-  fi
-  #export PATH="$PATH:$(wslpath "$(wslvar USERPROFILE)")/bin"
-  # See https://github.com/Microsoft/BashOnWindows/issues/1887
-  unsetopt BG_NICE
-  if ! $IS_WSL2; then
-    echo "WSL1 detected, not all features loaded, consider upgrading."
+# {{{ -- SYSTEM/ENV STATE ----------------------------------------------------
+if $IS_WSL; then
+ if ! $IS_WSL2; then
+    cl::p_msg "WSL1 environment detected."
+    #cl::p_msg "WSL1 environment detected. Additional features are disabled (only available in WSL2)."
   else
-    echo "WSL2 detected, doing some extra stuff ..."
+    cl::p_msg "WSL2 environment detected."
+    #cl::p_msg "WSL2 environment detected. Enabling additional features ..."
 #    if [[ ! -f "${HOME}/home/wincrypt-wsl.sock" ]]; then
 #      cat <<EOL
 #WARNING: ${HOME}/home/wincrypt-wsl.sock not found, if you want to use pageant in wsl:
@@ -98,9 +87,13 @@ if [[ $(uname -r) = *icrosoft* ]]; then
 #EOL
 #    fi
   fi
-  export DISPLAY=:0
 fi
-# }}} - WINDOWS SUBSYSTEM LINUX ----------------------------------------------
+
+if $IS_DOCKER; then
+  cl::p_msg "Docker environment detected."
+fi
+# }}} - SYSTEM/ENV STATE -----------------------------------------------------
+
 
 # {{{ - IRC ------------------------------------------------------------------
 export IRCNICK="cbaoth"
