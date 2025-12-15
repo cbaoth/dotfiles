@@ -12,4 +12,3 @@
 [ -f "$HOME/.xsession.d/$(hostname)" ] \
   && . $HOME/.xsession.d/$(hostname) \
   || . $HOME/.xsession.d/default
-
