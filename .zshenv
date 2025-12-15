@@ -20,5 +20,8 @@
 # Source environment settings common to all my shells
 source ~/.myenv
 
-# If ZDOTDIR is not set, then the value of $HOME is used (usually the case).
+# If ZDOTDIR is not set, then the value of $HOME is (usually) used but ZDOTDIR stays unset.
+# Since we specifically use it in some places (primarily .zshrc) it should always be set here.
 #export ZDOTDIR="$HOME/.zsh"
+export ZDOTDIR="$HOME"
+

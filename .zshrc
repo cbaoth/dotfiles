@@ -171,11 +171,14 @@ source_ifex $HOME/.zsh.d/aliases.zsh
 # include common and zsh specific aliases
 source_ifex $HOME/.zsh.d/functions/functions.zsh
 
-# hashes
-hash -d d=/media/data
-hash -d s=/media/stash
-if ${IS_WSL}; then
-  for d in /mnt/[a-z]; do
+# hash some common directories for easy access (if existing)
+[[ -d /media/data ]] && hash -d l=/media/data
+[[ -d /media/stash ]] && hash -d s=/media/stash
+
+# hash wsl windows drives a-g  for easy access (if existing)
+# assuming at least /mnt/c exists (else: nothing to hash)
+if ${IS_WSL} && [[ -d /mnt/c ]]; then
+  for d in /mnt/[a-g]; do
     hash -d "${d#*/*/}"=${d}
   done
 fi
@@ -265,12 +268,13 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 # load pewerlevel9k (if availlable)
 # apt: zsh-theme-powerlevel9k - https://github.com/bhilburn/powerlevel9k
 #source_ifex /usr/share/powerlevel9k/powerlevel9k.zsh-theme
-POWERLEVEL9K_ISACTIVE=false
+POWERLEVEL9K_ISACTIVE=false  # for backward compatibility (deprecated)
+POWERLEVEL10K_ISACTIVE=false
 if $IS_ZPLUG; then
   #$ZPLUG_CMD "bhilburn/powerlevel9k", use:powerlevel9k.zsh-theme \
   #  && POWERLEVEL9K_ISACTIVE=true || POWERLEVEL9K_ISACTIVE=false
-  $ZPLUG_CMD "omkatv/powerlevel10k", as:theme, depth:1 \
-    && POWERLEVEL9K_ISACTIVE=true
+  $ZPLUG_CMD "romkatv/powerlevel10k", as:theme, depth:1 \
+    && { POWERLEVEL9K_ISACTIVE=true; POWERLEVEL10K_ISACTIVE=true }
 fi
 
 # {{{ - - General ------------------------------------------------------------

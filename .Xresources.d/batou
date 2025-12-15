@@ -4,4 +4,3 @@
 ! get display dpi: grepxdpyinfo | grep dots
 !Xft.dpi: 120
 ! }}} = General ==============================================================
-
