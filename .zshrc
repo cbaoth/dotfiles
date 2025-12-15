@@ -30,6 +30,16 @@
 # this is set in ~/.myenv to be available for all shells, override here if needed
 #export DBG_LVL=0
 
+# {{{ - CORE OPTIONS & COMMONS -----------------------------------------------
+# pre-requirements
+setopt extendedglob
+# allow # comments in shell
+setopt interactivecomments
+
+# include core functions, must simply be there (used everywhere)
+source $HOME/lib/commons.sh
+# }}} - CORE OPTIONS & COMMONS -----------------------------------------------
+
 # {{{ - SECURITY & PRIVACY ---------------------------------------------------
 # private session
 #export HISTFILE="" # don't create shell history file
@@ -118,15 +128,7 @@ export UAGENT
 # }}} - MISC -----------------------------------------------------------------
 # }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 
-# {{{ = CORE FUNCTIONS & ALIASES =============================================
-# pre-requirements
-setopt extendedglob
-# allow # comments in shell
-setopt interactivecomments
-
-# include core functions, must simply be there (used everywhere)
-source $HOME/lib/commons.sh
-
+# {{{ = CORE FUNCTIONS, SOURCING, ALIASES ====================================
 # include given source file(s) if they exist,
 source_ifex () {
   [[ -z "${1-}" ]] && cl::p_usg "$0 source-file.." && return 1
@@ -177,7 +179,7 @@ if ${IS_WSL} && [[ -d /mnt/c ]]; then
 fi
 
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
-# }}} = CORE FUNCTIONS & ALIASES =============================================
+# }}} = CORE FUNCTIONS, SOURCING, ALIASES ====================================
 
 # {{{ = ZPLUG PREPARE ========================================================
 # disable oh-my-zsh auto update, we'll do it below via zplug
