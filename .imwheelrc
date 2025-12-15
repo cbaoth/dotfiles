@@ -25,4 +25,3 @@ None,        Thumb2, Page_Up,    1
 # {{{ = APP SPECIFIC RULES ===================================================
 "^(google-chrome|Navigator|google-chrome)$"
 # }}} = APP SPECIFIC RULES ===================================================
-
