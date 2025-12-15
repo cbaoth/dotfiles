@@ -198,6 +198,14 @@ ZPLUG_SKIP_IN_WSL=false
 
 IS_ZPLUG=true
 ZPLUG_CMD=zplug
+ZPLUG_NEW_INSTALL=false
+ZPLUG_NEW_INSTALL_FORCE=false
+if [[ -f "$HOME/.zplug-auto-install" ]]; then
+  rm -f "$HOME/.zplug-auto-install"
+
+  ZPLUG_NEW_INSTALL_FORCE=true
+fi
+
 if $IS_WSL && ${ZPLUG_SKIP_IN_WSL:-false}; then
   cl::p_war ".zshrc (WSL): zplug is disabled, set ZPLUG_SKIP_IN_WSL=false to enable zplug in WSL (default)"
   IS_ZPLUG=false; ZPLUG_CMD=:
@@ -209,19 +217,26 @@ else
     cl::p_dbg 0 2 "zplug found in ~/.zplug, loading ..."
     time source "$HOME/.zplug/init.zsh"
   else
-    IS_ZPLUG=false; ZPLUG_CMD=:
     if [[ -d "$HOME/.zplug" ]]; then
-      cl::p_war "init.zsh not but ~/.zplug exists, try removing the folder and restart zsh:"
+      cl::p_war "~/.zplug exists but ~/.zplug/init.zsh does not. try removing the folder and restart zsh:"
       cl::p_msg "% rm -rf .zplug"
+      IS_ZPLUG=false; ZPLUG_CMD=:
     else
       cl::p_war "~/.zplug not found, some features will not be available!"
-      if [[ ! -f "$HOME/.zplug-skip-install-query" ]] \
-         && cl::q_yesno "Install zplug now (or never ask again)?"; then
+      if [[ ! -f "$HOME/.zplug-skip-install-query" ]]; then
+        IS_ZPLUG=false; ZPLUG_CMD=:
+        # TODO consider using env variable instead of files
+      elif $ZPLUG_NEW_INSTALL_FORCE || cl::q_yesno "Install zplug now (or never ask again)?"; then
+        [[ -d "$HOME/.zplug" ]] \
+          && cl::p_msg "Removing zplug remnants in ~/.zplug and re-installing ..." \
+          && rm -rf "$HOME/.zplug" 2>/dev/null
         cl::p_msg "Downloading zplug .."
-        wget -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh \
-          && cl::p_msg "Zplug installed, to enable all features resart zsh!" \
-          || cl::p_err "Error installing zplug, not all features will be available!"
+        zsh <(wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh; echo 'source "$HOME/.zplug/init.zsh" && zplug 'zplug/zplug', hook-build:'zplug --self-manage' && zplug install') \
+          && source "$HOME/.zplug/init.zsh" \
+          || cl::p_err "Error installing/init zplug, not all features may be available!"
+        ZPLUG_NEW_INSTALL=true
       else
+        IS_ZPLUG=false; ZPLUG_CMD=:
         cl::p_msg "Manual install and load zplug as follows:"
         cl::p_msg "% wget -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
         cl::p_msg "% source $HOME/.zplug/init.zsh"
@@ -440,11 +455,29 @@ fi
 
 # {{{ = ZPLUG LOAD ===========================================================
 # check for updates no more than every 14 days
-if $IS_ZPLUG && [[ ! -f ~/.zplug/lastcheck || -n ~/.zplug/lastcheck(#qN.mh+336) ]]; then
-  cl::p_msg "More than 14 days have passed since the last update check, checking ..."
-  $ZPLUG_CMD check --verbose \
-    || { cl::q_yesno "Install missing zplug packages" && zplug install }
-  touch ~/.zplug/lastcheck
+_zplug_update() {
+  if $ZPLUG_CMD check --verbose; then
+    touch ~/.zplug/lastcheck
+  elif $ZPLUG_NEW_INSTALL_FORCE || cl::q_yesno "Install missing zplug packages"; then
+    zplug install
+    touch ~/.zplug/lastcheck
+  else
+    return 1
+  fi
+  return 0
+}
+
+if $IS_ZPLUG; then
+  if $ZPLUG_NEW_INSTALL; then
+    cl::p_msg "Running zplug install for new zplug installation ..."
+    _zplug_update
+  elif  [[ ! -f ~/.zplug/lastcheck ]]; then
+     cl::p_msg "No known past installation or update, checking ..."
+    _zplug_update
+  elif [[ -n ~/.zplug/lastcheck(#qN.mh+336) ]]; then
+    cl::p_msg "More than 14 days have passed since the last update check, checking ..."
+    _zplug_update
+  fi
 fi
 
 # load local plugins
