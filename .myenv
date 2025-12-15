@@ -36,16 +36,33 @@ umask 022
 #umask 007
 # }}} - UMASK ----------------------------------------------------------------
 
-# {{{ - ENV STATE ------------------------------------------------------------
-export OS="${$(uname 2> /dev/null):l}"
-[[ -z "${HOST-}" ]] && export HOST="${$(hostname 2> /dev/null):l}"
+# {{{ - SYSTEM/ENV STATE -----------------------------------------------------
+# System basics
+OS="${OS:=${$(uname 2> /dev/null):l}}"
+HOST=${HOST:=${$(hostname 2> /dev/null):l}}
 
-# Is X available? Unreliable for ssh x-forwading., suffi. for local sessions.
-export IS_X=false
-if [[ ! -t 0 ]] && xset b off >& /dev/null; then
-    export IS_X=true
+# Is X available? Unreliable for ssh x-forwading., suffices for local sessions
+IS_X=$([[ ! -t 0 ]] && xset b off >& /dev/null && print true || print false)
+
+# Is Docker Environment?
+IS_DOCKER=$([[ -f /.dockerenv || -f /run/.containerenv ]] && print true || print false)
+
+# Are we in a Windows Subsystem Linux?
+IS_WSL=false
+if [[ ! $IS_DOCKER && $(uname -r) = *icrosoft* ]]; then
+  IS_WSL=true
+  IS_WSL1=true
+  IS_WSL2=false
+  if uname -r | tr '[:upper:]' '[:lower:]' | grep wsl2 >/dev/null; then
+    IS_WSL1=false
+    IS_WSL2=true
+  fi
+  #export PATH="$PATH:$(wslpath "$(wslvar USERPROFILE)")/bin"
+  # See https://github.com/Microsoft/BashOnWindows/issues/1887
+  unsetopt BG_NICE
+  export DISPLAY=:0
 fi
-# }}} - ENV STATE ------------------------------------------------------------
+# }}} - SYSTEM/ENV STATE -----------------------------------------------------
 
 # {{{ - DEV ------------------------------------------------------------------
 export CLASSPATH=".:$HOME/.class${CLASSPATH+:$CLASSPATH}"
@@ -149,8 +166,8 @@ fi
 # }}} - XDG Base Directory ---------------------------------------------------
 # }}} = X11/WAYLAND SESSIONS AND RELATED =====================================
 
-# {{{ = MISCELLANEOUS ========================================================
 
+# {{{ = MISCELLANEOUS ========================================================
 # {{{ - IRC ------------------------------------------------------------------
 export IRCNICK="cbaoth"
 export IRCNAME="Jorus C'Baoth"
