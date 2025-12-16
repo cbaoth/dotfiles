@@ -29,6 +29,7 @@ alias fontcache-refresh="xset fp rehash; sudo fc-cache -f -v"
 alias remount-exec="sudo mount -o remount,exec"
 alias sleep-enable="sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target"
 alias sleep-disable="sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target"
+alias hibernate="systemctl hibernate"
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
@@ -80,6 +81,8 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
   alias apra='sudo apt auto-remove'
   alias apsB='apt -t buster-backports search'
   alias aps='apt search'
+  alias apsn='apt search --names-only'
+  alias apsf='apt search --full'
   alias apss='apt show'
   alias apl='apt list'
   alias apli='apt list --installed'
