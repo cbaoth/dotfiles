@@ -166,9 +166,38 @@ source_ifex $HOME/.zsh.d/aliases.zsh
 # include common and zsh specific aliases
 source_ifex $HOME/.zsh.d/functions/functions.zsh
 
-# hash some common directories for easy access (if existing)
-[[ -d /media/data ]] && hash -d l=/media/data
-[[ -d /media/stash ]] && hash -d s=/media/stash
+# hash some common directories for easy access existing (if they exist)
+# TODO consider moving this to commons.sh and use in host specific files as well
+_hash_mountpoints() {
+  # define directories to hash
+  # suffixes "_*" are ignored for hash names. they can be used define more than one path per hash (first one found is used)
+  typeset -A _hashdirs=(
+    [c]="/media/$USERNAME/Windows"
+    [d]="/media/$USERNAME/Games"
+    [e]="/media/$USERNAME/Data"
+    [f]="/media/$USERNAME/Temp"
+    [l]="/media/data"
+    [l_x]="/run/user/1000/gvfs/smb-share:server=saito,share=data"
+    [s]="/media/stash"
+    [s_x]="/run/user/1000/gvfs/smb-share:server=saito,share=stash"
+  )
+
+  local key dir
+  for key in ${(k)_hashdirs}; do
+    dir=${_hashdirs[${key}]}
+    [[ -d "$dir" ]] || continue
+    key=${key%%_*}  # remove suffix
+    # duplicate alternative directories (or otherwise already existing) on this host?
+    local existing_hash=$(hash -d 2>/dev/null | grep -E "^${key}=.*")
+    if [[ -n "$existing_hash" ]]; then
+      cl::p_war "hash -d ${key}=${dir} skipped, conflict with existing hash: ${existing_hash}"
+      continue
+    fi
+    cl::p_dbg 0 1 "hash -d ${key}=${dir}"
+    hash -d "${key}=${dir}"
+  done
+}
+_hash_mountpoints
 
 # hash wsl windows drives a-g  for easy access (if existing)
 # assuming at least /mnt/c exists (else: nothing to hash)
