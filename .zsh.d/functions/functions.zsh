@@ -1017,9 +1017,9 @@ pkg-search () {
   # parse args
   while [[ -n "$1" ]]; do
     case "$1" in
-      -o|--filter-output)
+      -f|--filter-output)
         _do_grep=true
-        cl::p_dbg -t 0 1 "Output filter enabled [-o|--filter-output]"
+        cl::p_dbg -t 0 1 "Output filter enabled [-f|--filter-output]"
         shift
       ;;
       -n|--filter-name)
@@ -1040,9 +1040,9 @@ pkg-search () {
           cl::p_usg "$(cl::func_name) [Option..] SEARCH_TEXT"
           echo
           cl::p_msg "Options:"
-          cl::p_msg "  -o, --filter-output   in addition to the package search filter (may search in various meta data), filter the output by SEARCH_TEXT as well"
-          cl::p_msg "  -n, --filter-name     same as above but filter package names / app ids only"
-          cl::p_msg "  -i, --filter-ignore-case   make output filter case insensitive (only applies to output filter -o or -n)"
+          cl::p_msg "  -f, --filter-output   in addition to the package search filter (may search in various meta data), filter the output by SEARCH_TEXT as well"
+          cl::p_msg "  -n, --filter-name     similar to -f but tries to filter names only from output, and uses --names-only for apt-cache search"
+          cl::p_msg "  -i, --filter-ignore-case   make output filter case insensitive (only applies to output filter -f or -n)"
           cl::p_msg "Search for SEARCH_TEXT in apt-cache, snap and flatpak"
           cl::p_msg "Note that some tools support regex and other do not, plus this function uses grep to highlight the search text which may not work when using regex patterns."
           return 1
@@ -1059,15 +1059,17 @@ pkg-search () {
   done
 
   [[ $_grep_args =~ -i ]] && ! $_do_grep && cl::p_war "Case insensitive filter enabled [-i|--filter-ignore-case] but output filter (-o or -n) not enabled, ignoring .."
+
+  local -a _search=()
+  local -a _grep=()
   echo
-  local _grep=()
   ! ${_do_grep} && _grep="cat" || {
     ${_do_grep_name} && _grep=(grep "${_grep_args[@]}" -E "^[^ ]*${_stxt}") \
       || _grep=(grep "${_grep_args[@]}" "${_stxt}")
   }
-  local _search=()
-  _search=(apt-cache search "${_stxt}")
-  cl::p_msg "$(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
+  # TODO consider adding options for, or dynamically add `--names-only` / `--full`
+  _search=(apt-cache search $(${_do_grep_name} && printf "--names-only") "${_stxt}")
+  cl::p_msg "% $(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
   #apt-cache search "^${_stxt}$|^${_stxt} | ${_stxt} "
   apt-cache search "${_stxt}" | "${_grep[@]}" \
       || cl::p_msg ".. no matching apt package found"
@@ -1078,7 +1080,7 @@ pkg-search () {
       || _grep=(grep "${_grep_args[@]}" "${_stxt}")
   }
   _search=(snap find "${_stxt}")
-  cl::p_msg "$(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
+  cl::p_msg "% $(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
   snap find "${_stxt}" | "${_grep[@]}" \
       || cl::p_msg ".. no matching snap package found"
 
@@ -1088,7 +1090,7 @@ pkg-search () {
       || _grep=(grep "${_grep_args[@]}" "${_stxt}")
   }
   _search=(flatpak search --columns=application,name,version,branch,remotes,description "${_stxt}")
-  cl::p_msg "$(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
+  cl::p_msg "% $(cl::p_cmd "${_search[@]}") | $(cl::p_cmd "${_grep[@]}")"
   flatpak search --columns=application,name,version,branch,remotes,description "${_stxt}" | "${_grep[@]}" \
       || cl::p_msg ".. no matching flatpak package found"
 }
