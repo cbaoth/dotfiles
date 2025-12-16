@@ -396,8 +396,9 @@ cl::_get_all_log_level_args() {
   local all_log_level_args=()
   local is_first=true
   for i in $(seq 1 "${#CL_LOG_LEVEL_NAMES[@]}"); do
-    $is_first || { all_log_level_args+=","; is_first=false }
+    ! $is_first && all_log_level_args+="," && is_first=false
     all_log_level_args+="$i, ${CL_LOG_LEVEL_NAMES[i]}"
+
   done
   printf "%s" "${all_log_level_args[*]}"
 }
