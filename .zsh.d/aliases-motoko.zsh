@@ -5,5 +5,5 @@
 
 # {{{ - APPS -----------------------------------------------------------------
 alias comfyenv="source ~/comfy-env/bin/activate"
-alias comfyui="comfy launch"
+alias comfyui="comfyenv && comfy launch"
 # }}} - APPS -----------------------------------------------------------------
