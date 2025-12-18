@@ -1,8 +1,113 @@
-## Some random bash/python scripts
+== Some random shell/python scripts
 
-Created and intended for my personal use only. Some of these are ancient and most not well maintaind, so if anyone stumbles upon this repo: Be warned, read/use at your own risk. :)
+Created and intended for my personal use only. Some of these are ancient and most not well maintained, so if anyone stumbles upon this repo: Be warned, read/use at your own risk. :)
 
-### nextcloud-maintenance.sh
+'''
+
+=== digital-detox-bedtime.sh - 😴 Digital Detox: Bedtime Enforcer
+
+If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is your new best friend (or worst enemy). It forces a system shutdown at a set time every night to make sure you actually get some sleep.
+
+==== How it works
+
+* The Warning: At 22:00 (or whenever you schedule it), the script triggers and sends a "critical" notification to your desktop.
+* The Countdown: It gives you a 180-second grace period (customizable) to save your work and close your tabs.
+* The End: Once the timer hits zero, it executes a hard poweroff. No "one more video" allowed.
+
+==== 🛠️ Installation & Setup
+
+Since this script handles system power, we need to set it up with root permissions and a systemd timer.
+
+===== 1. Prep the Script
+
+Move the script to your local bin and lock down the permissions so only root can touch it:
+
+[source,shell]
+----
+sudo cp digital-detox-bedtime.sh /opt/bin/digital-detox-bedtime.sh
+sudo chown root:root /opt/bin/digital-detox-bedtime.sh
+sudo chmod 700 /opt/bin/digital-detox-bedtime.sh
+----
+
+NOTE: Open the script and make sure `+USER_NAME+` is set to your actual username (e.g., `+USER_NAME=yourname+`).
+
+===== 2. Create the Service
+
+This tells the system what to run.
+
+[source,shell]
+----
+sudo tee /etc/systemd/system/bedtime.service <<EOF
+[Unit]
+Description=Bedtime Shutdown Script
+[Service]
+Type=simple
+ExecStart=/opt/bin/digital-detox-bedtime.sh
+EOF
+----
+
+===== 3. Create the Timer
+
+This tells the system when to run it. Default is set to 22:00 (10 PM).
+
+[source,shell]
+----
+sudo tee /etc/systemd/system/bedtime.timer <<EOF
+[Unit]
+Description=Run Bedtime Script at 22:00
+[Timer]
+OnCalendar=--* 22:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+----
+
+==== 4. Fire it up
+
+Enable and start the timer:
+
+[source,shell]
+----
+sudo systemctl enable --now bedtime.timer
+----
+
+==== 🔒 Optional: Advanced Lock-in (PAM)
+
+If you're worried you'll just sudo systemctl stop the timer when the warning pops up, you can use PAM to lock yourself out of authentication starting an hour before bedtime. This prevents new logins and sudo usage during the restricted window.
+
+===== A. Set the time restriction
+
+Add a rule near the end of `+/etc/security/time.conf+` to block user (in this case `youruser`) between 21:00 and 06:00 (9 PM to 6 AM).
+
+[source,shell]
+----
+sudo tee -a /etc/security/time.conf <<EOF
+
+# Digital Detox: Prevent main user `youruser` from authenticating between 21:00 and 06:00
+*; *; youruser; !Al2100-0600
+EOF
+----
+
+===== B. Enable the PAM module
+
+Edit `+/etc/pam.d/common-account+` and add the following line near tbe beginning to enforce these rules:
+
+....
+account    required    pam_time.so
+....
+
+WARNING: Be careful with this! If you are not already logged in, you won't be able to get back in until 6 AM.
+
+=== ⚙️ Customization
+
+* Change the Time: Edit `+/etc/systemd/system/bedtime.timer+` and change the `+OnCalendar+` value.
+* Change the Grace Period: Edit `+TIMEOUT+` in `+/opt/bin/digital-detox-bedtime.sh+`.
+
+'''
+
+=== nextcloud-maintenance.sh - 🔧 Nextcloud Maintenance Script
 
 Intended for use in cron with cronic (for info mail) to perform maintenance tasks and integrity/update checks on nextcloud servers, or simply to run before/after an update.
 
@@ -15,11 +120,13 @@ Stuff like:
 * `occ app:update --all --showonly`
 * `occ update:check`
 
-### openvpn-client-cfg.sh
+'''
+
+=== openvpn-client-cfg.sh
 
 A small openvpn client cretificate and config helper tool
 
-```
+....
 Usage:
   openvpn-client-cfg CLIENT_NAME [--ip IP] [--remote HOST] [--routes "NET1/MASK,NET2/MASK"] [--no-split] [--force]
   openvpn-client-cfg --list
@@ -47,44 +154,64 @@ Env overrides:
   SERVER_CONF=/etc/openvpn/server/server.conf
   CCD_DIR=/etc/openvpn/ccd
   OUTPUT_DIR=/home/cbaoth
-```
+....
 
-### audio-volume.sh
+'''
+
+=== audio-volume.sh
 
 Toggle mute and change volume using hotkeys within the wm.
 
-### backup.sh
+'''
+
+=== backup.sh
 
 Backup script with exclusion list, supports full and incremental backups.
 
-### backup2ftp.sh
+'''
+
+=== backup2ftp.sh
 
 Upload last backup (made by backup.sh) to an ftp server, preserve previous backup on ftp.
 
-### clear-cache.sh
+'''
+
+=== clear-cache.sh
 
 Clean up home folder by removing (known) local caches, temp files etc.
 
-### dbbackup.sh
+'''
+
+=== dbbackup.sh
 
 Backup script for mysql and postgresql.
 
-### gallery.sh
+'''
+
+=== gallery.sh
 
 Create a very simple image gallery (static html file with static thumbs).
 
-### pdfprint.sh
+'''
+
+=== pdfprint.sh
 
 Print a pdf/ps file using psnup for multi page per sheet printing.
 
-### smfetch.sn
+'''
+
+=== smfetch.sn
 
 Fetch rtmp / http(s) streams from some known (mostly german) tv stations and pages like youtube using wget and rtmpdump.
 
-### wgetmp.py
+'''
+
+=== wgetmp.py
 
 Fetch multiple files in parallel using wget.
 
-### getbyext.sh
+'''
+
+=== getbyext.sh
 
 Fetch all media files (or specific files by ext.) from a given url using wget.
