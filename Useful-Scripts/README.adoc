@@ -4,7 +4,7 @@ Created and intended for my personal use only. Some of these are ancient and mos
 
 '''
 
-=== digital-detox-bedtime.sh - 😴 Digital Detox: Bedtime Enforcer
+=== bedtime-shutdown.sh - 😴 Digital Detox: Bedtime Enforcer
 
 If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is your new best friend (or worst enemy). It forces a system shutdown at a set time every night to make sure you actually get some sleep.
 
@@ -12,7 +12,7 @@ If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is
 
 * The Warning: At 22:00 (or whenever you schedule it), the script triggers and sends a "critical" notification to your desktop.
 * The Countdown: It gives you a 180-second grace period (customizable) to save your work and close your tabs.
-* The End: Once the timer hits zero, it executes a hard poweroff. No "one more video" allowed.
+* The End: Once the timer hits zero, it executes a hard `+systemctl poweroff+`. No "just 5 more minutes ..." allowed.
 
 ==== 🛠️ Installation & Setup
 
@@ -20,16 +20,24 @@ Since this script handles system power, we need to set it up with root permissio
 
 ===== 1. Prep the Script
 
-Move the script to your local bin and lock down the permissions so only root can touch it:
+Copy the script to your local bin:
 
 [source,shell]
 ----
-sudo cp digital-detox-bedtime.sh /opt/bin/digital-detox-bedtime.sh
-sudo chown root:root /opt/bin/digital-detox-bedtime.sh
-sudo chmod 700 /opt/bin/digital-detox-bedtime.sh
+sudo cp bedtime-shutdown.sh /opt/bin/bedtime-shutdown.sh
 ----
 
-NOTE: Open the script and make sure `+USER_NAME+` is set to your actual username (e.g., `+USER_NAME=yourname+`).
+Open the script and make sure the values in the `+CONFIGURATION+` section fit your personal needs.
+
+
+NOTE: Make sure that `+USER_NAME+` is set to your actual username (e.g., `+USER_NAME=yourname+`) and the time between `+SHUTDOWN_START+` and `+SHUTDOWN_END+` is your preferred "Bedtime Zone" (e.g., `+SHUTDOWN_START=2200+` and `+SHUTDOWN_END=0500+` to only shutdown between 22:00 to 05:00).
+
+Lock down the permissions so only root can touch it:
+[source,shell]
+----
+sudo chown root:root /opt/bin/bedtime-shutdown.sh
+sudo chmod 700 /opt/bin/bedtime-shutdown.sh
+----
 
 ===== 2. Create the Service
 
@@ -42,7 +50,7 @@ sudo tee /etc/systemd/system/bedtime.service <<EOF
 Description=Bedtime Shutdown Script
 [Service]
 Type=simple
-ExecStart=/opt/bin/digital-detox-bedtime.sh
+ExecStart=/opt/bin/bedtime-shutdown.sh
 EOF
 ----
 
@@ -63,6 +71,8 @@ Persistent=true
 WantedBy=timers.target
 EOF
 ----
+
+NOTE: The timer is `+Persistent+`, meaning if your computer is off at the scheduled time, it will run the script as soon as you power it on again. To prevent the system from shutting down immediately after booting up in the morning, make sure the `+SHUTDOWN_START+` and `+SHUTDOWN_END+` times in the script are set correctly.
 
 ==== 4. Fire it up
 
@@ -102,8 +112,30 @@ WARNING: Be careful with this! If you are not already logged in, you won't be ab
 
 === ⚙️ Customization
 
-* Change the Time: Edit `+/etc/systemd/system/bedtime.timer+` and change the `+OnCalendar+` value.
-* Change the Grace Period: Edit `+TIMEOUT+` in `+/opt/bin/digital-detox-bedtime.sh+`.
+==== Applying Changes to Systemd Units
+
+First of all, whenever either of the `/etc/systemd/system/bedtime.*` files are changed, ensure to reload the systemd daemon and restart the relevant unit(s):
+
+[source,shell]
+----
+sudo systemctl daemon-reload
+# for changes to the timer
+sudo systemctl restart bedtime.timer
+sudo systemctl status bedtime.timer
+# for changes to the service
+sudo systemctl restart bedtime.service
+sudo systemctl status bedtime.service
+----
+
+==== Change the "Bedtime Zone"
+
+* Edit `+SHUTDOWN_START+` and `+SHUTDOWN_END+` in `+/opt/bin/bedtime-shutdown.sh+`.
+* Edit `+OnCalendar+` in `+/etc/systemd/system/bedtime.timer+` and reload/restart the timer as shown above.
+* _Optional: If PAM time restriction is used, ensure the settings in `+/etc/security/time.conf+` are appropriate for your new "Bedtime Zone"._
+
+==== Change the Grace Period
+
+* Edit `+GRACE_PERIOD+` in `+/opt/bin/bedtime-shutdown.sh+`.
 
 '''
 
