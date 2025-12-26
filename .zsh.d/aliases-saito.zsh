@@ -10,3 +10,4 @@ alias mount-stash="sudo cryptsetup open /dev/md1 stash && sudo mount /dev/mapper
 alias umount-stash="sudo umount /media/stash; sudo cryptsetup close stash"
 # }}} - SYSTEM ---------------------------------------------------------------
 
+return 0

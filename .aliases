@@ -84,7 +84,7 @@ alias smart-attr='sudo smartctl -A'
 
 # query standby status without warking the drive
 alias smart-sbstatus='sudo smartctl -n standby -i'
-alias smart-sbstatus-all='for d in /dev/sd[a-z]; do 
+alias smart-sbstatus-all='for d in /dev/sd[a-z]; do
     echo $d; sudo smartctl -n standby -i $d;
   done'
 alias smart-sbstatus-all-short='for d in /dev/sd[a-z]; do
@@ -315,3 +315,4 @@ alias wallabag-console='sudo -u www-data php /var/www/wallabag.11001001.org/bin/
 
 [[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"
 
+return 0

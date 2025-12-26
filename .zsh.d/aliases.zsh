@@ -79,3 +79,5 @@ alias -g @sum="| awk '{s+=\$1} END {print s}'"
 
 #alias -g @Sk="*~(*.bz2|*.gz|*.tgz|*.zip|*.z)"
 # }}} - GLOBAL ALIASES -------------------------------------------------------
+
+return 0
