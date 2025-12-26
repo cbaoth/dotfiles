@@ -111,7 +111,7 @@ $(cl::fx b)Examples:$(cl::fx r)
   ${_SCRIPT_FILE} -b -m '^https?://' tee -a links "<<<'{}'" \| wget -nv -c -i -
 
   # monitor xclip for URLs and open matches in new firefox tabs
-  ${_SCRIPT_FILE} -x -b -m '^\w+://' --new-tab firefox
+  ${_SCRIPT_FILE} -x -b -m '^\w+://' firefox --new-tab
 EOF
 readonly _HELP
 

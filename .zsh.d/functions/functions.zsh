@@ -1094,6 +1094,8 @@ pkg-search () {
   flatpak search --columns=application,name,version,branch,remotes,description "${_stxt}" | "${_grep[@]}" \
       || cl::p_msg ".. no matching flatpak package found"
 }
+alias pkgs="pkg-search"
+alias pkgss="pkg-search -i -n"
 
 # }}} - Debian/Ubuntu --------------------------------------------------------
 
