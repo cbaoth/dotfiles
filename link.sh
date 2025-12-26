@@ -90,3 +90,17 @@ done
 
 rmdir --ignore-fail-on-non-empty "$BAKDIR"
 
+# Delete all but the latest dofiles backup $HOME/dotfiles_bak_$(date +%s)
+EXISTING_BAKS=$(find $HOME -maxdepth 1 -type d -name "dotfiles_bak_*" | sort -r | tail -n +2)
+if [ -z "$EXISTING_BAKS" ]; then
+  echo "No outdated backup directories found, skipping cleanup."
+else
+  echo "Previous backup directories found, removing them ..."
+  for d in $EXISTING_BAKS; do
+    echo "Removing backup directory: $d"
+  done
+fi
+
+echo "Done."
+
+exit 0
