@@ -24,10 +24,11 @@
 #echo "zprof start: $(date)"
 
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
-# For login shell / general variable like PATH see ~/.zshenv (incl. ~/.myenv)
+# For login shell / general variable like PATH see ~/.common_profile
 
 # globally raise (but never lower) the default debug level of cl::p_dbg
-# this is set in ~/.myenv to be available for all shells, override here if needed
+# this is set in ~/.common_profile to be available for all shells, override
+# here if needed
 #export DEBUG_LVL=3
 
 # {{{ - CORE OPTIONS & COMMONS -----------------------------------------------
@@ -156,7 +157,7 @@ source_ifex () {
       source "$1" && cl::p_dbg 0 1 "... done (file successfully loaded)." \
         || cl::p_err "Command 'source $1' returned non-OK exit code!"
     else
-      cl::p_dbg 0 2 "... skipped (not found)."
+      cl::p_dbg 0 2 "... not found, skipped (OK since optional)."
     fi
     shift
   done
@@ -206,7 +207,7 @@ _hash_mountpoints() {
     [e_GVFS]="/media/$USERNAME/Data"
     [f_GVFS]="/media/$USERNAME/Temp"
     [l]="/mnt/data"
-    [s]="/media/stash"
+    [s]="/mnt/stash"
     [l_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=data"
     [s_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=stash"
   )
@@ -244,7 +245,7 @@ ZPLUG_MODE_DOCKER="mini"    # load all zplugs when inside a Ddocker containers
 ZPLUG_MODE_ANDROID="skip"   # skip zplug when on Android (maybe much too slow or even crash the terminal)
 
 ZPLUG_MODE=$ZPLUG_MODE_DEFAULT
-$IS_ANDROID && ZPLUG_MODE=${ZPLUG_MODE_ANDROID:-$ZPLUG_MODE_DEFAULT} \
+$IS_ANDROID && ZPLUG_MODE=${ZPLUG_MODE_ANDROID:=${ZPLUG_MODE_DEFAULT}} \
   && [[ $ZPLUG_MODE != $ZPLUG_DEFAULT_MODE ]] \
   && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Android as per \$ZPLUG_MODE_ANDROID=$ZPLUG_MODE_ANDROID."
 $IS_WSL     && ZPLUG_MODE=${ZPLUG_MODE_WSL:-$ZPLUG_MODE_DEFAULT} \
@@ -550,7 +551,7 @@ fi
 # {{{ = ZPLUG LOAD ===========================================================
 # check for updates no more than every 14 days
 _zplug_install_and_update() {
-  if ( $ZPLUG_NEW_INSTALL_FORCE || cl::q_yesno "Install missing zplug packages" ); then
+  if $ZPLUG_IS_NEW_INSTALL_FORCE || cl::q_yesno "Install missing zplug packages"; then
     if $ZPLUG_CMD check --verbose; then
       cl::p_war "Please be patient. This may take a while, without progress output ..."
       zplug install
@@ -564,7 +565,7 @@ _zplug_install_and_update() {
 }
 
 if $IS_ZPLUG; then
-  if $ZPLUG_NEW_INSTALL; then
+  if $ZPLUG_IS_NEW_INSTALL; then
     cl::p_msg "New zplug installation requested, checking ..."
     _zplug_install_and_update
   elif  [[ ! -f ~/.zplug/lastcheck ]]; then

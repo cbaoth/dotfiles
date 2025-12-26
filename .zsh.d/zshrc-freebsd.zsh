@@ -4,3 +4,5 @@
 # Keywords: zsh zshrc freebsd
 
 export PACKAGEROOT="http://ftp.de.freebsd.org/"
+
+return 0

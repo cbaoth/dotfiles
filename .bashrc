@@ -1,4 +1,6 @@
-# ~/.bashrc: Bash startup file
+# ~/.bashrc: bash(1) - The individual per-interactive-shell startup file.
+# This file is read and executed by bash for non-login interactive shells.
+# It is not read by bash login shells (.bash_profile is used for that).
 
 # Author:   cbaoth <dev@cbaoth.de>
 # Keywords: bashrc shell-script
@@ -8,21 +10,23 @@
 #   (folding-add-to-marks-list 'shell-script-mode "# {{{ " "# }}}" nil t)
 
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
-# For login shell / general variable like PATH see ~/.profile (incl. ~/.myenv)
+# Source environment settings common to all my shells
+[[ -f ~/.common_profile ]] && source ~/.common_profile
 
 # {{{ - ENV STATE ------------------------------------------------------------
-# This is already done in ~/.myenv, but kept here for reference / override
-# export OS=$(uname | tr '[A-Z]' '[a-z]')
-# [[ -z "${HOST-}" ]] && export HOST=$HOSTNAME
+# This is already done in ~/.common_profile, but kept here for reference or to
+# override if needed
+#export OS=$(uname | tr '[A-Z]' '[a-z]')
+#[[ -z "${HOST-}" ]] && export HOST=$HOSTNAME
 # }}} - ENV STATE ------------------------------------------------------------
 
 # {{{ - CUSTOM VARIABLES -----------------------------------------------------
 # globally raise (but never lower) the default debug level of cl::p_dbg
-# this is set in ~/.myenv to be available for all shells, override here if needed
+# this is set in ~/.common_profile to be available for all shells, override
+# here if needed
 #export DBG_LVL=0
 # }}} - CUSTOM VARIABLES -----------------------------------------------------
 # }}} = ENVIRONMENT (ALL SHELLS) =============================================
-
 # {{{ - PRIVACY --------------------------------------------------------------
 # private session
 #export HISTFILE="" # don't create shell history file
@@ -65,9 +69,9 @@ fi
 # {{{ - MOTD -----------------------------------------------------------------
 # print welcome message (if top-level shell)
 if (($SHLVL == 1)); then
-    print -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
+    printf -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
     # on %F{green}#%l%f%b"
-    print -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"
+    printf -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"
 fi
 # }}} - MOTD -----------------------------------------------------------------
 # }}} = FINAL EXECUTIONS =====================================================

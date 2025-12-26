@@ -1,4 +1,4 @@
-# ~/.myenv: Common environment to be sourced as needed (.zshenv and .profile)
+# ~/.common_profile: Common environment to be sourced as needed (.zshenv and .profile)
 # code: language=shell
 #
 # Author:  cbaoth <dev@cbaoth.de>
@@ -37,16 +37,30 @@ umask 022
 # }}} - UMASK ----------------------------------------------------------------
 
 # {{{ - SYSTEM/ENV STATE -----------------------------------------------------
-# System basics
-OS="${OS:=${$(uname 2> /dev/null):l}}"
-HOST=${HOST:=${$(hostname 2> /dev/null):l}}
+[[ -n "$ZSH_VERSION" ]] && IS_ZSH=true
+export IS_ZSH=${IS_ZSH:-false}
+
+# Set core system variables if not already set
+if $IS_ZSH; then
+  OS=${OS:=${$(uname 2> /dev/null):l}}
+  HOST=${HOSTNAME:=${(L)$(hostname 2> /dev/null)}}
+  ARCH=${ARCH:=${$(uname -m 2> /dev/null):l}}
+else # should always be bash, otherwise we would not use the dotfiles repo
+  OS=${OS:=$(uname 2> /dev/null),,}
+  HOST=${HOSTNAME:=$(hostname 2> /dev/null),,}
+  ARCH=${ARCH:=$(uname -m 2> /dev/null),,}
+fi
+export OS
+export HOST
+export ARCH
 
 # Is X available? Unreliable for ssh x-forwading., suffices for local sessions
-IS_X=$([[ ! -t 0 ]] && xset b off >& /dev/null && print true || print false)
+if [[ ! -t 0 ]] && xset b off >& /dev/null; then
+  IS_X=true
+fi
+export IS_X=${IS_X:-false}
 
 # Is PC (x86 architecture)
-IS_PC=false
-IS_PC_NATIVE=true
 if [[ $ARCH = *x86* ]]; then
   IS_PC=true
 else # No PC (x68 architecture)
@@ -59,34 +73,42 @@ else # No PC (x68 architecture)
     IS_ANDROID=true
     if [[ -d "/data/data/com.termux/files/usr/bin" ]]; then
       IS_TERMUX=true
-      PATH+=":/data/data/com.termux/files/usr/bin"
+      export PATH+=":/data/data/com.termux/files/usr/bin"
     fi
   fi
 fi
 
 # Is Docker Environment?
-IS_DOCKER=false
 if [[ -f /.dockerenv || -f /run/.containerenv ]]; then
   IS_PC_NATIVE=false
   IS_DOCKER=true
 fi
 
 # Is Windows Subsystem Linux?
-IS_WSL=false
+export IS_WSL=false
 if [[ ! $IS_DOCKER && $(uname -r) = *icrosoft* ]]; then
-  IS_PC_NATIVE=false
-  IS_WSL=true
-  IS_WSL1=true
-  IS_WSL2=false
+  export IS_PC_NATIVE=false
+  export IS_WSL=true
+  export IS_WSL1=true
+  export IS_WSL2=false
   if uname -r | tr '[:upper:]' '[:lower:]' | grep wsl2 >/dev/null; then
-    IS_WSL1=false
-    IS_WSL2=true
+    export IS_WSL1=false
+    export IS_WSL2=true
   fi
   #export PATH="$PATH:$(wslpath "$(wslvar USERPROFILE)")/bin"
   # See https://github.com/Microsoft/BashOnWindows/issues/1887
   unsetopt BG_NICE
   export DISPLAY=:0
 fi
+
+# Export IS_* system state variables, use defaults if not set above
+export IS_PC=${IS_PC:-true}
+export IS_PC_NATIVE=${IS_PC_NATIVE:-true}
+export IS_ANDROID=${IS_ANDROID:-false}
+export IS_TERMUX=${IS_TERMUX:-false}
+export IS_DOCKER=${IS_DOCKER:-false}
+export IS_WSL1=${IS_WSL1:-false}
+export IS_WSL2=${IS_WSL2:-false}
 # }}} - SYSTEM/ENV STATE -----------------------------------------------------
 
 # {{{ - DEV ------------------------------------------------------------------
@@ -95,7 +117,6 @@ export PYTHONPATH="${PYTHONPATH+:$PYTHONPATH}:$HOME/lib/python/site-packages"
 export SCALA_HOME="$HOME/scala"
 command -v java >& /dev/null \
   && export JAVA_HOME="${$(realpath $(command -v java))/bin\/java/}"
-export ARCH="$(uname -m)"
 
 # Check if we are in the 32bit chroot
 #export INCHROOT=0
@@ -174,16 +195,18 @@ export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 export XDG_CONFIG_HOME="${HOME}/.config"
 export XDG_CACHE_HOME="${HOME}/.cache"
 
-# The following should be set automatically / via /etc/environment, but in case it is not:
+# The following should be set automatically / via /etc/environment, but in case
+# it is not set here to avoid flatpak warnings / issues
 if [[ -z "${XDG_DATA_DIRS-}" ]]; then
-    export XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:${HOME}/.local/share"\
+    XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:${HOME}/.local/share"\
 ":/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/gnome:/usr/share/"
 # if flatpak paths are missing, only add those and local user paths
 elif [[ ${XDG_DATA_DIRS} != *flatpak* ]]; then
-    export XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:${HOME}/.local/share"\
+    XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:${HOME}/.local/share"\
 ":/var/lib/flatpak/exports/share"\
 "${XDG_DATA_DIRS:+:${XDG_DATA_DIRS}}"
 fi
+export XDG_DATA_DIRS
 # Note that this is mainly here to avoid warnings from flatpak.
 # To be effective for desktop sessions, this should be set in
 # /etc/environment, ~/.xsession, or similar. Otherwise some apps may not be

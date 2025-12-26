@@ -13,3 +13,5 @@ if ! ${POWERLEVEL10K_ISACTIVE:-false}; then
   # load prompt theme from /usr/share/zsh/functions/Prompts/
   prompt fade 4
 fi
+
+return 0

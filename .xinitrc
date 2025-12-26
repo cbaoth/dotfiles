@@ -9,6 +9,6 @@
 . $HOME/.xsession.d/common
 
 # include custom host session or fallback to default session if none found
-[ -f "$HOME/.xsession.d/$(hostname)" ] \
+[[ -f "$HOME/.xsession.d/$(hostname)" ]] \
   && . $HOME/.xsession.d/$(hostname) \
   || . $HOME/.xsession.d/default

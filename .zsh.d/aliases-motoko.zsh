@@ -7,3 +7,5 @@
 alias comfyenv="source ~/comfy-env/bin/activate"
 alias comfyui="comfyenv && comfy launch"
 # }}} - APPS -----------------------------------------------------------------
+
+return 0

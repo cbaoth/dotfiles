@@ -13,3 +13,5 @@ export DISPLAY=:0
 # enable linger for user 1000 to allow user services to run when not logged in
 # this is required for e.g. systemd user services, including podman containers
 loginctl enable-linger 1000
+
+return 0
