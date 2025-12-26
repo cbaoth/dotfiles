@@ -20,3 +20,5 @@ umask 022
 # multi user system umask: o-rwx
 #umask 007
 # }}} - UMASK ----------------------------------------------------------------
+
+return 0
