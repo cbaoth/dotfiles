@@ -69,7 +69,7 @@ if $IS_PC; then
     cl::p_msg "Non-native PC (x68 architecture) detected."
   fi
 else
-  cl::p_msg "Non-PC architecture detected ($ARCH != x68)." 
+  cl::p_msg "Non-PC architecture detected ($ARCH != x68)."
   if $IS_ANDROID; then
     if $IS_TERMUX; then
       cl::p_msg "Android (TERMUX) envrionment detected."
@@ -304,7 +304,7 @@ _zplug_init() {
   if ${ZPLUG_IS_NEW_INSTALL_FORCED:-false}; then
     cl::p_msg "Forcing new zplug installation (~/.zplug-force-install found) ..."
     _zplug_install
-    return 0 
+    return 0
   fi
   if [[ -f "$HOME/.zplug/init.zsh" ]]; then
     cl::p_dbg 0 1 "zplug found (~/.zplug/init.zsh)"
@@ -316,7 +316,7 @@ _zplug_init() {
   if ${ZPLUG_SKIP_INSTALL_PROMPT:-false}; then
     cl::p_dbg 0 1 "zplug install prompt skipped since ~/.zplug-skip-install-prompt exists"
     return 0
-  fi 
+  fi
   if cl::q_yesno "Install zplug now (or never ask again)?"; then
     _zplug_install
   else
@@ -324,7 +324,7 @@ _zplug_init() {
       cl::p_war "zplug installation incomplete/corrupted since ~/.zplug exists but ~/.zplug/init.zsh does not."
       cl::p_msg "Try removing the folder and restart zsh:"
       echo "  rm -rf ~/.zplug"
-    fi  
+    fi
     cl::p_msg "To manually install and setup zplug, run the following commands:"
     echo "  wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
     echo "  sleep 1; source ~/.zplug/init.zsh"
@@ -549,29 +549,32 @@ fi
 
 # {{{ = ZPLUG LOAD ===========================================================
 # check for updates no more than every 14 days
-_zplug_update() {
-  if $ZPLUG_CMD check --verbose; then
-    touch ~/.zplug/lastcheck
-  elif $ZPLUG_IS_NEW_INSTALL_FORCED || cl::q_yesno "Install missing zplug packages"; then
-    zplug install
-    touch ~/.zplug/lastcheck
-  else
-    return 1
+_zplug_install_and_update() {
+  if ( $ZPLUG_NEW_INSTALL_FORCE || cl::q_yesno "Install missing zplug packages" ); then
+    if $ZPLUG_CMD check --verbose; then
+      cl::p_war "Please be patient. This may take a while, without progress output ..."
+      zplug install
+    else
+      cl::p_msg "No missing zplug packages found."
+    fi
   fi
+  cl::p_msg "Updating zplug packages ..."
+  zplug update && touch ~/.zplug/lastcheck
   return 0
 }
 
 if $IS_ZPLUG; then
-  if $ZPLUG_IS_NEW_INSTALL; then
-    cl::p_msg "Running zplug install for new zplug installation ..."
-    cl::p_msg "NOTE: This may take a while (post-install without output)"
-    _zplug_update
+  if $ZPLUG_NEW_INSTALL; then
+    cl::p_msg "New zplug installation requested, checking ..."
+    _zplug_install_and_update
   elif  [[ ! -f ~/.zplug/lastcheck ]]; then
-     cl::p_msg "No known past installation or update, checking ..."
-    _zplug_update
-  elif [[ -n ~/.zplug/lastcheck(#qN.mh+336) ]]; then
-    cl::p_msg "More than 14 days have passed since the last update check, checking ..."
-    _zplug_update
+    cl::p_msg "No info about last zplug install/update, checking ..."
+    _zplug_install_and_update
+  elif [[ -e ~/.zplug/lastcheck && $(($(date +%s) - $(stat -c %Y ~/.zplug/lastcheck))) -gt 1209600 ]]; then
+    cl::p_msg "Last zplug install/update more than 14 days ago, checking ..."
+    _zplug_install_and_update
+  else
+    cl::p_dbg 0 2 "Last successfull update less than 14 days ago ($((($(date +%s) - $(stat -c %Y ~/.zplug/lastcheck))/60/60/24)) days), skipping ..."
   fi
 fi
 
@@ -920,6 +923,15 @@ if [[ -n "${_MY_CONDA:-}" ]]; then
     fi
   fi
   unset __conda_setup
+
+  # # try to activate conda environment 'default' if it exists
+  # # created via: conda create -n default python=3.14
+  # # for versions see: https://devguide.python.org/versions/
+  # # conda doc: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#
+  # conda info --envs | grep -qE '^\s*default\s' \
+  #   && conda activate default >& /dev/null \
+  #   && cl::p_msg "Conda environment 'default' activated." \
+  #   || cl::p_dbg 0 1 "conda env 'default' not found, skipping activation"
 fi
 
 # angular CLI autocompletion, if ng is avaiable

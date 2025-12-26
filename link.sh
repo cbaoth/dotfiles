@@ -7,6 +7,7 @@
 # TODO
 # - Skip existing links that already point to the right destination
 # - Provide more appropriate blacklist
+# - Add override/custom structure, instead of (mandatory) deployment of custom (e.g. host specific) files
 
 LINK_FILE=$(realpath $0)
 DOTFILES=$(dirname $LINK_FILE)
