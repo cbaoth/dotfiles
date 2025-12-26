@@ -28,7 +28,7 @@
 
 # globally raise (but never lower) the default debug level of cl::p_dbg
 # this is set in ~/.myenv to be available for all shells, override here if needed
-#export DBG_LVL=0
+#export DEBUG_LVL=3
 
 # {{{ - CORE OPTIONS & COMMONS -----------------------------------------------
 # pre-requirements
@@ -62,6 +62,23 @@ setopt HIST_NO_FUNCTIONS # don't store function definitions
 # }}} - SECURITY & PRIVACY ---------------------------------------------------
 
 # {{{ -- SYSTEM/ENV STATE ----------------------------------------------------
+if $IS_PC; then
+  if $IS_PC_NATIVE; then
+    cl::p_dbg 0 1 "Native PC (x68 architecture) detected."
+  else
+    cl::p_msg "Non-native PC (x68 architecture) detected."
+  fi
+else
+  cl::p_msg "Non-PC architecture detected ($ARCH != x68)." 
+  if $IS_ANDROID; then
+    if $IS_TERMUX; then
+      cl::p_msg "Android (TERMUX) envrionment detected."
+    else
+      cl::p_msg "Android envrionment detected."
+    fi
+  fi
+fi
+
 if $IS_WSL; then
  if ! $IS_WSL2; then
     cl::p_msg "WSL1 environment detected."
@@ -133,8 +150,14 @@ export UAGENT
 source_ifex () {
   [[ -z "${1-}" ]] && cl::p_usg "$0 source-file.." && return 1
   while [[ -n "$1" ]]; do
-    cl::p_dbg 0 2 "potential source: $1"
-    [[ -r "$1" ]] && { cl::p_dbg 0 1 "loading source: $1"; source "$1" }
+    cl::p_dbg 0 2 "Checking for optional source file '$1' ..."
+    if [[ -r "$1" ]]; then
+      cl::p_dbg 0 1 "Loading optional source file '$1' (file found) ..."
+      source "$1" && cl::p_dbg 0 1 "... done (file successfully loaded)." \
+        || cl::p_err "Command 'source $1' returned non-OK exit code!"
+    else
+      cl::p_dbg 0 2 "... skipped (not found)."
+    fi
     shift
   done
   return 0
@@ -151,9 +174,11 @@ source_ifex_custom () {
     source_ifex \
       "${base_file}-${os}.zsh" \
       $($IS_WSL && print "${base_file}-${os}_wsl.zsh") \
+      $($IS_ANDROID && print "${base_file}-${os}_android.zsh") \
       "${base_file}-${host}.zsh" \
       "${base_file}-${host}-${os}.zsh" \
-      $($IS_WSL && print "${base_file}-${host}-${os}_wsl.zsh")
+      $($IS_WSL && print "${base_file}-${host}-${os}_wsl.zsh") \
+      $($IS_ANDROID && print "${base_file}-${host}-${os}_android.zsh")
     shift
   done
   return 0
@@ -172,16 +197,19 @@ _hash_mountpoints() {
   # define directories to hash
   # suffixes "_*" are ignored for hash names. they can be used define more than one path per hash (first one found is used)
   typeset -A _hashdirs=(
-    [c]="/media/$USERNAME/Windows"
-    [d]="/media/$USERNAME/Games"
-    [e]="/media/$USERNAME/Data"
-    [f]="/media/$USERNAME/Temp"
-    [l]="/media/data"
-    [l_x]="/run/user/1000/gvfs/smb-share:server=saito,share=data"
+    [c]="/mnt/c"
+    [d]="/mnt/d"
+    [e]="/mnt/e"
+    [f]="/mnt/f"
+    [c_GVFS]="/media/$USERNAME/Windows"
+    [d_GVFS]="/media/$USERNAME/Games"
+    [e_GVFS]="/media/$USERNAME/Data"
+    [f_GVFS]="/media/$USERNAME/Temp"
+    [l]="/mnt/data"
     [s]="/media/stash"
-    [s_x]="/run/user/1000/gvfs/smb-share:server=saito,share=stash"
+    [l_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=data"
+    [s_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=stash"
   )
-
   local key dir
   for key in ${(k)_hashdirs}; do
     dir=${_hashdirs[${key}]}
@@ -199,14 +227,6 @@ _hash_mountpoints() {
 }
 _hash_mountpoints
 
-# hash wsl windows drives a-g  for easy access (if existing)
-# assuming at least /mnt/c exists (else: nothing to hash)
-if ${IS_WSL} && [[ -d /mnt/c ]]; then
-  for d in /mnt/[a-g]; do
-    hash -d "${d#*/*/}"=${d}
-  done
-fi
-
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # }}} = CORE FUNCTIONS, SOURCING, ALIASES ====================================
 
@@ -216,67 +236,109 @@ export DISABLE_AUTO_UPDATE=true
 #export DISABLE_UPDATE_PROMPT=true
 #export UPDATE_ZSH_DAYS=30
 
-# apt: zplug - https://github.com/zplug/zplug
-# optionally skip zplug all together in WSL (may be pretty slow)
-ZPLUG_SKIP_IN_WSL=false
+# custom ZPLUG modes (full: load all, mini: load less, skip: load none)
+ZPLUG_MODE_DEFAULT="full"
+# optionally set deviating ZPLUG mode depending on the environment
+ZPLUG_MODE_WSL="full"       # load all zplugs when in WSL
+ZPLUG_MODE_DOCKER="mini"    # load all zplugs when inside a Ddocker containers
+ZPLUG_MODE_ANDROID="skip"   # skip zplug when on Android (maybe much too slow or even crash the terminal)
 
-IS_ZPLUG=true
-ZPLUG_CMD=zplug
-ZPLUG_NEW_INSTALL=false
-ZPLUG_NEW_INSTALL_FORCE=false
+ZPLUG_MODE=$ZPLUG_MODE_DEFAULT
+$IS_ANDROID && ZPLUG_MODE=${ZPLUG_MODE_ANDROID:-$ZPLUG_MODE_DEFAULT} \
+  && [[ $ZPLUG_MODE != $ZPLUG_DEFAULT_MODE ]] \
+  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Android as per \$ZPLUG_MODE_ANDROID=$ZPLUG_MODE_ANDROID."
+$IS_WSL     && ZPLUG_MODE=${ZPLUG_MODE_WSL:-$ZPLUG_MODE_DEFAULT} \
+  && [[ $ZPLUG_MODE != $ZPLUG_DEFAULT_MODE ]] \
+  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for WSL as per \$ZPLUG_MODE_WSL=$ZPLUG_MODE_WSL."
+$IS_DOCKER  && ZPLUG_MODE=${ZPLUG_MODE_DOCKER:-$ZPLUG_MODE_DEFAULT} \
+  && [[ $ZPLUG_MODE != $ZPLUG_DEFAULT_MODE ]] \
+  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Docker as pere \$ZPLUG_MODE_DOCKER=$ZPLUG_MODE_DOCKER."
+ZPLUG_MODE_IS_SKIP=$([[ $ZPLUG_MODE = 'skip' ]] && 'true' || print 'false')
+ZPLUG_MODE_IS_MINI=$([[ $ZPLUG_MODE = 'mini' ]] && 'true' || print 'false')
+ZPLUG_MODE_IS_FULL=$([[ $ZPLUG_MODE = 'full' ]] && 'true' || print 'false')
+
+IS_ZPLUG=false
+ZPLUG_CMD=:
+ZPLUG_SKIP_INSTALL_PROMPT=$([[ -f $HOME/.zplug-skip-install-prompt ]] && print true || print false)
+ZPLUG_IS_NEW_INSTALL=false
+ZPLUG_IS_NEW_INSTALL_FORCED=false
 if [[ -f "$HOME/.zplug-force-install" ]]; then
   rm -f "$HOME/.zplug-force-install"
-
-  ZPLUG_NEW_INSTALL_FORCE=true
+  ZPLUG_IS_NEW_INSTALL_FORCED=true
 fi
-ZPLUG_SKIP_INSTALL_QUERY=$([[ -f $HOME/.zplug-skip-install-query ]] && print true || print false)
+
+_zplug_source() {
+  cl::p_dbg 0 1 "Sourcing ~/.zplug/init.sh ..."
+  time source "$HOME/.zplug/init.zsh" \
+    && IS_ZPLUG=true && ZPLUG_CMD=zplug
+}
 
 _zplug_install() {
   cl::p_msg "Removing previous/corrupted ~/.zplug ..."
   rm -rf "$HOME/.zplug" >& /dev/null
   cl::p_msg "Downloading and installing zplug ..."
-  wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh \
-    && { cl::p_msg "Sourcing ~/.zplug/init.zsh ...";
-         sleep 1; source ~/.zplug/init.zsh } \
-    && ZPLUG_NEW_INSTALL=true \
-      || { cl::p_err "Error installing/init zplug, not all features may be available!";
-           IS_ZPLUG=false; ZPLUG_CMD=: }
+  if wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh; then
+    ZPLUG_IS_NEW_INSTALL=true
+    cl::p_dbg 0 1 "Waiting 1 sec post-install for parallel steps to finish ..."
+    sleep 1
+    _zplug_source
+  else
+    cl::p_err "Error installing/init zplug, not all features may be available!"
+  fi
 }
 
-if $IS_WSL && ${ZPLUG_SKIP_IN_WSL:-false}; then
-  cl::p_war ".zshrc (WSL): zplug is disabled, set ZPLUG_SKIP_IN_WSL=false to enable zplug in WSL (default)"
-  IS_ZPLUG=false; ZPLUG_CMD=:
-else
-  if $IS_WSL; then
-    cl::p_dbg 0 1 ".zshrc (WSL): Initializing zplug ..., to disable zplug in WSL set ZPLUG_SKIP_IN_WSL=true"
+_zplug_init() {
+  if $IS_WSL && [[ ${ZPLUG_MODE_WSL:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
+      cl::p_dbg 0 1 "zplug init skipped as per \$ZPLUG_MODE_WSL=$ZPLUG_MODE_WSL (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+    return 0
+  elif $IS_ANDROID && [[ ${ZPLUG_MODE_ANDROID:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
+    cl::p_dbg 0 1 "zplug init skipped as per \$ZPLUG_MODE_ANDROID=$ZPLUG_MODE_ANDROID (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback)."
+    return 0
+  elif $IS_DOCKER && [[ ${ZPLUG_MODE_DOCKER:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
+    cl::p_dbg 0 1 "zplug init skipped as per \$ZPLUG_MODE_DOCKER=$ZPLUG_MODE_DOCKER (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+    return 0
+  elif $ZPLUG_MODE_IS_SKIP; then
+    cl::p_dbg 0 1 "zplug init skipped as per \$ZPLUG_MODE=$ZPLUG_MODE (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+    return 0
   fi
-  if $ZPLUG_NEW_INSTALL_FORCE; then
-      cl::p_msg "Forcing new zplug installation (~/.zplug-force-install found) ..."
-      _zplug_install
+  if ${ZPLUG_IS_NEW_INSTALL_FORCED:-false}; then
+    cl::p_msg "Forcing new zplug installation (~/.zplug-force-install found) ..."
+    _zplug_install
+    return 0 
+  fi
+  if [[ -f "$HOME/.zplug/init.zsh" ]]; then
+    cl::p_dbg 0 1 "zplug found (~/.zplug/init.zsh)"
+    ${IS_WSL-false} && cl::p_dbg 0 1 "To disable zplug in WSL set ZPLUG_IS_WSL_SKIP=true"
+    ${IS_ANDROID:-false} && cl::p_dbg 0 1 "To disable zplug on Android set ZPLUG_IS_ANDROID_SKIP=true"
+    _zplug_source
+    return 0
+  fi
+  if ${ZPLUG_SKIP_INSTALL_PROMPT:-false}; then
+    cl::p_dbg 0 1 "zplug install prompt skipped since ~/.zplug-skip-install-prompt exists"
+    return 0
+  fi 
+  if cl::q_yesno "Install zplug now (or never ask again)?"; then
+    _zplug_install
   else
-    if [[ -f "$HOME/.zplug/init.zsh" ]]; then
-      cl::p_dbg 0 2 "zplug found in ~/.zplug, loading ..."
-      time source "$HOME/.zplug/init.zsh"
-    elif [[ -d "$HOME/.zplug" ]]; then
-      if cl::q_yesno "Install zplug now (or never ask again)?"; then
-        _zplug_install
-      elif $ZPLUG_SKIP_INSTALL_QUERY; then
-      else
-        IS_ZPLUG=false; ZPLUG_CMD=:
-        cl::p_war "~/.zplug exists but ~/.zplug/init.zsh does not. try removing the folder and restart zsh:"
-        cl::p_msg "To manually install and setup zplug, run the following commands:"
-        echo "rm -rf ~/.zplug"
-        echo "wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
-        echo "sleep 1; source ~/.zplug/init.zsh"
-        echo "zplug install"
-        if [[ ! -f "$HOME/.zplug-skip-install-query" ]]; then
-          cl::p_msg "Creating file ~/.zplug-skip-install-query to not ask again, delete file to r-enable this query."
-          touch ~/.zplug-skip-install-query
-        fi
-      fi
-    fi
+    if [[ -d "$HOME/.zplug" ]]; then
+      cl::p_war "zplug installation incomplete/corrupted since ~/.zplug exists but ~/.zplug/init.zsh does not."
+      cl::p_msg "Try removing the folder and restart zsh:"
+      echo "  rm -rf ~/.zplug"
+    fi  
+    cl::p_msg "To manually install and setup zplug, run the following commands:"
+    echo "  wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
+    echo "  sleep 1; source ~/.zplug/init.zsh"
+    echo "  zplug install"
+    cl::p_msg "Creating file ~/.zplug-skip-install-prompt to not ask again (delete file to r-enable)."
+    touch ~/.zplug-skip-install-prompt
   fi
-fi
+}
+
+case $ZPLUG_MODE in
+  skip) ;;
+  *)
+    _zplug_init
+esac
 
 # self-manage zplug (zplug update will upldate zplug itself)
 $ZPLUG_CMD 'zplug/zplug', hook-build:'zplug --self-manage'
@@ -334,7 +396,7 @@ POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable vcs) # disk_usage
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time \
                                     background_jobs docker_machine)
 #[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]]
-$IS_WSL || POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
+$ZPLUG_MODE_FULL && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 
 #export DEFAULT_USER="$USER" # not an options, lambda should always be shown
@@ -452,9 +514,12 @@ $ZPLUG_CMD "plugins/dirhistory", from:oh-my-zsh
 $ZPLUG_CMD "plugins/docker", from:oh-my-zsh # docker autocompletion
 $ZPLUG_CMD "plugins/encode64", from:oh-my-zsh # encode64/decode64
 #https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
-$IS_WSL || $ZPLUG_CMD "plugins/git", from:oh-my-zsh
-$IS_WSL || $ZPLUG_CMD "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
-$IS_WSL && $ZPLUG_CMD "plugins/git-fast", from:oh-my-zsh
+if $IS_MODE_FULL; then
+  $ZPLUG_CMD "plugins/git", from:oh-my-zsh
+  $ZPLUG_CMD "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
+else
+  $ZPLUG_CMD "plugins/git-fast", from:oh-my-zsh
+fi
 $ZPLUG_CMD "plugins/httpie", from:oh-my-zsh # completion for apt:httpie (http)
 $ZPLUG_CMD "plugins/jsontools", from:oh-my-zsh # *_json
 $ZPLUG_CMD "plugins/mvn", from:oh-my-zsh # maven completion
@@ -469,8 +534,8 @@ $ZPLUG_CMD "plugins/wd", from:oh-my-zsh # wd (warp directory)
 #$ZPLUG_CMD "zsh-users/zsh-history-substring-search"
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
-# but not on remote machines and wsl (use ssh -A agent forwarding if needed)
-if ! cl::is_ssh && ! $IS_WSL; then
+# but not on remote machines and wsl/termxu (use ssh -A agent forwarding if needed)
+if $ZPLUG_MODE_IS_FULL && ! cl::is_ssh; then
   $ZPLUG_CMD "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
 fi
 # }}} - OH MY ZSH ------------------------------------------------------------
@@ -487,7 +552,7 @@ fi
 _zplug_update() {
   if $ZPLUG_CMD check --verbose; then
     touch ~/.zplug/lastcheck
-  elif $ZPLUG_NEW_INSTALL_FORCE || cl::q_yesno "Install missing zplug packages"; then
+  elif $ZPLUG_IS_NEW_INSTALL_FORCED || cl::q_yesno "Install missing zplug packages"; then
     zplug install
     touch ~/.zplug/lastcheck
   else
@@ -497,7 +562,7 @@ _zplug_update() {
 }
 
 if $IS_ZPLUG; then
-  if $ZPLUG_NEW_INSTALL; then
+  if $ZPLUG_IS_NEW_INSTALL; then
     cl::p_msg "Running zplug install for new zplug installation ..."
     cl::p_msg "NOTE: This may take a while (post-install without output)"
     _zplug_update
@@ -640,7 +705,7 @@ zstyle ':completion:*' group-name ''
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
 # but not on remote machines (use ssh -A agent forwarding if needed)
-if ! cl::is_ssh && ! $IS_WSL; then
+if $ZPLUG_MODE_IS_FULL && ! cl::is_ssh; then
   # ssh-agent forwarding
   zstyle :omz:plugins:ssh-agent agent-forwarding on
   # ssh-agent identities
