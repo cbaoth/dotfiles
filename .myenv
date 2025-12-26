@@ -44,12 +44,37 @@ HOST=${HOST:=${$(hostname 2> /dev/null):l}}
 # Is X available? Unreliable for ssh x-forwading., suffices for local sessions
 IS_X=$([[ ! -t 0 ]] && xset b off >& /dev/null && print true || print false)
 
-# Is Docker Environment?
-IS_DOCKER=$([[ -f /.dockerenv || -f /run/.containerenv ]] && print true || print false)
+# Is PC (x86 architecture)
+IS_PC=false
+IS_PC_NATIVE=true
+if [[ $ARCH = *x86* ]]; then
+  IS_PC=true
+else # No PC (x68 architecture)
+  IS_PC_NATIVE=false
+  # Is Android Termux?
+  IS_ANDROID=false
+  IS_TERMUX=false
+  if [[ $(uname -r) = *android* ]]; then
+    IS_PC_NATIVE=false
+    IS_ANDROID=true
+    if [[ -d "/data/data/com.termux/files/usr/bin" ]]; then
+      IS_TERMUX=true
+      PATH+=":/data/data/com.termux/files/usr/bin"
+    fi
+  fi
+fi
 
-# Are we in a Windows Subsystem Linux?
+# Is Docker Environment?
+IS_DOCKER=false
+if [[ -f /.dockerenv || -f /run/.containerenv ]]; then
+  IS_PC_NATIVE=false
+  IS_DOCKER=true
+fi
+
+# Is Windows Subsystem Linux?
 IS_WSL=false
 if [[ ! $IS_DOCKER && $(uname -r) = *icrosoft* ]]; then
+  IS_PC_NATIVE=false
   IS_WSL=true
   IS_WSL1=true
   IS_WSL2=false
