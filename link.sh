@@ -13,19 +13,38 @@ LINK_FILE=$(realpath $0)
 DOTFILES=$(dirname $LINK_FILE)
 BAKDIR=$HOME/dotfiles_bak_$(date +%s)
 KEEP_LAST_BAKS=1
-DEBUG=false
-#DEBUG=true
 DRY_RUN=false
+VERBOSE=0
 
 # simple args parsing
 usage() {
-  echo "Usage: $(basename "$0") [--dry-run|-n] [--help|-h]" >&2
+  echo "Usage: $(basename "$0") [--dry-run|-n] [-v|-vv|--verbose[=N]] [--help|-h]" >&2
+  echo "  -v             Increase verbosity (info)" >&2
+  echo "  -vv            Increase verbosity more (debug)" >&2
+  echo "  --verbose=N    Set verbosity level explicitly (0=quiet,1=info,2=debug)" >&2
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -n|--dry-run)
       DRY_RUN=true
+      shift
+      ;;
+    -vv)
+      VERBOSE=$((VERBOSE+2))
+      shift
+      ;;
+    -v|--verbose)
+      VERBOSE=$((VERBOSE+1))
+      shift
+      ;;
+    --verbose=*)
+      val="${1#*=}"
+      if [[ "$val" =~ ^[0-9]+$ ]]; then
+        VERBOSE=$val
+      else
+        VERBOSE=1
+      fi
       shift
       ;;
     -h|--help)
@@ -40,6 +59,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# cap verbosity at reasonable maximum
+(( VERBOSE > 3 )) && VERBOSE=3
+
+# logging helpers
+vlog() { # usage: vlog <level> <message...>
+  local lvl="$1"; shift
+  (( VERBOSE >= lvl )) && echo -e "$@"
+}
+info() { vlog 1 "$@"; }
+debug() { vlog 2 "$@"; }
+
 cd "$DOTFILES"
 # safety check before we create wrong links
 [ ! -d ".git" ] \
@@ -50,10 +80,10 @@ cd "$DOTFILES"
 run_and_report() {
   local cmd="$1"
   if $DRY_RUN; then
-    echo -e "\e[34mDRY-RUN: would run: $cmd\e[0m"
+    info "\e[34mDRY-RUN: would run: $cmd\e[0m"
     return 0
   fi
-  echo -e "\e[34m$cmd\e[0m"
+  info "\e[34m$cmd\e[0m"
   eval "$cmd"
   local rc=$?
   if [ $rc -ne 0 ]; then
@@ -72,7 +102,7 @@ IGNORE_FILE=".linkignore"
 # Read the ignore file and create a regex pattern
 IGNORE_PATTERN=$(grep -vE "^\s*#" "$IGNORE_FILE" | sed ':a;N;$!ba;s/\n/\\|/g')
 IGNORE_PATTERN=".*/\($(basename $0)\|\.linkignore\|${IGNORE_PATTERN}\)\(/.*\)\?"
-$DEBUG && echo "Global Ignore Pattern ($IGNORE_FILE): $IGNORE_PATTERN"
+debug "Global Ignore Pattern ($IGNORE_FILE): $IGNORE_PATTERN"
 
 typeset -a WARNINGS
 typeset -a ERRORS
@@ -95,10 +125,10 @@ while IFS= read -r -d '' f; do
   # get relative target/source file location
   relpath=$(realpath --relative-to "$DOTFILES" "$f")
   target=$HOME/$relpath
-  echo
-  echo "Processing: $relpath -> $HOME/$relpath ..."
-  $DEBUG && echo "SRC: $relpath"
-  $DEBUG && echo "TAR: $target"
+  info ""
+  info "Processing: $relpath -> $HOME/$relpath ..."
+  info "SRC: $relpath"
+  info "TAR: $target"
   #if [[ "$target" =~ "$DOTFILES" ]]; then
   #  echo "ERROR: target location inside dotfiles git repository, skipping: $target" >&2
   #  continue
@@ -112,17 +142,17 @@ while IFS= read -r -d '' f; do
       elif [ -L "$target" ]; then
         backup_existing "$target" "$relpath" " directory" " but is a symlink"
       else
-        echo -e "\e[32mOK: Correct directory already exists, skipping (nothing to do): $target\e[0m"
+        info "\e[32mOK: Correct directory already exists, skipping (nothing to do): $target\e[0m"
         continue
       fi
     fi
-    $DEBUG && echo "Creating directory: '$target'"
+    info "Creating directory: '$target'"
     run_and_report "mkdir -p \"$target\""
   else
     if [ -e "$target" ]; then # target exists?
       # is a link pointing to the desired target?
       if [[ -L "$target" && "$(readlink $target)" -ef "$f" ]]; then
-        echo -e "\e[32mOK: Correct symlink already exists (nothing to do), skipping ..\e[0m"
+        info "\e[32mOK: Correct symlink already exists (nothing to do), skipping ..\e[0m"
         continue
       fi
       if [[ -L "$target" ]]; then
@@ -131,7 +161,7 @@ while IFS= read -r -d '' f; do
         backup_existing "$target" "$relpath" " file" " but is a regular file instead of symlink"
       fi
     fi
-    $DEBUG && echo "Creating new SymLink: '$f' -> '$target'"
+    info "Creating new SymLink: '$f' -> '$target'"
     run_and_report "ln -sf \"$f\" \"$target\""
   fi
 done < <(find "$DOTFILES" -regextype sed ! -regex "$IGNORE_PATTERN" -print0)
@@ -172,14 +202,14 @@ run_and_report "rmdir --ignore-fail-on-non-empty \"$BAKDIR\""
 typeset -a EXISTING_BAKS
 EXISTING_BAKS=$(find $HOME -maxdepth 1 -type d -name "dotfiles_bak_*" | sort -r | tail -n +$((KEEP_LAST_BAKS + 1)))
 if [ -z "$EXISTING_BAKS" ]; then
-  $DEBUG && echo "Cleanup: No outdated backup directories found (always keeping last $KEEP_LAST_BAKS), skipping cleanup."
+  debug "Cleanup: No outdated backup directories found (always keeping last $KEEP_LAST_BAKS), skipping cleanup."
 else
-  echo "Cleanup: Removing ${#EXISTING_BAKS[@]} outdated backup directories (\$KEEP_LAST_BAKS=$KEEP_LAST_BAKS) ..."
+  info "Cleanup: Removing ${#EXISTING_BAKS[@]} outdated backup directories (\$KEEP_LAST_BAKS=$KEEP_LAST_BAKS) ..."
   for d in $EXISTING_BAKS; do
-    $DEBUG && echo "Cleanup: Removing outdated backup directory: $d"
+    debug "Cleanup: Removing outdated backup directory: $d"
     run_and_report "rm -rf \"$d\""
   done
-  echo "Cleanup: Done."
+  info "Cleanup: Done."
 fi
 
 exit 0
