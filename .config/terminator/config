@@ -3,10 +3,15 @@
 [keybindings]
 [profiles]
   [[default]]
-    cursor_color = "#aaaaaa"
+    background_darkness = 0.9
+    background_type = transparent
+    font = FiraCode Nerd Font weight=450 10
     scrollback_lines = 10000
+    use_system_font = False
     bold_is_bright = True
     copy_on_selection = True
+    title_use_system_font = False
+    title_font = FiraCode Nerd Font weight=450 9
 [layouts]
   [[default]]
     [[[window0]]]
@@ -68,4 +73,5 @@
       order = 0
       profile = default
       uuid = 75896570-115a-44aa-8261-8ba4cb8a6107
+  [[SaveLastSessionLayout]]
 [plugins]
