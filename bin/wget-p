@@ -176,8 +176,8 @@ _parse_args() {
   fi
 
   _urls=("$@")
-  #cl::p_dbg 0 1 "> URLs: ${_urls[@]}"
-  cl::p_dbg 0 1 "> wget args: ${_wget_args[@]}"
+  #cl::p_dbg -t 0 1 "> URLs: ${_urls[@]}"
+  cl::p_dbg -t 0 1 "> wget args: ${_wget_args[@]}"
 }
 export _dynamic_filename
 export _dynamic_filename_full
