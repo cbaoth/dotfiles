@@ -160,7 +160,8 @@ command -v java >& /dev/null \
 
 # {{{ - CUSTOM VARIABLES -----------------------------------------------------
 # globally raise (but never lower) the default debug level of cl::p_dbg
-export DBG_LVL=0
+export DEBUG_LVL=0
+#export DEBUG_LVL=3
 # }}} - CUSTOM VARIABLES -----------------------------------------------------
 # }}} = ENVIRONMENT (ALL SHELLS) =============================================
 
