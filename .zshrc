@@ -23,19 +23,93 @@
 #zmodload zsh/zprof
 #echo "zprof start: $(date)"
 
+# {{{ = ZSH OPTIONS ==========================================================
+# Set zsh options, see `man zshoptions` for details and `setopt` to list
+# current options.
+
+# INTERACTIVE_COMMENTS (-k) <K> <S>
+#   Allow comments even in interactive shells.
+# https://devdocs.io/zsh/options#index-file-clobbering_002c-allowing
+#
+# This is very useful (e.g. copy/paste script snippets with comments)
+setopt interactivecomments
+
+# {{{ - EXPANSION & GLOBBING -------------------------------------------------
+# https://devdocs.io/zsh/options
+# https://zsh.sourceforge.net/Doc/Release/Options.html#Expansion-and-Globbing
+
+# EXTENDED_GLOB
+#   Treat the ‘#’, ‘~’ and ‘^’ characters as part of patterns for filename
+#   generation, etc. (An initial unquoted ‘~’ always produces named
+#   directory expansion.)
+# https://devdocs.io/zsh/options#index-BAREGLOBQUAL
+# https://gist.github.com/roblogic/63f70f13665c689adca099c8d6d73641
+#
+# Allow the use of some regex/advanced matching features, for example:
+# - `rm *-[0-9]##.png` deletes ".*\d+\.png"
+# - `rm ^*.(tar|bz2|gz) /tmp/` deletes non-archive files (^ negates pattern)
+# - `rm my-service.<12-234>.log` deletes log files with number in given range
+#
+# THIS IS MANDATORY FOR SOME OF THE FUNCTIONS/ALIASES USED/SOURCED BELOW!
+setopt extendedglob
+
+# CORRECT_ALL (-O)
+#   Try to correct the spelling of all arguments in a line.
+#   The shell variable CORRECT_IGNORE_FILE may be set to a pattern to match
+#   file names that will never be offered as corrections.
+# https://devdocs.io/zsh/options#index-CLOBBER
+#
+#setopt correctall
+
+# AUTO_CD (-J)
+#   If a command is issued that can't be executed as a normal command, and the
+#   command is the name of a directory, perform the cd command to that
+#   directory. This option is only applicable if the option SHIN_STDIN (-s) is
+#   set, i.e. if commands are being read from standard input. The option is
+#   designed for interactive use; it is recommended that cd be used explicitly
+#   in scripts to avoid ambiguity.
+# https://devdocs.io/zsh/options#index-AUTO_005fCD
+#
+# Examples: `~` does `cd ~` and `/var/log` does `cd /var/log`
+#setopt autocd
+
+# NULL_GLOB (-G)
+#   If a pattern for filename generation has no matches, delete the pattern
+#   from the argument list instead of reporting an error. Overrides NOMATCH.
+# https://devdocs.io/zsh/options#index-CASE_005fMATCH
+
+# Remove non-matching globs from command instead of failing
+#setopt -o nullglob
+
+# CSH_NULL_GLOB <C>
+#   If a pattern for filename generation has no matches, delete the pattern
+#   from the argument list; do not report an error unless all the patterns in
+#   a command have no matches. Overrides NOMATCH.
+# https://devdocs.io/zsh/options#index-BARE_005fGLOB_005fQUAL
+#
+# Similar to `nullglob`, but still fail if not at least one pattern matches
+#setopt -o cshnullglob
+
+# GLOB_DOTS (-4)
+#   Do not require a leading `.` in a filename to be matched explicitly.
+# DOT_GLOB
+#   GLOB_DOTS (bash compatibility)
+#
+# Include hidden (dot) files in glob selections.
+# WARNING: THIS CAN BE DANGEROUS, E.G. `rm ^.*` WILL DELETE ALL FILES, and
+# not only non-dot files (which is the case without this option set).
+#setopt globdots
+# }}} = ZSH OPTIONS ==========================================================
+
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 # For login shell / general variable like PATH see ~/.common_profile
 
-# globally raise (but never lower) the default debug level of cl::p_dbg
+# globally raise (but never lower) the default debug level of cl::p_dbg -t
 # this is set in ~/.common_profile to be available for all shells, override
 # here if needed
 #export DEBUG_LVL=3
-
 # {{{ - CORE OPTIONS & COMMONS -----------------------------------------------
-# pre-requirements
-setopt extendedglob
-# allow # comments in shell
-setopt interactivecomments
+
 
 # include core functions, must simply be there (used everywhere)
 source $HOME/lib/commons.sh
@@ -65,7 +139,7 @@ setopt HIST_NO_FUNCTIONS # don't store function definitions
 # {{{ -- SYSTEM/ENV STATE ----------------------------------------------------
 if $IS_PC; then
   if $IS_PC_NATIVE; then
-    cl::p_dbg 0 1 "Native PC (x68 architecture) detected."
+    cl::p_dbg -t 0 1 "Native PC (x68 architecture) detected."
   else
     cl::p_msg "Non-native PC (x68 architecture) detected."
   fi
@@ -151,13 +225,13 @@ export UAGENT
 source_ifex () {
   [[ -z "${1-}" ]] && cl::p_usg "$0 source-file.." && return 1
   while [[ -n "$1" ]]; do
-    cl::p_dbg 0 2 "Checking for optional source file '$1' ..."
+    cl::p_dbg -t 0 2 "Checking for optional source file '$1' ..."
     if [[ -r "$1" ]]; then
-      cl::p_dbg 0 1 "Loading optional source file '$1' (file found) ..."
-      source "$1" && cl::p_dbg 0 1 "... done (file successfully loaded)." \
+      cl::p_dbg -t 0 1 "Loading optional source file '$1' (file found) ..."
+      source "$1" && cl::p_dbg -t 0 1 "... done (file successfully loaded)." \
         || cl::p_err "Command 'source $1' returned non-OK exit code!"
     else
-      cl::p_dbg 0 2 "... not found, skipped (OK since optional)."
+      cl::p_dbg -t 0 2 "... not found, skipped (OK since optional)."
     fi
     shift
   done
@@ -222,7 +296,11 @@ _hash_mountpoints() {
       cl::p_war "hash -d ${key}=${dir} skipped, conflict with existing hash: ${existing_hash}"
       continue
     fi
-    cl::p_dbg 0 1 "hash -d ${key}=${dir}"
+    cl::p_dbg -t 0 1 "hash -d ${key}=${dir}"
+    # https://zsh.sourceforge.io/Doc/Release/Shell-Builtin-Commands.html
+    ## run as background job to speed up shell startup e.g. in case a mount point is not (immediately) available
+    ## disable notify and monitor temporarily to avoid messages when spawning background jobs (`hash ... &`)
+    ##setopt local_options no_notify no_monitor
     hash -d "${key}=${dir}"
   done
 }
@@ -269,7 +347,7 @@ if [[ -f "$HOME/.zplug-force-install" ]]; then
 fi
 
 _zplug_source() {
-  cl::p_dbg 0 1 "Sourcing ~/.zplug/init.sh ..."
+  cl::p_dbg -t 0 1 "Sourcing ~/.zplug/init.sh ..."
   time source "$HOME/.zplug/init.zsh" \
     && IS_ZPLUG=true && ZPLUG_CMD=zplug
 }
@@ -280,7 +358,7 @@ _zplug_install() {
   cl::p_msg "Downloading and installing zplug ..."
   if wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh; then
     ZPLUG_IS_NEW_INSTALL=true
-    cl::p_dbg 0 1 "Waiting 1 sec post-install for parallel steps to finish ..."
+    cl::p_dbg -t 0 1 "Waiting 1 sec post-install for parallel steps to finish ..."
     sleep 1
     _zplug_source
   else
@@ -290,16 +368,16 @@ _zplug_install() {
 
 _zplug_init() {
   if $IS_WSL && [[ ${ZPLUG_MODE_WSL:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-      cl::p_dbg 0 1 "zplug init skipped as per \$ZPLUG_MODE_WSL=$ZPLUG_MODE_WSL (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+      cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE_WSL=$ZPLUG_MODE_WSL (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
     return 0
   elif $IS_ANDROID && [[ ${ZPLUG_MODE_ANDROID:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-    cl::p_dbg 0 1 "zplug init skipped as per \$ZPLUG_MODE_ANDROID=$ZPLUG_MODE_ANDROID (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback)."
+    cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE_ANDROID=$ZPLUG_MODE_ANDROID (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback)."
     return 0
   elif $IS_DOCKER && [[ ${ZPLUG_MODE_DOCKER:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-    cl::p_dbg 0 1 "zplug init skipped as per \$ZPLUG_MODE_DOCKER=$ZPLUG_MODE_DOCKER (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+    cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE_DOCKER=$ZPLUG_MODE_DOCKER (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
     return 0
   elif $ZPLUG_MODE_IS_SKIP; then
-    cl::p_dbg 0 1 "zplug init skipped as per \$ZPLUG_MODE=$ZPLUG_MODE (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+    cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE=$ZPLUG_MODE (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
     return 0
   fi
   if ${ZPLUG_IS_NEW_INSTALL_FORCED:-false}; then
@@ -308,14 +386,14 @@ _zplug_init() {
     return 0
   fi
   if [[ -f "$HOME/.zplug/init.zsh" ]]; then
-    cl::p_dbg 0 1 "zplug found (~/.zplug/init.zsh)"
-    ${IS_WSL-false} && cl::p_dbg 0 1 "To disable zplug in WSL set ZPLUG_IS_WSL_SKIP=true"
-    ${IS_ANDROID:-false} && cl::p_dbg 0 1 "To disable zplug on Android set ZPLUG_IS_ANDROID_SKIP=true"
+    cl::p_dbg -t 0 1 "zplug found (~/.zplug/init.zsh)"
+    ${IS_WSL-false} && cl::p_dbg -t 0 1 "To disable zplug in WSL set ZPLUG_IS_WSL_SKIP=true"
+    ${IS_ANDROID:-false} && cl::p_dbg -t 0 1 "To disable zplug on Android set ZPLUG_IS_ANDROID_SKIP=true"
     _zplug_source
     return 0
   fi
   if ${ZPLUG_SKIP_INSTALL_PROMPT:-false}; then
-    cl::p_dbg 0 1 "zplug install prompt skipped since ~/.zplug-skip-install-prompt exists"
+    cl::p_dbg -t 0 1 "zplug install prompt skipped since ~/.zplug-skip-install-prompt exists"
     return 0
   fi
   if cl::q_yesno "Install zplug now (or never ask again)?"; then
@@ -575,7 +653,7 @@ if $IS_ZPLUG; then
     cl::p_msg "Last zplug install/update more than 14 days ago, checking ..."
     _zplug_install_and_update
   else
-    cl::p_dbg 0 2 "Last successfull update less than 14 days ago ($((($(date +%s) - $(stat -c %Y ~/.zplug/lastcheck))/60/60/24)) days), skipping ..."
+    cl::p_dbg -t 0 2 "Last successfull update less than 14 days ago ($((($(date +%s) - $(stat -c %Y ~/.zplug/lastcheck))/60/60/24)) days), skipping ..."
   fi
 fi
 
@@ -599,21 +677,6 @@ $ZPLUG_CMD load
 autoload zmv
 #zmodload zsh/mathfunc
 
-# SEE: http://zsh.sourceforge.net/Doc/Release/Options.html#Expansion-and-Globbing
-# enable auto correctin (e.g. 'cat /etc/paswd' => 'cat /etc/passwd')
-#setopt correctall
-# change directory withoud cd (e.g. '/etc/' instead of 'cd /etc')
-#setopt autocd
-
-# allow regex in glob (e.g. 'cp ^*.(tar|bz2|gz) /tmp/')
-setopt extendedglob
-# remove non-matching globs from command instead of failing
-#setopt -o nullglob
-# same as nullglob but still fails if none of the globs has a match
-#setopt -o cshnullglob
-
-# include hidden (dot-files) in glob selections (note: also inverse selection!)
-#setopt dotglob
 export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump"
 # enable new style completion system
 autoload -Uz compinit
@@ -692,9 +755,6 @@ zstyle ':completion:*' matcher-list 'm:{A-Z}={a-z}' 'm:{a-z}={A-Z}' \
        'r:|[._-]=** r:|=**' 'l:|=* r:|=*'
 # offer indexes before parameters in subscripts
 #zstyle ':completion:*:*:-subscript-:*' tag-order indexes parameters
-
-# ignore completion functions (until the _ignored completer)
-#zstyle ':completion:*:functions' ignored-patterns '_*'
 
 # change completion description and warning text
 zstyle ':completion:*' verbose yes
@@ -897,13 +957,13 @@ fi
 #fi
 # }}} - X STUFF --------------------------------------------------------------
 # {{{ - DEV ------------------------------------------------------------------
-# https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
-if [[ -d "$HOME/.nvm" ]]; then
-  export NVM_DIR="$HOME/.nvm"
-  # load: nvm
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-  # load: nvm bash_completion
-  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+# Load NodeJS if existing
+# - https://nodejs.org/en/download
+# - https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
+if [[ -d "$HOME/.config/nvm" ]]; then
+  export NVM_DIR="$HOME/.config/nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 fi
 
 # anaconda3 / miniconda3
@@ -932,7 +992,7 @@ if [[ -n "${_MY_CONDA:-}" ]]; then
   # conda info --envs | grep -qE '^\s*default\s' \
   #   && conda activate default >& /dev/null \
   #   && cl::p_msg "Conda environment 'default' activated." \
-  #   || cl::p_dbg 0 1 "conda env 'default' not found, skipping activation"
+  #   || cl::p_dbg -t 0 1 "conda env 'default' not found, skipping activation"
 fi
 
 # angular CLI autocompletion, if ng is avaiable

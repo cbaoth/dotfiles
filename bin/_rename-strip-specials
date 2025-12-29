@@ -117,7 +117,7 @@ _parse_args() {
     cl::p_err "at least one pattern must be active!" \
       && return 1
   fi
-  cl::p_dbg ${debug_lvl} 1 "pattern: '${pattern}'"
+  cl::p_dbg -t ${debug_lvl} 1 "pattern: '${pattern}'"
 
 }
 
@@ -142,12 +142,12 @@ _rename() {
       local base="$(basename ${d})"
       local target="$(sed -E "${pattern}" <<<"${base}")"
       cd "${d}"
-      cl::p_dbg ${debug_lvl} 1 "processing files in ${d}/"
+      cl::p_dbg -t ${debug_lvl} 1 "processing files in ${d}/"
       rename ${rd} "${pattern}" *
       cd "${_PWD}"
       if [[ "${d}" != "." ]]; then
         if [[ "${target}" != "${base}" ]]; then
-          cl::p_dbg ${debug} 1 "${d} renamed as ${dir}/${target}"
+          cl::p_dbg -t ${debug_lvl} 1 "${d} renamed as ${dir}/${target}"
           mv "${d}" "${dir}"/"${target}"
         fi
       fi

@@ -5,7 +5,8 @@
 
 # {{{ - APPS -----------------------------------------------------------------
 alias comfyenv="source ~/comfy-env/bin/activate"
-alias comfyui="comfyenv && comfy launch"
+alias comfy="command -v comfy-cli >& /dev/null || comfyenv && comfy-cli"
+alias comfyui="comfy launch"
 # }}} - APPS -----------------------------------------------------------------
 
 return 0
