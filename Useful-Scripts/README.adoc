@@ -1,3 +1,5 @@
+:qa-section: ❓
+
 == Some random shell/python scripts
 
 Created and intended for my personal use only. Some of these are ancient and most not well maintained, so if anyone stumbles upon this repo: Be warned, read/use at your own risk. :)
@@ -10,9 +12,15 @@ If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is
 
 ==== How it works
 
-* The Warning: At 22:00 (or whenever you schedule it), the script triggers and sends a "critical" notification to your desktop.
-* The Countdown: It gives you a 180-second grace period (customizable) to save your work and close your tabs.
-* The End: Once the timer hits zero, it executes a hard `+systemctl poweroff+`. No "just 5 more minutes ..." allowed.
+* *The Warning:* At 21:30 (or whenever you schedule it), the script triggers and sends a "critical" notification to your desktop.
+* *The Countdown:* It gives you a 180-second grace period (customizable via `GRACE_PERIOD_USER`, default: 3 min) to save your work and close your tabs.
+* *The End:* Once the timer hits zero, it executes a hard `+systemctl poweroff --ignore-inhibitors+`. No "just 5 more minutes ..." allowed.
+** _The `--ignore-inhibitors` ensures that inhibitors (e.g. "stay awake" tools like Caffeine) are ignored._
+** _This bares the risk of data loss, but if you haven't saved your work in time, that's on you._
+* *The Nuclear Option:* If for some reason the poweroff command gets stuck, the script will, after another grace period (customizable via `+GRACE_PERIOD_SYSTEM+`, default: 3 min), enforce an immediate "wait for nothing" poweroff by executing `+systemctl poweroff --force --force+`.
+** *This is basically the software equivalent of pulling the power plug!*
+** _This bares an even higher risk of data loss since services won't have time to gracefully stop and unmount filesystems properly. But ideally this stage should never be reached (just a safety net), and if it does, we trust that the system is able to recover from it._
+** _If you think the risk is too high, this fallback step can easily be disabled by setting `+GRACE_PERIOD_SYSTEM=0+`._
 
 ==== 🛠️ Installation & Setup
 
@@ -29,8 +37,7 @@ sudo cp bedtime-shutdown.sh /opt/bin/bedtime-shutdown.sh
 
 Open the script and make sure the values in the `+CONFIGURATION+` section fit your personal needs.
 
-
-NOTE: Make sure that `+USER_NAME+` is set to your actual username (e.g., `+USER_NAME=yourname+`) and the time between `+SHUTDOWN_START+` and `+SHUTDOWN_END+` is your preferred "Bedtime Zone" (e.g., `+SHUTDOWN_START=2200+` and `+SHUTDOWN_END=0500+` to only shutdown between 22:00 to 05:00).
+NOTE: Make sure that `+USER_NAME+` is set to your actual username (e.g., `+USER_NAME=yourname+`) and the time between `+SHUTDOWN_START+` and `+SHUTDOWN_END+` is your preferred "Bedtime Zone" (e.g., `+SHUTDOWN_START=2130+` and `+SHUTDOWN_END=0500+` to only shutdown between 21:30 to 05:00).
 
 Lock down the permissions so only root can touch it:
 [source,shell]
@@ -56,15 +63,15 @@ EOF
 
 ===== 3. Create the Timer
 
-This tells the system when to run it. Default is set to 22:00 (10 PM).
+This tells the system when to run it. Default is set to 21:30 (9:30 PM).
 
 [source,shell]
 ----
 sudo tee /etc/systemd/system/bedtime.timer <<EOF
 [Unit]
-Description=Run Bedtime Script at 22:00
+Description=Run Bedtime Script at 21:30
 [Timer]
-OnCalendar=--* 22:00:00
+OnCalendar=*-*-* 21:30:00
 Persistent=true
 
 [Install]
@@ -83,33 +90,6 @@ Enable and start the timer:
 sudo systemctl enable --now bedtime.timer
 ----
 
-==== 🔒 Optional: Advanced Lock-in (PAM)
-
-If you're worried you'll just sudo systemctl stop the timer when the warning pops up, you can use PAM to lock yourself out of authentication starting an hour before bedtime. This prevents new logins and sudo usage during the restricted window.
-
-===== A. Set the time restriction
-
-Add a rule near the end of `+/etc/security/time.conf+` to block user (in this case `youruser`) between 21:00 and 06:00 (9 PM to 6 AM).
-
-[source,shell]
-----
-sudo tee -a /etc/security/time.conf <<EOF
-
-# Digital Detox: Prevent main user `youruser` from authenticating between 21:00 and 06:00
-*; *; youruser; !Al2100-0600
-EOF
-----
-
-===== B. Enable the PAM module
-
-Edit `+/etc/pam.d/common-account+` and add the following line near tbe beginning to enforce these rules:
-
-....
-account    required    pam_time.so
-....
-
-WARNING: Be careful with this! If you are not already logged in, you won't be able to get back in until 6 AM.
-
 === ⚙️ Customization
 
 ==== Applying Changes to Systemd Units
@@ -119,9 +99,11 @@ First of all, whenever either of the `/etc/systemd/system/bedtime.*` files are c
 [source,shell]
 ----
 sudo systemctl daemon-reload
+
 # for changes to the timer
 sudo systemctl restart bedtime.timer
 sudo systemctl status bedtime.timer
+
 # for changes to the service
 sudo systemctl restart bedtime.service
 sudo systemctl status bedtime.service
@@ -133,15 +115,96 @@ sudo systemctl status bedtime.service
 * Edit `+OnCalendar+` in `+/etc/systemd/system/bedtime.timer+` and reload/restart the timer as shown above.
 * _Optional: If PAM time restriction is used, ensure the settings in `+/etc/security/time.conf+` are appropriate for your new "Bedtime Zone"._
 
-==== Change the Grace Period
+==== Change the Grace Periods
 
-* Edit `+GRACE_PERIOD+` in `+/opt/bin/bedtime-shutdown.sh+`.
+* Edit `+GRACE_PERIOD_USER+` and `+GRACE_PERIOD_SYSTEM+` in `+/opt/bin/bedtime-shutdown.sh+`.
+
+==== Enable Hardware Key Override
+
+There are three options to prevent the shutdown on a given night using a "hardware key" like a USB stick or other removable media.
+
+===== A. Using a Removable Media File
+
+You can optionally use a USB stick or other removable media as a "hardware key" to prevent the shutdown on a given night while it is plugged in. To do so:
+
+* Uncomment `+EMERGENCY_OVERRIDE_FILE_MEDIA_DIR+` in `+/opt/bin/bedtime-shutdown.sh+` and ensure that it points to the correct mount location for your system (default: `/media/$USER_NAME` on Ubuntu).
+* Uncomment `+EMERGENCY_OVERRIDE_FILE_NAME+` in `+/opt/bin/bedtime-shutdown.sh+` and set it to your desired filename (default: `.bedtime-shutdown.emergency-override.$USER_NAME`).
+* Create an empty file with that name on a USB stick or removable media (dir and file name as defined above): `touch /media/$USER_NAME/my-usb-stick/.bedtime-shutdown.emergency-override.$USER_NAME`
+
+When the script runs, it will check if the specified file exists on any mounted media. If found, it aborts the shutdown process for that night.
+
+===== B. Using a Removable Media Label
+
+Alternatively, the script can just look for the LABEL of a removable media. To do so:
+
+* Uncomment `+EMERGENCY_OVERRIDE_MEDIA_LABEL+` in `+/opt/bin/bedtime-shutdown.sh+` to your desired label (e.g., `BEDTIME-OVERRIDE`).
+* Ensure that your USB stick or removable media is labeled accordingly.
+** To check the label you can use `eject -l /dev/sdX` or `lsblk -f` (or `lsblk -fno LABEL | grep -v '^$'` for labels only).
+** To set/change the label you can use e.g. `mlabel` (from `mtools`) or `gparted`
+
+When the script runs, it will check if any mounted media has that label. If found, it aborts the shutdown process for that night.
+
+===== C. Using a USB Device ID
+
+You can also use a specific USB device ID as a hardware key to prevent shutdown. This can be any USB device like a flash drive, a YubiKey, an old WiFi/BT stick, or any other USB peripheral. To do so:
+
+* Uncomment `+EMERGENCY_OVERRIDE_USB_ID+` in `+/opt/bin/bedtime-shutdown.sh+` and set it to the desired USB device ID (format: "1234:abcd").
+** To find the device ID, use `lsusb -t`.
+
+When the script runs, it will check if a USB device with that ID is connected. If found, it aborts the shutdown process for that night.
+
+=== 💪 Hardening Tips
+
+==== 🔒 Lock down the Script
+
+In addition to setting the owner to root and permissions to `700` (see installation instructions above), you can make the script immutable to prevent any changes (even by root) unless the immutable flag is removed again:
+
+[source,shell]
+----
+sudo chattr +i /opt/bin/bedtime-shutdown.sh
+# Use `chattr -i` to remove the immutable flag again.
+----
+
+==== 🔒 Advanced Lock-in (PAM)
+
+If you're worried you'll just sudo systemctl stop the timer when the warning pops up, you can use PAM to lock yourself out of authentication starting an hour before bedtime. This prevents new logins and sudo usage during the restricted window.
+
+===== 1. Set the time restriction
+
+Add a rule near the end of `+/etc/security/time.conf+` to block user (in this case `youruser`) between 21:00 and 05:00 (9:00 PM to 5:00 AM).
+
+[source,shell]
+----
+sudo tee -a /etc/security/time.conf <<EOF
+
+# Digital Detox: Prevent main user `youruser` from authenticating between 21:00 and 05:00 (30 min before bedtime)
+*; *; youruser; !Al2100-0500
+EOF
+----
+
+In this example we try to prevent tampering starting 30 min before our 21:30 (9:30 PM) bedtime timer is triggered (see above).
+
+===== 2. Enable the PAM module
+
+Edit `+/etc/pam.d/common-account+` and add the following line near tbe beginning to enforce these rules:
+
+....
+account    required    pam_time.so
+....
+
+WARNING: Be careful with this! If you are not already logged in, you won't be able to get back in until 6 AM.
+
+=== ❓ Q&A
+
+❓ *What about DST (Daylight Saving Time) changes?*
+
+*Answer:* Both the script and the systemd timer uses local time, so DST changes are handled automatically. This is unless the system time zone is correctly set (e.g. `CET` and *not* `UTC`). You can use `timedatectl` to check or change the time zone. But in the end this is not a critical application, so a one-hour shift in shutdown time during DST transitions should not be a big deal. The important part is, that the script will still be executed and not skipped.
 
 '''
 
 === nextcloud-maintenance.sh - 🔧 Nextcloud Maintenance Script
 
-Intended for use in cron with cronic (for info mail) to perform maintenance tasks and integrity/update checks on nextcloud servers, or simply to run before/after an update.
+Intended for use in cron with cronic (for info mail) to perform maintenance tasks and integrity/update checks on nextcloud servers, or simply to run before/ahfter an update.
 
 Stuff like:
 
