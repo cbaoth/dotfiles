@@ -33,6 +33,9 @@ Copy the script to your local bin:
 [source,shell]
 ----
 sudo cp bedtime-shutdown.sh /opt/bin/bedtime-shutdown.sh
+# Later on, when the file already exists, you can use the following instead,
+# since `cp` may change file ownership:
+sudo tee /opt/bin/bedtime-shutdown.sh <bedtime-shutdown.sh >/dev/null
 ----
 
 Open the script and make sure the values in the `+CONFIGURATION+` section fit your personal needs.
@@ -125,19 +128,19 @@ There are three options to prevent the shutdown on a given night using a "hardwa
 
 ===== A. Using a Removable Media File
 
-You can optionally use a USB stick or other removable media as a "hardware key" to prevent the shutdown on a given night while it is plugged in. To do so:
+You can optionally use a USB stick (or other removable media) as a "hardware key" to prevent the shutdown on a given night while it is plugged in. To do so:
 
 * Uncomment `+EMERGENCY_OVERRIDE_FILE_MEDIA_DIR+` in `+/opt/bin/bedtime-shutdown.sh+` and ensure that it points to the correct mount location for your system (default: `/media/$USER_NAME` on Ubuntu).
 * Uncomment `+EMERGENCY_OVERRIDE_FILE_NAME+` in `+/opt/bin/bedtime-shutdown.sh+` and set it to your desired filename (default: `.bedtime-shutdown.emergency-override.$USER_NAME`).
-* Create an empty file with that name on a USB stick or removable media (dir and file name as defined above): `touch /media/$USER_NAME/my-usb-stick/.bedtime-shutdown.emergency-override.$USER_NAME`
+* Create an empty file with that name on a USB stick or removable media (dir and file name as defined above): `touch /media/$(whoami)/my-usb-stick/.bedtime-shutdown.emergency-override.$(whoami)`
 
 When the script runs, it will check if the specified file exists on any mounted media. If found, it aborts the shutdown process for that night.
 
-===== B. Using a Removable Media Label
+===== B. Using a Flash Drive Label
 
-Alternatively, the script can just look for the LABEL of a removable media. To do so:
+Alternatively, the script can check if a USB flash drive (or any other block device) with a specific LABEL is present. To do so:
 
-* Uncomment `+EMERGENCY_OVERRIDE_MEDIA_LABEL+` in `+/opt/bin/bedtime-shutdown.sh+` to your desired label (e.g., `BEDTIME-OVERRIDE`).
+* Uncomment `+EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL+` in `+/opt/bin/bedtime-shutdown.sh+` to your desired label (e.g., `BEDTIME-OVERRIDE`).
 * Ensure that your USB stick or removable media is labeled accordingly.
 ** To check the label you can use `eject -l /dev/sdX` or `lsblk -f` (or `lsblk -fno LABEL | grep -v '^$'` for labels only).
 ** To set/change the label you can use e.g. `mlabel` (from `mtools`) or `gparted`
@@ -149,7 +152,7 @@ When the script runs, it will check if any mounted media has that label. If foun
 You can also use a specific USB device ID as a hardware key to prevent shutdown. This can be any USB device like a flash drive, a YubiKey, an old WiFi/BT stick, or any other USB peripheral. To do so:
 
 * Uncomment `+EMERGENCY_OVERRIDE_USB_ID+` in `+/opt/bin/bedtime-shutdown.sh+` and set it to the desired USB device ID (format: "1234:abcd").
-** To find the device ID, use `lsusb -t`.
+** To find the device ID, use `lsusb` (e.g. `lsusb | grep -i realtek`).
 
 When the script runs, it will check if a USB device with that ID is connected. If found, it aborts the shutdown process for that night.
 
