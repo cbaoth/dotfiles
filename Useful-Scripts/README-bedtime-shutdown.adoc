@@ -1,0 +1,300 @@
+= bedtime-shutdown.sh - 😴 Digital Detox: Bedtime Enforcer
+
+If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is your new best friend (or worst enemy). It forces a system shutdown at a set time every night to make sure you actually get some sleep.
+
+== How it works
+
+* *The Warning:* At 21:30 (or whenever you schedule it), the script triggers and sends a "critical" notification to your desktop.
+* *The Countdown:* It gives you a 180-second grace period (customizable via `BSS_GRACE_PERIOD_USER`, default: 3 min) to save your work and close your tabs.
+* *The End:* Once the timer hits zero, it executes a hard `systemctl poweroff --ignore-inhibitors`. No "just 5 more minutes ..." allowed.
+** _The `--ignore-inhibitors` ensures that inhibitors (e.g. "stay awake" tools like Caffeine) are ignored._
+** _This bares the risk of data loss, but if you haven't saved your work in time, that's on you._
+* *The Nuclear Option:* If for some reason the poweroff command gets stuck, the script will, after another grace period (customizable via `BSS_GRACE_PERIOD_SYSTEM`, default: 3 min), enforce an immediate "wait for nothing" poweroff by executing `systemctl poweroff --force --force`.
+** *This is basically the software equivalent of pulling the power plug!*
+** _This bares an even higher risk of data loss since services won't have time to gracefully stop and unmount filesystems properly. But ideally this stage should never be reached (just a safety net), and if it does, we trust that the system is able to recover from it._
+** _If you think the risk is too high, this fallback step can easily be disabled by setting `BSS_GRACE_PERIOD_SYSTEM=0`._
+
+== 🛠️ Installation & Setup
+
+Since this script handles system power, we need to set it up with root permissions and a systemd timer.
+
+=== 1. Prep the Script
+
+Clone the repository and navigate into it:
+
+[source,shell]
+----
+git clone https://github.com/cbaoth/Useful-Scripts
+cd Useful-Scripts
+----
+
+Optional: Create a test config, adjust it to your needs and perform a dry run (without root deployment or actual shutdown):
+
+[source,shell]
+----
+# 1. Create a test config:
+cp etc/bedtime-shutdown.conf /tmp/bedtime-shutdown.conf
+# 2. Adjust the test config as needed, repeat the following step until satisfied:
+editor /tmp/bedtime-shutdown.conf
+# 3. Dry run to see what would happen:
+# As long as it is a --dry-run, and the config file is readable, you can run it as your normal user (no sudo):
+./bedtime-shutdown.sh --config /tmp/bedtime-shutdown.conf --dry-run -v -v
+----
+
+Copy the script to your local bin:
+
+[source,shell]
+----
+# Copy the script to the target location.
+sudo cp bedtime-shutdown.sh /opt/bin/bedtime-shutdown.sh
+
+# Note: sudo cp can potentially change ownership and/or permissions in case
+# the file already exists (e.g. on updates). To prevent that, you may use:
+sudo tee /opt/bin/bedtime-shutdown.sh < bedtime-shutdown.sh >/dev/null
+----
+
+Copy the configuration file to `/etc` and adjust it as needed:
+
+[source,shell]
+----
+sudo cp etc/bedtime-shutdown.conf /etc/bedtime-shutdown.conf
+sudo editor /etc/bedtime-shutdown.conf
+# Be sure to adjust the configuration values as needed, otherwise the script won't work as intended or even
+# lock you out of your system (within the default "Bedtime Zone").
+----
+
+Open the script and make sure the values in the `CONFIGURATION` section fit your personal needs.
+
+NOTE: Make sure that `BSS_USER_NAME` is set to your actual username (default: first non-root user `$(id -nu 1000)`) and the time between `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` is your preferred "Bedtime Zone" (default: `BSS_SHUTDOWN_START="21:30"` and `BSS_SHUTDOWN_END="05:00"` to only shutdown between 21:30 to 05:00). Both HHMM (e.g., `2130`) and HH:MM (e.g., `21:30`) time formats are supported.
+
+Lock down the permissions so only root can touch it:
+
+[source,shell]
+----
+sudo chown root:root /opt/bin/bedtime-shutdown.sh
+sudo chmod 700 /opt/bin/bedtime-shutdown.sh
+# Optional: Make immutable to prevent accidental changes (use `-i` to remove):
+# sudo chattr +i /opt/bin/bedtime-shutdown.sh
+sudo chown root:root /etc/bedtime-shutdown.conf
+sudo chmod 600 /etc/bedtime-shutdown.conf
+----
+
+=== 2. Create the Service
+
+This tells the system what to run.
+
+[source,shell]
+----
+sudo tee /etc/systemd/system/bedtime.service <<EOF
+[Unit]
+Description=Bedtime Shutdown Script
+[Service]
+Type=simple
+ExecStart=/opt/bin/bedtime-shutdown.sh
+EOF
+----
+
+=== 3. Create the Timer
+
+This tells the system when to run it. Default is set to 21:30 (9:30 PM).
+
+[source,shell]
+----
+sudo tee /etc/systemd/system/bedtime.timer <<EOF
+[Unit]
+Description=Run Bedtime Script at 21:30
+[Timer]
+OnCalendar=*-*-* 21:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+----
+
+NOTE: The timer is `Persistent`, meaning if your computer is off at the scheduled time, it will run the script as soon as you power it on again. To prevent the system from shutting down immediately after booting up in the morning, make sure the `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` times in the script are set correctly.
+
+=== 4. Fire it up
+
+Enable and start the timer:
+
+[source,shell]
+----
+sudo systemctl enable --now bedtime.timer
+----
+
+== ⚙️ Configuration
+
+=== Configuration File
+
+The script uses a configuration file (default: `/etc/bedtime-shutdown.conf`) with the following key settings:
+
+* `BSS_USER_NAME`: User to notify before shutdown (default: first non-root user)
+* `BSS_GRACE_PERIOD_USER`: Grace period in seconds between user notification and shutdown (default: 180)
+* `BSS_GRACE_PERIOD_SYSTEM`: Grace period in seconds between graceful and forced poweroff (default: 180, set to 0 to disable forced fallback)
+* `BSS_SHUTDOWN_START`: Time when "Bedtime Zone" begins, in HHMM or HH:MM format (default: 2130 or 21:30)
+* `BSS_SHUTDOWN_END`: Time when "Safe Zone" begins, in HHMM or HH:MM format (default: 0500 or 05:00)
+* `BSS_LOGFILE`: Optional log file path for persistent logging (can be overridden via `--logfile` CLI option)
+* Emergency override settings (see <<enable-hardware-key-override>>)
+
+=== CLI Options
+
+[source,shell]
+----
+Usage: bedtime-shutdown.sh [OPTIONS]
+
+Options:
+  -c, --config FILE        Specify an alternative configuration file
+  -l, --logfile FILE       Write log output to specified file (overrides BSS_LOGFILE)
+  -n, --no-act, --dry-run  Log shutdown command instead of executing it
+  -v, --verbose            Increase verbosity level (can be specified multiple times)
+  -q, --quiet              Suppress debug output
+  -h, --help               Show this help message
+
+Verbosity Levels:
+  0 (default)  Normal output
+  1            Verbose output with set -v
+  2+           Debug output with set -x
+----
+
+== ⚙️ Customization
+
+=== Applying Changes to Systemd Units
+
+First of all, whenever either of the `/etc/systemd/system/bedtime.*` files are changed, ensure to reload the systemd daemon and restart the relevant unit(s):
+
+[source,shell]
+----
+sudo systemctl daemon-reload
+
+# for changes to the timer
+sudo systemctl restart bedtime.timer
+sudo systemctl status bedtime.timer
+
+# for changes to the service
+sudo systemctl restart bedtime.service
+sudo systemctl status bedtime.service
+----
+
+=== Change the "Bedtime Zone"
+
+* Edit `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` in `/etc/bedtime-shutdown.conf`. Both HHMM (e.g., `2130`) and HH:MM (e.g., `21:30`) formats are supported.
+* Edit `OnCalendar` in `/etc/systemd/system/bedtime.timer` and reload/restart the timer as shown above.
+* _Optional: If PAM time restriction is used, ensure the settings in `/etc/security/time.conf` are appropriate for your new "Bedtime Zone"._
+
+=== Change the Grace Periods
+
+* Edit `BSS_GRACE_PERIOD_USER` and `BSS_GRACE_PERIOD_SYSTEM` in `/etc/bedtime-shutdown.conf`.
+
+=== Enable Log File
+
+To enable persistent logging to a file:
+
+* Edit `BSS_LOGFILE` in `/etc/bedtime-shutdown.conf` (e.g., `BSS_LOGFILE="/var/log/bedtime-shutdown.log"`)
+** Or use the `--logfile` CLI option (overrides config file setting)
+* Ensure the file/directory is writable by root (or by your user for dry-run testing)
+
+[[enable-hardware-key-override]]
+=== Enable Hardware Key Override
+
+There are three options to prevent the shutdown on a given night using a "hardware key" like a USB stick or other removable media.
+
+==== A. Using a Removable Media File
+
+You can optionally use a USB stick (or other removable media) as a "hardware key" to prevent the shutdown on a given night while it is plugged in. To do so:
+
+* Uncomment `BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR` in `/etc/bedtime-shutdown.conf` and ensure that it points to the correct mount location for your system (default: `/media/$BSS_USER_NAME` for Ubuntu).
+* Uncomment `BSS_EMERGENCY_OVERRIDE_FILE_NAME` in `/etc/bedtime-shutdown.conf` and set it to your desired filename (default: `.bedtime-shutdown.emergency-override.$BSS_USER_NAME`).
+* Create an empty file with that name on a USB stick or removable media (dir and file name as defined above): `touch /media/$(whoami)/my-usb-stick/.bedtime-shutdown.emergency-override.$(whoami)`
+
+When the script runs, it will check if the specified file exists on any mounted media. If found, it aborts the shutdown process for that night.
+
+==== B. Using a Flash Drive Label
+
+The script can optionally check if a USB flash drive (or any other block device) with a specific LABEL is present. To do so:
+
+* Uncomment `BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL` in `/etc/bedtime-shutdown.conf` to your desired label (e.g., `BEDTIME-OVERRIDE`).
+* Ensure that your USB stick or removable media is labeled accordingly.
+** _To check the label you can use `eject -l /dev/sdX` or `lsblk -f` (or `lsblk -fno LABEL | grep -v '^$'` for labels only)._
+** _To set/change the label you can use e.g. `mlabel` (from `mtools`) or `gparted`_
+
+When the script runs, it will check if any mounted media has that label. If found, it aborts the shutdown process for that night.
+
+==== C. Using a USB Device ID
+
+You can optionally use a specific USB device ID as a hardware key to prevent shutdown. This can be any USB device like a flash drive, a YubiKey, an old WiFi/BT stick, or any other USB peripheral. To do so:
+
+* Uncomment `BSS_EMERGENCY_OVERRIDE_USB_ID` in `/etc/bedtime-shutdown.conf` and set it to the desired USB device ID (format: "1234:abcd").
+** _To find the device ID, use `lsusb` (e.g. `lsusb | grep -i realtek`)._
+
+When the script runs, it will check if a USB device with that ID is connected. If found, it aborts the shutdown process for that night.
+
+== 💪 Hardening Tips
+
+=== 🔒 Lock down the Script
+
+In addition the file access limitations we already discussed above, you can make the script immutable to prevent any changes (even by root, unless the immutable flag is removed again):
+
+[source,shell]
+----
+sudo chattr +i /opt/bin/bedtime-shutdown.sh
+# Use `chattr -i` to remove the immutable flag again.
+----
+
+=== 🔒 Advanced Lock-in (PAM)
+
+If you're worried you'll e.g. just reboot the system after shutdown, or quickly tamper with the service/timer/script when the warning pops up, the following PAM (Pluggable Authentication Modules) configuration can help to lock you out of the system during the "Bedtime Zone" and prevent the use of `sudo` or other authentication-requiring actions in or even before that period.
+
+==== 1. Set the time restriction
+
+Add a rule near the end of `/etc/security/time.conf` to block user (in this case `youruser`) between 21:00 and 05:00 (9:00 PM to 5:00 AM).
+
+[source,shell]
+----
+sudo tee -a /etc/security/time.conf <<EOF
+
+# Digital Detox: Prevent main user `youruser` from authenticating between 21:00 and 05:00 (30 min before bedtime)
+# <service>: <tty>: <user>: <time>
+*; *; youruser; !Al2100-0500
+EOF
+----
+
+In this example we try to prevent your user from authenticating starting 30 min before our 21:30 (9:30 PM) bedtime timer is triggered (see above).
+
+Optionally, you can only restrict specific services like `login` and `sudo` by replacing the first asterisk (`*`) in the line with the service name.
+
+[source,shell]
+----
+# <service>: <tty>: <user>: <time>
+login; *; youruser; !Al2100-0500
+sudo; *; youruser; !Al2100-0500
+----
+
+==== 2. Enable the PAM module
+
+Edit `/etc/pam.d/common-account` and add the following line near the beginning to enforce these rules:
+
+....
+account    required    pam_time.so
+....
+
+WARNING: Be careful with this! If you are not already logged in, you won't be able to get back in until 6 AM (or whatever time you set). In doubt keep a root terminal `sudo -i` open before testing this, so you can revert the changes if needed.
+
+NOTE: Depending on your distribution, the relevant PAM file may differ. There are usually also individual service configuration and `@include` files (e.g. `/etc/pam.d/sudo`, `/etc/pam.d/login`, etc.) in case you want to apply the time restriction only to specific services instead of globally via `common-account`. By running `grep -r common-account /etc/pam.d/` you can find out which files include the global configuration we edited above.
+
+== ❓ FAQ
+
+*Q: What about DST (Daylight Saving Time) changes?*
+
+*A:* Both the script and the systemd timer uses local time, so DST changes are handled automatically. This is unless the system time zone is correctly set (e.g. `CET` and *not* `UTC`). You can use `timedatectl` to check or change the time zone. But in the end this is not a critical application, so a one-hour shift in shutdown time during DST transitions should not be a big deal. The important part is, that the script will still be executed and not skipped.
+
+*Q: Can I run the script in dry-run mode without sudo?*
+
+*A:* Yes! As long as the configuration file is readable by your user, you can run the script in `--dry-run` mode without sudo. This is helpful for testing and development. Some features like `wall` broadcasts and GUI notifications to other users may fail, but this is expected and safe for testing.
+
+*Q: How do I debug issues with the script?*
+
+*A:* Use the verbosity options:
+- `-v` for verbose mode (shows commands before expansion)
+- `-v -v` for debug mode (shows full command execution with expansions and debug log messages)
+- Add `--logfile /tmp/bedtime-debug.log` to save output to a file for review
