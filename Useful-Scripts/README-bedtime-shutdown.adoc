@@ -253,22 +253,21 @@ Add a rule near the end of `/etc/security/time.conf` to block user (in this case
 ----
 sudo tee -a /etc/security/time.conf <<EOF
 
-# Digital Detox: Prevent main user `youruser` from authenticating between 21:00 and 05:00 (30 min before bedtime)
+# -- BEDTIME --
 # <service>: <tty>: <user>: <time>
-*; *; youruser; !Al2100-0500
+
+# Prevent user `youruser` from authenticating between 21:00 (9:00 PM) and 05:00 (5:00 AM).
+# 30 min before bedtime shutdown (default: 21:30), just in case.
+   *; *; youruser; !Al2100-0500
+
+# Prevent user `youruser` from using sudo between 17:00 (5:00 PM) and 05:00 (5:00 AM).
+# 4 hours before bedtime shutdown (default: 21:30), to prevent tampering with the script/service/timer.
+sudo; *; youruser; !Al1700-0500
 EOF
 ----
 
 In this example we try to prevent your user from authenticating starting 30 min before our 21:30 (9:30 PM) bedtime timer is triggered (see above).
 
-Optionally, you can only restrict specific services like `login` and `sudo` by replacing the first asterisk (`*`) in the line with the service name.
-
-[source,shell]
-----
-# <service>: <tty>: <user>: <time>
-login; *; youruser; !Al2100-0500
-sudo; *; youruser; !Al2100-0500
-----
 
 ==== 2. Enable the PAM module
 
