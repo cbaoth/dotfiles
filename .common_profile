@@ -111,6 +111,18 @@ export IS_WSL1=${IS_WSL1:-false}
 export IS_WSL2=${IS_WSL2:-false}
 # }}} - SYSTEM/ENV STATE -----------------------------------------------------
 
+# {{{ - SSH, KEY AGENT, PASSWORD MANAGER -------------------------------------
+if [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
+  if [[ -S "${HOME}/.ssh/ssh_auth_sock" ]]; then  # Keychain or `ssh-agent`
+    # Note: May also be in /tmp/ssh-XXXXXX/agent.PID, e.g. when running
+    #   `ssh-agent` via `zplug` in .zshrc (which is after this file)
+    export SSH_AUTH_SOCK="${HOME}/.ssh/ssh_auth_sock"
+  elif [[ -S "/run/user/${UID}/gcr/ssh" ]]; then  # GNOME crypto services (incl. KeepassXC)
+    export SSH_AUTH_SOCK="/run/user/${UID}/gcr/ssh"
+  fi
+fi
+# }}} - SSH, KEY AGENT, PASSWORD MANAGER -------------------------------------
+
 # {{{ - DEV ------------------------------------------------------------------
 export CLASSPATH=".:$HOME/.class${CLASSPATH+:$CLASSPATH}"
 export PYTHONPATH="${PYTHONPATH+:$PYTHONPATH}:$HOME/lib/python/site-packages"
