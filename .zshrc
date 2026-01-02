@@ -319,7 +319,7 @@ export DISABLE_AUTO_UPDATE=true
 ZPLUG_MODE_DEFAULT="full"
 # optionally set deviating ZPLUG mode depending on the environment
 ZPLUG_MODE_WSL="full"       # load all zplugs when in WSL
-ZPLUG_MODE_DOCKER="mini"    # load all zplugs when inside a Ddocker containers
+ZPLUG_MODE_DOCKER="mini"    # load all zplugs when inside a Docker containers
 ZPLUG_MODE_ANDROID="skip"   # skip zplug when on Android (maybe much too slow or even crash the terminal)
 
 ZPLUG_MODE=$ZPLUG_MODE_DEFAULT
@@ -613,8 +613,12 @@ $ZPLUG_CMD "plugins/wd", from:oh-my-zsh # wd (warp directory)
 #$ZPLUG_CMD "zsh-users/zsh-history-substring-search"
 
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
-# but not on remote machines and wsl/termxu (use ssh -A agent forwarding if needed)
-if $ZPLUG_MODE_IS_FULL && ! cl::is_ssh; then
+# do not lode if
+# 1. we are in an ssh session, use ssh -A agent forwarding if needed
+# 2. we are in wsl/termux, use other means if needed
+# 3. SSH_AUTH_SOCK is already set (e.g. KeePassXC, Gnome Keyring, Pageant etc.)
+#    Note that SSH_AUTH_SOCK may also be set in .common_profile
+if $ZPLUG_MODE_IS_FULL && ! cl::is_ssh && [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
   $ZPLUG_CMD "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
 fi
 # }}} - OH MY ZSH ------------------------------------------------------------

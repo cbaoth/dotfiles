@@ -30,6 +30,7 @@ alias remount-exec="sudo mount -o remount,exec"
 alias sleep-enable="sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target"
 alias sleep-disable="sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target"
 alias hibernate="systemctl hibernate"
+alias fsck-ntfs-clear-dirty="sudo ntfsfix --clear-dirty"
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------

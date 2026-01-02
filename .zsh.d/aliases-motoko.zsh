@@ -6,6 +6,9 @@
 # {{{ - APPS -----------------------------------------------------------------
 alias comfyenv="source ~/comfy-env/bin/activate"
 alias comfy="command -v comfy-cli >& /dev/null || comfyenv && comfy-cli"
+alias comfyu="comfy update"
+alias comfyun="comfy node update all"
+alias comfyua="comfyu && comfyun"
 alias comfyui="comfy launch"
 # }}} - APPS -----------------------------------------------------------------
 
