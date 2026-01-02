@@ -81,7 +81,7 @@ sudo chmod 600 /etc/bedtime-shutdown.conf
 
 === 2. Create the Service
 
-This tells the system what to run.
+Create the service unit:
 
 [source,shell]
 ----
@@ -94,17 +94,29 @@ ExecStart=/opt/bin/bedtime-shutdown.sh
 EOF
 ----
 
-=== 3. Create the Timer
+This tells the system what to run.
 
-This tells the system when to run it. Default is set to 21:30 (9:30 PM).
+=== 3. Create the Timers
+
+==== Systemd Timer
+
+Create the timer unit:
 
 [source,shell]
 ----
 sudo tee /etc/systemd/system/bedtime.timer <<EOF
 [Unit]
-Description=Run Bedtime Script at 21:30
+Description=Run Bedtime Script at 21:30 (repeat every 10 min until 05:00)
+
 [Timer]
+# 1. The Main Trigger (Start time)
 OnCalendar=*-*-* 21:30:00
+
+# 2. The Safety Net: Repeat every 10 minutes between 21:30 and 05:00
+# Syntax: HH..HH (Range) : MM/Repeat (Minute Interval)
+OnCalendar=*-*-* 21..04:00/10:00
+
+# Keep Persistent=true (catches missed runs on boot)
 Persistent=true
 
 [Install]
@@ -112,7 +124,30 @@ WantedBy=timers.target
 EOF
 ----
 
-NOTE: The timer is `Persistent`, meaning if your computer is off at the scheduled time, it will run the script as soon as you power it on again. To prevent the system from shutting down immediately after booting up in the morning, make sure the `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` times in the script are set correctly.
+This tells the system when to run it.
+
+The default is set to 21:30 (9:30 PM), repeating every 10 minutes until 05:00 (5:00 AM) to ensure it gets executed even if the computer was off at the main trigger time (or something else went wrong).
+
+NOTE: The timer is `Persistent`, meaning if your computer is off at the scheduled time, it will run the script as soon as you power it on again. To prevent the system from shutting down immediately after booting up in the morning, make sure the `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` times in the script are set correctly (script may get triggered but will do nothing outside the "Bedtime Zone").
+
+==== Cron Job (Fallback Layer)
+
+Create a cron job as a fallback in case systemd timers fail for some reason:
+
+[source,shell]
+----
+sudo crontab -e
+----
+
+[source,cron]
+----
+# Bedtime Backup: Run every 15 minutes from hour 21 through 05
+# As long as the script is properly configured, it will only shutdown
+# the system between the defined "Bedtime Zone" and do nothing otherwise.
+*/15 21-05 * * * /opt/bin/bedtime-shutdown.sh
+----
+
+If Systemd somehow fails entirely (daemon crash, timer disabled by accident), Cron is a completely separate subsystem. It doesn't care about Systemd timers.
 
 === 4. Fire it up
 
