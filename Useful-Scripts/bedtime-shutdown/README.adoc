@@ -18,136 +18,133 @@ If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is
 
 Since this script handles system power, we need to set it up with root permissions and a systemd timer.
 
-=== 1. Prep the Script
-
-Clone the repository and navigate into it:
+=== Quick Install
 
 [source,shell]
 ----
-git clone https://github.com/cbaoth/Useful-Scripts
-cd Useful-Scripts
+cd bedtime-shutdown
+sudo ./install.sh
 ----
 
-Optional: Create a test config, adjust it to your needs and perform a dry run (without root deployment or actual shutdown):
+The install script will:
+* Copy the script to `/opt/bin/bedtime-shutdown.sh` (with proper permissions)
+* Copy the config template to `/etc/bedtime-shutdown.conf` (if it doesn't already exist)
+* Show you the systemd service and timer units to create
+* Provide next steps for setup
+
+=== Configuration
+
+After installation, edit the config file to match your needs:
 
 [source,shell]
 ----
-# 1. Create a test config:
-cp etc/bedtime-shutdown.conf /tmp/bedtime-shutdown.conf
-# 2. Adjust the test config as needed, repeat the following step until satisfied:
-editor /tmp/bedtime-shutdown.conf
-# 3. Dry run to see what would happen:
-# As long as it is a --dry-run, and the config file is readable, you can run it as your normal user (no sudo):
-./bedtime-shutdown.sh --config /tmp/bedtime-shutdown.conf --dry-run -v -v
-----
-
-Copy the script to your local bin:
-
-[source,shell]
-----
-# Copy the script to the target location.
-sudo cp bedtime-shutdown.sh /opt/bin/bedtime-shutdown.sh
-
-# Note: sudo cp can potentially change ownership and/or permissions in case
-# the file already exists (e.g. on updates). To prevent that, you may use:
-sudo tee /opt/bin/bedtime-shutdown.sh < bedtime-shutdown.sh >/dev/null
-----
-
-Copy the configuration file to `/etc` and adjust it as needed:
-
-[source,shell]
-----
-sudo cp etc/bedtime-shutdown.conf /etc/bedtime-shutdown.conf
 sudo editor /etc/bedtime-shutdown.conf
-# Be sure to adjust the configuration values as needed, otherwise the script won't work as intended or even
-# lock you out of your system (within the default "Bedtime Zone").
 ----
 
-Open the script and make sure the values in the `CONFIGURATION` section fit your personal needs.
+Key settings to customize:
 
-NOTE: Make sure that `BSS_USER_NAME` is set to your actual username (default: first non-root user `$(id -nu 1000)`) and the time between `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` is your preferred "Bedtime Zone" (default: `BSS_SHUTDOWN_START="21:30"` and `BSS_SHUTDOWN_END="05:00"` to only shutdown between 21:30 to 05:00). Both HHMM (e.g., `2130`) and HH:MM (e.g., `21:30`) time formats are supported.
+* *`BSS_USER_NAME`*: Set to your actual username (default: first non-root user)
+* *`BSS_SHUTDOWN_START`*: When the shutdown window opens (default: `21:30`)
+* *`BSS_SHUTDOWN_END`*: When the shutdown window closes (default: `05:00`)
+* *`BSS_GRACE_PERIOD_USER`*: Time to save work before shutdown (default: `180` seconds / 3 min)
+* *`BSS_GRACE_PERIOD_SYSTEM`*: Time to gracefully shutdown before forced power-off (default: `180` seconds / 3 min)
 
-Lock down the permissions so only root can touch it:
+IMPORTANT: Make sure that the time window between `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` is your preferred "Bedtime Zone", otherwise the script may lock you out of your system during unexpected times. Both HHMM (e.g., `2130`) and HH:MM (e.g., `21:30`) time formats are supported.
+
+=== Creating Systemd Units
+
+The install script outputs a snippet to create the systemd service and timer. You can either:
+
+**Option A: Copy-paste the output**
+
+The install script shows ready-to-use systemd unit definitions. Simply copy and paste them into the appropriate files:
 
 [source,shell]
 ----
-sudo chown root:root /opt/bin/bedtime-shutdown.sh
-sudo chmod 700 /opt/bin/bedtime-shutdown.sh
-# Optional: Make immutable to prevent accidental changes (use `-i` to remove):
-# sudo chattr +i /opt/bin/bedtime-shutdown.sh
-sudo chown root:root /etc/bedtime-shutdown.conf
-sudo chmod 600 /etc/bedtime-shutdown.conf
-----
-
-=== 2. Create the Service
-
-Create the service unit:
-
-[source,shell]
-----
-sudo tee /etc/systemd/system/bedtime.service <<EOF
+sudo tee /etc/systemd/system/bedtime.service <<'EOF'
 [Unit]
 Description=Bedtime Shutdown Script
 [Service]
 Type=simple
 ExecStart=/opt/bin/bedtime-shutdown.sh
+
+[Install]
+WantedBy=multi-user.target
 EOF
-----
 
-This tells the system what to run.
-
-=== 3. Create the Timers
-
-==== Systemd Timer
-
-Create the timer unit:
-
-[source,shell]
-----
-sudo tee /etc/systemd/system/bedtime.timer <<EOF
+sudo tee /etc/systemd/system/bedtime.timer <<'EOF'
 [Unit]
 Description=Run Bedtime Script at 21:30 (repeat every 10 min until 05:00)
 
 [Timer]
-# 1. The Main Trigger (Start time)
 OnCalendar=*-*-* 21:30:00
-
-# 2. The Safety Net: Repeat every 10 minutes between 21:30 and 05:00
-# Syntax: HH..HH (Range) : MM/Repeat (Minute Interval)
 OnCalendar=*-*-* 21..04:00/10:00
-
-# Keep Persistent=true (catches missed runs on boot)
 Persistent=true
 
 [Install]
 WantedBy=timers.target
 EOF
+
+# Enable and start the timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now bedtime.timer
 ----
 
-This tells the system when to run it.
+**Option B: Manual systemd setup**
 
-The default is set to 21:30 (9:30 PM), repeating every 10 minutes until 05:00 (5:00 AM) to ensure it gets executed even if the computer was off at the main trigger time (or something else went wrong).
+Alternatively, create the files manually with your preferred editor:
 
-NOTE: The timer is `Persistent`, meaning if your computer is off at the scheduled time, it will run the script as soon as you power it on again. To prevent the system from shutting down immediately after booting up in the morning, make sure the `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` times in the script are set correctly (script may get triggered but will do nothing outside the "Bedtime Zone").
+[source,shell]
+----
+sudo editor /etc/systemd/system/bedtime.service
+sudo editor /etc/systemd/system/bedtime.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now bedtime.timer
+----
 
-==== Cron Job (Fallback Layer)
+=== Fallback: Cron Job
 
-Create a cron job as a fallback in case systemd timers fail for some reason:
+For additional resilience, you can also create a cron job as a fallback in case systemd timers fail:
 
 [source,shell]
 ----
 sudo crontab -e
 ----
 
+Add the following line:
+
 [source,cron]
 ----
 # Bedtime Backup: Run every 15 minutes from hour 21 through 05
-# As long as the script is properly configured, it will only shutdown
-# the system between the defined "Bedtime Zone" and do nothing otherwise.
 */15 21-05 * * * /opt/bin/bedtime-shutdown.sh
 ----
 
-If Systemd somehow fails entirely (daemon crash, timer disabled by accident), Cron is a completely separate subsystem. It doesn't care about Systemd timers.
+=== Testing Before Live Deployment
+
+Before enabling the timer, test the script with a dry run:
+
+[source,shell]
+----
+# Test with the live config:
+sudo /opt/bin/bedtime-shutdown.sh --dry-run -vv
+
+# Or test with a temporary config:
+cp /etc/bedtime-shutdown.conf /tmp/test-bedtime.conf
+editor /tmp/test-bedtime.conf
+/opt/bin/bedtime-shutdown.sh --config /tmp/test-bedtime.conf --dry-run -vv
+----
+
+=== Updating the Script
+
+To update to a newer version, simply run the install script again from the git repository:
+
+[source,shell]
+----
+cd bedtime-shutdown
+sudo ./install.sh
+----
+
+The install script will detect if a newer version is available and update it. It will NOT overwrite your existing config file.
 
 === 4. Fire it up
 
