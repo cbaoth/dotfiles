@@ -20,23 +20,24 @@ If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is
 * Comprehensive logging with optional log file support
 * Multiple verbosity levels for debugging
 
-*📖 Full Documentation:* See link:README-bedtime-shutdown.adoc[README-bedtime-shutdown.adoc] for detailed installation, configuration, and usage instructions.
 
 *Quick Start:*
 
 [source,shell]
 ----
-# Test with dry-run (no sudo needed!)
-cp etc/bedtime-shutdown.conf /tmp/bedtime-shutdown.conf
+# Optional: Test in dry-run mode first (no sudo or system changes needed!)
+cp bedtime-shutdown/bedtime-shutdown.conf /tmp/bedtime-shutdown.conf
 editor /tmp/bedtime-shutdown.conf
-./bedtime-shutdown.sh --config /tmp/bedtime-shutdown.conf --dry-run -v
+./bedtime-shutdown/bedtime-shutdown.sh --config /tmp/bedtime-shutdown.conf --dry-run -v
 
-# Deploy (requires sudo)
-sudo cp bedtime-shutdown.sh /opt/bin/bedtime-shutdown.sh
-sudo cp etc/bedtime-shutdown.conf /etc/bedtime-shutdown.conf
+# Deploy and configure (requires sudo)
+cd bedtime-shutdown
+sudo ./install.sh
 sudo editor /etc/bedtime-shutdown.conf
-# ... create systemd service and timer (see full README)
+# Now follow the instructions shown by the install script (systemd service unit/timer etc.)
 ----
+
+*📖 Full Documentation:* See link:bedtime-shutdown/README.adoc[bedtime-shutdown/README.adoc] for detailed installation, configuration, and usage instructions.
 
 '''
 
