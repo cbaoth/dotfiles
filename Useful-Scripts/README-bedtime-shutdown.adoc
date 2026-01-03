@@ -179,17 +179,19 @@ The script uses a configuration file (default: `/etc/bedtime-shutdown.conf`) wit
 Usage: bedtime-shutdown.sh [OPTIONS]
 
 Options:
-  -c, --config FILE        Specify an alternative configuration file
-  -l, --logfile FILE       Write log output to specified file (overrides BSS_LOGFILE)
-  -n, --no-act, --dry-run  Log shutdown command instead of executing it
-  -v, --verbose            Increase verbosity level (can be specified multiple times)
-  -q, --quiet              Suppress debug output
-  -h, --help               Show this help message
+  -c, --config FILE        Specify an alternative configuration file (default: /etc/bedtime-shutdown.conf).
+  -l, --logfile FILE       Write log output to specified file (overrides BSS_LOGFILE from config).
+  -n, --no-act, --dry-run  Log shutdown command instead of executing it; all other logic executes normally.
+  -v, --verbose            Increase verbosity level (can be specified multiple times, in short: -vvvv for full trace)
+  -q, --quiet              Suppress debug output.
+  -h, --help               Show this help message.
 
 Verbosity Levels:
-  0 (default)  Normal output
-  1            Verbose output with set -v
-  2+           Debug output with set -x
+  0 (default)  Standard output
+  1            Info output
+  2            Debug output
+  3            Debug output with set -v (shows commands before expansion)
+  4            Debug output with set -x (shows command execution with expansions)
 ----
 
 == ⚙️ Customization

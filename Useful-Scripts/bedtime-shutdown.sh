@@ -59,6 +59,11 @@
 # }}} = DOC: BASIC SETUP =====================================================
 
 # {{{ = COMMONS ==============================================================
+# -e: exit on error
+# -u: treat unset variables as an error
+# -o pipefail: return exit code of the last command in the pipeline that failed
+set -euo pipefail  # Fail if any command in a pipeline fails
+
 # Logging function with timestamp and colored levels
 SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")
 __log() {
@@ -75,31 +80,38 @@ __log() {
       ;;
     W|WAR|WARN)
       echo -e "$timestamp [\033[33mWARN\033[0m]  $msg"
-      [[ -n "$LOGFILE" ]] && echo "$timestamp_log WARN ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
+      [[ -n "$LOGFILE" ]] && echo "$timestamp_log WARN  ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
+      ;;
+    I|INF|INFO)
+      [[ "$VERBOSITY" -lt 1 ]] && return 0  # Skip info messages if verbosity < 1
+      echo -e "$timestamp [\033[32mINFO\033[0m]  $msg"
+      [[ -n "$LOGFILE" ]] && echo "$timestamp_log INFO  ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
       ;;
     D|DEB|DEBUG)
       [[ "$VERBOSITY" -lt 2 ]] && return 0  # Skip debug messages if verbosity < 2
       echo -e "$timestamp [\033[34mDEBUG\033[0m] $msg"
       [[ -n "$LOGFILE" ]] && echo "$timestamp_log DEBUG ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
       ;;
-    *) # Currently no distinct INFO level (vs. standard output level)
-      echo -e "$timestamp [INFO]  $msg"
-      [[ -n "$LOGFILE" ]] && echo "$timestamp_log INFO ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
+    *)
+      echo -e "$timestamp [*]     $msg"
+      [[ -n "$LOGFILE" ]] && echo "$timestamp_log *     ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
       ;;
   esac
 }
 # Convenience wrappers
-_log_error() { __log "ERROR" "$*"; }
-_log_warn()  { __log "WARN"  "$*"; }
-_log_info()  { __log "INFO"  "$*"; }
-_log_debug() { __log "DEBUG" "$*"; }
-_log()       { __log "" "$*"; } # Currently equivalent to _log_info (no distinct INFO level)
+_log()       { __log "" "$*"; }      # Always shown (no level)
+_log_error() { __log "ERROR" "$*"; } # Always shown
+_log_warn()  { __log "WARN"  "$*"; } # Always shown
+_log_info()  { __log "INFO"  "$*"; } # Shown if VERBOSITY >= 1
+_log_debug() { __log "DEBUG" "$*"; } # Shown if VERBOSITY >= 2
 # {{{ = COMMONS ==============================================================
 
 # {{{ = ARGUMENT PARSING =====================================================
 CONFIG_FILE="/etc/bedtime-shutdown.conf"
 DRY_RUN=false
-VERBOSITY=0  # 0=normal, 1=verbose, 2+=debug
+VERBOSITY_DEFAULT=0
+VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity after config/CLI merge
+VERBOSITY_CLI=0               # Tracks CLI-requested verbosity before config merge
 LOGFILE=""   # Set via --logfile or BSS_LOGFILE config variable
 
 # Loop through arguments
@@ -117,11 +129,14 @@ while [[ "$#" -gt 0 ]]; do
     -n|--dry-run|--no-act)
       DRY_RUN=true
     ;;
+    -v|-vv|-vvv|-vvvv)
+      VERBOSITY_CLI=$((VERBOSITY_CLI + ${#1} - 1))
+    ;;
     -v|--verbose)
-      VERBOSITY=$((VERBOSITY + 1))
+      VERBOSITY_CLI=$((VERBOSITY_CLI + 1))
     ;;
     -q|--quiet)
-      VERBOSITY=0
+      VERBOSITY_CLI=0
     ;;
     -h|--help)
       cat <<EOL
@@ -131,14 +146,16 @@ Options:
   -c, --config FILE        Specify an alternative configuration file (default: /etc/bedtime-shutdown.conf).
   -l, --logfile FILE       Write log output to specified file (overrides BSS_LOGFILE from config).
   -n, --no-act, --dry-run  Log shutdown command instead of executing it; all other logic executes normally.
-  -v, --verbose            Increase verbosity level (can be specified multiple times).
+  -v, --verbose            Increase verbosity level (can be specified multiple times, in short: -vvvv for full trace)
   -q, --quiet              Suppress debug output.
   -h, --help               Show this help message.
 
 Verbosity Levels:
-  0 (default)  Normal output
-  1            Verbose output with set -v (shows commands before expansion)
-  2+           Debug output with set -x (shows command execution with expansions)
+  0 (default)  Standard output
+  1            Info output
+  2            Debug output
+  3            Debug output with set -v (shows commands before expansion)
+  4            Debug output with set -x (shows command execution with expansions)
 EOL
       exit 0
     ;;
@@ -149,50 +166,17 @@ EOL
   esac
   shift
 done
-
-# Apply debug options based on verbosity
-if [[ "$VERBOSITY" -ge 1 ]]; then
-  _log_info "Verbosity level: $VERBOSITY"
-  set -v  # Print commands before expansion
-fi
-if [[ "$VERBOSITY" -ge 2 ]]; then
-  set -x  # Print commands with expansions (debug mode)
-fi
 # }}} = ARGUMENT PARSING =====================================================
 
-# {{{ = PRECONDITIONS CHECKS =================================================
-# Check if we need root privileges
-# Root is required for:
-# - Executing systemctl poweroff (production mode)
-# - Using sudo to send notifications to other users
-# - Using wall to broadcast to all terminals
-# - Reading the config file if it has restricted permissions (default: 600 root:root)
-#
-# In dry-run mode with a readable config file, root is not strictly required
-# since systemctl poweroff won't execute and notification failures are handled gracefully.
-if [[ $EUID -ne 0 ]]; then
-  # Not root - check if we can proceed anyway
-  if [[ "$DRY_RUN" != "true" ]]; then
-    _log_error "This script must be run as root (non-dry-run mode requires root for systemctl poweroff). Exiting ..."
-    exit 1
-  fi
-
+# {{{ = LOAD CONFIGURATION ===================================================
+# Ensure config file exists and is readable, then source it
+if [[ -f "$CONFIG_FILE" ]]; then
+  _log_debug "Loading configuration file: $CONFIG_FILE"
   # In dry-run mode, check if config file is readable
   if [[ ! -r "$CONFIG_FILE" ]]; then
     _log_error "Config file [$CONFIG_FILE] is not readable by current user. Run as root or use --config to specify a readable config file. Exiting ..."
     exit 1
   fi
-
-  # We can proceed without root in dry-run mode
-  _log_warn "Running in dry-run mode as non-root user (notifications and wall may fail, but this is safe for testing)"
-else
-  _log_debug "Running as root"
-fi
-# }}} = PRECONDITIONS CHECKS =================================================
-
-# {{{ = LOAD CONFIGURATION ===================================================
-if [[ -f "$CONFIG_FILE" ]]; then
-  # shellcheck source=/etc/bedtime-shutdown.conf
   source "$CONFIG_FILE"
 else
   _log_error "Configuration file [$CONFIG_FILE] not found. Exiting ..."
@@ -202,24 +186,73 @@ fi
 # Use BSS_LOGFILE from config if --logfile was not specified via CLI and config variable is set
 [[ -z "$LOGFILE" && -n "${BSS_LOGFILE:-}" ]] && LOGFILE="$BSS_LOGFILE"
 
-# In dry-run mode as non-root, verify logfile is writable if specified
-if [[ -n "$LOGFILE" && "$DRY_RUN" == "true" && $EUID -ne 0 ]]; then
+# Ensure logfile is writable if specified
+if [[ -n "$LOGFILE" ]]; then
   # Check if we can write to the logfile or its directory
   if [[ -f "$LOGFILE" && ! -w "$LOGFILE" ]]; then
-    _log_warn "Logfile [$LOGFILE] is not writable in dry-run mode. Disabling logfile."
-    LOGFILE=""
+    if [[ "$DRY_RUN" == "true" ]]; then
+      _log_warn "Logfile [$LOGFILE] is not writable in dry-run mode. Disabling logfile."
+      LOGFILE=""
+    else
+      _log_error "Logfile [$LOGFILE] is not writable. Exiting ..."
+      exit 1
+    fi
   elif [[ ! -f "$LOGFILE" ]]; then
     LOGDIR=$(dirname "$LOGFILE")
     if [[ ! -w "$LOGDIR" ]]; then
-      _log_warn "Logfile directory [$LOGDIR] is not writable in dry-run mode. Disabling logfile."
-      LOGFILE=""
+      if [[ "$DRY_RUN" == "true" ]]; then
+        _log_warn "Logfile directory [$LOGDIR] is not writable in dry-run mode. Disabling logfile."
+        LOGFILE=""
+      else
+        _log_error "Logfile directory [$LOGDIR] is not writable. Exiting ..."
+        exit 1
+      fi
     fi
   fi
 fi
 
 # Log to file if configured
-[[ -n "$LOGFILE" ]] && _log_debug "Logging to file: $LOGFILE"
+[[ -n "$LOGFILE" ]] && _log_info "Start logging to file: $LOGFILE"
 # }}} = LOAD CONFIGURATION ===================================================
+
+# {{{ = PRECONDITIONS ========================================================
+# Ensure script is run as root
+if [[ $EUID -ne 0 ]]; then
+  if [[ "$DRY_RUN" != "true" ]]; then
+    _log_error "This script must be run as root (except in dry-run mode). Exiting ..."
+    exit 1
+  fi
+  _log_debug "Running in dry-run mode as non-root user."
+else
+  _log_debug "Running as root user."
+fi
+
+# {{{ = CONFIG VALIDATION & VERBOSITY MERGE ==================================
+# Validate optional verbosity minimum from config (default 0) and merge with CLI
+CONFIG_VERBOSITY_MIN=${BSS_VERBOSITY_MIN:-$VERBOSITY_DEFAULT}
+
+if ! [[ "$CONFIG_VERBOSITY_MIN" =~ ^[0-9]+$ ]]; then
+  _log_error "Invalid BSS_VERBOSITY_MIN ['$CONFIG_VERBOSITY_MIN'] - must be an integer between 0 and 4. Exiting ..."
+  exit 1
+fi
+
+if (( CONFIG_VERBOSITY_MIN < 0 || CONFIG_VERBOSITY_MIN > 4 )); then
+  _log_error "Invalid BSS_VERBOSITY_MIN [$CONFIG_VERBOSITY_MIN] - must be between 0 and 4. Exiting ..."
+  exit 1
+fi
+
+# Effective verbosity is the higher of config min and CLI request
+VERBOSITY=$(( VERBOSITY_CLI > CONFIG_VERBOSITY_MIN ? VERBOSITY_CLI : CONFIG_VERBOSITY_MIN ))
+_log_debug "Effective verbosity: $VERBOSITY (config min=$CONFIG_VERBOSITY_MIN, cli=$VERBOSITY_CLI)"
+
+# Apply debug options based on final verbosity
+if [[ "$VERBOSITY" -ge 3 ]]; then
+  set -v  # Print commands before expansion
+fi
+if [[ "$VERBOSITY" -ge 4 ]]; then
+  set -x  # Print commands with expansions (debug mode)
+fi
+# }}} = CONFIG VALIDATION & VERBOSITY MERGE ==================================
 
 # {{{ = INITIALIZATION =======================================================
 # Get the user ID of BSS_USER_NAME (loaded from config)
@@ -250,7 +283,7 @@ _log_debug "Time check - NOW: $NOW ($(date '+%H:%M')), START: $START ($(_format_
 _log_debug "DRY_RUN: $DRY_RUN, VERBOSITY: $VERBOSITY"
 
 if [[ "$DRY_RUN" == "true" ]]; then
-  _log_info "DRY RUN MODE: Shutdown commands will be logged but not executed"
+  _log "DRY RUN MODE: Shutdown commands will be logged but not executed"
 fi
 # }}} = INITIALIZATION =======================================================
 
@@ -260,11 +293,11 @@ _poweroff() {
   local args=("$@")
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    _log_info "[DRY-RUN] Would execute: systemctl poweroff ${args[*]}"
+    _log "[DRY-RUN] Would execute: systemctl poweroff ${args[*]}"
     return 0
   fi
 
-  _log_info "Executing: systemctl poweroff ${args[*]}"
+  _log "Executing: systemctl poweroff ${args[*]}"
   systemctl poweroff "${args[@]}"
 }
 
@@ -276,14 +309,14 @@ _notify_user() {
   # 1. GUI Notification
   # Ignore failure if user is not logged in, PAM blocked notifications, etc.
   # This is async via notify-send, so no need to wait
-  _log_info "Sending GUI notification to user '$BSS_USER_NAME': $msg"
+  _log_debug "Sending GUI notification to user '$BSS_USER_NAME': $msg"
   sudo -u "$BSS_USER_NAME" DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${USER_ID}/bus \
     notify-send --urgency=critical "BEDTIME" "$msg" 2>/dev/null || {
     _log_warn "GUI notification to user '$BSS_USER_NAME' failed (user may not be logged in)"
   }
 
   # 2. Terminal Broadcast
-  _log_info "Broadcasting wall message: BEDTIME: $msg"
+  _log_debug "Broadcasting wall message: BEDTIME: $msg"
   wall <<<"BEDTIME: $msg" 2>/dev/null || {
     _log_warn "wall broadcast failed (no terminal sessions available)"
   }
@@ -317,7 +350,7 @@ _exit_if_safe_zone() {
       _log "Current time ($(_format_time $CURRENT_TIME)) is within the safe window [$(_format_time ${BSS_SHUTDOWN_END//:/}) to $(_format_time ${BSS_SHUTDOWN_START//:/})]. Skipping shutdown."
       exit 0
   else
-    _log_info "Current time is within shutdown window. Proceeding with checks."
+    _log_debug "Current time is within shutdown window. Proceeding with checks."
   fi
 }
 
@@ -328,10 +361,10 @@ _exit_if_emergency_override() {
   # 1. Check for USB Label (Hardware Key with specific LABEL is present)
   # Syntax: [[ -n "$VAR" ]] checks if variable is set and not empty
   if [[ -n "${BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL:-}" ]]; then
-    _log_info "Checking for block device with label: $BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL"
+    _log_debug "Checking for block device with label: $BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL"
     # We use lsblk to check all block device labels
     if lsblk -o LABEL -n 2>/dev/null | grep -Fqx "$BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL"; then
-      _log_warn "Emergency override triggered: Block device with label '$BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL' detected"
+      _log "Emergency override triggered: Block device with label '$BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL' detected"
       _notify_user "EMERGENCY OVERRIDE: Hardware key with label '$BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL' detected. Skipping shutdown."
       exit 0
     else
@@ -341,13 +374,13 @@ _exit_if_emergency_override() {
 
   # 2. Check for specific file on mounted media (Hardware Key with specific FILE is present)
   if [[ -n "${BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR:-}" ]] && [[ -n "${BSS_EMERGENCY_OVERRIDE_FILE_NAME:-}" ]]; then
-    _log_info "Checking for emergency override file '$BSS_EMERGENCY_OVERRIDE_FILE_NAME' in '$BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR'"
+    _log_debug "Checking for emergency override file '$BSS_EMERGENCY_OVERRIDE_FILE_NAME' in '$BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR'"
     # Only run find if the media directory actually exists (stick is mounted)
     if [[ -d "$BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR" ]]; then
       # Find the file on the mounted media (max depth 2 to allow for root or 1-level subdirectory)
       local first_override_file="$(find "$BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR" -maxdepth 2 -name "$BSS_EMERGENCY_OVERRIDE_FILE_NAME" -print -quit | head -n 1 2>/dev/null)"
       if [[ -n "$first_override_file" ]]; then
-        _log_warn "Emergency override triggered: File '${first_override_file}' detected"
+        _log "Emergency override triggered: File '${first_override_file}' detected"
         _notify_user "EMERGENCY OVERRIDE: Hardware key with file '${first_override_file}' detected. Skipping shutdown."
         exit 0
       else
@@ -360,10 +393,10 @@ _exit_if_emergency_override() {
 
   # 3. Check for specific USB Device ID (lsusb)
   if [[ -n "${BSS_EMERGENCY_OVERRIDE_USB_ID:-}" ]]; then
-    _log_info "Checking for USB device with ID: $BSS_EMERGENCY_OVERRIDE_USB_ID"
+    _log_debug "Checking for USB device with ID: $BSS_EMERGENCY_OVERRIDE_USB_ID"
     # Search for specific USB device ID (format: "1234:abcd")
     if lsusb -d "$BSS_EMERGENCY_OVERRIDE_USB_ID" >/dev/null 2>&1; then
-      _log_warn "Emergency override triggered: USB device '$BSS_EMERGENCY_OVERRIDE_USB_ID' detected"
+      _log "Emergency override triggered: USB device '$BSS_EMERGENCY_OVERRIDE_USB_ID' detected"
       _notify_user "EMERGENCY OVERRIDE: USB Device '$BSS_EMERGENCY_OVERRIDE_USB_ID' detected. Skipping shutdown."
       exit 0
     else
@@ -383,10 +416,10 @@ main() {
   _exit_if_safe_zone
   _exit_if_emergency_override
 
-  _log_info "All safety checks passed. Proceeding with shutdown sequence."
+  _log "All safety checks passed. Proceeding with shutdown sequence."
 
   # 2. Notifications & User Grace Period
-  _log_info "Notifying user. Grace period: ${BSS_GRACE_PERIOD_USER} seconds"
+  _log "Notifying user. Grace period: ${BSS_GRACE_PERIOD_USER} seconds"
   _notify_user "Shutting down in ${BSS_GRACE_PERIOD_USER} seconds. Save your work."
 
   if [[ "$BSS_GRACE_PERIOD_USER" -gt 0 ]]; then
@@ -395,7 +428,7 @@ main() {
   fi
 
   # 3. Shutdown Sequence
-  _log_info "User grace period complete. Proceeding to shutdown."
+  _log "User grace period complete. Proceeding to shutdown."
   _notify_user "Shutting down now!"
 
   # Stage 1: Polite but firm (Ignore Inhibitors, Non-blocking)
@@ -414,7 +447,7 @@ main() {
     # If we are still running, instantly "pull the power plug" (software equivalent).
     # -ff | --force --force (doubled): Tell the kernel to "power off" immediately
     # This bypasses all systemd shutdown scripts, unmounting, etc.
-    _log_warn "Stage 3 (Force): Forcing immediate shutdown..."
+    _log "Stage 3 (Force): Forcing immediate shutdown..."
     _poweroff --force --force
   else
     _log_info "System grace period is <= 0. Force fallback disabled."
