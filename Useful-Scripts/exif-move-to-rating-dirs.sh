@@ -517,7 +517,7 @@ for SOURCE_PATH in "${SOURCE_PATHS[@]}"; do
         src_dir=$(dirname "$f")
         if [[ -d "$src_dir" ]]; then
           # Only attempt removal when directory is empty
-          if [[ -z "$(ls -A \"$src_dir\" 2>/dev/null)" ]]; then
+          if [[ -z "$(ls -A "$src_dir" )" ]]; then
             _echo_verbose 1 "Removing empty source directory \"$src_dir\" ..."
             rmdir "$src_dir" || _echo_verbose 0 "\033[33mWARNING\033[0m: Failed to remove empty source directory \"$src_dir\""
           fi
