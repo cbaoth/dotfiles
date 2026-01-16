@@ -37,6 +37,7 @@ Options:
   --cache-file <file>       Cache file location (default: ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv)
   --no-cache                Disable cache lookups and writes (default: use cache to skip unchanged files)
   -d, --remove-empty-source-dir  Remove empty source directory after moving a file (single level only)
+  --min-rating <n>          Minimum EXIF rating threshold; skip files with rating < n (default: 0, no filter)
   --no-summary              Disable summary and statistics output at the end (default: show summary)
   -n, --no-act, --dry-run   Show what would be done without making any changes
   -v, --verbose             Increase verbosity level (can be used multiple times)
@@ -72,11 +73,13 @@ CACHE_FINAL_SIZE=0
 SHOW_SUMMARY="true"
 INTERRUPTED="false"
 REMOVE_EMPTY_SOURCE_DIR="false"
+MIN_RATING=0
 STATS_MOVED=0
 STATS_COPIED=0
 STATS_SKIPPED_CACHED=0
 STATS_SKIPPED_LOCATION=0
 STATS_SKIPPED_EXISTS=0
+STATS_SKIPPED_MIN_RATING=0
 STATS_FILES_UNREADABLE=0
 LAST_EXIF_TAG_STATUS=0
 while [[ $# -ge 1 ]]; do
@@ -111,6 +114,18 @@ while [[ $# -ge 1 ]]; do
       ;;
     -d|--remove-empty-source-dir)
       REMOVE_EMPTY_SOURCE_DIR="true"
+      ;;
+    --min-rating)
+      [[ -n "${2:-}" ]] || {
+        echo -e "\033[31mERROR\033[0m: --min-rating requires a numeric value"
+        exit 1
+      }
+      if ! [[ "${2:-}" =~ ^[0-9]+$ ]]; then
+        echo -e "\033[31mERROR\033[0m: --min-rating value must be a non-negative integer"
+        exit 1
+      fi
+      MIN_RATING="$2"
+      shift
       ;;
     --no-summary)
       SHOW_SUMMARY="false"
@@ -468,6 +483,13 @@ for SOURCE_PATH in "${SOURCE_PATHS[@]}"; do
       continue
     fi
 
+    # Check if rating is below minimum threshold
+    if [[ $rating -lt $MIN_RATING ]]; then
+      _echo_verbose 1 "Skipping \"$f\": rating ($rating) is below minimum threshold ($MIN_RATING)"
+      ((++STATS_SKIPPED_MIN_RATING))
+      continue
+    fi
+
     target_dir="$BASE_TARGET_DIR/$rating/$label"
     target_file="$target_dir/$(basename "$f")"
     # Check if source and target file are the same, skip if so (no need to move/copy file)
@@ -563,6 +585,7 @@ if [[ "$SHOW_SUMMARY" == "true" ]]; then
   echo "Files copied:                      $STATS_COPIED"
   echo "Files skipped / cache hit:         $STATS_SKIPPED_CACHED"
   echo "Files skipped / already at target: $STATS_SKIPPED_LOCATION"
+  echo "Files skipped / below min rating:  $STATS_SKIPPED_MIN_RATING"
   echo -e "Files skipped / target exists:     $STATS_SKIPPED_EXISTS $([[ $STATS_SKIPPED_EXISTS -gt 0 ]] && echo -e "\033[33mWARNING(S)\033[0m")"
   [[ $STATS_FILES_UNREADABLE -gt 0 ]] && echo -e "Files skipped / unable to read EXIF:    $STATS_FILES_UNREADABLE $([[ $STATS_FILES_UNREADABLE -gt 0 ]] && echo -e "\033[33mWARNING(S)\033[0m")"
 
