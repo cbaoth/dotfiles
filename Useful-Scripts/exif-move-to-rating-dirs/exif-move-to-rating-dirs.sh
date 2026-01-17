@@ -36,7 +36,8 @@ Options:
   -c, --copy                Copy files instead of moving them (default: move)
   --mapping-file <file>     Path to mapping file for directory remapping (space-separated, optional quotes for spaces)
   --cache-file <file>       Cache file location (default: ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv)
-  --no-cache                Disable cache lookups and writes (default: use cache to skip unchanged files)
+  --no-cache                Disable cache lookups and writes (default: use cache to reuse EXIF data for unchanged files)
+  --skip-cached             Skip files found in cache completely without verifying location (faster but less safe)
   -d, --remove-empty-source-dir  Remove empty source directory after moving a file (single level only)
   --min-rating <n>          Minimum EXIF rating threshold; skip files with rating < n (default: 0, no filter)
   --no-summary              Disable summary and statistics output at the end (default: show summary)
@@ -80,6 +81,7 @@ FILE_TYPES=("jpg" "jpeg" "png" "tiff" "tif" "cr2" "dng" "orf")
 TARGET_DIR=""
 SOURCE_PATHS=()
 CACHE_ENABLED="true"
+SKIP_CACHED_COMPLETELY="false"
 CACHE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv"
 declare -A CACHE_MAP=()
 CACHE_INITIAL_RECORDS=0
@@ -130,6 +132,9 @@ while [[ $# -ge 1 ]]; do
       ;;
     --no-cache)
       CACHE_ENABLED="false"
+      ;;
+    --skip-cached)
+      SKIP_CACHED_COMPLETELY="true"
       ;;
     -d|--remove-empty-source-dir)
       REMOVE_EMPTY_SOURCE_DIR="true"
@@ -338,16 +343,26 @@ _load_cache() {
       _echo_verbose 0 "WARNING: gunzip not found, cannot read compressed cache. Rebuilding cache."
       return 0
     fi
-    while IFS=$'\t' read -r path hash mtime; do
+    while IFS=$'\t' read -r path hash mtime rating label; do
       [[ -z "$path" ]] && continue
       [[ "$path" =~ ^# ]] && continue
-      CACHE_MAP["$path"]="$hash|$mtime"
+      # Support both old format (3 fields) and new format (5 fields)
+      if [[ -z "$rating" ]]; then
+        CACHE_MAP["$path"]="$hash|$mtime||"
+      else
+        CACHE_MAP["$path"]="$hash|$mtime|${rating}|${label}"
+      fi
     done < <(gunzip -c "$cache_to_read")
   else
-    while IFS=$'\t' read -r path hash mtime; do
+    while IFS=$'\t' read -r path hash mtime rating label; do
       [[ -z "$path" ]] && continue
       [[ "$path" =~ ^# ]] && continue
-      CACHE_MAP["$path"]="$hash|$mtime"
+      # Support both old format (3 fields) and new format (5 fields)
+      if [[ -z "$rating" ]]; then
+        CACHE_MAP["$path"]="$hash|$mtime||"
+      else
+        CACHE_MAP["$path"]="$hash|$mtime|${rating}|${label}"
+      fi
     done <"$cache_to_read"
   fi
 
@@ -366,8 +381,8 @@ _save_cache() {
   tmp=$(mktemp)
   {
     for key in "${!CACHE_MAP[@]}"; do
-      IFS='|' read -r hash mtime <<<"${CACHE_MAP[$key]}"
-      printf "%s\t%s\t%s\n" "$key" "$hash" "$mtime"
+      IFS='|' read -r hash mtime rating label <<<"${CACHE_MAP[$key]}"
+      printf "%s\t%s\t%s\t%s\t%s\n" "$key" "$hash" "$mtime" "${rating:-}" "${label:-}"
     done
   } | LC_ALL=C sort >"$tmp"
 
@@ -405,14 +420,16 @@ _save_cache() {
 
 # Decide whether a file can be skipped based on unchanged hash+mtime.
 # Returns 0 (true) if the file should be skipped, 1 (false) otherwise.
+# Only used when --skip-cached is enabled.
 _should_skip_cached() {
   local file=$1
   [[ "$CACHE_ENABLED" == "true" ]] || return 1
+  [[ "$SKIP_CACHED_COMPLETELY" == "true" ]] || return 1
   local canonical
   canonical=$(realpath "$file")
   [[ -n "${CACHE_MAP[$canonical]:-}" ]] || return 1
   local cached_hash cached_mtime
-  IFS='|' read -r cached_hash cached_mtime <<<"${CACHE_MAP[$canonical]}"
+  IFS='|' read -r cached_hash cached_mtime _ _ <<<"${CACHE_MAP[$canonical]}"
   local current_mtime current_hash
   current_mtime=$(_get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
@@ -420,7 +437,35 @@ _should_skip_cached() {
   fi
   current_hash=$(_compute_file_hash "$canonical")
   if [[ "$current_hash" == "$cached_hash" ]]; then
-    _echo_verbose 1 "Skipping \"$canonical\": unchanged since last processed (cache hit)"
+    _echo_verbose 1 "Skipping \"$canonical\": unchanged since last processed (cache hit, --skip-cached enabled)"
+    return 0
+  fi
+  return 1
+}
+
+# Get cached EXIF data (rating and label) for an unchanged file.
+# Outputs "rating|label" if file is cached and unchanged, empty string otherwise.
+_get_cached_exif() {
+  local file=$1
+  [[ "$CACHE_ENABLED" == "true" ]] || return 1
+  local canonical
+  canonical=$(realpath "$file")
+  [[ -n "${CACHE_MAP[$canonical]:-}" ]] || return 1
+  local cached_hash cached_mtime cached_rating cached_label
+  IFS='|' read -r cached_hash cached_mtime cached_rating cached_label <<<"${CACHE_MAP[$canonical]}"
+
+  # If no cached rating/label, file was cached in old format - need to read EXIF
+  [[ -z "$cached_rating" ]] && return 1
+
+  local current_mtime current_hash
+  current_mtime=$(_get_file_mtime "$canonical")
+  if [[ "$current_mtime" != "$cached_mtime" ]]; then
+    return 1
+  fi
+  current_hash=$(_compute_file_hash "$canonical")
+  if [[ "$current_hash" == "$cached_hash" ]]; then
+    _echo_verbose 1 "Using cached EXIF data for \"$canonical\" (cache hit)"
+    echo "${cached_rating}|${cached_label}"
     return 0
   fi
   return 1
@@ -429,6 +474,8 @@ _should_skip_cached() {
 # Remember a successfully processed file in the cache.
 _remember_processed_file() {
   local file=$1
+  local rating=$2
+  local label=$3
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
   [[ "$NO_ACT" == "true" ]] && return 0
   local canonical
@@ -437,7 +484,7 @@ _remember_processed_file() {
   mtime=$(_get_file_mtime "$canonical")
   hash=$(_compute_file_hash "$canonical")
   if [[ -n "$hash" ]]; then
-    CACHE_MAP["$canonical"]="$hash|$mtime"
+    CACHE_MAP["$canonical"]="$hash|$mtime|${rating}|${label}"
   fi
   return 0
 }
@@ -618,12 +665,26 @@ for SOURCE_PATH in "${SOURCE_PATHS[@]}"; do
       ((++STATS_SKIPPED_CACHED))
       continue
     fi
-    # Get EXIF rating and label
-    _echo_verbose 2 "Reading EXIF data for \"$f\" ..."
-    rating=$(_get_exif_tag Rating 0 "$f")
-    rating_status=$LAST_EXIF_TAG_STATUS
-    label=$(_get_exif_tag Label None "$f")
-    label_status=$LAST_EXIF_TAG_STATUS
+
+    # Try to get EXIF data from cache first (if not using --skip-cached)
+    rating=""
+    label=""
+    rating_status=0
+    label_status=0
+    cached_exif=""
+    if cached_exif=$(_get_cached_exif "$f"); then
+      IFS='|' read -r rating label <<<"$cached_exif"
+      rating_status=0
+      label_status=0
+      ((++STATS_SKIPPED_CACHED))
+    else
+      # Get EXIF rating and label from file
+      _echo_verbose 2 "Reading EXIF data for \"$f\" ..."
+      rating=$(_get_exif_tag Rating 0 "$f")
+      rating_status=$LAST_EXIF_TAG_STATUS
+      label=$(_get_exif_tag Label None "$f")
+      label_status=$LAST_EXIF_TAG_STATUS
+    fi
 
     # Check if both exiftool calls failed for this file
     if [[ $rating_status -ne 0 ]] && [[ $label_status -ne 0 ]]; then
@@ -651,7 +712,7 @@ for SOURCE_PATH in "${SOURCE_PATHS[@]}"; do
       _echo_verbose 1 "Skipping \"$f\": already in target location \"$target_dir\" (nothing to do)"
       ((++STATS_SKIPPED_LOCATION))
       # Even though we are skipping, we should still remember it in the cache in case it is processed again later
-      _remember_processed_file "$f"   # target_file and f are the same here
+      _remember_processed_file "$f" "$rating" "$label"   # target_file and f are the same here
       continue
     fi
     # Check if another file with same name exists in target directory, skip if so (unless --force)
@@ -699,7 +760,7 @@ for SOURCE_PATH in "${SOURCE_PATHS[@]}"; do
           fi
         fi
       fi
-      _remember_processed_file "$target_file"
+      _remember_processed_file "$target_file" "$rating" "$label"
       if [[ "$OPERATION" == "copy" ]]; then
         ((++STATS_COPIED))
       else
