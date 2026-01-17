@@ -34,6 +34,7 @@ Options:
   -i, --include-processed   Include files that are most likely already in rating output directories (default: skip them, simple regex-based detection: [0-5]/[A-Za-z0-9].../*)
   -f, --force               Force overwrite existing files in target directory (default: skip files that already exist)
   -c, --copy                Copy files instead of moving them (default: move)
+  --mapping-file <file>     Path to mapping file for directory remapping (space-separated, optional quotes for spaces)
   --cache-file <file>       Cache file location (default: ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv)
   --no-cache                Disable cache lookups and writes (default: use cache to skip unchanged files)
   -d, --remove-empty-source-dir  Remove empty source directory after moving a file (single level only)
@@ -42,6 +43,21 @@ Options:
   -n, --no-act, --dry-run   Show what would be done without making any changes
   -v, --verbose             Increase verbosity level (can be used multiple times)
   -h, --help                Show this help message and exit
+
+Mapping File Format:
+  Space-separated pattern and target directory (one per line).
+  Patterns can use regex (e.g., 5/(Purple|Blue)) or literal strings (e.g., 5/Purple).
+  Optional quotes (single or double) for values containing spaces.
+  Comments start with #; blank lines are ignored.
+  Patterns are evaluated top-to-bottom; first match wins.
+  Place specific patterns before general catch-all patterns.
+  Supports regex group substitution: use \$1, \$2, etc. in target for captured groups.
+  Example:
+    5/Purple 5
+    5/(Blue|Purple) 5
+    5/(.*) keep-\$1          # 5/Purple -> keep-Purple
+    ([0-5])/.* rating-\$1    # 3/Blue -> rating-3
+    5/.* 4                  # Catch-all for other 5/* labels
 
 Verbosity Levels:
   0: Only essential output
@@ -74,6 +90,9 @@ SHOW_SUMMARY="true"
 INTERRUPTED="false"
 REMOVE_EMPTY_SOURCE_DIR="false"
 MIN_RATING=0
+MAPPING_FILE=""
+declare -a MAPPING_PATTERNS=()
+declare -a MAPPING_TARGETS=()
 STATS_MOVED=0
 STATS_COPIED=0
 STATS_SKIPPED_CACHED=0
@@ -125,6 +144,14 @@ while [[ $# -ge 1 ]]; do
         exit 1
       fi
       MIN_RATING="$2"
+      shift
+      ;;
+    --mapping-file)
+      [[ -n "${2:-}" ]] || {
+        echo -e "\033[31mERROR\033[0m: --mapping-file requires a file path"
+        exit 1
+      }
+      MAPPING_FILE="$2"
       shift
       ;;
     --no-summary)
@@ -415,8 +442,130 @@ _remember_processed_file() {
   return 0
 }
 
+# Load and parse the mapping file (space-separated format with optional quotes)
+# Populates MAPPING_PATTERNS and MAPPING_TARGETS arrays
+_load_mapping_file() {
+  local mapping_file="$1"
+
+  # Check if file exists
+  if [[ ! -f "$mapping_file" ]]; then
+    _echo_verbose 0 "\033[33mWARNING\033[0m: Mapping file not found: \"$mapping_file\""
+    return 1
+  fi
+
+  _echo_verbose 1 "Loading mapping file: \"$mapping_file\""
+
+  local line_no=0
+
+  while IFS= read -r line; do
+    ((++line_no))
+
+    # Skip empty lines and comments
+    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+    # Remove leading/trailing whitespace
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+
+    # Parse using regex to handle both quoted and unquoted values
+    local pattern target
+
+    # Check if line starts with a quote
+    if [[ "$line" =~ ^[\"\'](.+?)[\"\'][[:space:]]+(.*) ]]; then
+      # Quoted pattern: "pattern" target (or 'pattern' target)
+      pattern="${BASH_REMATCH[1]}"
+      target="${BASH_REMATCH[2]}"
+      # Remove quotes from target if present
+      if [[ "$target" =~ ^[\"\'](.+?)[\"\']$ ]]; then
+        target="${BASH_REMATCH[1]}"
+      else
+        # Target might be unquoted; trim any whitespace
+        target="${target#"${target%%[![:space:]]*}"}"
+      fi
+    elif [[ "$line" =~ ^([^[:space:]]+)[[:space:]]+(.*) ]]; then
+      # Unquoted pattern: split on first whitespace
+      pattern="${BASH_REMATCH[1]}"
+      target="${BASH_REMATCH[2]}"
+      # If target is quoted, remove the quotes
+      if [[ "$target" =~ ^[\"\'](.+?)[\"\']$ ]]; then
+        target="${BASH_REMATCH[1]}"
+      fi
+    else
+      # No space found - invalid line
+      pattern=""
+      target=""
+    fi
+
+    # Validate we have both pattern and target
+    if [[ -z "$pattern" ]] || [[ -z "$target" ]]; then
+      _echo_verbose 0 "\033[33mWARNING\033[0m: Mapping file line $line_no: expected pattern and target (skipped)"
+      continue
+    fi
+
+    MAPPING_PATTERNS+=("$pattern")
+    MAPPING_TARGETS+=("$target")
+
+    _echo_verbose 2 "  Loaded mapping: \"$pattern\" -> \"$target\""
+  done <"$mapping_file"
+
+  if [[ ${#MAPPING_PATTERNS[@]} -eq 0 ]]; then
+    _echo_verbose 0 "\033[33mWARNING\033[0m: No valid mappings found in file: \"$mapping_file\""
+    return 1
+  fi
+
+  _echo_verbose 1 "Loaded ${#MAPPING_PATTERNS[@]} mapping rule(s)"
+  return 0
+}
+
+# Apply directory mapping: find first matching pattern and return mapped target
+# Supports regex group substitution ($1, $2, etc.)
+# Returns the mapped target on match, or the original source_pattern on no match
+_apply_mapping() {
+  local source_pattern="$1"  # e.g., "5/Purple"
+  local i
+
+  # If no mappings loaded, return original unchanged
+  [[ ${#MAPPING_PATTERNS[@]} -eq 0 ]] && { echo "$source_pattern"; return 0; }
+
+  # Try matching each pattern (first match wins)
+  for ((i=0; i<${#MAPPING_PATTERNS[@]}; i++)); do
+    if [[ "$source_pattern" =~ ^${MAPPING_PATTERNS[$i]}$ ]]; then
+      local target="${MAPPING_TARGETS[$i]}"
+
+      # Save captured groups immediately after regex match (before BASH_REMATCH gets overwritten)
+      local -a captured_groups=("${BASH_REMATCH[@]}")
+
+      # Perform substitution if target contains $1, $2, etc.
+      if [[ "$target" =~ \$[0-9] ]]; then
+        # Replace $1, $2, ... with captured groups
+        local j
+        for ((j=1; j<${#captured_groups[@]}; j++)); do
+          target="${target//\$$j/${captured_groups[$j]}}"
+        done
+      fi
+
+      _echo_verbose 2 "Mapping \"$source_pattern\" -> \"$target\" (rule: ${MAPPING_PATTERNS[$i]})"
+      echo "$target"
+      return 0
+    fi
+  done
+
+  # No match: return original unchanged
+  echo "$source_pattern"
+  return 0
+}
+
 _load_cache
 _record_cache_baseline
+
+# Load mapping file if provided
+if [[ -n "$MAPPING_FILE" ]]; then
+  if ! _load_mapping_file "$MAPPING_FILE"; then
+    echo -e "\033[31mERROR\033[0m: Failed to load mapping file: \"$MAPPING_FILE\""
+    exit 1
+  fi
+fi
 
 # Prepare file type find arguments
 FILE_TYPES_LIST=(${FILE_TYPES[@]})
@@ -490,7 +639,12 @@ for SOURCE_PATH in "${SOURCE_PATHS[@]}"; do
       continue
     fi
 
-    target_dir="$BASE_TARGET_DIR/$rating/$label"
+    # Construct rating/label path and apply mapping if available
+    rating_label_path="$rating/$label"
+    if [[ ${#MAPPING_PATTERNS[@]} -gt 0 ]]; then
+      rating_label_path=$(_apply_mapping "$rating_label_path")
+    fi
+    target_dir="$BASE_TARGET_DIR/$rating_label_path"
     target_file="$target_dir/$(basename "$f")"
     # Check if source and target file are the same, skip if so (no need to move/copy file)
     if [[ "$(realpath "$f")" == "$(realpath -m "$target_file")" ]]; then
