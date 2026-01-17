@@ -200,17 +200,88 @@ photos/
 
 == Caching System
 
-The script maintains a cache of processed files (hash + modification time) to skip files that haven't changed. This significantly speeds up repeated runs.
+The script maintains an intelligent cache of processed files to optimize performance across multiple runs.
 
-* *Cache location*: `~/.cache/exif-move-to-rating-dirs/cache.tsv` (or `.cache.tsv.gz` if compressed)
+=== Cache Contents
+
+For each processed file, the cache stores:
+
+* File path (canonical/absolute)
+* SHA256 hash (for content verification)
+* Modification time (for quick change detection)
+* EXIF rating value
+* EXIF label/color
+
+=== Default Behavior
+
+By default, the cache operates in *smart EXIF reuse mode*:
+
+* ✅ Reuses cached EXIF data (rating/label) for unchanged files
+* ✅ Skips expensive `exiftool` operations
+* ✅ Still verifies files are in correct location
+* ✅ Automatically moves files if mapping configuration changes
+* ✅ Detects and corrects manually moved files
+
+This provides the best balance of performance and safety.
+
+=== Cache Options
+
+[cols="1,3"]
+|===
+| Option | Behavior
+
+| Default (no flag)
+| Smart mode: reuse EXIF data but verify location
+
+| `--skip-cached`
+| Maximum speed: skip cached files completely without verification (use only when certain nothing changed)
+
+| `--no-cache`
+| Disable cache entirely: read EXIF from all files and don't update cache
+|===
+
+=== Cache File Management
+
+* *Default location*: `~/.cache/exif-move-to-rating-dirs/cache.tsv` (or `.gz` when compressed)
+* *Custom location*: Use `--cache-file <path>` to specify alternative location
 * *Auto-compression*: Files larger than 1MB are automatically gzip-compressed
-* *Cache validation*: Uses SHA256 hash + mtime for reliable change detection
+* *Validation*: Uses SHA256 hash + mtime for reliable change detection
+* *Format*: Tab-separated values (TSV) with backward compatibility for older cache versions
 
-To rebuild the cache from scratch:
+=== When to Use Each Mode
 
 [source,bash]
 ----
+# Smart mode (default) - Best for most cases
+./exif-move-to-rating-dirs.sh /path/to/images
+
+# After changing mapping configuration
+./exif-move-to-rating-dirs.sh --mapping-file new-config.conf /path/to/images
+# (Files automatically moved to new locations using cached EXIF)
+
+# After manually moving some files
+./exif-move-to-rating-dirs.sh /path/to/images
+# (Script detects wrong locations and corrects them)
+
+# Maximum speed (use only when nothing changed)
+./exif-move-to-rating-dirs.sh --skip-cached /path/to/images
+
+# Force full re-scan (rebuild cache from scratch)
 ./exif-move-to-rating-dirs.sh --no-cache /path/to/images
+----
+
+=== Cache Rebuild
+
+To completely rebuild the cache:
+
+[source,bash]
+----
+# Method 1: Disable cache for one run
+./exif-move-to-rating-dirs.sh --no-cache /path/to/images
+
+# Method 2: Delete cache file
+rm -f ~/.cache/exif-move-to-rating-dirs/cache.tsv*
+./exif-move-to-rating-dirs.sh /path/to/images
 ----
 
 == Requirements
