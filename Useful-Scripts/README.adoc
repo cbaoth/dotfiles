@@ -41,6 +41,31 @@ sudo editor /etc/bedtime-shutdown.conf
 
 '''
 
+=== exif-move-to-rating-dirs.sh - 📂 Organize Photos by EXIF Rating and Label
+
+Automatically organize your photo collection into directories based on EXIF star ratings (0-5) and color labels (Purple, Blue, Green, etc.). Features smart caching, directory mapping with regex patterns, and both move/copy modes.
+
+*Quick Start:*
+
+[source,shell]
+----
+# Basic usage: organize photos by rating and label
+./exif-move-to-rating-dirs.sh /path/to/photos
+
+# Use mapping file to customize output structure
+./exif-move-to-rating-dirs.sh --mapping-file example-mapping.conf /path/to/photos
+
+# Copy only 5-star images to export directory
+./exif-move-to-rating-dirs.sh --copy --min-rating 5 --output ~/exports /path/to/photos
+
+# Dry-run with verbose output
+./exif-move-to-rating-dirs.sh --dry-run -vv /path/to/photos
+----
+
+*📖 Full Documentation:* See link:exif-move-to-rating-dirs/README.adoc[exif-move-to-rating-dirs/README.adoc] for detailed features, mapping configuration, and examples.
+
+'''
+
 === nextcloud-maintenance.sh - 🔧 Nextcloud Maintenance Script
 
 Intended for use in cron with cronic (for info mail) to perform maintenance tasks and integrity/update checks on nextcloud servers, or simply to run before/ahfter an update.
