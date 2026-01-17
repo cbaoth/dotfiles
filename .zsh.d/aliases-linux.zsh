@@ -58,40 +58,21 @@ alias midi-keyboard-output="aconnect \$(aconnect -i \
 # {{{ - DEB ------------------------------------------------------------------
 
 if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
-  alias dpgs='dpkg --get-selections' # see "apt list --installed" too
+  alias dpi='sudo dpkg -i' # install .deb package
   alias dpca='sudo dpkg --configure -a' # configure unpackde but on yet configured packages (e.g. continue interrupted upgrade)
-fi
+  alias dpr='sudo dpkg -r' # remove package (keep config files)
+  alias dpr!='sudo dpkg --force-all --purge' # purge package (remove including config files)
+  alias dpgs='dpkg --get-selections'
+  alias dpl='dpkg -l --no-pager'
+  alias dplg='dpl | grep -i --color'
+  alias dpli='dpkg --get-selections --no-pager'
+  alias dplig='dpli --no-pager | grep -i --color'
 
-if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
-  # force update
-  alias apud!='sudo apt update'
-  # update cache, but no more than ones per hour (if sucessfull)
-  # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
-  alias apud='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
-                sudo apt update && date +%s > /tmp/last_apt_update
-              else
-                echo "> last apt update less than an hour ago, skipping (use apud! to force) ..."
-              fi'
-  alias api='apud; sudo apt install'
-  alias apiB='apud; sudo apt -t buster-backports install'
-  alias apu='apud; sudo apt upgrade; sudo apt auto-remove'
-  alias apuf='apud; sudo apt full-upgrade; sudo apt auto-remove'
-  alias apuo='sudo apt-get intsall --only-upgrade' # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
-  alias apr='sudo apt remove' # conflicts with ar
-  alias apr!='sudo apt purge'
-  alias apra='sudo apt auto-remove'
-  alias apsB='apt -t buster-backports search'
-  alias aps='apt search'
-  alias apsn='apt search --names-only'
-  alias apsf='apt search --full'
-  alias apss='apt show'
-  alias apl='apt list'
-  alias apli='apt list --installed'
-  alias apif='sudo apt install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
-
-  #if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
-  #  alias apt-fix='dpca; apif'
-  #fi
+  # common aliases with ap(t) prefix
+  alias apl=dpl
+  alias aplg=dplg
+  alias apli=dpli # list installed packages
+  alias aplig=dplg
 fi
 
 if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
@@ -101,23 +82,69 @@ fi
 
 if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
   alias ag="sudo apt-get"
-  #alias agi="sudo apt-get -y install" # apt install
-  #alias agr="sudo apt-get remove" # apt remove
-  #alias agu="sudo apt-get update" # apt update
-  #alias agar="sudo apt-get autoremove" # apt auto-remove
-  alias agma="sudo apt-mark markauto"
-  #alias agug="sudo apt-get update; sudo apt-get -y upgrade; sudo apt-get autoremove" # apt upgrade
-  #alias agdu="sudo apt-get update; sudo apt-get -y dist-upgrade; sudo apt-get autoremove" # apt
+  alias agi="sudo apt-get -y install" # apt install
+  alias agi!='sudo apt-get install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
+  alias agiu='sudo apt-get install --only-upgrade' # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
+
+  alias agr="sudo apt-get remove" # apt remove
+  alias agr!="sudo apt-get purge" # apt purge
+  alias agar="sudo apt-get autoremove" # apt auto-remove
+  alias agu="sudo apt-get update" # apt update
+  alias agug="agu && sudo apt-get -y upgrade && agar" # apt-get update/upgrade/auto-remove
+  alias agdu="agu && sudo apt-get -y dist-upgrade && agar" # apt-get update/dist-upgrade/auto-remove
   # https://askubuntu.com/questions/2389/generating-list-of-manually-installed-packages-and-querying-individual-packages/492343#492343
-  alias agsm="comm -23 <(apt-mark showmanual | sort -u) \
+
+  # common aliases with ap(t) prefix
+  alias apud!=agu # force update
+  # update cache, but no more than ones per hour (if sucessfull)
+  # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
+  alias apud='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
+                agu && date +%s > /tmp/last_apt_update
+              else
+                echo "> last apt update less than an hour ago, skipping (use apud! to force) ..."
+              fi'
+  alias api='apud && sudo apt-get install'
+  #alias api='apud && agi' # alternative: less explicit but shorter
+  #alias apiB='apud && sudo apt-get -t buster-backports install'
+  alias api!=agi! # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
+  alias apio=agiu # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
+  alias apr=agr # apt-get remove
+  alias apr!=agr! # apt-get purge
+  alias apar=agar # apt-get auto-remove
+  alias apu='apud && sudo apt-get -y upgrade && agar'
+  alias apu!='agu && sudo apt-get -y upgrade && agar'
+  alias apug=agug # apt-get update/upgrade/auto-remove
+  alias apdu=agdu # apt-get update/dist-upgrade/auto-remove
+
+  #if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
+  #  alias apt-fix='dpca; apif'
+  #fi
+fi
+
+if [[ -n "$(command -v apt-mark 2>/dev/null)" ]]; then
+  alias agma="sudo apt-mark markauto"
+  alias aglim="comm -23 <(apt-mark showmanual | sort -u) \
                 <(gzip -dc /var/log/installer/initial-status.gz \
                     | sed -n 's/^Package: //p' | sort -u)"
+
+  # common aliases with ap(t) prefix
+  alias apma=agma # apt-mark markauto
+  alias aplim=agsm # list manually installed packages
 fi
 
 if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
   alias ac="apt-cache"
-  #alias acs="apt-cache search"
-  #alias aci="apt-cache show"
+  alias acs="apt-cache search"
+  alias acsn='apt-cache search --names-only' # search package names only
+  alias acsf='apt-cache search --full' # search full text
+  #alias acsB='apt-cache -t buster-backports search' # search backports
+  alias aci="apt-cache show"
+
+  # common aliases with ap(t) prefix
+  alias aps=acs # apt-cache search
+  alias apsn=acsn # search package names only
+  alias apsf=acsf # search full text
+  alias apss=aci # apt-cache show
 fi
 
 if [[ -n "$(command -v apt-key 2>/dev/null)" ]]; then
@@ -158,6 +185,8 @@ if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
   alias pmi="sudo pacman -S"
   alias pms="sudo pacman -Ss"
   alias pmr="sudo pacman -Rs"
+  alias pml="pacman -Q"
+  alias pmlg="pacman -Q | grep -i --color"
   alias pmy="sudo pacman -Sy"
   alias pmu="sudo pacman -Syu"
   alias aurb="makepkg"
@@ -165,6 +194,55 @@ if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
   alias aurbui="makepkg && sudo pacman -U *.pkg.tar.xz"
 fi
 # }}} - PACMAN ---------------------------------------------------------------
+
+# {{{ - PKG (*) --------------------------------------------------------------
+# Aliases that combine multiple package managers
+# Note: Similarly named aliases may exist for FreeBSD (pkg), this is Linux specific
+
+# pkgu - update package database and upgrade all packages
+alias pkgu='if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+              echo "> Updating and upgrading apt packages (incl. auto-remove) ..."
+              apu || echo -e "[\e[33mWarning:\e[0m Apt update/upgrade failed]"
+              echo
+            fi
+            if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
+              echo "> Updating snap packages ..."
+              snu || echo -e "[\e[33mWarning:\e[0m Snap update failed]"
+              echo
+            fi
+            if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
+              echo "> Updating flatpak packages ..."
+              fpu || echo -e "[\e[33mWarning:\e[0m Flatpak update failed]"
+              echo
+            fi
+            if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
+              echo "> Updating and upgrading pacman packages ..."
+              pmu || echo -e "[\e[33mWarning:\e[0m Pacman update/upgrade failed]"
+              echo
+            fi'
+
+# pkgl - list installed packages from all package managers
+alias pkgl='if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+              echo "> Installed apt packages:"
+              apli || echo -e "[\e[33mWarning:\e[0m Unable to list apt packages]"
+              echo
+            fi
+            if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
+              echo "> Installed snap packages:"
+              snl || echo -e "[\e[33mWarning:\e[0m Unable to list snap packages]"
+              echo
+            fi
+            if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
+              echo "> Installed flatpak packages:"
+              fpl || echo -e "[\e[33mWarning:\e[0m Unable to list flatpak packages]"
+              echo
+            fi
+            if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
+              echo "> Installed pacman packages:"
+              pml || echo -e "[\e[33mWarning:\e[0m Unable to list pacman packages]"
+              echo
+            fi'
+# }}} - PKG (*) --------------------------------------------------------------
 # }}} = DISTRIBUTION SPECIFIC ================================================
 
 return 0
