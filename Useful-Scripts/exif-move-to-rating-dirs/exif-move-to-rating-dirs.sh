@@ -225,7 +225,7 @@ _echo_verbose() {
   local level=$1
   shift
   if [[ $VERBOSITY_LEVEL -ge $level ]]; then
-    echo -e "$@"
+    echo -e "$@" >&2
   fi
   return 0
 }
@@ -464,7 +464,6 @@ _get_cached_exif() {
   fi
   current_hash=$(_compute_file_hash "$canonical")
   if [[ "$current_hash" == "$cached_hash" ]]; then
-    _echo_verbose 1 "Using cached EXIF data for \"$canonical\" (cache hit)"
     echo "${cached_rating}|${cached_label}"
     return 0
   fi
@@ -673,6 +672,7 @@ for SOURCE_PATH in "${SOURCE_PATHS[@]}"; do
     label_status=0
     cached_exif=""
     if cached_exif=$(_get_cached_exif "$f"); then
+      _echo_verbose 2 "Using cached EXIF data for \"$f\" (cache hit)"
       IFS='|' read -r rating label <<<"$cached_exif"
       rating_status=0
       label_status=0
