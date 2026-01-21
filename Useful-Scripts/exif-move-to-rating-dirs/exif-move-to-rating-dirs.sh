@@ -34,17 +34,17 @@ __log() {
       [[ -n "$LOGFILE" ]] && echo "$timestamp_log ERROR: $msg" >> "$LOGFILE" 2>/dev/null || true
       ;;
     W|WAR|WARN)
-      echo -e "$timestamp [\033[33mWARN\033[0m]  $msg"
+      echo -e "$timestamp [\033[33mWARN\033[0m]  $msg" >&2
       [[ -n "$LOGFILE" ]] && echo "$timestamp_log WARN : $msg" >> "$LOGFILE" 2>/dev/null || true
       ;;
     I|INF|INFO)
       [[ "$VERBOSITY" -lt 1 ]] && return 0  # Skip info messages if verbosity < 1
-      echo -e "$timestamp [\033[32mINFO\033[0m]  $msg"
+      echo -e "$timestamp [\033[32mINFO\033[0m]  $msg" >&2
       [[ -n "$LOGFILE" ]] && echo "$timestamp_log INFO : $msg" >> "$LOGFILE" 2>/dev/null || true
       ;;
     D|DEB|DEBUG)
       [[ "$VERBOSITY" -lt 2 ]] && return 0  # Skip debug messages if verbosity < 2
-      echo -e "$timestamp [\033[34mDEBUG\033[0m] $msg"
+      echo -e "$timestamp [\033[34mDEBUG\033[0m] $msg" >&2
       [[ -n "$LOGFILE" ]] && echo "$timestamp_log DEBUG: $msg" >> "$LOGFILE" 2>/dev/null || true
       ;;
     *)
@@ -79,21 +79,37 @@ Arguments:
   source-path    Path(s) to the directory/directories containing image files to be organized
 
 Options:
-  -o, --output <dir>        Common target directory for all files (default: derive from each source path)
   -t, --types <ext1,ext2,...>  Comma-separated list of file extensions to process (default: jpg,jpeg,png,tiff,tif,cr2,dng)
-  -i, --include-processed   Include files that are most likely already in rating output directories (default: skip them, simple regex-based detection: [0-5]/[A-Za-z0-9].../*)
+  -o, --output <dir>        Common target directory for all files (default: derive from each source path)
+  #-i, --include-processed   Include files that are most likely already in rating output directories (default: skip them based on a very basic pattern "[0-5]/[A-Za-z0-9].../*" assuming these files are already processed)
+                            --- IGNORE (IN REVIEW) ---
   -f, --force               Force overwrite existing files in target directory (default: skip files that already exist)
   -c, --copy                Copy files instead of moving them (default: move)
   --mapping-file <file>     Path to mapping file for directory remapping (space-separated, optional quotes for spaces)
-  --cache-file <file>       Cache file location (default: ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv)
-  --no-cache                Disable cache lookups and writes (default: use cache to reuse EXIF data for unchanged files)
-  --skip-cached             Skip files found in cache completely without verifying location (faster but less safe)
   -d, --remove-empty-source-dir  Remove empty source directory after moving a file (single level only)
   --min-rating <n>          Minimum EXIF rating threshold; skip files with rating < n (default: 0, no filter)
+
+  --cache-file <file>       Cache file location (default: ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv, .gz >1MB)
+  --no-cache                Disable cache lookups and writes.
+  --skip-cached             Skip file with known file path (in cache, already), unless file mtime or hash have changed.
+                            This can be helpful if files were moved/copied outside of this script.
+
   --no-summary              Disable summary and statistics output at the end (default: show summary)
   -n, --no-act, --dry-run   Show what would be done without making any changes
   -v, --verbose             Increase verbosity level (can be used multiple times)
   -h, --help                Show this help message and exit
+
+Caching:
+  Enabled by default to speed up repeated runs.
+  Caches absolute file path, file hash, file mtime, EXIF Rating, and EXIF Label.
+  Cache lookup is done via absolute file path (no cache used if files are moved or renamed).
+
+  Cache file is automatically compressed with gzip if gzip is available and file size is >1MB .
+  Cache file is located in ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv(.gz) by default.
+  Cache is saved on normal exit and on interruption (Ctrl-C).
+
+  Use --skip-cached to skip files found in cache (same hash and mtime) without verifying location.
+  Use --no-cache to disable caching entirely.
 
 Mapping File Format:
   Space-separated pattern and target directory (one per line).
@@ -121,12 +137,15 @@ EOF
 # {{{ = COMMONS ==============================================================
 
 # {{{ = ARGUMENT PARSING =====================================================
+# Ensure at least one argument is provided
 [[ -n "${1:-}" ]] || { _usage; exit 1; }
 
+# Global variables with default values
 VERBOSITY=0
 LOGFILE=""
 NO_ACT="false"
-INCLUDE_PROCESSED="false"
+# TODO remove this? this seems inappropriate, especially with mapping files
+#INCLUDE_PROCESSED="false"
 FORCE_OVERWRITE="false"
 OPERATION="move"
 FILE_TYPES=("jpg" "jpeg" "png" "tiff" "tif" "cr2" "dng" "orf")
@@ -155,6 +174,11 @@ STATS_SKIPPED_EXISTS=0
 STATS_SKIPPED_MIN_RATING=0
 STATS_FILES_UNREADABLE=0
 LAST_EXIF_TAG_STATUS=0
+# Cache for current file's hash to avoid redundant computations
+CURRENT_FILE_PATH=""
+CURRENT_FILE_HASH=""
+
+# Parse cli arguments
 while [[ $# -ge 1 ]]; do
   case $1 in
     -o|--output)
@@ -165,9 +189,10 @@ while [[ $# -ge 1 ]]; do
       TARGET_DIR="$2"
       shift
       ;;
-    -i|--include-processed)
-      INCLUDE_PROCESSED="true"
-      ;;
+    # TODO remove this? this seems inappropriate, especially with mapping files
+    # -i|--include-processed)
+    #   INCLUDE_PROCESSED="true"
+    #   ;;
     -f|--force)
       FORCE_OVERWRITE="true"
       ;;
@@ -265,6 +290,7 @@ fi
 [[ $VERBOSITY -ge 4 ]] && set -x
 # }}} = ARGUMENT PARSING =====================================================
 
+# {{{ = FUNCTION DEFINITIONS =================================================
 # Signal handler for clean interruption (Ctrl-C)
 _handle_sigint() {
   INTERRUPTED="true"
@@ -303,9 +329,26 @@ _get_exif_tag() {
 }
 
 # Stable hash for cache identity.
+# Caches the hash for the current file to avoid redundant computations.
 _compute_file_hash() {
   local file=$1
-  sha256sum "$file" | awk '{print $1}'
+  local canonical
+  canonical=$(realpath "$file")
+
+  # Check if we already computed hash for this file
+  if [[ "$canonical" == "$CURRENT_FILE_PATH" ]] && [[ -n "$CURRENT_FILE_HASH" ]]; then
+    _log_debug "Reusing cached hash for \"$canonical\""
+    echo "$CURRENT_FILE_HASH"
+    return 0
+  fi
+
+  # Compute hash and cache it
+  _log_debug "Computing hash for \"$canonical\""
+  local hash
+  hash=$(sha256sum "$file" | awk '{print $1}')
+  CURRENT_FILE_PATH="$canonical"
+  CURRENT_FILE_HASH="$hash"
+  echo "$hash"
 }
 
 # mtime in epoch seconds for quick comparisons.
@@ -389,25 +432,25 @@ _load_cache() {
       return 0
     fi
     while IFS=$'\t' read -r path hash mtime rating label; do
-      [[ -z "$path" ]] && continue
-      [[ "$path" =~ ^# ]] && continue
-      # Support both old format (3 fields) and new format (5 fields)
-      if [[ -z "$rating" ]]; then
-        CACHE_MAP["$path"]="$hash|$mtime||"
-      else
-        CACHE_MAP["$path"]="$hash|$mtime|${rating}|${label}"
-      fi
+      # Skip empty lines and comments
+      [[ -z "$path" || "$path" =~ ^# ]] && continue
+      # Skip if corrupt hash/htime missing (mandatory, remaining fields optional)
+      [[ -z "$hash" || -z "$mtime" ]] && {
+        _log_warn "Corrupt cache entry for path \"$path\" (hash and/or mtime missing), skipping ..."
+        continue
+      }
+      CACHE_MAP["$path"]="$hash|$mtime|${rating}|${label}"
     done < <(gunzip -c "$cache_to_read")
   else
     while IFS=$'\t' read -r path hash mtime rating label; do
-      [[ -z "$path" ]] && continue
-      [[ "$path" =~ ^# ]] && continue
-      # Support both old format (3 fields) and new format (5 fields)
-      if [[ -z "$rating" ]]; then
-        CACHE_MAP["$path"]="$hash|$mtime||"
-      else
-        CACHE_MAP["$path"]="$hash|$mtime|${rating}|${label}"
-      fi
+      # Skip empty lines and comments
+      [[ -z "$path" || "$path" =~ ^# ]] && continue
+      # Skip if corrupt hash/htime missing (mandatory, remaining fields optional)
+      [[ -z "$hash" || -z "$mtime" ]] && {
+        _log_warn "Corrupt cache entry for path \"$path\" (hash and/or mtime missing), skipping ..."
+        continue
+      }
+      CACHE_MAP["$path"]="$hash|$mtime|${rating}|${label}"
     done <"$cache_to_read"
   fi
 
@@ -463,29 +506,49 @@ _save_cache() {
   return 0
 }
 
-# Decide whether a file can be skipped based on unchanged hash+mtime.
+# Decide whether a file can be skipped based on cache.
 # Returns 0 (true) if the file should be skipped, 1 (false) otherwise.
-# Only used when --skip-cached is enabled.
 _should_skip_cached() {
+  # No skip if cache is disabled (--no-cache)
+  [[ "$CACHE_ENABLED" != "true" ]] && return 1
+
   local file=$1
-  [[ "$CACHE_ENABLED" == "true" ]] || return 1
-  [[ "$SKIP_CACHED_COMPLETELY" == "true" ]] && return 1
   local canonical
   canonical=$(realpath "$file")
-  [[ -n "${CACHE_MAP[$canonical]:-}" ]] || return 1
-  local cached_hash cached_mtime
+
+  # No skip if file path not in cache
+  [[ -z "${CACHE_MAP[$canonical]:-}" ]] && {
+    _log_debug "No cache entry for \"$canonical\""
+    return 1
+  }
+
+  # SKIP if --skip-cached enabled (file path unchanged but mtime/hash may be modified e.g. due to EXIF metadata edit)
+  [[ "$SKIP_CACHED_COMPLETELY" == "true" ]] && {
+    _log_debug "Skipping \"$canonical\" based on cache (path match only, --skip-cached enabled, no mtime/hash check)"
+    return 0
+  }
+
+  # Get cached hash and mtime
+  local cached_hash cached_mtime current_mtime
   IFS='|' read -r cached_hash cached_mtime _ _ <<<"${CACHE_MAP[$canonical]}"
-  local current_mtime current_hash
+
+  # No skip mtime differs
   current_mtime=$(_get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
+    _log_debug "No cache match for \"$canonical\" (mtime changed: cached=$cached_mtime, current=$current_mtime)"
     return 1
   fi
+
+  # No skip if hash differs
   current_hash=$(_compute_file_hash "$canonical")
-  if [[ "$current_hash" == "$cached_hash" ]]; then
-    _log_info "Skipping \"$canonical\": unchanged since last processed (cache hit, --skip-cached enabled)"
-    return 0
+  if [[ "$current_hash" != "$cached_hash" ]]; then
+    _log_debug "No cache match for \"$canonical\" (hash changed: cached=$cached_hash, current=$current_hash)"
+    return 1
   fi
-  return 1
+
+  # SKIP otherwise (hash and mtime match)
+  _log_debug "Skipping \"$canonical\" based on cache (mtime and hash match)"
+  return 0
 }
 
 # Get cached EXIF data (rating and label) for an unchanged file.
@@ -502,11 +565,14 @@ _get_cached_exif() {
   # If no cached rating/label, file was cached in old format - need to read EXIF
   [[ -z "$cached_rating" ]] && return 1
 
+  # Optimization: check mtime first (fast), only compute hash (slow) if mtime matches
   local current_mtime current_hash
   current_mtime=$(_get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
     return 1
   fi
+
+  # Mtime matches, now verify hash
   current_hash=$(_compute_file_hash "$canonical")
   if [[ "$current_hash" == "$cached_hash" ]]; then
     echo "${cached_rating}|${cached_label}"
@@ -518,8 +584,8 @@ _get_cached_exif() {
 # Remember a successfully processed file in the cache.
 _remember_processed_file() {
   local file=$1
-  local rating=$2
-  local label=$3
+  local rating=${2:-}
+  local label=${3:-}
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
   [[ "$NO_ACT" == "true" ]] && return 0
   local canonical
@@ -528,7 +594,7 @@ _remember_processed_file() {
   mtime=$(_get_file_mtime "$canonical")
   hash=$(_compute_file_hash "$canonical")
   if [[ -n "$hash" ]]; then
-    CACHE_MAP["$canonical"]="$hash|$mtime|${rating}|${label}"
+    CACHE_MAP["$canonical"]="$hash|$mtime|${rating:-}|${label:-}"
   fi
   return 0
 }
@@ -617,7 +683,10 @@ _apply_mapping() {
   local i
 
   # If no mappings loaded, return original unchanged
-  [[ ${#MAPPING_PATTERNS[@]} -eq 0 ]] && { echo "$source_pattern"; return 0; }
+  [[ ${#MAPPING_PATTERNS[@]} -eq 0 ]] && {
+    echo "$source_pattern"
+    return 0;
+  }
 
   # Try matching each pattern (first match wins)
   for ((i=0; i<${#MAPPING_PATTERNS[@]}; i++)); do
@@ -635,7 +704,6 @@ _apply_mapping() {
           target="${target//\$$j/${captured_groups[$j]}}"
         done
       fi
-
       _log_debug "Mapping \"$source_pattern\" -> \"$target\" (rule: ${MAPPING_PATTERNS[$i]})"
       echo "$target"
       return 0
@@ -647,202 +715,182 @@ _apply_mapping() {
   return 0
 }
 
-_load_cache
-_record_cache_baseline
-
-# Load mapping file if provided
-if [[ -n "$MAPPING_FILE" ]]; then
-  if ! _load_mapping_file "$MAPPING_FILE"; then
-    _log_error "Failed to load mapping file: \"$MAPPING_FILE\""
-    exit 1
-  fi
-fi
-
-# Prepare file type find arguments
-FILE_TYPES_LIST=(${FILE_TYPES[@]})
-FILE_TYPES_ARGS=()
-for ext in "${FILE_TYPES_LIST[@]}"; do
-  FILE_TYPES_ARGS+=("-iname" "*.${ext}")
-  FILE_TYPES_ARGS+=("-o")
-done
-# Remove trailing -o
-unset 'FILE_TYPES_ARGS[${#FILE_TYPES_ARGS[@]}-1]'
-
 # Process each source path
-for SOURCE_PATH in "${SOURCE_PATHS[@]}"; do
-  # Strip trailing slashes from source path
-  SOURCE_PATH="${SOURCE_PATH%/}"
+_process_source_paths() {
+  [[ ${IS_FIRST_SOURCE:-1} -eq 1 ]] && IS_FIRST_SOURCE=0
+  for source_path in "${SOURCE_PATHS[@]}"; do
+    # Strip trailing slashes from source path
+    source_path="${source_path%/}"
 
-  _log "\nProcessing source directory: \"$SOURCE_PATH\" ..."
+    [[ ${IS_FIRST_SOURCE:-1} -eq 0 ]] && _log "----"
+    _log "Processing source directory: \"$source_path\" ..."
 
-  # Determine base target directory for this source
-  if [[ -n "$TARGET_DIR" ]]; then
-    BASE_TARGET_DIR="${TARGET_DIR%/}"
-  else
-    BASE_TARGET_DIR="$SOURCE_PATH"
-  fi
-
-  # Build find command arguments
-  FIND_ARGS=("$SOURCE_PATH" "-type" "f" "!" "-path" "*/.*")
-
-  # Skip already-processed rating directories unless --include-processed is set
-  if [[ "$INCLUDE_PROCESSED" == "false" ]]; then
-    _log_debug "Excluding already-processed rating directories from search ..."
-    # Exclude paths matching: [0-5]/[A-Za-z0-9].../* (rating folders with typical labels)
-    FIND_ARGS+=("!" "-regex" ".*/[0-5]/[a-zA-Z0-9].*/[^/]*")
-  fi
-
-  # Add file type filters
-  FIND_ARGS+=("${FILE_TYPES_ARGS[@]}")
-
-  # Iterate over known image files in source path
-  found_any="false"
-  DIR_FILES_SCANNED=0
-  while IFS= read -r f; do
-    # Stop immediately if interrupted
-    if [[ "$INTERRUPTED" == "true" ]]; then
-      break
-    fi
-    found_any="true"
-    ((++DIR_FILES_SCANNED))
-    if _should_skip_cached "$f"; then
-      ((++STATS_SKIPPED_CACHED))
-      continue
+    # Determine base target directory for this source
+    if [[ -n "$TARGET_DIR" ]]; then
+      base_target_dir="${TARGET_DIR%/}"
+    else
+      base_target_dir="$source_path"
     fi
 
-    # Try to get EXIF data from cache first (if not using --skip-cached)
-    rating=""
-    label=""
-    rating_status=0
-    label_status=0
-    cached_exif=""
-    if cached_exif=$(_get_cached_exif "$f"); then
-      _log_debug "Using cached EXIF data for \"$f\" (cache hit)"
-      IFS='|' read -r rating label <<<"$cached_exif"
+    # Build find command arguments
+    find_args=("$source_path" "-type" "f" "!" "-path" "*/.*")
+
+    # TODO remove this? this seems inappropriate, especially with mapping files
+    # # Skip already-processed rating directories unless --include-processed is set
+    # if [[ "$INCLUDE_PROCESSED" == "false" ]]; then
+    #   _log_debug "Excluding already-processed rating directories from search ..."
+    #   # Exclude paths matching: [0-5]/[A-Za-z0-9].../* (rating folders with typical labels)
+    #   find_args+=("!" "-regex" ".*/[0-5]/[a-zA-Z0-9].*/[^/]*")
+    # fi
+
+    # Add file type filters
+    find_args+=("${FILE_TYPES_ARGS[@]}")
+
+    # Iterate over known image files in source path
+    found_any="false"
+    dir_files_scanned=0
+    while IFS= read -r f; do
+      # Stop immediately if interrupted
+      if [[ "$INTERRUPTED" == "true" ]]; then
+        break
+      fi
+      found_any="true"
+      ((++dir_files_scanned))
+      if _should_skip_cached "$f"; then
+        ((++STATS_SKIPPED_CACHED))
+        continue
+      fi
+
+      # Try to get EXIF data from cache first (if not using --skip-cached)
+      rating=""
+      label=""
       rating_status=0
       label_status=0
-      ((++STATS_SKIPPED_CACHED))
-    else
-      # Get EXIF rating and label from file
-      _log_debug "Reading EXIF data for \"$f\" ..."
-      rating=$(_get_exif_tag Rating 0 "$f")
-      rating_status=$LAST_EXIF_TAG_STATUS
-      label=$(_get_exif_tag Label None "$f")
-      label_status=$LAST_EXIF_TAG_STATUS
-    fi
-
-    # Check if both exiftool calls failed for this file
-    if [[ $rating_status -ne 0 ]] && [[ $label_status -ne 0 ]]; then
-      _log_warn "Unable to read EXIF data for \"$f\" (exiftool failed for both Rating and Label)"
-      ((++STATS_FILES_UNREADABLE))
-      continue
-    fi
-
-    # Check if rating is below minimum threshold
-    if [[ $rating -lt $MIN_RATING ]]; then
-      _log_info "Skipping \"$f\": rating ($rating) is below minimum threshold ($MIN_RATING)"
-      ((++STATS_SKIPPED_MIN_RATING))
-      continue
-    fi
-
-    # Construct rating/label path and apply mapping if available
-    rating_label_path="$rating/$label"
-    if [[ ${#MAPPING_PATTERNS[@]} -gt 0 ]]; then
-      rating_label_path=$(_apply_mapping "$rating_label_path")
-    fi
-    target_dir="$BASE_TARGET_DIR/$rating_label_path"
-    target_dir="${target_dir%/}"
-    target_file="$target_dir/$(basename "$f")"
-    # Check if source and target file are the same, skip if so (no need to move/copy file)
-    if [[ "$(realpath "$f")" == "$(realpath -m "$target_file")" ]]; then
-      _log_info "Skipping \"$f\": already in target location \"$target_dir\" (nothing to do)"
-      ((++STATS_SKIPPED_LOCATION))
-      # Even though we are skipping, we should still remember it in the cache in case it is processed again later
-      _remember_processed_file "$f" "$rating" "$label"   # target_file and f are the same here
-      continue
-    fi
-    # Check if another file with same name exists in target directory, skip if so (unless --force)
-    if [[ "$FORCE_OVERWRITE" == "false" ]] && [[ -e "$target_file" ]]; then
-      _log_warn "Skipping \"$f\": target file \"$target_file\" already exists (use --force to overwrite)"
-      ((++STATS_SKIPPED_EXISTS))
-      continue
-    fi
-    # Determine operation command and action description
-    if [[ "$OPERATION" == "copy" ]]; then
-      COMMAND="cp"
-      ACTION="Copying"
-    else
-      COMMAND="mv"
-      ACTION="Moving"
-    fi
-    # Create target directory and move/copy file
-    _log "$ACTION \"$f\" to \"$target_dir/\" ..."
-    if [[ "$NO_ACT" == "true" ]]; then
-      _log "[DRY RUN] mkdir -p \"$target_dir\""
-      _log "[DRY RUN] $COMMAND \"$f\" \"$target_dir/\""
-      # Optionally indicate removal of empty source directory (single level) after move
-      if [[ "$REMOVE_EMPTY_SOURCE_DIR" == "true" ]] && [[ "$OPERATION" == "move" ]]; then
-        src_dir=$(dirname "$f")
-        # check if dir is empty, if so then log
-        if [[ -d "$src_dir" && -z "$(ls -A "$src_dir" | head -n 1)" ]]; then
-          _log "[DRY RUN] Would remove empty source directory: \"$src_dir\" (single level)"
-        fi
-      fi
-      if [[ "$OPERATION" == "copy" ]]; then
-        ((++STATS_COPIED))
+      cached_exif=""
+      if cached_exif=$(_get_cached_exif "$f"); then
+        _log_debug "Using cached EXIF data for \"$f\" (cache hit)"
+        IFS='|' read -r rating label <<<"$cached_exif"
+        rating_status=0
+        label_status=0
+        ((++STATS_SKIPPED_CACHED))
       else
-        ((++STATS_MOVED))
+        # Get EXIF rating and label from file
+        _log_debug "Reading EXIF data for \"$f\" ..."
+        rating=$(_get_exif_tag Rating 0 "$f")
+        rating_status=$LAST_EXIF_TAG_STATUS
+        label=$(_get_exif_tag Label None "$f")
+        label_status=$LAST_EXIF_TAG_STATUS
       fi
-    else
-      _log_debug "> mkdir -p \"$target_dir\""
-      mkdir -p "$target_dir"
-      _log_debug "> $COMMAND \"$f\" \"$target_dir/\""
-      $COMMAND "$f" "$target_dir/"
-      # Optionally remove empty source directory (single level) after move
-      if [[ "$REMOVE_EMPTY_SOURCE_DIR" == "true" ]] && [[ "$OPERATION" == "move" ]]; then
-        src_dir=$(dirname "$f")
-        if [[ -d "$src_dir" ]]; then
-          # Only attempt removal when directory is empty
-          if [[ -z "$(ls -A "$src_dir" )" ]]; then
-            _log_info "Removing empty source directory \"$src_dir\" ..."
-            rmdir "$src_dir" || _log_warn "Failed to remove empty source directory \"$src_dir\""
+
+      # Check if both exiftool calls failed for this file
+      if [[ $rating_status -ne 0 ]] && [[ $label_status -ne 0 ]]; then
+        _log_warn "Unable to read EXIF data for \"$f\" (exiftool failed for both Rating and Label)"
+        ((++STATS_FILES_UNREADABLE))
+        continue
+      fi
+
+      # Check if rating is below minimum threshold
+      if [[ $rating -lt $MIN_RATING ]]; then
+        _log_info "Skipping \"$f\": rating ($rating) is below minimum threshold ($MIN_RATING)"
+        ((++STATS_SKIPPED_MIN_RATING))
+        continue
+      fi
+
+      # Construct rating/label path and apply mapping if available
+      rating_label_path="$rating/$label"
+      if [[ ${#MAPPING_PATTERNS[@]} -gt 0 ]]; then
+        rating_label_path=$(_apply_mapping "$rating_label_path")
+      fi
+      target_dir="$base_target_dir/$rating_label_path"
+      target_dir="${target_dir%/}"
+      target_file="$target_dir/$(basename "$f")"
+      # Check if source and target file are the same, skip if so (no need to move/copy file)
+      if [[ "$(realpath "$f")" == "$(realpath -m "$target_file")" ]]; then
+        _log_info "Skipping \"$f\": already in target location \"$target_dir\" (nothing to do)"
+        ((++STATS_SKIPPED_LOCATION))
+        # Even though we are skipping, we should still remember it in the cache in case it is processed again later
+        _remember_processed_file "$f" "$rating" "$label"   # target_file and f are the same here
+        continue
+      fi
+      # Check if another file with same name exists in target directory, skip if so (unless --force)
+      if [[ "$FORCE_OVERWRITE" == "false" ]] && [[ -e "$target_file" ]]; then
+        _log_warn "Skipping \"$f\": target file \"$target_file\" already exists (use --force to overwrite)"
+        ((++STATS_SKIPPED_EXISTS))
+        continue
+      fi
+      # Determine operation command and action description
+      local command="mv"
+      local action="Moving"
+      if [[ "$OPERATION" == "copy" ]]; then
+        command="cp"
+        action="Copying"
+      fi
+      # Create target directory and move/copy file
+      _log "$action \"$f\" to \"$target_dir/\" ..."
+      if [[ "$NO_ACT" == "true" ]]; then
+        _log "[DRY RUN] mkdir -p \"$target_dir\""
+        _log "[DRY RUN] $command \"$f\" \"$target_dir/\""
+        # Optionally indicate removal of empty source directory (single level) after move
+        if [[ "$REMOVE_EMPTY_SOURCE_DIR" == "true" ]] && [[ "$OPERATION" == "move" ]]; then
+          src_dir=$(dirname "$f")
+          # check if dir is empty, if so then log
+          if [[ -d "$src_dir" && -z "$(ls -A "$src_dir" | head -n 1)" ]]; then
+            _log "[DRY RUN] Would remove empty source directory: \"$src_dir\" (single level)"
           fi
         fi
-      fi
-      _remember_processed_file "$target_file" "$rating" "$label"
-      if [[ "$OPERATION" == "copy" ]]; then
-        ((++STATS_COPIED))
+        if [[ "$OPERATION" == "copy" ]]; then
+          ((++STATS_COPIED))
+        else
+          ((++STATS_MOVED))
+        fi
       else
-        ((++STATS_MOVED))
+        _log_debug "> mkdir -p \"$target_dir\""
+        mkdir -p "$target_dir"
+        _log_debug "> $command \"$f\" \"$target_dir/\""
+        $command "$f" "$target_dir/"
+        # Optionally remove empty source directory (single level) after move
+        if [[ "$REMOVE_EMPTY_SOURCE_DIR" == "true" ]] && [[ "$OPERATION" == "move" ]]; then
+          src_dir=$(dirname "$f")
+          if [[ -d "$src_dir" ]]; then
+            # Only attempt removal when directory is empty
+            if [[ -z "$(ls -A "$src_dir" )" ]]; then
+              _log_info "Removing empty source directory \"$src_dir\" ..."
+              rmdir "$src_dir" || _log_warn "Failed to remove empty source directory \"$src_dir\""
+            fi
+          fi
+        fi
+        _remember_processed_file "$target_file" "$rating" "$label"
+        if [[ "$OPERATION" == "copy" ]]; then
+          ((++STATS_COPIED))
+        else
+          ((++STATS_MOVED))
+        fi
       fi
+    done < <(find "${find_args[@]}")
+
+    # If interrupted, stop processing further source directories
+    if [[ "$INTERRUPTED" == "true" ]]; then
+      _log "Interrupted; stopping further directories."
+      break
     fi
-  done < <(find "${FIND_ARGS[@]}")
 
-  # If interrupted, stop processing further source directories
-  if [[ "$INTERRUPTED" == "true" ]]; then
-    _log "Interrupted; stopping further directories."
-    break
-  fi
+    if [[ "$found_any" == "false" ]]; then
+      FILE_TYPES_PRETTY=$(IFS=,; echo "${FILE_TYPES_LIST[*]}")
+      _log_warn "no matching files found in \"$source_path\" for extensions: ${FILE_TYPES_PRETTY}" >&2
+    fi
 
-  if [[ "$found_any" == "false" ]]; then
-    FILE_TYPES_PRETTY=$(IFS=,; echo "${FILE_TYPES_LIST[*]}")
-    _log_warn "no matching files found in \"$SOURCE_PATH\" for extensions: ${FILE_TYPES_PRETTY}" >&2
-  fi
+    # Print per-directory scan summary only when multiple source paths are provided
+    if [[ ${#SOURCE_PATHS[@]} -gt 1 ]]; then
+      _log "Scanned ${dir_files_scanned} file(s) in \"$source_path\" (count only; no action implied)"
+    fi
 
-  # Print per-directory scan summary only when multiple source paths are provided
-  if [[ ${#SOURCE_PATHS[@]} -gt 1 ]]; then
-    _log "Scanned ${DIR_FILES_SCANNED} file(s) in \"$SOURCE_PATH\" (count only; no action implied)"
-  fi
+    # Persist cache after each directory to avoid losing progress if interrupted
+    _save_cache || _log_warn "Unable to write cache file to \"$CACHE_FILE\" after processing \"$source_path\""
+  done
+}
 
-  # Persist cache after each directory to avoid losing progress if interrupted
-  _save_cache || _log_warn "Unable to write cache file to \"$CACHE_FILE\" after processing \"$SOURCE_PATH\""
-done
-
-# Save cache back to disk
-_save_cache || _log_warn "Unable to write cache file to \"$CACHE_FILE\""
-_record_cache_final
-
-if [[ "$SHOW_SUMMARY" == "true" ]]; then
+# Show summary statistics
+_show_summary() {
   _log ""
   _log "=== Summary ==="
   _log "Files moved:                       $STATS_MOVED"
@@ -878,6 +926,45 @@ if [[ "$SHOW_SUMMARY" == "true" ]]; then
     _log "Records:    ${CACHE_INITIAL_RECORDS} -> ${CACHE_FINAL_RECORDS} (${records_delta_str})"
     _log "Size:       ${human_initial_size} -> ${human_final_size} (${size_delta_str}${human_delta_size})"
   fi
-fi
+}
+
+#
+_main() {
+  _load_cache
+  _record_cache_baseline
+
+  # Load mapping file if provided
+  if [[ -n "$MAPPING_FILE" ]]; then
+    if ! _load_mapping_file "$MAPPING_FILE"; then
+      _log_error "Failed to load mapping file: \"$MAPPING_FILE\""
+      exit 1
+    fi
+  fi
+
+  # Prepare file type find arguments
+  FILE_TYPES_LIST=(${FILE_TYPES[@]})
+  FILE_TYPES_ARGS=()
+  for ext in "${FILE_TYPES_LIST[@]}"; do
+    FILE_TYPES_ARGS+=("-iname" "*.${ext}")
+    FILE_TYPES_ARGS+=("-o")
+  done
+  # Remove trailing -o
+  unset 'FILE_TYPES_ARGS[${#FILE_TYPES_ARGS[@]}-1]'
+
+  # Process source paths
+  _process_source_paths
+
+  # Save cache back to disk
+  _save_cache || _log_warn "Unable to write cache file to \"$CACHE_FILE\""
+  _record_cache_final
+
+  # Show summary
+  [[ "$SHOW_SUMMARY" == "true" ]] && _show_summary
+}
+
+# }}} = FUNCTION DEFINITIONS =================================================
+
+# Run main logic
+_main
 
 exit 0
