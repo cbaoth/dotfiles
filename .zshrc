@@ -324,13 +324,13 @@ ZPLUG_MODE_ANDROID="skip"   # skip zplug when on Android (maybe much too slow or
 
 ZPLUG_MODE=$ZPLUG_MODE_DEFAULT
 $IS_ANDROID && ZPLUG_MODE=${ZPLUG_MODE_ANDROID:=${ZPLUG_MODE_DEFAULT}} \
-  && [[ $ZPLUG_MODE != $ZPLUG_DEFAULT_MODE ]] \
+  && [[ $ZPLUG_MODE != $ZPLUG_MODE_DEFAULT ]] \
   && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Android as per \$ZPLUG_MODE_ANDROID=$ZPLUG_MODE_ANDROID."
 $IS_WSL     && ZPLUG_MODE=${ZPLUG_MODE_WSL:-$ZPLUG_MODE_DEFAULT} \
-  && [[ $ZPLUG_MODE != $ZPLUG_DEFAULT_MODE ]] \
+  && [[ $ZPLUG_MODE != $ZPLUG_MODE_DEFAULT ]] \
   && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for WSL as per \$ZPLUG_MODE_WSL=$ZPLUG_MODE_WSL."
 $IS_DOCKER  && ZPLUG_MODE=${ZPLUG_MODE_DOCKER:-$ZPLUG_MODE_DEFAULT} \
-  && [[ $ZPLUG_MODE != $ZPLUG_DEFAULT_MODE ]] \
+  && [[ $ZPLUG_MODE != $ZPLUG_MODE_DEFAULT ]] \
   && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Docker as pere \$ZPLUG_MODE_DOCKER=$ZPLUG_MODE_DOCKER."
 ZPLUG_MODE_IS_SKIP=$([[ $ZPLUG_MODE = 'skip' ]] && 'true' || print 'false')
 ZPLUG_MODE_IS_MINI=$([[ $ZPLUG_MODE = 'mini' ]] && 'true' || print 'false')
