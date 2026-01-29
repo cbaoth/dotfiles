@@ -137,16 +137,16 @@ setopt HIST_NO_FUNCTIONS # don't store function definitions
 # }}} - SECURITY & PRIVACY ---------------------------------------------------
 
 # {{{ -- SYSTEM/ENV STATE ----------------------------------------------------
-if $IS_PC; then
-  if $IS_PC_NATIVE; then
+if ${IS_PC:-true}; then
+  if ${IS_PC_NATIVE:-true}; then
     cl::p_dbg -t 0 1 "Native PC (x68 architecture) detected."
   else
     cl::p_msg "Non-native PC (x68 architecture) detected."
   fi
 else
   cl::p_msg "Non-PC architecture detected ($ARCH != x68)."
-  if $IS_ANDROID; then
-    if $IS_TERMUX; then
+  if ${IS_ANDROID:-false}; then
+    if ${IS_TERMUX:-false}; then
       cl::p_msg "Android (TERMUX) envrionment detected."
     else
       cl::p_msg "Android envrionment detected."
@@ -154,8 +154,8 @@ else
   fi
 fi
 
-if $IS_WSL; then
- if ! $IS_WSL2; then
+if ${IS_WSL:-false}; then
+  if ! ${IS_WSL2:-false}; then
     cl::p_msg "WSL1 environment detected."
     #cl::p_msg "WSL1 environment detected. Additional features are disabled (only available in WSL2)."
   else
@@ -191,7 +191,7 @@ if $IS_WSL; then
   fi
 fi
 
-if $IS_DOCKER; then
+if ${IS_DOCKER:-false}; then
   cl::p_msg "Docker environment detected."
 fi
 # }}} - SYSTEM/ENV STATE -----------------------------------------------------
@@ -204,11 +204,42 @@ export IRCNAME="Jorus C'Baoth"
 # }}} - IRC ------------------------------------------------------------------
 
 # {{{ - ZSH ------------------------------------------------------------------
-# Default apps
-$IS_X && export EDITOR=code || export EDITOR='vim -N'
-$IS_X && export BROWSER=google-chrome || export BROWSER=links
-$IS_X && export IMGVIEWER=xnview || export IMGVIEWER=catimg
-$IS_X && export MPLAYER=mpv || export MPLAYER=mpv
+# Function that exports a variable to the first provided command found in PATH
+# (if any)
+# $1:  variable name
+# $2+: commands to check, first one found wins
+_export_to_first_cmd() {
+  [[ -z "${1-}" || $# -lt 2 ]] && cl::p_usg "$0 var-name command.." && return 1
+  local var_name="$1"
+  shift
+  local cmd
+  for cmd in "$@"; do
+    echo "checking cmd '$cmd' for var '$var_name' ..."
+    if command -v "$cmd" >/dev/null 2>&1; then
+      cl::p_dbg -t 0 1 "Exporting '$var_name' to command '$cmd' ..."
+      # set the variable named $var_name to $cmd
+      export $var_name="$cmd"
+      return 0
+    fi
+  done
+  cl::p_dbg -t 0 2 "No matching command found to export '$var_name' to. Provided commands: $*"
+  return 1
+}
+
+# Default apps, if available
+_export_to_first_cmd MPLAYER mpv
+# In X11/Wayland? Then use GUI apps as default, otherwise terminal apps
+if ${IS_X:-false}; then
+  _export_to_first_cmd VISUAL code emacs vim vi nano
+  _export_to_first_cmd EDITOR code emacs vim vi nano
+  _export_to_first_cmd BROWSER vivaldi google-chrome firefox edge links2 links
+  _export_to_first_cmd IMGVIEWER xnview feh catimg
+else
+  _export_to_first_cmd VISUAL vim emacs vi nano
+  _export_to_first_cmd EDITOR vim emacs vi nano
+  _export_to_first_cmd BROWSER links2 links lynx w3m
+  _export_to_first_cmd IMGVIEWER catimg
+fi
 # }}} - ZSH ------------------------------------------------------------------
 
 # {{{ - MISC -----------------------------------------------------------------
@@ -316,22 +347,22 @@ export DISABLE_AUTO_UPDATE=true
 #export UPDATE_ZSH_DAYS=30
 
 # custom ZPLUG modes (full: load all, mini: load less, skip: load none)
-ZPLUG_MODE_DEFAULT="full"
+_ZPLUG_MODE_DEFAULT="full"
 # optionally set deviating ZPLUG mode depending on the environment
-ZPLUG_MODE_WSL="full"       # load all zplugs when in WSL
-ZPLUG_MODE_DOCKER="mini"    # load all zplugs when inside a Docker containers
-ZPLUG_MODE_ANDROID="skip"   # skip zplug when on Android (maybe much too slow or even crash the terminal)
+_ZPLUG_MODE_WSL="full"       # load all zplugs when in WSL
+_ZPLUG_MODE_DOCKER="mini"    # load all zplugs when inside a Docker containers
+_ZPLUG_MODE_ANDROID="skip"   # skip zplug when on Android (maybe much too slow or even crash the terminal)
 
-ZPLUG_MODE=$ZPLUG_MODE_DEFAULT
-$IS_ANDROID && ZPLUG_MODE=${ZPLUG_MODE_ANDROID:=${ZPLUG_MODE_DEFAULT}} \
-  && [[ $ZPLUG_MODE != $ZPLUG_MODE_DEFAULT ]] \
-  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Android as per \$ZPLUG_MODE_ANDROID=$ZPLUG_MODE_ANDROID."
-$IS_WSL     && ZPLUG_MODE=${ZPLUG_MODE_WSL:-$ZPLUG_MODE_DEFAULT} \
-  && [[ $ZPLUG_MODE != $ZPLUG_MODE_DEFAULT ]] \
-  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for WSL as per \$ZPLUG_MODE_WSL=$ZPLUG_MODE_WSL."
-$IS_DOCKER  && ZPLUG_MODE=${ZPLUG_MODE_DOCKER:-$ZPLUG_MODE_DEFAULT} \
-  && [[ $ZPLUG_MODE != $ZPLUG_MODE_DEFAULT ]] \
-  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Docker as pere \$ZPLUG_MODE_DOCKER=$ZPLUG_MODE_DOCKER."
+ZPLUG_MODE=$_ZPLUG_MODE_DEFAULT
+${IS_ANDROID:-false} && ZPLUG_MODE=${_ZPLUG_MODE_ANDROID:=${_ZPLUG_MODE_DEFAULT}} \
+  && [[ $ZPLUG_MODE != $_ZPLUG_MODE_DEFAULT ]] \
+  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Android as per \$_ZPLUG_MODE_ANDROID=$_ZPLUG_MODE_ANDROID."
+${IS_WSL:-false}     && ZPLUG_MODE=${_ZPLUG_MODE_WSL:-$_ZPLUG_MODE_DEFAULT} \
+  && [[ $ZPLUG_MODE != $_ZPLUG_MODE_DEFAULT ]] \
+  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for WSL as per \$_ZPLUG_MODE_WSL=$_ZPLUG_MODE_WSL."
+${IS_DOCKER:-false}  && ZPLUG_MODE=${_ZPLUG_MODE_DOCKER:-$_ZPLUG_MODE_DEFAULT} \
+  && [[ $ZPLUG_MODE != $_ZPLUG_MODE_DEFAULT ]] \
+  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Docker as pere \$_ZPLUG_MODE_DOCKER=$_ZPLUG_MODE_DOCKER."
 ZPLUG_MODE_IS_SKIP=$([[ $ZPLUG_MODE = 'skip' ]] && 'true' || print 'false')
 ZPLUG_MODE_IS_MINI=$([[ $ZPLUG_MODE = 'mini' ]] && 'true' || print 'false')
 ZPLUG_MODE_IS_FULL=$([[ $ZPLUG_MODE = 'full' ]] && 'true' || print 'false')
@@ -367,17 +398,17 @@ _zplug_install() {
 }
 
 _zplug_init() {
-  if $IS_WSL && [[ ${ZPLUG_MODE_WSL:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-      cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE_WSL=$ZPLUG_MODE_WSL (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+  if $IS_WSL && [[ ${_ZPLUG_MODE_WSL:-${_ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
+      cl::p_dbg -t 0 1 "zplug init skipped as per \$_ZPLUG_MODE_WSL=$_ZPLUG_MODE_WSL (with \$_ZPLUG_MODE_DEFAULT=$_ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
     return 0
-  elif $IS_ANDROID && [[ ${ZPLUG_MODE_ANDROID:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-    cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE_ANDROID=$ZPLUG_MODE_ANDROID (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback)."
+  elif $IS_ANDROID && [[ ${_ZPLUG_MODE_ANDROID:-${_ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
+    cl::p_dbg -t 0 1 "zplug init skipped as per \$_ZPLUG_MODE_ANDROID=$_ZPLUG_MODE_ANDROID (with \$_ZPLUG_MODE_DEFAULT=$_ZPLUG_MODE_DEFAULT > 'full' as fallback)."
     return 0
-  elif $IS_DOCKER && [[ ${ZPLUG_MODE_DOCKER:-${ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-    cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE_DOCKER=$ZPLUG_MODE_DOCKER (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+  elif $IS_DOCKER && [[ ${_ZPLUG_MODE_DOCKER:-${_ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
+    cl::p_dbg -t 0 1 "zplug init skipped as per \$_ZPLUG_MODE_DOCKER=$_ZPLUG_MODE_DOCKER (with \$_ZPLUG_MODE_DEFAULT=$_ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
     return 0
   elif $ZPLUG_MODE_IS_SKIP; then
-    cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE=$ZPLUG_MODE (with \$ZPLUG_MODE_DEFAULT=$ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
+    cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE=$ZPLUG_MODE (with \$_ZPLUG_MODE_DEFAULT=$_ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
     return 0
   fi
   if ${ZPLUG_IS_NEW_INSTALL_FORCED:-false}; then
@@ -475,7 +506,7 @@ POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable vcs) # disk_usage
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time \
                                     background_jobs docker_machine)
 #[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]]
-$ZPLUG_MODE_FULL && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
+$ZPLUG_MODE_IS_FULL && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 
 #export DEFAULT_USER="$USER" # not an options, lambda should always be shown

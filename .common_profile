@@ -37,8 +37,8 @@ umask 022
 # }}} - UMASK ----------------------------------------------------------------
 
 # {{{ - SYSTEM/ENV STATE -----------------------------------------------------
-[[ -n "$ZSH_VERSION" ]] && IS_ZSH=true
-export IS_ZSH=${IS_ZSH:-false}
+[[ -n "$ZSH_VERSION" ]] && IS_ZSH=true || IS_ZSH=false
+export IS_ZSH
 
 # Set core system variables if not already set
 if $IS_ZSH; then
@@ -50,9 +50,7 @@ else # should always be bash, otherwise we would not use the dotfiles repo
   HOST=${HOSTNAME:=$(hostname 2> /dev/null),,}
   ARCH=${ARCH:=$(uname -m 2> /dev/null),,}
 fi
-export OS
-export HOST
-export ARCH
+export OS HOST ARCH
 
 # Is X available? Unreliable for ssh x-forwading., suffices for local sessions
 if [[ ! -t 0 ]] && xset b off >& /dev/null; then
@@ -87,13 +85,13 @@ fi
 # Is Windows Subsystem Linux?
 export IS_WSL=false
 if [[ ! $IS_DOCKER && $(uname -r) = *icrosoft* ]]; then
-  export IS_PC_NATIVE=false
-  export IS_WSL=true
-  export IS_WSL1=true
-  export IS_WSL2=false
+  IS_PC_NATIVE=false
+  IS_WSL=true
+  IS_WSL1=true
+  IS_WSL2=false
   if uname -r | tr '[:upper:]' '[:lower:]' | grep wsl2 >/dev/null; then
-    export IS_WSL1=false
-    export IS_WSL2=true
+    IS_WSL1=false
+    IS_WSL2=true
   fi
   #export PATH="$PATH:$(wslpath "$(wslvar USERPROFILE)")/bin"
   # See https://github.com/Microsoft/BashOnWindows/issues/1887
