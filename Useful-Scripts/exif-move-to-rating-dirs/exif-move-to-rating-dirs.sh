@@ -81,18 +81,19 @@ Arguments:
 Options:
   -t, --types <ext1,ext2,...>  Comma-separated list of file extensions to process (default: jpg,jpeg,png,tiff,tif,cr2,dng)
   -o, --output <dir>        Common target directory for all files (default: derive from each source path)
-  #-i, --include-processed   Include files that are most likely already in rating output directories (default: skip them based on a very basic pattern "[0-5]/[A-Za-z0-9].../*" assuming these files are already processed)
-                            --- IGNORE (IN REVIEW) ---
   -f, --force               Force overwrite existing files in target directory (default: skip files that already exist)
   -c, --copy                Copy files instead of moving them (default: move)
   --mapping-file <file>     Path to mapping file for directory remapping (space-separated, optional quotes for spaces)
   -d, --remove-empty-source-dir  Remove empty source directory after moving a file (single level only)
   --min-rating <n>          Minimum EXIF rating threshold; skip files with rating < n (default: 0, no filter)
 
-  --cache-file <file>       Cache file location (default: ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv, .gz >1MB)
-  --no-cache                Disable cache lookups and writes.
-  --skip-cached             Skip file with known file path (in cache, already), unless file mtime or hash have changed.
-                            This can be helpful if files were moved/copied outside of this script.
+  --cache-file <file>       Cache file location (default: ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv.gz)
+  --cache-strategy <strategy>  Cache lookup strategy (default: multi)
+                            Options: path (absolute path only), hash (content hash), relpath (relative path), multi (all strategies)
+  --cache-relpath-levels <n>  Number of directory levels for relpath strategy (default: 2, range: 1-10)
+  --no-cache                Disable cache lookups and writes
+  --skip-cached             Skip files found in cache based on chosen strategy without verifying file changes
+                            Faster but may miss updated files; use with caution
 
   --no-summary              Disable summary and statistics output at the end (default: show summary)
   -n, --no-act, --dry-run   Show what would be done without making any changes
@@ -101,14 +102,18 @@ Options:
 
 Caching:
   Enabled by default to speed up repeated runs.
-  Caches absolute file path, file hash, file mtime, EXIF Rating, and EXIF Label.
-  Cache lookup is done via absolute file path (no cache used if files are moved or renamed).
-
-  Cache file is automatically compressed with gzip if gzip is available and file size is >1MB .
-  Cache file is located in ${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv(.gz) by default.
+  Caches file hash, mtime, EXIF Rating, Label, and relative path.
+  Cache file is always compressed with gzip (.gz extension).
   Cache is saved on normal exit and on interruption (Ctrl-C).
 
-  Use --skip-cached to skip files found in cache (same hash and mtime) without verifying location.
+  Cache Strategies:
+    path     - Lookup by absolute file path (fastest when most file locations/names unchanged, works after file content changes)
+    hash     - Lookup by content hash (slower but works after moves/renames, no caching used after file content changes)
+    relpath  - Lookup by relative path (similar to path but risk of collisions if filenames are not unique, configurable depth, good for reorganized directories)
+    multi    - Try all strategies in order: path -> hash -> relpath (default, recommended, best flexibility)
+
+  Use --skip-cached to skip files already in cache without verifying changes.
+  This is faster but risky: files edited in-place won't be detected.
   Use --no-cache to disable caching entirely.
 
 Mapping File Format:
@@ -154,7 +159,11 @@ SOURCE_PATHS=()
 CACHE_ENABLED="true"
 SKIP_CACHED_COMPLETELY="false"
 CACHE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv"
-declare -A CACHE_MAP=()
+CACHE_STRATEGY="multi"  # Options: path, hash, relpath, multi
+CACHE_RELPATH_LEVELS=2  # Number of directory levels for relpath strategy
+declare -A CACHE_MAP=()  # Primary index: absolute path -> cache value
+declare -A CACHE_MAP_HASH=()  # Secondary index: hash -> cache value
+declare -A CACHE_MAP_RELPATH=()  # Secondary index: relpath -> cache value
 CACHE_INITIAL_RECORDS=0
 CACHE_INITIAL_SIZE=0
 CACHE_FINAL_RECORDS=0
@@ -173,6 +182,12 @@ STATS_SKIPPED_LOCATION=0
 STATS_SKIPPED_EXISTS=0
 STATS_SKIPPED_MIN_RATING=0
 STATS_FILES_UNREADABLE=0
+STATS_CACHE_HIT_PATH=0
+STATS_CACHE_HIT_HASH=0
+STATS_CACHE_HIT_RELPATH=0
+STATS_CACHE_MISS=0
+STATS_COLLISIONS_HASH=0
+STATS_COLLISIONS_RELPATH=0
 LAST_EXIF_TAG_STATUS=0
 # Cache for current file's hash to avoid redundant computations
 CURRENT_FILE_PATH=""
@@ -205,6 +220,38 @@ while [[ $# -ge 1 ]]; do
         exit 1
       }
       CACHE_FILE="$2"
+      shift
+      ;;
+    --cache-strategy)
+      [[ -n "${2:-}" ]] || {
+        _log_error "--cache-strategy requires a strategy (path, hash, relpath, or multi)"
+        exit 1
+      }
+      case "${2,,}" in
+        path|hash|relpath|multi)
+          CACHE_STRATEGY="${2,,}"
+          ;;
+        *)
+          _log_error "Invalid cache strategy: $2. Valid options: path, hash, relpath, multi"
+          exit 1
+          ;;
+      esac
+      shift
+      ;;
+    --cache-relpath-levels)
+      [[ -n "${2:-}" ]] || {
+        _log_error "--cache-relpath-levels requires a numeric value"
+        exit 1
+      }
+      if ! [[ "${2:-}" =~ ^[0-9]+$ ]]; then
+        _log_error "--cache-relpath-levels value must be a positive integer"
+        exit 1
+      fi
+      if [[ "$2" -lt 1 || "$2" -gt 10 ]]; then
+        _log_error "--cache-relpath-levels must be between 1 and 10"
+        exit 1
+      fi
+      CACHE_RELPATH_LEVELS="$2"
       shift
       ;;
     --no-cache)
@@ -357,13 +404,124 @@ _get_file_mtime() {
   stat -c %Y "$file"
 }
 
+# Compute relative path for cache lookup (last N directory levels + filename)
+# Example: _compute_relpath "/path/to/2024/Summer/IMG_1234.jpg" 2 -> "Summer/IMG_1234.jpg"
+_compute_relpath() {
+  local file=$1
+  local levels=${2:-$CACHE_RELPATH_LEVELS}
+  local canonical
+  canonical=$(realpath "$file")
+
+  # Split path into components
+  local path_without_filename
+  path_without_filename=$(dirname "$canonical")
+  local filename
+  filename=$(basename "$canonical")
+
+  # Extract last N directory levels
+  local relpath=""
+  local remaining_path="$path_without_filename"
+  local i
+
+  for ((i=0; i<levels; i++)); do
+    local dir_component
+    dir_component=$(basename "$remaining_path")
+
+    # Stop if we've reached the root
+    if [[ "$dir_component" == "/" ]] || [[ -z "$dir_component" ]]; then
+      break
+    fi
+
+    if [[ -z "$relpath" ]]; then
+      relpath="$dir_component"
+    else
+      relpath="$dir_component/$relpath"
+    fi
+
+    remaining_path=$(dirname "$remaining_path")
+
+    # Stop if we've reached the root
+    if [[ "$remaining_path" == "/" ]]; then
+      break
+    fi
+  done
+
+  # Append filename
+  if [[ -z "$relpath" ]]; then
+    echo "$filename"
+  else
+    echo "$relpath/$filename"
+  fi
+}
+
+# Lookup cache entry using configured strategy with fallback chain
+# Returns cache value (hash|mtime|rating|label|relpath) or empty string
+# Sets global variable LAST_CACHE_LOOKUP_STRATEGY to indicate which strategy succeeded
+_lookup_cache_entry() {
+  local file=$1
+  local canonical
+  canonical=$(realpath "$file")
+
+  # Try primary lookup: absolute path (always fastest)
+  if [[ -n "${CACHE_MAP[$canonical]:-}" ]]; then
+    LAST_CACHE_LOOKUP_STRATEGY="path"
+    STATS_CACHE_HIT_PATH=$((STATS_CACHE_HIT_PATH + 1))
+    echo "${CACHE_MAP[$canonical]}"
+    return 0
+  fi
+
+  # If strategy is 'path' only, stop here
+  [[ "$CACHE_STRATEGY" == "path" ]] && {
+    LAST_CACHE_LOOKUP_STRATEGY=""
+    STATS_CACHE_MISS=$((STATS_CACHE_MISS + 1))
+    return 1
+  }
+
+  # Try secondary lookups based on strategy
+  case "$CACHE_STRATEGY" in
+    hash|multi)
+      # Hash-based lookup (expensive: requires hash computation)
+      local hash
+      hash=$(_compute_file_hash "$canonical")
+      if [[ -n "${CACHE_MAP_HASH[$hash]:-}" ]]; then
+        LAST_CACHE_LOOKUP_STRATEGY="hash"
+        STATS_CACHE_HIT_HASH=$((STATS_CACHE_HIT_HASH + 1))
+        echo "${CACHE_MAP_HASH[$hash]}"
+        return 0
+      fi
+
+      # If strategy is 'hash' only, stop here
+      [[ "$CACHE_STRATEGY" == "hash" ]] && {
+        LAST_CACHE_LOOKUP_STRATEGY=""
+        STATS_CACHE_MISS=$((STATS_CACHE_MISS + 1))
+        return 1
+      }
+      ;;&  # Fall through to next case if multi
+
+    relpath|multi)
+      # Relpath-based lookup
+      local relpath
+      relpath=$(_compute_relpath "$canonical" "$CACHE_RELPATH_LEVELS")
+      if [[ -n "${CACHE_MAP_RELPATH[$relpath]:-}" ]]; then
+        LAST_CACHE_LOOKUP_STRATEGY="relpath"
+        STATS_CACHE_HIT_RELPATH=$((STATS_CACHE_HIT_RELPATH + 1))
+        echo "${CACHE_MAP_RELPATH[$relpath]}"
+        return 0
+      fi
+      ;;
+  esac
+
+  # No match found
+  LAST_CACHE_LOOKUP_STRATEGY=""
+  STATS_CACHE_MISS=$((STATS_CACHE_MISS + 1))
+  return 1
+}
+
 # Size in bytes (0 when cache file is absent).
-# Checks both compressed (.gz) and uncompressed versions.
+# Always checks for compressed .gz version.
 _get_cache_size_bytes() {
   if [[ -f "${CACHE_FILE}.gz" ]]; then
     stat -c %s "${CACHE_FILE}.gz"
-  elif [[ -f "$CACHE_FILE" ]]; then
-    stat -c %s "$CACHE_FILE"
   else
     echo 0
     return 0
@@ -392,115 +550,148 @@ _record_cache_final() {
   CACHE_FINAL_SIZE=$(_get_cache_size_bytes)
 }
 
-# Load persisted cache into memory (path -> hash|mtime).
-# Supports both compressed (.gz) and uncompressed cache files.
+# Load persisted cache into memory.
+# Always expects compressed .gz format. Builds secondary indices based on cache strategy.
 _load_cache() {
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
 
-  local cache_to_read=""
-  local use_compression="false"
+  local cache_to_read="${CACHE_FILE}.gz"
 
-  # Check for compressed cache first, then uncompressed
-  if [[ -f "${CACHE_FILE}.gz" ]]; then
-    cache_to_read="${CACHE_FILE}.gz"
-    use_compression="true"
-  elif [[ -f "$CACHE_FILE" ]]; then
-    cache_to_read="$CACHE_FILE"
-  else
+  # Check if cache file exists
+  if [[ ! -f "$cache_to_read" ]]; then
+    _log_debug "No cache file found at \"$cache_to_read\""
     return 0
   fi
 
-  # Check cache size and warn if very large (>50MB uncompressed)
+  # Check if gzip is available
+  if ! command -v gunzip >/dev/null 2>&1; then
+    _log_warn "gunzip not found, cannot read cache. Cache disabled for this run."
+    CACHE_ENABLED="false"
+    return 0
+  fi
+
+  # Check cache size and warn if very large (>50MB compressed)
   local cache_size
   cache_size=$(stat -c %s "$cache_to_read")
   local size_threshold=$((50 * 1024 * 1024))  # 50MB
 
-  # For compressed files, estimate uncompressed size (rough estimate: 10x compression)
-  if [[ "$use_compression" == "true" ]]; then
-    local estimated_uncompressed=$((cache_size * 10))
-    if [[ $estimated_uncompressed -gt $size_threshold ]]; then
-      _log_warn "Cache file is very large (~$(_human_size $estimated_uncompressed) uncompressed). Loading may take some time."
-    fi
-  elif [[ $cache_size -gt $size_threshold ]]; then
-    _log_warn "Cache file is very large ($(_human_size $cache_size)). Loading may take some time."
+  if [[ $cache_size -gt $size_threshold ]]; then
+    _log_warn "Cache file is very large ($(_human_size $cache_size) compressed). Loading may take some time."
   fi
 
-  # Read cache file (decompressing if needed)
-  if [[ "$use_compression" == "true" ]]; then
-    if ! command -v gunzip >/dev/null 2>&1; then
-      _log_warn "gunzip not found, cannot read compressed cache. Rebuilding cache."
-      return 0
+  _log_debug "Loading cache from \"$cache_to_read\" ..."
+
+  # Read cache file and build indices
+  local line_count=0
+  while IFS=$'\t' read -r path hash mtime rating label relpath; do
+    ((++line_count))
+
+    # Skip empty lines and comments
+    [[ -z "$path" || "$path" =~ ^# ]] && continue
+
+    # Validate mandatory fields
+    if [[ -z "$hash" || -z "$mtime" ]]; then
+      _log_warn "Corrupt cache entry at line $line_count for path \"$path\" (hash and/or mtime missing), skipping ..."
+      continue
     fi
-    while IFS=$'\t' read -r path hash mtime rating label; do
-      # Skip empty lines and comments
-      [[ -z "$path" || "$path" =~ ^# ]] && continue
-      # Skip if corrupt hash/htime missing (mandatory, remaining fields optional)
-      [[ -z "$hash" || -z "$mtime" ]] && {
-        _log_warn "Corrupt cache entry for path \"$path\" (hash and/or mtime missing), skipping ..."
-        continue
-      }
-      CACHE_MAP["$path"]="$hash|$mtime|${rating}|${label}"
-    done < <(gunzip -c "$cache_to_read")
-  else
-    while IFS=$'\t' read -r path hash mtime rating label; do
-      # Skip empty lines and comments
-      [[ -z "$path" || "$path" =~ ^# ]] && continue
-      # Skip if corrupt hash/htime missing (mandatory, remaining fields optional)
-      [[ -z "$hash" || -z "$mtime" ]] && {
-        _log_warn "Corrupt cache entry for path \"$path\" (hash and/or mtime missing), skipping ..."
-        continue
-      }
-      CACHE_MAP["$path"]="$hash|$mtime|${rating}|${label}"
-    done <"$cache_to_read"
-  fi
+
+    # Old cache format (5 fields) - missing relpath, compute it
+    if [[ -z "$relpath" ]]; then
+      if [[ -f "$path" ]]; then
+        relpath=$(_compute_relpath "$path" "$CACHE_RELPATH_LEVELS")
+        _log_debug "Old cache format detected, computed relpath for \"$path\": \"$relpath\""
+      else
+        _log_debug "Old cache format detected, but file \"$path\" not found, skipping relpath index"
+        relpath=""
+      fi
+    fi
+
+    # Build cache value
+    local cache_value="$hash|$mtime|${rating}|${label}|${relpath}"
+
+    # Primary index: absolute path
+    CACHE_MAP["$path"]="$cache_value"
+
+    # Secondary indices based on strategy
+    case "$CACHE_STRATEGY" in
+      hash|multi)
+        # Hash index
+        if [[ -n "${CACHE_MAP_HASH[$hash]:-}" ]]; then
+          STATS_COLLISIONS_HASH=$((STATS_COLLISIONS_HASH + 1))
+          _log_debug "Hash collision detected: $hash (keeping first entry)"
+        else
+          CACHE_MAP_HASH["$hash"]="$cache_value"
+        fi
+        ;;&  # Fall through if multi
+
+      relpath|multi)
+        # Relpath index (only if relpath is present)
+        if [[ -n "$relpath" ]]; then
+          if [[ -n "${CACHE_MAP_RELPATH[$relpath]:-}" ]]; then
+            STATS_COLLISIONS_RELPATH=$((STATS_COLLISIONS_RELPATH + 1))
+            _log_debug "Relpath collision detected: $relpath (keeping first entry)"
+          else
+            CACHE_MAP_RELPATH["$relpath"]="$cache_value"
+          fi
+        fi
+        ;;
+    esac
+  done < <(gunzip -c "$cache_to_read")
+
+  _log_debug "Loaded ${#CACHE_MAP[@]} cache entries"
+  [[ "$CACHE_STRATEGY" =~ hash|multi ]] && _log_debug "Hash index: ${#CACHE_MAP_HASH[@]} entries"
+  [[ "$CACHE_STRATEGY" =~ relpath|multi ]] && _log_debug "Relpath index: ${#CACHE_MAP_RELPATH[@]} entries"
+  [[ $STATS_COLLISIONS_HASH -gt 0 ]] && _log_debug "Hash collisions: $STATS_COLLISIONS_HASH"
+  [[ $STATS_COLLISIONS_RELPATH -gt 0 ]] && _log_debug "Relpath collisions: $STATS_COLLISIONS_RELPATH"
 
   return 0
 }
 
 # Write cache back to disk (sorted for stability) unless dry-run.
-# Automatically compresses cache with gzip if available and file is large enough.
+# Always compresses with gzip.
 _save_cache() {
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
   [[ "$NO_ACT" == "true" ]] && return 0
+
+  # Check if gzip is available
+  if ! command -v gzip >/dev/null 2>&1; then
+    _log_warn "gzip not found, cannot save cache."
+    return 1
+  fi
+
   local cache_dir
   cache_dir=$(dirname "$CACHE_FILE")
   mkdir -p "$cache_dir" || return 1
+
   local tmp
   tmp=$(mktemp)
+
+  # Write all cache entries to temp file
   {
     for key in "${!CACHE_MAP[@]}"; do
-      IFS='|' read -r hash mtime rating label <<<"${CACHE_MAP[$key]}"
-      printf "%s\t%s\t%s\t%s\t%s\n" "$key" "$hash" "$mtime" "${rating:-}" "${label:-}"
+      IFS='|' read -r hash mtime rating label relpath <<<"${CACHE_MAP[$key]}"
+      printf "%s\t%s\t%s\t%s\t%s\t%s\n" "$key" "$hash" "$mtime" "${rating:-}" "${label:-}" "${relpath:-}"
     done
   } | LC_ALL=C sort >"$tmp"
 
-  # Check if we should compress (file > 1MB and gzip available)
+  # Compress and save
   local tmp_size
   tmp_size=$(stat -c %s "$tmp")
-  local compress_threshold=$((1 * 1024 * 1024))  # 1MB
 
-  if [[ $tmp_size -gt $compress_threshold ]] && command -v gzip >/dev/null 2>&1; then
-    # Compress the cache
-    gzip -c "$tmp" > "${CACHE_FILE}.gz.tmp" || {
-      rm -f "$tmp" "${CACHE_FILE}.gz.tmp"
-      return 1
-    }
-    mv "${CACHE_FILE}.gz.tmp" "${CACHE_FILE}.gz" || {
-      rm -f "$tmp" "${CACHE_FILE}.gz.tmp"
-      return 1
-    }
-    # Remove old uncompressed cache if it exists
-    rm -f "$CACHE_FILE"
-    _log_info "Cache compressed: $(_human_size $tmp_size) -> $(_human_size $(stat -c %s "${CACHE_FILE}.gz"))"
-  else
-    # Save uncompressed
-    mv "$tmp" "$CACHE_FILE" || {
-      rm -f "$tmp"
-      return 1
-    }
-    # Remove old compressed cache if it exists
-    rm -f "${CACHE_FILE}.gz"
+  if ! gzip -c "$tmp" > "${CACHE_FILE}.gz.tmp"; then
+    rm -f "$tmp" "${CACHE_FILE}.gz.tmp"
+    return 1
   fi
+
+  if ! mv "${CACHE_FILE}.gz.tmp" "${CACHE_FILE}.gz"; then
+    rm -f "$tmp" "${CACHE_FILE}.gz.tmp"
+    return 1
+  fi
+
+  local compressed_size
+  compressed_size=$(stat -c %s "${CACHE_FILE}.gz")
+
+  _log_debug "Cache saved: $(_human_size $tmp_size) -> $(_human_size $compressed_size) (compressed)"
 
   rm -f "$tmp"
   return 0
@@ -509,45 +700,49 @@ _save_cache() {
 # Decide whether a file can be skipped based on cache.
 # Returns 0 (true) if the file should be skipped, 1 (false) otherwise.
 _should_skip_cached() {
-  # No skip if cache is disabled (--no-cache)
-  [[ "$CACHE_ENABLED" != "true" ]] && return 1
+  [[ "$CACHE_ENABLED" == "true" ]] || return 1
 
   local file=$1
+  local cache_value
+
+  # Try to find cache entry using configured strategy
+  if ! cache_value=$(_lookup_cache_entry "$file"); then
+    _log_debug "No cache entry found for \"$file\""
+    return 1
+  fi
+
+  # Extract cached data
+  local cached_hash cached_mtime
+  IFS='|' read -r cached_hash cached_mtime _ _ _ <<<"$cache_value"
+
+  # If --skip-cached is enabled, skip immediately without verification
+  if [[ "$SKIP_CACHED_COMPLETELY" == "true" ]]; then
+    _log_debug "Skipping \"$file\" based on cache (--skip-cached enabled, strategy: $LAST_CACHE_LOOKUP_STRATEGY, no verification)"
+    return 0
+  fi
+
+  # Otherwise, verify that file hasn't changed
   local canonical
   canonical=$(realpath "$file")
 
-  # No skip if file path not in cache
-  [[ -z "${CACHE_MAP[$canonical]:-}" ]] && {
-    _log_debug "No cache entry for \"$canonical\""
-    return 1
-  }
-
-  # SKIP if --skip-cached enabled (file path unchanged but mtime/hash may be modified e.g. due to EXIF metadata edit)
-  [[ "$SKIP_CACHED_COMPLETELY" == "true" ]] && {
-    _log_debug "Skipping \"$canonical\" based on cache (path match only, --skip-cached enabled, no mtime/hash check)"
-    return 0
-  }
-
-  # Get cached hash and mtime
-  local cached_hash cached_mtime current_mtime
-  IFS='|' read -r cached_hash cached_mtime _ _ <<<"${CACHE_MAP[$canonical]}"
-
-  # No skip mtime differs
+  # Check mtime first (fast)
+  local current_mtime
   current_mtime=$(_get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
-    _log_debug "No cache match for \"$canonical\" (mtime changed: cached=$cached_mtime, current=$current_mtime)"
+    _log_debug "No cache match for \"$file\" (mtime changed: cached=$cached_mtime, current=$current_mtime)"
     return 1
   fi
 
-  # No skip if hash differs
+  # Check hash (slow)
+  local current_hash
   current_hash=$(_compute_file_hash "$canonical")
   if [[ "$current_hash" != "$cached_hash" ]]; then
-    _log_debug "No cache match for \"$canonical\" (hash changed: cached=$cached_hash, current=$current_hash)"
+    _log_debug "No cache match for \"$file\" (hash changed: cached=$cached_hash, current=$current_hash)"
     return 1
   fi
 
-  # SKIP otherwise (hash and mtime match)
-  _log_debug "Skipping \"$canonical\" based on cache (mtime and hash match)"
+  # Skip: file is unchanged
+  _log_debug "Skipping \"$file\" based on cache (strategy: $LAST_CACHE_LOOKUP_STRATEGY, mtime and hash match)"
   return 0
 }
 
@@ -556,28 +751,42 @@ _should_skip_cached() {
 _get_cached_exif() {
   local file=$1
   [[ "$CACHE_ENABLED" == "true" ]] || return 1
-  local canonical
-  canonical=$(realpath "$file")
-  [[ -n "${CACHE_MAP[$canonical]:-}" ]] || return 1
+
+  local cache_value
+
+  # Try to find cache entry using configured strategy
+  if ! cache_value=$(_lookup_cache_entry "$file"); then
+    return 1
+  fi
+
+  # Extract cached data
   local cached_hash cached_mtime cached_rating cached_label
-  IFS='|' read -r cached_hash cached_mtime cached_rating cached_label <<<"${CACHE_MAP[$canonical]}"
+  IFS='|' read -r cached_hash cached_mtime cached_rating cached_label _ <<<"$cache_value"
 
   # If no cached rating/label, file was cached in old format - need to read EXIF
   [[ -z "$cached_rating" ]] && return 1
 
   # Optimization: check mtime first (fast), only compute hash (slow) if mtime matches
-  local current_mtime current_hash
+  local canonical
+  canonical=$(realpath "$file")
+
+  local current_mtime
   current_mtime=$(_get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
+    _log_debug "Cache mtime mismatch for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY)"
     return 1
   fi
 
   # Mtime matches, now verify hash
+  local current_hash
   current_hash=$(_compute_file_hash "$canonical")
   if [[ "$current_hash" == "$cached_hash" ]]; then
+    _log_debug "Cache hit for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY, rating=$cached_rating, label=$cached_label)"
     echo "${cached_rating}|${cached_label}"
     return 0
   fi
+
+  _log_debug "Cache hash mismatch for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY)"
   return 1
 }
 
@@ -588,14 +797,19 @@ _remember_processed_file() {
   local label=${3:-}
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
   [[ "$NO_ACT" == "true" ]] && return 0
+
   local canonical
   canonical=$(realpath "$file")
-  local mtime hash
+
+  local mtime hash relpath
   mtime=$(_get_file_mtime "$canonical")
   hash=$(_compute_file_hash "$canonical")
+  relpath=$(_compute_relpath "$canonical" "$CACHE_RELPATH_LEVELS")
+
   if [[ -n "$hash" ]]; then
-    CACHE_MAP["$canonical"]="$hash|$mtime|${rating:-}|${label:-}"
+    CACHE_MAP["$canonical"]="$hash|$mtime|${rating:-}|${label:-}|${relpath:-}"
   fi
+
   return 0
 }
 
@@ -904,27 +1118,45 @@ _show_summary() {
   if [[ "$CACHE_ENABLED" == "true" ]]; then
     _log ""
     _log "=== Cache Statistics ==="
+
+    # Cache file info
+    local actual_cache_file="${CACHE_FILE}.gz"
+    _log "Cache file:     $actual_cache_file"
+    _log "Cache strategy: $CACHE_STRATEGY"
+    [[ "$CACHE_STRATEGY" =~ relpath|multi ]] && _log "Relpath levels: $CACHE_RELPATH_LEVELS"
+
+    # Record counts
     size_delta=$((CACHE_FINAL_SIZE - CACHE_INITIAL_SIZE))
     records_delta=$((CACHE_FINAL_RECORDS - CACHE_INITIAL_RECORDS))
     size_delta_abs=${size_delta#-}
     records_delta_abs=${records_delta#-}
-    [[ $size_delta -ge 0 ]] && size_delta_str="+" || size_delta_str="-"
     [[ $records_delta -ge 0 ]] && records_delta_str="+${records_delta}" || records_delta_str="-${records_delta_abs}"
+    [[ $size_delta -ge 0 ]] && size_delta_str="+" || size_delta_str="-"
     human_initial_size=$(_human_size "$CACHE_INITIAL_SIZE")
     human_final_size=$(_human_size "$CACHE_FINAL_SIZE")
     human_delta_size=$(_human_size "$size_delta_abs")
 
-    # Determine actual cache file name (compressed or not)
-    actual_cache_file="$CACHE_FILE"
-    compression_note=""
-    if [[ -f "${CACHE_FILE}.gz" ]]; then
-      actual_cache_file="${CACHE_FILE}.gz"
-      compression_note=" (compressed)"
+    _log "Records:        ${CACHE_INITIAL_RECORDS} -> ${CACHE_FINAL_RECORDS} (${records_delta_str})"
+    _log "Size:           ${human_initial_size} -> ${human_final_size} (${size_delta_str}${human_delta_size})"
+
+    # Cache hit breakdown
+    local total_lookups=$((STATS_CACHE_HIT_PATH + STATS_CACHE_HIT_HASH + STATS_CACHE_HIT_RELPATH + STATS_CACHE_MISS))
+    if [[ $total_lookups -gt 0 ]]; then
+      _log ""
+      _log "Cache lookups:  $total_lookups total"
+      [[ $STATS_CACHE_HIT_PATH -gt 0 ]] && _log "  - Path hits:    $STATS_CACHE_HIT_PATH"
+      [[ $STATS_CACHE_HIT_HASH -gt 0 ]] && _log "  - Hash hits:    $STATS_CACHE_HIT_HASH"
+      [[ $STATS_CACHE_HIT_RELPATH -gt 0 ]] && _log "  - Relpath hits: $STATS_CACHE_HIT_RELPATH"
+      [[ $STATS_CACHE_MISS -gt 0 ]] && _log "  - Misses:       $STATS_CACHE_MISS"
     fi
 
-    _log "Cache file: ${actual_cache_file}${compression_note}"
-    _log "Records:    ${CACHE_INITIAL_RECORDS} -> ${CACHE_FINAL_RECORDS} (${records_delta_str})"
-    _log "Size:       ${human_initial_size} -> ${human_final_size} (${size_delta_str}${human_delta_size})"
+    # Collision info (debug only)
+    if [[ $VERBOSITY -ge 2 ]] && [[ $((STATS_COLLISIONS_HASH + STATS_COLLISIONS_RELPATH)) -gt 0 ]]; then
+      _log ""
+      _log "Cache collisions (debug):"
+      [[ $STATS_COLLISIONS_HASH -gt 0 ]] && _log "  - Hash:    $STATS_COLLISIONS_HASH"
+      [[ $STATS_COLLISIONS_RELPATH -gt 0 ]] && _log "  - Relpath: $STATS_COLLISIONS_RELPATH"
+    fi
   fi
 }
 
