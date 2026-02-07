@@ -200,48 +200,54 @@ fi
 # Note: Similarly named aliases may exist for FreeBSD (pkg), this is Linux specific
 
 # pkgu - update package database and upgrade all packages
-alias pkgu='if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
-              echo "> Updating and upgrading apt packages (incl. auto-remove) ..."
-              apu || echo -e "[\e[33mWarning:\e[0m Apt update/upgrade failed]"
-              echo
-            fi
-            if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
-              echo "> Updating snap packages ..."
-              snu || echo -e "[\e[33mWarning:\e[0m Snap update failed]"
-              echo
-            fi
-            if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
-              echo "> Updating flatpak packages ..."
-              fpu || echo -e "[\e[33mWarning:\e[0m Flatpak update failed]"
-              echo
-            fi
-            if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
-              echo "> Updating and upgrading pacman packages ..."
-              pmu || echo -e "[\e[33mWarning:\e[0m Pacman update/upgrade failed]"
-              echo
-            fi'
+pkgu() {
+  if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+    echo "> Updating and upgrading apt packages (incl. auto-remove) ..."
+    apu || echo -e "[\e[33mWarning:\e[0m Apt update/upgrade failed]"
+    echo
+  fi
+  if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
+    echo "> Updating snap packages ..."
+    snu || echo -e "[\e[33mWarning:\e[0m Snap update failed]"
+    echo
+  fi
+  if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
+    echo "> Updating flatpak packages ..."
+    fpu || echo -e "[\e[33mWarning:\e[0m Flatpak update failed]"
+    echo
+  fi
+  if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
+    echo "> Updating and upgrading pacman packages ..."
+    pmu || echo -e "[\e[33mWarning:\e[0m Pacman update/upgrade failed]"
+    echo
+  fi
+}
 
 # pkgl - list installed packages from all package managers
-alias pkgl='if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
-              echo "> Installed apt packages:"
-              apli || echo -e "[\e[33mWarning:\e[0m Unable to list apt packages]"
-              echo
-            fi
-            if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
-              echo "> Installed snap packages:"
-              snl || echo -e "[\e[33mWarning:\e[0m Unable to list snap packages]"
-              echo
-            fi
-            if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
-              echo "> Installed flatpak packages:"
-              fpl || echo -e "[\e[33mWarning:\e[0m Unable to list flatpak packages]"
-              echo
-            fi
-            if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
-              echo "> Installed pacman packages:"
-              pml || echo -e "[\e[33mWarning:\e[0m Unable to list pacman packages]"
-              echo
-            fi'
+pkgl() {
+  if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+    { dpli || echo -e "[\e[33mWarning:\e[0m Apt list failed]" } \
+      |& sed -r 's/^/apt: /'
+    echo
+  fi
+  if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
+    { snl || echo -e "[\e[33mWarning:\e[0m Snap list failed]" } \
+      |& sed -r 's/^/snap: /'
+    echo
+  fi
+  if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
+    { fpl || echo -e "[\e[33mWarning:\e[0m Flatpak list failed]" } \
+      |& sed -r 's/^/flatpak: /'
+    echo
+  fi
+  if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
+    { pml || echo -e "[\e[33mWarning:\e[0m Pacman list failed]" }\
+      |& sed -r 's/^/pacman: /'
+    echo
+  fi
+}
+
+alias pkglg='pkgl | grep -i --color' # list installed packages from all package managers and grep
 # }}} - PKG (*) --------------------------------------------------------------
 # }}} = DISTRIBUTION SPECIFIC ================================================
 
