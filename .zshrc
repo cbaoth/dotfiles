@@ -311,8 +311,8 @@ _hash_mountpoints() {
     [d_GVFS]="/media/$USERNAME/Games"
     [e_GVFS]="/media/$USERNAME/Data"
     [f_GVFS]="/media/$USERNAME/Temp"
-    [l]="/mnt/data"
-    [s]="/mnt/stash"
+    [l]="/srv/saito/data"
+    [s]="/srv/saito/stash"
     [l_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=data"
     [s_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=stash"
   )
