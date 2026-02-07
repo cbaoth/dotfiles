@@ -519,7 +519,22 @@ $(cl::fx b)Example:$(cl::fx r)
 url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
 export url2fname
 
+# FIXME this seems bugged
 merge_dir () {
+    echo -e "\033[33mWARNING\033[0m: this function may be bugged. Possible alternatives e.g.:"
+  cat <<EOF
+
+# source with trailing slash!
+rsync -av --remove-source-files /path/to/folder_b/ /path/to/folder_a/
+
+# or simply using cp & rm
+cp -r -n /path/to/folder_b/* /path/to/folder_a/
+# caution: only delete source if copy was successful!
+#rm -rf /path/to/folder_b/
+
+EOF
+  cl::q_yesno "This function may be bugged, do you want to continue?" || return 1
+
   local verbose=false wild=false noact=false ignore_case
   while [[ "${1:-}" == -* ]]; do
     case ${1} in
@@ -600,7 +615,22 @@ OPTIONS:
 }
 #
 
+# FIXME see comment above, uses merge_dir which may be bugged
 merge_dirs_same_first_word() {
+  echo -e "\033[33mWARNING\033[0m: this function may be bugged. Possible alternatives e.g.:"
+  cat <<EOF
+
+# source with trailing slash!
+rsync -av --remove-source-files /path/to/folder_b/ /path/to/folder_a/
+
+# or simply using cp & rm
+cp -r -n /path/to/folder_b/* /path/to/folder_a/
+# caution: only delete source if copy was successful!
+#rm -rf /path/to/folder_b/
+
+EOF
+  cl::q_yesno "This function may be bugged, do you want to continue?" || return 1
+
   local pattern='^[^%#_+-]+'
   local noact=false
   if [[ "${1:-}" = "-n" ]]; then
@@ -626,6 +656,281 @@ merge_dirs_same_first_word() {
       done
 }
 # }}} - Renaming / Moving ----------------------------------------------------
+
+# {{{ - Duplicate Finding ----------------------------------------------------
+# List duplicate filenames (without path) in the given directories
+dupes_find_byname() {
+  [[ -z "$1" ]] && {
+    cat <<EOF
+Usage: $(cl::func_name) <directory...> [option...] [--sort-args <arg...>] [--find-args <arg...>]
+
+Lists duplicate file/dir names (match without path) in the specified directories.
+
+Options:
+  -o, --omit-first   Omit first occurrence of each duplicate (based on sorting order!)
+                     WARNING: Based on the internal sort order (see -s).
+  -i, --show-index   Add index number prefix to file names (starting at 1 per group).
+  -l, --show-lines   Add separator line between duplicate groups.
+
+Secondary Options (must be last, --sort-args before --find-args):
+  --sort-args A      All following arguments are passed to \`sort\` command (per group).
+                     If not specified, defaults to \`LC_ALL=C sort\`.
+  --find-args A      All following arguments are passed to \`find\` command.
+                     If not specified, defaults to \`-type f\` (files only).
+
+Example 1:
+  # Find duplicate filenames in /dir1 and /dir2
+  dupes_find_byname /dir1 /dir2 --find-args -type f
+
+Example 2:
+  # Find duplicate dirnames starting with 'test' in /dir1 and /dir2
+  dupes_find_byname /dir1 /dir2 --find-args -type d -name 'test*'
+
+Example 3:
+  # Find and move duplicate filenames in /dir1 and /dir2 to ~/_DUPES while
+  #         preserving directory structure.
+  # 1. First create the list of duplicate files (groups sorted num:
+  dupes_find_byname /dir1 /dir2 -i \
+    --find-args -mindepth 1 -type f -iname '*.png' \\
+    --sort-args -rn \\
+    > /tmp/dupes.txt
+  # -o (Omit first occurrence of each duplicate based on sorting order!)
+  # -f (Start find arguments)
+  #   -mindepth 1 (Ignoring the top-level files)
+  #   -type f (Only files)
+
+  # 2. $(echo -e "\033[33mAlways evaluate the result before performing destructional operations!\033[0m")
+  less /tmp/dupes.txt
+  # Filter the result as needed, e.g. to ommit the first occurrence and only
+  # move files from /dir1 but never from /dir2:
+  grep -v '^01:' /tmp/dupes.txt \\
+    | sed -r 's/^[0-9]+:\s+//' \\
+    | grep -v '^/dir2' \\
+    > /tmp/dupes-filtered.txt
+  # Again review the filtered result:
+  less /tmp/dupes-filtered.txt
+
+  # 3. If the result looks good, move the files:
+  rsync -av --files-from=file_list.txt /path/to/source/ /path/to/target/
+  while read f; do
+    TARGET_BASE_DIR="/home/myuser/_dupes"
+    target_dir="\$TARGET_BASE_DIR/\$(dirname "\$f")"
+    mkdir -p "\$target_dir"
+    mv -v "\$f" "\$target_dir/"
+  done < /tmp/dupes-filtered.txt
+EOF
+    return 1
+  }
+  local dirnames=()
+  local find_args=()
+  local find_args_parsing=0
+  local sort_args=()
+  local sort_args_parsing=0
+  local omit_first=0
+  local show_separator_line=0
+  local show_index=0
+  while [[ $# -gt 0 ]]; do
+    if [[ $find_args_parsing -eq 1 ]]; then
+      [[ "$1" == "--sort-args" ]] && {
+        echo "Error: --find-args must be specified after --sort-args"
+        return 1
+      }
+      # Once in find_args mode, everything goes to find_args
+      find_args+=("$1")
+      shift
+    elif [[ "$1" == "--find-args" ]]; then
+      [[ $find_args_parsing -eq 1 ]] && {
+        echo "Error: --find-args specified multiple times"
+        return 1
+      }
+      # Switch to find_args mode
+      find_args_parsing=1
+      shift
+    elif [[ $sort_args_parsing -eq 1 ]]; then
+      # Once in sort_args mode, everything goes to sort_args
+      sort_args+=("$1")
+      shift
+    elif [[ "$1" == "--sort-args" ]]; then
+      [[ $sort_args_parsing -eq 1 ]] && {
+        echo "Error: --sort-args specified multiple times"
+        return 1
+      }
+      [[ $find_args_parsing -eq 1 ]] && {
+        echo "Error: --sort-args must be specified before --find-args"
+        return 1
+      }
+      # Switch to sort_args mode
+      sort_args_parsing=1
+      shift
+    elif [[ "$1" == "-o" || "$1" == "--omit-first" ]]; then
+      omit_first=1
+      shift
+    elif [[ "$1" == "-l" || "$1" == "--show-lines" ]]; then
+      show_separator_line=1
+      shift
+    elif [[ "$1" == "-i" || "$1" == "--show-index" ]]; then
+      show_index=1
+      shift
+    elif [[ ! -d "$1" ]]; then
+      echo "Error: '$1' is not a directory"
+      return 1
+    else
+      # Add directory to dirnames
+      dirnames+=("$1")
+      shift
+    fi
+  done
+
+  [[ ${#dirnames[@]} -eq 0 ]] && { echo "Error: No directories specified"; return 1; }
+  [[ ${#find_args[@]} -eq 0 ]] && find_args=(-type f)
+
+  local tempfile=/tmp/dupes-byfilenames-find.$$.txt
+  rm -f "$tempfile"
+
+  find "${dirnames[@]}" "${find_args[@]}" > "$tempfile"
+  # echo "> Temporary file list created at: $tempfile"
+  sed 's_.*/__' "$tempfile" | LC_ALL=C sort | uniq -d | while IFS= read -r f; do
+    # echo "==> $f" # debug
+    if [[ $show_index -eq 1 ]]; then
+      local line_num=0
+      grep -F "/$f" "$tempfile" | LC_ALL=C sort "${sort_args[@]}" | while IFS= read -r line; do
+        line_num=$((line_num + 1))
+        [[ $omit_first -eq 1 && $line_num -eq 1 ]] && continue
+        printf "%02d: %s\n" "$line_num" "$line"
+      done
+      continue
+    else
+      if [[ $omit_first -eq 1 ]]; then
+        grep -F "/$f" "$tempfile" | LC_ALL=C sort "${sort_args[@]}" | tail -n +2
+      else
+        grep -F "/$f" "$tempfile" | LC_ALL=C sort "${sort_args[@]}"
+      fi
+    fi
+    [[ $show_separator_line -eq 1 ]] && echo "----------------------------------------"
+  done
+  rm -f "$tempfile"
+}
+
+# Move duplicate files to a target directory, preserving directory structure
+dupes_mv() {
+  [[ -z "$@" || $# -lt 2 ]] && {
+    cat <<EOF
+Usage: $(cl::func_name) <directory_to_check...|jdupes_argument...> <target_base_directory>
+
+Moves duplicate files found in the specified directories (or matching jdupes arguments) to the target base directory, preserving their original directory structure.
+
+Uses jdupes:
+  Arguments that are always used for jdupes:
+    -O        (prefer files based on directory order, superseding -o time)
+    -o time   (sort by modification time, oldest first, instead of file name)
+    -f        (print only the duplicate file paths, ommitting first file in each set)
+  Additional jdupes arguments can be provided before the target directory.
+    WARNING: Be very careful with jdupes options, especially with those that modify output!
+
+Example:
+  # Recursively (-r) move duplicates from /from/dir1 and /from/dir2 to /to/target_dir
+  dupes_mv -r /from/dir1 /from/dir2 /to/target_dir
+EOF
+    return 1
+  }
+  local args=("$@")
+  local target_dir_base="${args[-1]}"
+  mkdir -p "$target_dir_base" || { echo "Error: Cannot create target directory '$target_dir_base'"; return 1; }
+  unset 'args[-1]'
+  local jdupes_cmd=(jdupes -O -o time -f "${args[@]}")
+  echo "> ${jdupes_cmd[@]}"
+  while read f; do
+    echo "$f"
+    [[ -z "$f" || ! -f "$f" ]] && continue
+    local source_dir="$(dirname "$f")"
+    local target_dir="$target_dir_base/$source_dir"
+    mkdir -p "$target_dir"
+    mv -v "$f" "$target_dir"
+  done < <("${jdupes_cmd[@]}")
+}
+
+# Find files present in source directory but missing in target directory by filename
+find_missing_files_byname() {
+  [[ -z "$2" ]] && {
+    cat <<EOF
+Usage: $(cl::func_name) <target_directory> <source_directory> [--find-args <arg...>]
+
+Compares files in the target directory against those in the source directory based on filenames (ignoring paths) and lists files that are present in the source but missing in the target.
+
+Arguments:
+  <target_directory>   Directory to check for existing files.
+  <source_directory>   Directory to compare against for missing files.
+
+Options:
+  -q, --quiet          Suppress non-error output.
+
+Secondary Options:
+  --find-args A        All following arguments are passed to \`find\` (default:  \`-type f\`)
+
+Example:
+  # Find files present in ~/screenshots_bak but missing in ~/screenshots,
+  # matching pattern "202?-??-??T*.png"
+  find_missing_files_byname ~/screenshots ~/screenshots_bak \\
+    --find-args -maxdepth 2 -type f -iname '202?-??-??T*.png'
+
+$(echo -e "\033[33mWarnings\033[0m:")
+  - The comparison is based solely on filenames, ignoring directory paths.
+  - Filenames with newlines or special characters may lead to unexpected results.
+EOF
+    return 1
+  }
+  local target="$1"
+  local source="$2"
+  shift 2
+
+  local find_args=()
+  local find_args_parsing=0
+  local quiet=0
+
+  while [[ $# -gt 0 ]]; do
+    if [[ $find_args_parsing -eq 1 ]]; then
+      # Once in find_args mode, everything goes to find_args
+      find_args+=("$1")
+      shift
+    elif [[ "$1" == "--find-args" ]]; then
+      # Switch to find_args mode
+      find_args_parsing=1
+      shift
+    elif [[ "$1" == "-q" || "$1" == "--quiet" ]]; then
+      quiet=1
+      shift
+    else
+      echo "Error: Unknown option '$1'"
+      return 1
+    fi
+  done
+
+  [[ ${#find_args[@]} -eq 0 ]] && find_args=(-type f)
+
+  [[ ! -d "$target" ]] && {
+    echo "Error: Target directory '$target' does not exist or is not a directory."
+    return 1
+  }
+  [[ ! -d "$source" ]] && {
+    echo "Error: Source directory '$source' does not exist or is not a directory."
+    return 1
+  }
+
+  [[ $quiet -eq 0 ]] && echo "> Finding files in '$source' missing in '$target' by filename..." >&2
+  awk -F'\t' '
+    NR==FNR { seen[$0]=1; next }      # Index filenames from the first list (TARGET)
+    !($1 in seen) { print $2 }        # Print full path if filename not in index
+' \
+    <(find "$target" "${find_args[@]}" -printf "%f\n") \
+    <(find "$source" "${find_args[@]}" -printf "%f\t%p\n") && {
+      if [[ $quiet -eq 0 ]]; then echo "> Done." >&2; fi
+      return 0
+  } || {
+    if [[ $quiet -eq 0 ]]; then echo "> Error during processing" >&2; fi
+    return 1
+  }
+}
+# }}} - Duplicate Finding ----------------------------------------------------
 
 # {{{ = SYSTEM ===============================================================
 # {{{ - Core -----------------------------------------------------------------
@@ -787,7 +1092,7 @@ wget_d_rev () {
   [[ "${1:-}" = "-p" ]] && print_only=true && shift
   if [[ -z "${1:-}" ]]; then
     cat <<!
-Usage: wget_d_rev [-p] FILE..
+Usage: $(cl::func_name) [-p] FILE..
 
 Attempt to re-download a file that was downloaded using wget_d.\n"
 Recovering the original URL from the file name may not be possible.\n"
