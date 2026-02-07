@@ -214,7 +214,6 @@ _export_to_first_cmd() {
   shift
   local cmd
   for cmd in "$@"; do
-    echo "checking cmd '$cmd' for var '$var_name' ..."
     if command -v "$cmd" >/dev/null 2>&1; then
       cl::p_dbg -t 0 1 "Exporting '$var_name' to command '$cmd' ..."
       # set the variable named $var_name to $cmd
