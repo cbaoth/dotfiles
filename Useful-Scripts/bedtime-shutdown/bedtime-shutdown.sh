@@ -1,4 +1,6 @@
 #!/bin/bash
+# code: language=bash insertSpaces=true tabSize=2
+#
 # Bedtime Shutdown Script - Forces system shutdown at a configured time each night
 # For installation and configuration, see README.adoc or run: sudo ./install.sh
 
@@ -8,8 +10,16 @@
 # -o pipefail: return exit code of the last command in the pipeline that failed
 set -euo pipefail  # Fail if any command in a pipeline fails
 
+# Global variables
+CONFIG_FILE="/etc/bedtime-shutdown.conf"
+DRY_RUN=false
+LOGFILE=""   # Set via --logfile or BSS_LOGFILE config variable
+SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")  # Get current user for logging context
+VERBOSITY_DEFAULT=0
+VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity after config/CLI merge
+VERBOSITY_CLI=0               # Tracks CLI-requested verbosity before config merge
+
 # Logging function with timestamp and colored levels
-SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")
 __log() {
   local level="$1"; shift
   local msg="$*"
@@ -51,13 +61,6 @@ _log_debug() { __log "DEBUG" "$*"; } # Shown if VERBOSITY >= 2
 # {{{ = COMMONS ==============================================================
 
 # {{{ = ARGUMENT PARSING =====================================================
-CONFIG_FILE="/etc/bedtime-shutdown.conf"
-DRY_RUN=false
-VERBOSITY_DEFAULT=0
-VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity after config/CLI merge
-VERBOSITY_CLI=0               # Tracks CLI-requested verbosity before config merge
-LOGFILE=""   # Set via --logfile or BSS_LOGFILE config variable
-
 # Loop through arguments
 while [[ "$#" -gt 0 ]]; do
   case $1 in
@@ -75,9 +78,6 @@ while [[ "$#" -gt 0 ]]; do
     ;;
     -v|-vv|-vvv|-vvvv)
       VERBOSITY_CLI=$((VERBOSITY_CLI + ${#1} - 1))
-    ;;
-    -v|--verbose)
-      VERBOSITY_CLI=$((VERBOSITY_CLI + 1))
     ;;
     -q|--quiet)
       VERBOSITY_CLI=0
@@ -351,6 +351,188 @@ _exit_if_emergency_override() {
   _log_debug "All emergency override checks passed"
 }
 
+# Attempts to cleanly unmount specified filesystems before forced shutdown
+# This is a best-effort operation to prevent dirty flags on NTFS/exFAT partitions
+_cleanup_mounts() {
+  # Check if cleanup is enabled
+  if [[ -z "${BSS_CLEANUP_MOUNTS[@]:-}" ]] || [[ "${#BSS_CLEANUP_MOUNTS[@]}" -eq 0 ]]; then
+    _log_debug "Mount cleanup disabled (BSS_CLEANUP_MOUNTS is empty)"
+    return 0
+  fi
+
+  _log_info "Starting mount cleanup before forced shutdown..."
+  _log_debug "Cleanup settings: strategy=${BSS_CLEANUP_STRATEGY:-force-lazy}, stop_automount=${BSS_CLEANUP_STOP_AUTOMOUNT:-true}, kill_processes=${BSS_CLEANUP_KILL_PROCESSES:-true}"
+
+  # Expand glob patterns and collect actual mount points
+  local mount_candidates=()
+  local pattern
+  for pattern in "${BSS_CLEANUP_MOUNTS[@]}"; do
+    _log_debug "Processing pattern: $pattern"
+
+    # Expand glob pattern (disable error on no match)
+    shopt -s nullglob
+    local expanded=($pattern)
+    shopt -u nullglob
+
+    if [[ "${#expanded[@]}" -eq 0 ]]; then
+      _log_debug "Pattern '$pattern' matched no paths"
+      # If it's not a glob pattern (no wildcards), add it directly
+      if [[ ! "$pattern" =~ [*?\[] ]]; then
+        mount_candidates+=("$pattern")
+      fi
+    else
+      _log_debug "Pattern '$pattern' expanded to ${#expanded[@]} path(s)"
+      mount_candidates+=("${expanded[@]}")
+    fi
+  done
+
+  # Filter: Only keep paths that are actually mounted
+  local mounted_targets=()
+  local candidate
+  for candidate in "${mount_candidates[@]}"; do
+    if mountpoint -q "$candidate" 2>/dev/null; then
+      mounted_targets+=("$candidate")
+      _log_debug "Mount point confirmed: $candidate"
+    else
+      _log_debug "Skipping '$candidate' (not mounted or doesn't exist)"
+    fi
+  done
+
+  if [[ "${#mounted_targets[@]}" -eq 0 ]]; then
+    _log_info "No mounted filesystems found to clean up"
+    return 0
+  fi
+
+  _log "Found ${#mounted_targets[@]} mounted filesystem(s) to unmount: ${mounted_targets[*]}"
+
+  # =============================================================================
+  # PHASE 1: Stop systemd automount units to prevent re-mounting
+  # =============================================================================
+  if [[ "${BSS_CLEANUP_STOP_AUTOMOUNT:-true}" == "true" ]]; then
+    _log_info "PHASE 1: Stopping automount units..."
+    local mount_point
+    for mount_point in "${mounted_targets[@]}"; do
+      local unit_name=$(systemd-escape --path --suffix=automount "$mount_point" 2>/dev/null || true)
+      if [[ -n "$unit_name" ]]; then
+        if systemctl is-active --quiet "$unit_name" 2>/dev/null; then
+          _log_info "Stopping automount trigger: $unit_name"
+          if [[ "$DRY_RUN" == "true" ]]; then
+            _log "[DRY-RUN] Would execute: systemctl stop '$unit_name'"
+          else
+            systemctl stop "$unit_name" 2>/dev/null || _log_warn "Failed to stop automount unit: $unit_name"
+          fi
+        else
+          _log_debug "Automount unit '$unit_name' not active"
+        fi
+      fi
+    done
+  else
+    _log_debug "Skipping automount cleanup (disabled)"
+  fi
+
+  # =============================================================================
+  # PHASE 2: Kill processes using the filesystems
+  # =============================================================================
+  if [[ "${BSS_CLEANUP_KILL_PROCESSES:-true}" == "true" ]]; then
+    _log_info "PHASE 2: Terminating processes using the filesystems..."
+
+    # Check if fuser is available
+    if ! command -v fuser >/dev/null 2>&1; then
+      _log_warn "fuser command not found. Skipping process termination (install 'psmisc' package)."
+    else
+      # SIGTERM (graceful)
+      _log_info "Sending SIGTERM to processes..."
+      if [[ "$DRY_RUN" == "true" ]]; then
+        _log "[DRY-RUN] Would execute: fuser -k -TERM -m ${mounted_targets[*]}"
+      else
+        fuser -k -TERM -m "${mounted_targets[@]}" >/dev/null 2>&1 || true
+        _log_debug "Waiting 1 second for graceful termination..."
+        sleep 1
+      fi
+
+      # SIGKILL (forceful)
+      _log_info "Sending SIGKILL to remaining processes..."
+      if [[ "$DRY_RUN" == "true" ]]; then
+        _log "[DRY-RUN] Would execute: fuser -k -KILL -m ${mounted_targets[*]}"
+      else
+        fuser -k -KILL -m "${mounted_targets[@]}" >/dev/null 2>&1 || true
+        _log_debug "Waiting 1 second for kernel to release file handles..."
+        sleep 1
+      fi
+    fi
+  else
+    _log_debug "Skipping process termination (disabled)"
+  fi
+
+  # =============================================================================
+  # PHASE 3: Sync disk buffers BEFORE unmounting
+  # =============================================================================
+  _log_info "PHASE 3: Syncing buffers to disk (this may take a while)..."
+  if [[ "$DRY_RUN" == "true" ]]; then
+    _log "[DRY-RUN] Would execute: sync"
+  else
+    sync
+    _log "Disk sync completed"
+  fi
+
+  # =============================================================================
+  # PHASE 4: Unmount filesystems (try clean first, then force-lazy)
+  # =============================================================================
+  _log_info "PHASE 4: Unmounting filesystems..."
+  local mount_point
+  for mount_point in "${mounted_targets[@]}"; do
+    _log_info "Unmounting: $mount_point"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+      _log "[DRY-RUN] Would execute: umount '$mount_point' (or umount -f -l on failure)"
+      continue
+    fi
+
+    # Attempt 1: Clean unmount
+    if umount "$mount_point" 2>/dev/null; then
+      _log "Successfully unmounted: $mount_point"
+    else
+      # Attempt 2: Force + Lazy unmount
+      _log_warn "Standard unmount failed for '$mount_point'. Retrying with force+lazy..."
+      local unmount_opts
+      case "${BSS_CLEANUP_STRATEGY:-force-lazy}" in
+        force-lazy)
+          unmount_opts="-f -l"
+          ;;
+        lazy|*)
+          unmount_opts="-l"
+          ;;
+      esac
+
+      if umount $unmount_opts "$mount_point" 2>/dev/null; then
+        _log "Successfully unmounted (with $unmount_opts): $mount_point"
+      else
+        _log_error "Failed to unmount '$mount_point' completely (will proceed anyway)"
+      fi
+    fi
+  done
+
+  # =============================================================================
+  # PHASE 5: Final sync (additional safety measure)
+  # =============================================================================
+  if [[ ${BSS_CLEANUP_SYNC_COUNT:-2} -gt 0 ]]; then
+    _log_info "PHASE 5: Final disk buffer flush (${BSS_CLEANUP_SYNC_COUNT:-2} sync calls)..."
+    local sync_delay="${BSS_CLEANUP_SYNC_DELAY:-1}"
+    local i
+    for ((i=1; i<=${BSS_CLEANUP_SYNC_COUNT:-2}; i++)); do
+      if [[ "$DRY_RUN" == "true" ]]; then
+        _log "[DRY-RUN] Would execute: sync (call $i/${BSS_CLEANUP_SYNC_COUNT:-2})"
+      else
+        _log_debug "Sync call $i/${BSS_CLEANUP_SYNC_COUNT:-2}"
+        sync
+      fi
+      [[ $i -lt ${BSS_CLEANUP_SYNC_COUNT:-2} ]] && sleep "$sync_delay"
+    done
+  fi
+
+  _log_info "Mount cleanup completed"
+}
+
 # Main function
 main() {
   _log_info "Starting bedtime shutdown sequence..."
@@ -387,11 +569,15 @@ main() {
     _log_info "Waiting ${BSS_GRACE_PERIOD_SYSTEM} seconds for graceful shutdown..."
     sleep $BSS_GRACE_PERIOD_SYSTEM
 
-    # Stage 3: Nuclear Option (Force Force)
+    # Stage 3: Pre-shutdown Cleanup (Best-effort unmount)
+    # Attempt to cleanly unmount specified filesystems to prevent dirty flags
+    _cleanup_mounts
+
+    # Stage 4: Nuclear Option (Force Force)
     # If we are still running, instantly "pull the power plug" (software equivalent).
     # -ff | --force --force (doubled): Tell the kernel to "power off" immediately
     # This bypasses all systemd shutdown scripts, unmounting, etc.
-    _log "Stage 3 (Force): Forcing immediate shutdown..."
+    _log "Stage 4 (Force): Forcing immediate shutdown..."
     _poweroff --force --force
   else
     _log_info "System grace period is <= 0. Force fallback disabled."
