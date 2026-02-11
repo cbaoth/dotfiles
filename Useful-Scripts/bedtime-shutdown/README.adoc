@@ -4,16 +4,23 @@ If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is
 
 == How it works
 
-* *The Warning:* At 21:30 (or whenever you schedule it), the script triggers and sends a "critical" notification to your desktop.
-* *The Countdown:* It gives you a 180-second grace period (customizable via `BSS_GRACE_PERIOD_USER`, default: 3 min) to save your work and close your tabs.
-* *The End:* Once the timer hits zero, it executes a hard `systemctl poweroff --ignore-inhibitors`. No "just 5 more minutes ..." allowed.
+
+. *The Warning:* At 21:30 (or whenever you schedule it), the script triggers and sends a "critical" notification to your desktop.
+. *The Countdown:* It gives you a 180-second grace period (customizable via `BSS_GRACE_PERIOD_USER`, default: 3 min) to save your work and close your tabs.
+. *The End:* Once the timer hits zero, it executes a hard `systemctl poweroff --ignore-inhibitors`. No "just 5 more minutes ..." allowed.
 ** _The `--ignore-inhibitors` ensures that inhibitors (e.g. "stay awake" tools like Caffeine) are ignored._
 ** _This bares the risk of data loss, but if you haven't saved your work in time, that's on you._
-* *The Nuclear Option:* If for some reason the poweroff command gets stuck, the script will, after another grace period (customizable via `BSS_GRACE_PERIOD_SYSTEM`, default: 3 min), enforce an immediate "wait for nothing" poweroff by executing `systemctl poweroff --force --force`.
+. *The Nuclear Option:* If for some reason the poweroff command gets stuck, the script will, after another grace period (customizable via `BSS_GRACE_PERIOD_SYSTEM`, default: 3 min), enforce an immediate "wait for nothing" poweroff by executing `systemctl poweroff --force --force`.
 ** *This is basically the software equivalent of pulling the power plug!*
 ** _This bares an even higher risk of data loss since services won't have time to gracefully stop and unmount filesystems properly. But ideally this stage should never be reached (just a safety net), and if it does, we trust that the system is able to recover from it._
 ** _If you think the risk is too high, this fallback step can easily be disabled by setting `BSS_GRACE_PERIOD_SYSTEM=0`._
-
+** *An optional "Mount Cleanup" step can be enabled* _before the forced shutdown to help mitigate potential filesystem issues (especially for ntfs/exFAT). When all features are enabled, the script will perform the following steps:_
+[arabic]
+... Stopping automount units if systemd-automount is used to prevent new mounts during the shutdown process.
+... Terminate processes using the filesystems to be unmounted, to ensure they can be safely unmounted.
+... Sync the disks to flush all pending writes.
+... Unmount the filesystems to prevent potential corruption.
+... Final buffer flush with another sync before the forced shutdown.
 == 🛠️ Installation & Setup
 
 Since this script handles system power, we need to set it up with root permissions and a systemd timer.
