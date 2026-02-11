@@ -10,14 +10,16 @@
 # -o pipefail: return exit code of the last command in the pipeline that failed
 set -euo pipefail  # Fail if any command in a pipeline fails
 
+# Global constants
+declare -ri VERBOSITY_DEFAULT=0
+
 # Global variables
-CONFIG_FILE="/etc/bedtime-shutdown.conf"
-DRY_RUN=false
-LOGFILE=""   # Set via --logfile or BSS_LOGFILE config variable
-SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")  # Get current user for logging context
-VERBOSITY_DEFAULT=0
-VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity after config/CLI merge
-VERBOSITY_CLI=0               # Tracks CLI-requested verbosity before config merge
+declare CONFIG_FILE="/etc/bedtime-shutdown.conf"
+declare DRY_RUN=false
+declare LOGFILE=""   # Set via --logfile or BSS_LOGFILE config variable
+declare SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")  # Get current user for logging context
+declare -i VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity after config/CLI merge
+declare -i VERBOSITY_CLI=0               # Tracks CLI-requested verbosity before config merge
 
 # Logging function with timestamp and colored levels
 __log() {
@@ -65,12 +67,12 @@ _log_debug() { __log "DEBUG" "$*"; } # Shown if VERBOSITY >= 2
 while [[ "$#" -gt 0 ]]; do
   case $1 in
     -c|--config)
-      [[ -z "$2" ]] && _log_error "No config file specified after [$1]. Exiting ..." && exit 1
-      [[ ! -f "$2" ]] && _log_error "Config file [$2] not found. Exiting ..." && exit 1
+      [[ -z "$2" ]] && { _log_error "No config file specified after [$1]. Exiting ..."; exit 1; }
+      [[ ! -f "$2" ]] && { _log_error "Config file [$2] not found. Exiting ..."; exit 1; }
       CONFIG_FILE="$2"; shift
     ;;
     -l|--logfile)
-      [[ -z "$2" ]] && _log_error "No logfile specified after [$1]. Exiting ..." && exit 1
+      [[ -z "$2" ]] && { _log_error "No logfile specified after [$1]. Exiting ..."; exit 1; }
       LOGFILE="$2"; shift
     ;;
     -n|--dry-run|--no-act)
@@ -173,7 +175,7 @@ fi
 
 # {{{ = CONFIG VALIDATION & VERBOSITY MERGE ==================================
 # Validate optional verbosity minimum from config (default 0) and merge with CLI
-CONFIG_VERBOSITY_MIN=${BSS_VERBOSITY_MIN:-$VERBOSITY_DEFAULT}
+declare -ri CONFIG_VERBOSITY_MIN=${BSS_VERBOSITY_MIN:-$VERBOSITY_DEFAULT}
 
 if ! [[ "$CONFIG_VERBOSITY_MIN" =~ ^[0-9]+$ ]]; then
   _log_error "Invalid BSS_VERBOSITY_MIN ['$CONFIG_VERBOSITY_MIN'] - must be an integer between 0 and 4. Exiting ..."
@@ -211,17 +213,17 @@ _format_time() {
 }
 
 # Get the user ID of BSS_USER_NAME
-USER_ID=$(id -u "$BSS_USER_NAME")
+declare -r USER_ID=$(id -u "$BSS_USER_NAME")
 _log_debug "Resolved user '$BSS_USER_NAME' to UID $USER_ID"
 
 # Get current time as a number (e.g. 2130 for 21:30 or 9:30 PM)
-CURRENT_TIME=$(date +%H%M)
+declare -r CURRENT_TIME=$(date +%H%M)
 
 # Force base-10 ((10#...)) to prevent bash from thinking "0800" is an octal number and crashing.
 # Also strip any colons from time values to support both HHMM and HH:MM formats
-NOW=$((10#$CURRENT_TIME))
-START=$((10#${BSS_SHUTDOWN_START//:/}))  # Strip colons for HH:MM format support
-END=$((10#${BSS_SHUTDOWN_END//:/}))      # Strip colons for HH:MM format support
+declare -r NOW=$((10#$CURRENT_TIME))
+declare -r START=$((10#${BSS_SHUTDOWN_START//:/}))  # Strip colons for HH:MM format support
+declare -r END=$((10#${BSS_SHUTDOWN_END//:/}))      # Strip colons for HH:MM format support
 
 _log_debug "Time check - NOW: $NOW ($(date '+%H:%M')), START: $START ($(_format_time ${BSS_SHUTDOWN_START//:/})), END: $END ($(_format_time ${BSS_SHUTDOWN_END//:/}))"
 _log_debug "DRY_RUN: $DRY_RUN, VERBOSITY: $VERBOSITY"
