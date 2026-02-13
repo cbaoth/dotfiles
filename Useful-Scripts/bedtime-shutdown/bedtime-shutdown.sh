@@ -23,11 +23,13 @@ declare -i VERBOSITY_CLI=0               # Tracks CLI-requested verbosity before
 
 # Logging function with timestamp and colored levels
 __log() {
-  local level="$1"; shift
-  local msg="$*"
-  local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-  local timestamp_log
-  [[ -n "$LOGFILE" ]] && timestamp_log=$(date -Ins)
+
+  declare -r __LOG_UNKNOWN_TIMESTAMP="????-??-?? ??:??:??"
+  [[ $# -lt 2 ]] && { echo "Usage: __log LEVEL MESSAGE" >&2; return 1; }
+  local -r level=$1; shift
+  local -r msg="$*"
+  local -r timestamp=$( date +"%Y-%m-%d %H:%M:%S" 2> /dev/null || echo $__LOG_UNKNOWN_TIMESTAMP )
+  local -r timestamp_log=$( [[ -n "$LOGFILE" ]] && date -Ins 2>/dev/null || echo $__LOG_UNKNOWN_TIMESTAMP )
 
   case "$level" in
     E|ERR|ERROR)
@@ -236,7 +238,7 @@ fi
 # {{{ = FUNCTIONS ============================================================
 # Safe wrapper for systemctl poweroff - respects DRY_RUN mode
 _poweroff() {
-  local args=("$@")
+  local -r args=("$@")
 
   if [[ "$DRY_RUN" == "true" ]]; then
     _log "[DRY-RUN] Would execute: systemctl poweroff ${args[*]}"
@@ -249,7 +251,7 @@ _poweroff() {
 
 # Sends a BEDTIME GUI notification to BSS_USER_NAME and broadcasts a message to all terminals.
 _notify_user() {
-  local msg="$*"
+  local -r msg="$*"
   _log_debug "Attempting to notify user [$BSS_USER_NAME] with message: $msg"
 
   # 1. GUI Notification
@@ -270,7 +272,7 @@ _notify_user() {
 
 # Exits the script if we are in the "Safe Zone" (no shutdown allowed)
 _exit_if_safe_zone() {
-  local is_safe=0
+  local -i is_safe=0
 
   _log_debug "Checking if current time is within safe zone..."
   _log_debug "Time boundaries - NOW: $NOW, START: $START, END: $END"
@@ -324,7 +326,7 @@ _exit_if_emergency_override() {
     # Only run find if the media directory actually exists (stick is mounted)
     if [[ -d "$BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR" ]]; then
       # Find the file on the mounted media (max depth 2 to allow for root or 1-level subdirectory)
-      local first_override_file="$(find "$BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR" -maxdepth 2 -name "$BSS_EMERGENCY_OVERRIDE_FILE_NAME" -print -quit | head -n 1 2>/dev/null)"
+      local -r first_override_file="$(find "$BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR" -maxdepth 2 -name "$BSS_EMERGENCY_OVERRIDE_FILE_NAME" -print -quit | head -n 1 2>/dev/null)"
       if [[ -n "$first_override_file" ]]; then
         _log "Emergency override triggered: File '${first_override_file}' detected"
         _notify_user "EMERGENCY OVERRIDE: Hardware key with file '${first_override_file}' detected. Skipping shutdown."
@@ -366,14 +368,14 @@ _cleanup_mounts() {
   _log_debug "Cleanup settings: strategy=${BSS_CLEANUP_STRATEGY:-force-lazy}, stop_automount=${BSS_CLEANUP_STOP_AUTOMOUNT:-true}, kill_processes=${BSS_CLEANUP_KILL_PROCESSES:-true}"
 
   # Expand glob patterns and collect actual mount points
-  local mount_candidates=()
   local pattern
+  local -a expanded mount_candidates=()
   for pattern in "${BSS_CLEANUP_MOUNTS[@]}"; do
     _log_debug "Processing pattern: $pattern"
 
     # Expand glob pattern (disable error on no match)
+    expanded=($pattern)
     shopt -s nullglob
-    local expanded=($pattern)
     shopt -u nullglob
 
     if [[ "${#expanded[@]}" -eq 0 ]]; then
@@ -389,7 +391,7 @@ _cleanup_mounts() {
   done
 
   # Filter: Only keep paths that are actually mounted
-  local mounted_targets=()
+  local -a mounted_targets=()
   local candidate
   for candidate in "${mount_candidates[@]}"; do
     if mountpoint -q "$candidate" 2>/dev/null; then
@@ -496,18 +498,18 @@ _cleanup_mounts() {
     else
       # Attempt 2: Force + Lazy unmount
       _log_warn "Standard unmount failed for '$mount_point'. Retrying with force+lazy..."
-      local unmount_opts
+      local -a unmount_opts
       case "${BSS_CLEANUP_STRATEGY:-force-lazy}" in
         force-lazy)
-          unmount_opts="-f -l"
+          unmount_opts=(-f -l)
           ;;
         lazy|*)
-          unmount_opts="-l"
+          unmount_opts=(-l)
           ;;
       esac
 
-      if umount $unmount_opts "$mount_point" 2>/dev/null; then
-        _log "Successfully unmounted (with $unmount_opts): $mount_point"
+      if umount "${unmount_opts[@]}" "$mount_point" 2>/dev/null; then
+        _log "Successfully unmounted (with ${unmount_opts[*]}): $mount_point"
       else
         _log_error "Failed to unmount '$mount_point' completely (will proceed anyway)"
       fi
@@ -519,8 +521,8 @@ _cleanup_mounts() {
   # =============================================================================
   if [[ ${BSS_CLEANUP_SYNC_COUNT:-2} -gt 0 ]]; then
     _log_info "PHASE 5: Final disk buffer flush (${BSS_CLEANUP_SYNC_COUNT:-2} sync calls)..."
-    local sync_delay="${BSS_CLEANUP_SYNC_DELAY:-1}"
-    local i
+    local -ri sync_delay="${BSS_CLEANUP_SYNC_DELAY:-1}"
+    local -i i
     for ((i=1; i<=${BSS_CLEANUP_SYNC_COUNT:-2}; i++)); do
       if [[ "$DRY_RUN" == "true" ]]; then
         _log "[DRY-RUN] Would execute: sync (call $i/${BSS_CLEANUP_SYNC_COUNT:-2})"
