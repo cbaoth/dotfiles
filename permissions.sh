@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # permissions.sh: fix permissions of dotfiles repo
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script dotfiles-tools
+# author: Andreas Weyer
 
 # safety check before chaning mod bits for the wrong files
 [ ! -d ".git" ] \

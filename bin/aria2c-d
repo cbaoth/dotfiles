@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # aria2c-d: Download to dynamic file name usingaria2c
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script aria2
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script aria2
+# author: Andreas Weyer
 
 declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
 declare -r _SCRIPT_FILE="$(basename "$0")"

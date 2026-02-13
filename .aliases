@@ -1,7 +1,7 @@
 # ~/.aliases: Common aliases
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: zsh bash shell-script aliases
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash dotfile aliases bashrc zshrc shell shell-script
+# author: Andreas Weyer
 
 # Common aliases for all shells
 

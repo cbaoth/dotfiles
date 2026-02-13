@@ -1,7 +1,7 @@
 # ~/.zsh/zshrc-linux_wsl.zsh: Windows Subsystem Linux zshrc
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc shell-script linux wsl
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc linux wsl shell shell-script
+# author: Andreas Weyer
 
 # load  weasel-pageant (https://github.com/vuori/weasel-pageant) if available
 [[ -f $HOME/weasel-pageant/weasel-pageant ]] \

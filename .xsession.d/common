@@ -1,8 +1,11 @@
 #!/bin/sh
 # ~/.xsession.d/default: common session executed by .xinitrc
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash dotfile xsession shell shell-script x11
+# author: Andreas Weyer
 
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: dotfile xorg
+# author: Andreas Weyer
+# keywords: dotfile xorg
 
 # PATH
 #export PATH="$HOME/bin:/opt/bin:$PATH"

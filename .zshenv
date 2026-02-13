@@ -1,4 +1,8 @@
-# ~/.zlogout: executed by zsh(1) initially.
+# ~/.zshenv: executed by zsh(1) initially.
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc zshenv shell shell-script
+# author: Andreas Weyer
+#
 # interactive shell: .zshenv > .zshrc
 # login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
 #
@@ -14,8 +18,8 @@
 # It should contain commands to set the command search path, plus other important environment variables.
 # .zshenv should not contain commands that produce output or assume the shell is attached to a tty.
 #
-# Author:  cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc zshenv shell-script
+# author: Andreas Weyer
+# keywords: zsh zshrc zshenv shell-script
 
 # Source environment settings common to all my shells
 [[ -f ~/.common_profile ]] && source ~/.common_profile

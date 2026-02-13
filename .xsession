@@ -1,8 +1,8 @@
 #!/bin/sh
 # ~/.xsession: executed by display manager ("custom" mode)
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: dotfile xorg
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash zsh dotfile xsession x11 shell shell-script
+# author: Andreas Weyer
 
 # /usr/share/xsessions/custom.desktop:
 #[Desktop Entry]

@@ -1,7 +1,7 @@
 # ~/.zsh/zshrc-freebsd.zsh: FreeBSD zshrc
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc freebsd
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc freebsd shell shell-script
+# author: Andreas Weyer
 
 export PACKAGEROOT="http://ftp.de.freebsd.org/"
 

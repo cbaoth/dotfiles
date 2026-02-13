@@ -1,9 +1,10 @@
 #!/bin/bash
 # ~/.lessfilter: Enable general highlighting in less (if tools available on system)
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash zsh dotfile less shell shell-script
+# author: Andreas Weyer
 
 # Original Source: https://superuser.com/a/337640
-# Author:  cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc zshenv shell-script
 
 # Usage example for .bashrc/.zshenv/.zshrc:
 # # Note: Ensure that ~/.lessfilter is executable: chmod u+x ~/.lessfilter

@@ -1,9 +1,13 @@
 # ~/.zlogout: executed by zsh(1) when login shell exits.
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc zlogout shell shell-script
+# author: Andreas Weyer
+
 # interactive shell: .zshenv > .zshrc
 # login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
 
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc zlogout shell-script
+# author: Andreas Weyer
+# keywords: zshrc zlogout shell-script
 
 # {{{ = FINAL CLEANUP ========================================================
 # remove core dump files (if existing)
