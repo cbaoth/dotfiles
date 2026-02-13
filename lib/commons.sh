@@ -1,9 +1,10 @@
 # ~/lib/commons.sh: Common shell function library
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash dotfile zshrc bashrc functions lib shell shell-script
+# author: Andreas Weyer
+#
+# All functions are written in a way that they work on both, zsh and bash
 
-# all functions are written in a way that they work on both, zsh and bash
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: zsh bash shell-script functions
 
 # just in case thi script is re-loaded
 typeset +r CL_SCRIPT_PATH CL_SCRIPT_FILE CL_TIMESTAMP_FORMAT

@@ -1,4 +1,7 @@
 # ~/.profile: bash(1) - The personal initialization file, executed for login shells
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash dotfile bashrc profile shell shell-script
+# author: Andreas Weyer
 #
 # This file is only read and executed by bash in a non-interactive login shell,
 # or in login shell invoked with option --login.
@@ -11,8 +14,6 @@
 #    ~/.bash_login
 #    ~/.profile
 
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: profile bash shell-script
 
 # Source environment settings common to all my shells
 [[ -f ~/.common_profile ]] && source ~/.common_profile

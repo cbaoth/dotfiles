@@ -1,8 +1,7 @@
 # ~/.common_profile: Common environment to be sourced as needed (.zshenv and .profile)
-# code: language=shell
-#
-# Author:  cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshenv bash profile shell-script
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash dotfile profile zshrc zshenv bashrc bash_profile shell shell-script
+# author: Andreas Weyer
 
 # {{{ = ENVIRONMENT (ALL SHELLS) =============================================
 # {{{ - PATHS ----------------------------------------------------------------

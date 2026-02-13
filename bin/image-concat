@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # image-concat: Concatenate images creating a simple collage
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script imagemagick convert
+# author: Andreas Weyer
 
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script
 
 declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
 declare -r _SCRIPT_FILE="$(basename "$0")"

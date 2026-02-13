@@ -1,7 +1,7 @@
 # ~/.zsh/aliases: Common ZSH specific aliases
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc aliases
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc aliases shell shell-script
+# author: Andreas Weyer
 
 # The following aliases are intended for ZSH use only (e.g. global aliases)
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # while-read: Monitor input/x clipboard and execute command
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script clipboard xclip
+# author: Andreas Weyer
 
 declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
 declare -r _SCRIPT_FILE="$(basename "$0")"
