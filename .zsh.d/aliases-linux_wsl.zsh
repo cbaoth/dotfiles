@@ -1,7 +1,7 @@
 # ~/.zsh/aliases-linux_wsl.zsh: Windows Subsystem Linux aliases
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc  shell-script linux
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc aliases shell shell-script
+# author: Andreas Weyer
 
 # Alias to copy to Windows clipboard (plain and unicode version)
 alias wclipset='clip.exe'

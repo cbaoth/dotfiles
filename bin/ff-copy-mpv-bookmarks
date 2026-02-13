@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ff-copy-mpv-bookmarks: Copy all mvp-bookmarked sections from a mediafile to new files using ffmpeg
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script ffmpeg
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script ffmpeg bookmarks mpv
+# author: Andreas Weyer
 
 declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
 declare -r _SCRIPT_FILE="$(basename "$0")"

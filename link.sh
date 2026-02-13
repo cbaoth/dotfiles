@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # links.sh: symlink dotfiles from git repo to home directory
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script dotfiles-tools
+# author: Andreas Weyer
 
 # TODO
 # - Skip existing links that already point to the right destination

@@ -1,9 +1,11 @@
 # ~/.zlogin: executed by zsh(1) when login shell starts.
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc zlogin shell shell-script
+# author: Andreas Weyer
+
 # interactive shell: .zshenv > .zshrc
 # login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
 
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zshrc zlogin shell-script
 
 # {{{ = FINAL LOGIN EXECUTIONS ===============================================
 # {{{ - MOTD -----------------------------------------------------------------

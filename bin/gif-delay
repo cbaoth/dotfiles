@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # giv-delay: Get animated gif file playback speed
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script imagemagick gif identify
+# author: Andreas Weyer
 
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script
 
 declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
 declare -r _SCRIPT_FILE="$(basename "$0")"

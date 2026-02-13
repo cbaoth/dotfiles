@@ -1,4 +1,8 @@
 # ~/.zshrc: executed by zsh(1)
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc shell shell-script
+# author: Andreas Weyer
+#
 # interactive shell: .zshenv > .zshrc
 # login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
 #
@@ -12,9 +16,6 @@
 # https://zsh.sourceforge.io/Intro/intro_3.html
 # .zshrc is sourced in interactive shells.
 # It should contain commands to set up aliases, functions, options, key bindings, etc.
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc shell-script
 
 # TODO:
 # look into https://github.com/clvv/fasd

@@ -1,9 +1,13 @@
 # ~/.bashrc: bash(1) - The individual per-interactive-shell startup file.
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash dotfile bashrc shell shell-script
+# author: Andreas Weyer
+#
 # This file is read and executed by bash for non-login interactive shells.
 # It is not read by bash login shells (.bash_profile is used for that).
 
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: bashrc shell-script
+# author: Andreas Weyer
+# keywords: bashrc shell-script
 
 # To view this file correctly use fold-mode for emacs and add the following
 # line to your .emacs:

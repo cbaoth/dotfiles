@@ -1,7 +1,7 @@
 # ~/.zsh/aliases-linux.zsh: Linux aliases
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc  shell-script linux
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc aliases shell shell-script
+# author: Andreas Weyer
 
 # {{{ = COMMON ===============================================================
 # {{{ - GENERAL --------------------------------------------------------------
@@ -53,6 +53,29 @@ alias midi-keyboard-output="aconnect \$(aconnect -i \
 #alias incoming="xterm -fn edges -fb edges -T isdn-incoming -g 100x8+0-63 -e socket bateau 9444 &"
 # }}} - MISC -----------------------------------------------------------------
 # }}} = COMMON ===============================================================
+
+# ...
+# }}} = NON-NATIVE & CONTAINERIZATION ========================================
+
+# {{{ - V12N & CONTAINERIZATION ----------------------------------------------
+# https://en.wikipedia.org/wiki/Virtualization
+# https://en.wikipedia.org/wiki/Containerization_(computing)
+# ...
+# }}} - V12N & CONTAINERIZATION ----------------------------------------------
+
+# {{{ - WINDOWS COMPATIBILITY LAYER ------------------------------------------
+# https://en.wikipedia.org/wiki/Compatibility_layer
+# http://www.winehq.com
+# https://github.com/ValveSoftware/Proton
+
+alias winer='wine start /unix'  # run executable or location (file explorer) using unix path
+# }}} - WINDOWS COMPATIBILITY LAYER ------------------------------------------
+
+# {{{ - BINARY TRANSLATION / EMULATION ---------------------------------------
+# https://en.wikipedia.org/wiki/Binary_translation
+# ...
+# }}} - BINARY TRANSLATION / EMULATION ---------------------------------------
+# }}} = NON-NATIVE & CONTAINERIZATION ========================================
 
 # {{{ = DISTRIBUTION SPECIFIC ================================================
 # {{{ - DEB ------------------------------------------------------------------
@@ -203,22 +226,22 @@ fi
 pkgu() {
   if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
     echo "> Updating and upgrading apt packages (incl. auto-remove) ..."
-    apu || echo -e "[\e[33mWarning:\e[0m Apt update/upgrade failed]"
+    apu || echo -e "[\e[33mWARNING:\e[0m Apt update/upgrade failed]"
     echo
   fi
   if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
     echo "> Updating snap packages ..."
-    snu || echo -e "[\e[33mWarning:\e[0m Snap update failed]"
+    snu || echo -e "[\e[33mWARNING:\e[0m Snap update failed]"
     echo
   fi
   if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
     echo "> Updating flatpak packages ..."
-    fpu || echo -e "[\e[33mWarning:\e[0m Flatpak update failed]"
+    fpu || echo -e "[\e[33mWARNING:\e[0m Flatpak update failed]"
     echo
   fi
   if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
     echo "> Updating and upgrading pacman packages ..."
-    pmu || echo -e "[\e[33mWarning:\e[0m Pacman update/upgrade failed]"
+    pmu || echo -e "[\e[33mWARNING:\e[0m Pacman update/upgrade failed]"
     echo
   fi
 }
@@ -226,22 +249,22 @@ pkgu() {
 # pkgl - list installed packages from all package managers
 pkgl() {
   if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
-    { dpli || echo -e "[\e[33mWarning:\e[0m Apt list failed]" } \
+    { dpli || echo -e "[\e[33mWARNING:\e[0m Apt list failed]" } \
       |& sed -r 's/^/apt: /'
     echo
   fi
   if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
-    { snl || echo -e "[\e[33mWarning:\e[0m Snap list failed]" } \
+    { snl || echo -e "[\e[33mWARNING:\e[0m Snap list failed]" } \
       |& sed -r 's/^/snap: /'
     echo
   fi
   if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
-    { fpl || echo -e "[\e[33mWarning:\e[0m Flatpak list failed]" } \
+    { fpl || echo -e "[\e[33mWARNING:\e[0m Flatpak list failed]" } \
       |& sed -r 's/^/flatpak: /'
     echo
   fi
   if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
-    { pml || echo -e "[\e[33mWarning:\e[0m Pacman list failed]" }\
+    { pml || echo -e "[\e[33mWARNING:\e[0m Pacman list failed]" }\
       |& sed -r 's/^/pacman: /'
     echo
   fi

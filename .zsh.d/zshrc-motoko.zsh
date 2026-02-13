@@ -1,7 +1,7 @@
 # ~/.zsh/zshrc-freebsd.zsh: Common zshrc for host [motoko]
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc shell-script
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc shell shell-script
+# author: Andreas Weyer
 
 #export LIBGL_DEBUG="verbose"
 

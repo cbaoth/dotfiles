@@ -1,7 +1,7 @@
 # ~/.zsh/zshrc-freebsd.zsh: Common zshrc for freebsd systems
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc shell-script
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc shell shell-script
+# author: Andreas Weyer
 
 # Set basic prompt theme if PowerLevel10K not available
 if ${POWERLEVEL10K_ISACTIVE:-false}; then

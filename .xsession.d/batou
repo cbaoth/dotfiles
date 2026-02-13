@@ -1,8 +1,8 @@
 #!/bin/sh
 # ~/.xsession.d/batou: custom xsession for host batou
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: dotfile xorg
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash dotfile xsession shell shell-script x11
+# author: Andreas Weyer
 
 # disable dell touchpad (get id via: xinput list)
 xinput --disable 14

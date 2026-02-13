@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # giv-cycle: Turn animated gif into a loop (append reversed version)
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script imagemagick gif convert
+# author: Andreas Weyer
 
 # src: http://www.imagemagick.org/Usage/anim_mods/#patrol
 

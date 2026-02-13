@@ -1,9 +1,10 @@
 # ~/.profile: executed by the command interpreter for login shells.
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash dotfile bashrc bash_profile shell shell-script
+# author: Andreas Weyer
+#
 # This file is not read by bash(1), if ~/.bash_profile or ~/.bash_login
 # exists. This file is read in case some WMs are started.
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: profile bash shell-script
 
 # {{{ - PATH -----------------------------------------------------------------
 PATH="$HOME/bin:/opt/bin:/opt/oracle/instantclient_21_4"

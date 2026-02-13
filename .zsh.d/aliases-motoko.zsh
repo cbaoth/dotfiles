@@ -1,7 +1,7 @@
 # ~/.zsh/aliases-motoko.zsh: Motoko host aliases
-
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc shell-script freebsd
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc aliases shell shell-script
+# author: Andreas Weyer
 
 # {{{ - APPS -----------------------------------------------------------------
 alias comfyenv="source ~/comfy-env/bin/activate"

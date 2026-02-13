@@ -1,8 +1,10 @@
 # ~/.zsh/functions.zsh: Common functions
-# all functions are written in way that they work on both, zsh and bash
+# code: language=zsh insertSpaces=true tabSize=2
+# keywords: zsh dotfile zshrc functions shell shell-script
+# author: Andreas Weyer
+#
+# All functions are written in way that they work on both, zsh and bash
 
-# Author:   cbaoth <dev@cbaoth.de>
-# Keywords: zsh zshrc shell-script functions
 
 # include commons lib (if not already the case)
 if ! command -v "cl::cmd_p" >& /dev/null; then

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ff-copy: Copy a fragment from a media file to a new file using ffmpeg
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script ffmpeg
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script ffmpeg
+# author: Andreas Weyer
 
 declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
 declare -r _SCRIPT_FILE="$(basename "$0")"
