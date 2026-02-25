@@ -1,0 +1,414 @@
+#!/usr/bin/env bash
+# ~/bin/diff-ini: Semantic INI file diff & merge tool
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash shell shell-script diff ini merge
+# author: Andreas Weyer
+
+declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r _SCRIPT_FILE="$(basename "$0")"
+
+# include commons lib
+for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
+   if [[ -f "$f" ]]; then
+     source "$f"
+     break
+   fi
+done
+if ! command -v "cl::cmd_p" >& /dev/null; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+
+# set options
+set -o errtrace
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+trap '_rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+             "${BASH_COMMAND:-N/A}"; \
+      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+
+# constants
+declare -r _USAGE="${_SCRIPT_FILE} [OPTIONS] FILE1 FILE2"
+declare _HELP
+! IFS='' read -r -d '' _HELP <<EOF
+Usage: $_USAGE
+
+$(cl::fx b)About:$(cl::fx r)
+  Semantic INI file diff & merge tool. Compares two INI files by section
+  and key, ignoring order of sections and keys. Numeric values are
+  normalized for comparison (e.g. 1.6000 == 1.6). Comments and blank
+  lines are stripped.
+
+$(cl::fx b)Modes:$(cl::fx r)
+  $(cl::fx b)-d, --diff$(cl::fx r)     Show only differences (default)
+                   < = in file1 only / file1 value
+                   > = in file2 only / file2 value
+  $(cl::fx b)-m, --merge$(cl::fx r)    Output file1 as base, enriched with file2 changes
+                   Unchanged keys are output as-is
+                   Changed/added keys marked with < / >
+
+$(cl::fx b)Options:$(cl::fx r)
+  -c, --color      Colorize output (< red, > green, sections bold)
+  -h, --help       Show this help
+
+$(cl::fx b)Examples:$(cl::fx r)
+  ${_SCRIPT_FILE} config1.ini config2.ini
+  ${_SCRIPT_FILE} --merge -c base.ini changes.ini
+  ${_SCRIPT_FILE} --merge base.ini changes.ini > merged.ini
+EOF
+readonly _HELP
+
+# arguments
+declare _mode="diff"
+declare _color=false
+declare _file1=""
+declare _file2=""
+
+# parsed data (prefix 1/2 for file1/file2)
+declare -A _sections1 _sections2
+declare -A _data1 _data2
+declare -A _keys1 _keys2
+
+_parse_args() {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "${_USAGE}"
+    exit 1
+  fi
+  while [[ -n "${1:-}" ]]; do
+    case $1 in
+      -d|--diff)
+        _mode="diff"
+        shift
+        ;;
+      -m|--merge)
+        _mode="merge"
+        shift
+        ;;
+      -c|--color)
+        _color=true
+        shift
+        ;;
+      -h|--help)
+        printf "%s" "${_HELP}"
+        exit 0
+        ;;
+      -*)
+        cl::p_err "unknown option: $1"
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_err "missing FILE1 argument"
+    exit 1
+  fi
+  _file1="$1"
+  shift
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_err "missing FILE2 argument"
+    exit 1
+  fi
+  _file2="$1"
+  shift
+
+  if [[ -n "${1:-}" ]]; then
+    cl::p_err "too many arguments"
+    exit 1
+  fi
+
+  if [[ ! -f "$_file1" ]]; then
+    cl::p_err "file not found: $_file1"
+    exit 1
+  fi
+  if [[ ! -f "$_file2" ]]; then
+    cl::p_err "file not found: $_file2"
+    exit 1
+  fi
+}
+
+# Parse an INI file into associative arrays
+# Args: $1=file, $2=sections_var_name, $3=data_var_name, $4=keys_var_name
+_parse_ini() {
+  local file="$1"
+  local -n sections_ref="$2"
+  local -n data_ref="$3"
+  local -n keys_ref="$4"
+  local current_section=""
+  local line key value
+
+  while IFS='' read -r line || [[ -n "$line" ]]; do
+    # strip leading/trailing whitespace
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+
+    # skip blank lines and comments
+    [[ -z "$line" ]] && continue
+    [[ "$line" == \#* || "$line" == \;* ]] && continue
+
+    # section header
+    if [[ "$line" == \[*\] ]]; then
+      current_section="${line#[}"
+      current_section="${current_section%]}"
+      # trim whitespace from section name
+      current_section="${current_section#"${current_section%%[![:space:]]*}"}"
+      current_section="${current_section%"${current_section##*[![:space:]]}"}"
+      sections_ref["$current_section"]=1
+      continue
+    fi
+
+    # key=value pair (skip lines before any section)
+    if [[ -z "$current_section" ]]; then
+      continue
+    fi
+    if [[ "$line" == *=* ]]; then
+      key="${line%%=*}"
+      value="${line#*=}"
+      # trim whitespace from key and value
+      key="${key#"${key%%[![:space:]]*}"}"
+      key="${key%"${key##*[![:space:]]}"}"
+      value="${value#"${value%%[![:space:]]*}"}"
+      value="${value%"${value##*[![:space:]]}"}"
+
+      data_ref["${current_section}${_SEP}${key}"]="$value"
+      # append key to keys list (newline-separated)
+      if [[ -n "${keys_ref["$current_section"]+x}" ]]; then
+        keys_ref["$current_section"]+=$'\n'"$key"
+      else
+        keys_ref["$current_section"]="$key"
+      fi
+    fi
+  done < "$file"
+}
+
+# Normalize a value for comparison purposes
+# Strips trailing zeros from decimal numbers
+_normalize_value() {
+  local val="$1"
+  # check if it looks like a decimal number (optional sign, digits, dot, digits)
+  if [[ "$val" =~ ^[+-]?[0-9]+\.[0-9]+$ ]]; then
+    # strip trailing zeros after decimal point using sed
+    val="$(printf '%s' "$val" | sed 's/\.\{0,1\}0*$//')"
+  fi
+  printf '%s' "$val"
+}
+
+# Get sorted unique keys for a section
+_sorted_keys() {
+  local keys_str="$1"
+  if [[ -z "$keys_str" ]]; then
+    return
+  fi
+  printf '%s\n' "$keys_str" | sort -u
+}
+
+# Print a line with optional color
+# Args: $1=prefix ("<", ">", ""), $2=text
+_print_line() {
+  local prefix="$1"
+  local text="$2"
+
+  if [[ "$_color" == true ]]; then
+    case "$prefix" in
+      "<") printf '%s%s %s%s\n' "$(cl::fx red)" "<" "$text" "$(cl::fx r)" ;;
+      ">") printf '%s%s %s%s\n' "$(cl::fx green)" ">" "$text" "$(cl::fx r)" ;;
+      *)   printf '%s\n' "$text" ;;
+    esac
+  else
+    if [[ -n "$prefix" ]]; then
+      printf '%s %s\n' "$prefix" "$text"
+    else
+      printf '%s\n' "$text"
+    fi
+  fi
+}
+
+# Print a section header with optional color
+_print_section() {
+  local section="$1"
+  if [[ "$_color" == true ]]; then
+    printf '%s[%s]%s\n' "$(cl::fx b)" "$section" "$(cl::fx r)"
+  else
+    printf '[%s]\n' "$section"
+  fi
+}
+
+# separator for composite keys in associative arrays
+declare -r _SEP=$'\x1f'
+
+_diff_ini() {
+  # collect all section names (union), sorted
+  local -A all_sections
+  local section
+  for section in "${!_sections1[@]}"; do
+    all_sections["$section"]=1
+  done
+  for section in "${!_sections2[@]}"; do
+    all_sections["$section"]=1
+  done
+
+  local -a sorted_sections
+  IFS=$'\n' read -r -d '' -a sorted_sections < <(
+    printf '%s\n' "${!all_sections[@]}" | sort
+    printf '\0'
+  ) || true
+
+  local first_section=true
+  local key val1 val2 norm1 norm2
+  local in1 in2
+
+  for section in "${sorted_sections[@]}"; do
+    in1="${_sections1["$section"]+1}"
+    in2="${_sections2["$section"]+1}"
+
+    if [[ -n "$in1" && -z "$in2" ]]; then
+      # section only in file1
+      if [[ "$_mode" == "diff" ]]; then
+        [[ "$first_section" == true ]] || printf '\n'
+        first_section=false
+        _print_section "$section"
+        local keys1_str="${_keys1["$section"]:-}"
+        while IFS='' read -r key; do
+          [[ -z "$key" ]] && continue
+          _print_line "<" "$key = ${_data1["${section}${_SEP}${key}"]}"
+        done < <(_sorted_keys "$keys1_str")
+      elif [[ "$_mode" == "merge" ]]; then
+        # in merge mode, file1-only sections are output as-is (it's the base)
+        [[ "$first_section" == true ]] || printf '\n'
+        first_section=false
+        _print_section "$section"
+        local keys1_str="${_keys1["$section"]:-}"
+        while IFS='' read -r key; do
+          [[ -z "$key" ]] && continue
+          _print_line "" "$key = ${_data1["${section}${_SEP}${key}"]}"
+        done < <(_sorted_keys "$keys1_str")
+      fi
+      continue
+    fi
+
+    if [[ -z "$in1" && -n "$in2" ]]; then
+      # section only in file2
+      [[ "$first_section" == true ]] || printf '\n'
+      first_section=false
+      _print_section "$section"
+      local keys2_str="${_keys2["$section"]:-}"
+      while IFS='' read -r key; do
+        [[ -z "$key" ]] && continue
+        _print_line ">" "$key = ${_data2["${section}${_SEP}${key}"]}"
+      done < <(_sorted_keys "$keys2_str")
+      continue
+    fi
+
+    # section in both files - compare keys
+    local -A section_keys
+    local keys1_str="${_keys1["$section"]:-}"
+    local keys2_str="${_keys2["$section"]:-}"
+
+    # collect all keys for this section
+    section_keys=()
+    if [[ -n "$keys1_str" ]]; then
+      while IFS='' read -r key; do
+        [[ -z "$key" ]] && continue
+        section_keys["$key"]=1
+      done <<< "$keys1_str"
+    fi
+    if [[ -n "$keys2_str" ]]; then
+      while IFS='' read -r key; do
+        [[ -z "$key" ]] && continue
+        section_keys["$key"]=1
+      done <<< "$keys2_str"
+    fi
+
+    local -a sorted_keys
+    IFS=$'\n' read -r -d '' -a sorted_keys < <(
+      printf '%s\n' "${!section_keys[@]}" | sort -u
+      printf '\0'
+    ) || true
+
+    # build output for this section
+    local section_output=""
+    local has_diff=false
+
+    for key in "${sorted_keys[@]}"; do
+      local has1="${_data1["${section}${_SEP}${key}"]+1}"
+      local has2="${_data2["${section}${_SEP}${key}"]+1}"
+
+      if [[ -n "$has1" && -n "$has2" ]]; then
+        val1="${_data1["${section}${_SEP}${key}"]}"
+        val2="${_data2["${section}${_SEP}${key}"]}"
+        norm1="$(_normalize_value "$val1")"
+        norm2="$(_normalize_value "$val2")"
+
+        if [[ "$norm1" == "$norm2" ]]; then
+          # same value
+          if [[ "$_mode" == "merge" ]]; then
+            section_output+="=$key = $val1"$'\n'
+          fi
+        else
+          # different values
+          has_diff=true
+          section_output+="<$key = $val1"$'\n'
+          section_output+=">$key = $val2"$'\n'
+        fi
+      elif [[ -n "$has1" && -z "$has2" ]]; then
+        # key only in file1
+        has_diff=true
+        val1="${_data1["${section}${_SEP}${key}"]}"
+        section_output+="<$key = $val1"$'\n'
+      else
+        # key only in file2
+        has_diff=true
+        val2="${_data2["${section}${_SEP}${key}"]}"
+        section_output+=">$key = $val2"$'\n'
+      fi
+    done
+
+    # output section if there are differences (diff mode) or always (merge mode)
+    if [[ "$_mode" == "diff" && "$has_diff" == false ]]; then
+      continue
+    fi
+    if [[ "$_mode" == "merge" || "$has_diff" == true ]]; then
+      [[ "$first_section" == true ]] || printf '\n'
+      first_section=false
+      _print_section "$section"
+
+      # print buffered lines
+      while IFS='' read -r line; do
+        [[ -z "$line" ]] && continue
+        local prefix="${line:0:1}"
+        local content="${line:1}"
+        case "$prefix" in
+          "=") _print_line "" "$content" ;;
+          "<") _print_line "<" "$content" ;;
+          ">") _print_line ">" "$content" ;;
+        esac
+      done <<< "$section_output"
+    fi
+  done
+}
+
+_main() {
+  _parse_args "$@"
+
+  # parse both files
+  _parse_ini "$_file1" _sections1 _data1 _keys1
+  _parse_ini "$_file2" _sections2 _data2 _keys2
+
+  # run diff/merge
+  _diff_ini
+}
+
+_main "$@"
+exit 0
