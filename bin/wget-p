@@ -203,7 +203,7 @@ _wget() {
 
   local outfile
   if ${_dynamic_filename}; then
-    outfile="$(sed -E 's/^(\w+):\/+//g;s/\/+$//g;s/\//+/g;s/\?\w+=.*//g' <<<"${url}")"
+    outfile="$(sed -E 's/^(\w+):\/+//g;s/\/+$//g;s/\//+/g;s/\?.*//g' <<<"${url}")"
   elif ${_dynamic_filename_full}; then
     outfile="$(sed -E 's/^(\w+):\/\//\1%/g;s/\/+$//g;s/\//+/g' <<<"${url}")"
   fi
