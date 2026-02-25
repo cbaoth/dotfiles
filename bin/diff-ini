@@ -59,7 +59,9 @@ $(cl::fx b)Options:$(cl::fx r)
   -i, --inline     Inline style for changed values (both on one line)
                    | key = val1  ;; = val2
                    Useful for bulk search-and-replace editing
-  -c, --color      Colorize output (< red, > green, | yellow, sections bold)
+  -e, --equal-prefix  Prefix unchanged keys with = in merge mode
+                   = key = value (same in both files)
+  -c, --color      Colorize output (< red, > green, | yellow, = dim, sections bold)
   -h, --help       Show this help
 
 $(cl::fx b)Examples:$(cl::fx r)
@@ -72,6 +74,7 @@ readonly _HELP
 # arguments
 declare _mode="diff"
 declare _inline=false
+declare _equal_prefix=false
 declare _color=false
 declare _file1=""
 declare _file2=""
@@ -98,6 +101,10 @@ _parse_args() {
         ;;
       -i|--inline)
         _inline=true
+        shift
+        ;;
+      -e|--equal-prefix)
+        _equal_prefix=true
         shift
         ;;
       -c|--color)
@@ -134,6 +141,11 @@ _parse_args() {
 
   if [[ -n "${1:-}" ]]; then
     cl::p_err "too many arguments"
+    exit 1
+  fi
+
+  if [[ "$_equal_prefix" == true && "$_mode" != "merge" ]]; then
+    cl::p_err "--equal-prefix can only be used with --merge mode"
     exit 1
   fi
 
@@ -233,6 +245,7 @@ _print_line() {
       "<") printf '%s%s %s%s\n' "$(cl::fx red)" "<" "$text" "$(cl::fx r)" ;;
       ">") printf '%s%s %s%s\n' "$(cl::fx green)" ">" "$text" "$(cl::fx r)" ;;
       "|") printf '%s%s %s%s\n' "$(cl::fx yellow)" "|" "$text" "$(cl::fx r)" ;;
+      "=") printf '%s%s %s%s\n' "$(cl::fx d)" "=" "$text" "$(cl::fx r)" ;;
       *)   printf '%s\n' "$text" ;;
     esac
   else
@@ -256,6 +269,7 @@ _print_section() {
     case "$prefix" in
       "<") printf '%s%s %s%s\n' "$(cl::fx red)" "<" "$bold_section" "$(cl::fx r)" ;;
       ">") printf '%s%s %s%s\n' "$(cl::fx green)" ">" "$bold_section" "$(cl::fx r)" ;;
+      "=") printf '%s%s %s%s\n' "$(cl::fx d)" "=" "$bold_section" "$(cl::fx r)" ;;
       *)   printf '%s\n' "$bold_section" ;;
     esac
   else
@@ -408,7 +422,11 @@ _diff_ini() {
     if [[ "$_mode" == "merge" || "$has_diff" == true ]]; then
       [[ "$first_section" == true ]] || printf '\n'
       first_section=false
-      _print_section "" "$section"
+      local section_prefix=""
+      if [[ "$_equal_prefix" == true && "$has_diff" == false ]]; then
+        section_prefix="="
+      fi
+      _print_section "$section_prefix" "$section"
 
       # print buffered lines
       while IFS='' read -r line; do
@@ -416,7 +434,11 @@ _diff_ini() {
         local prefix="${line:0:1}"
         local content="${line:1}"
         case "$prefix" in
-          "=") _print_line "" "$content" ;;
+          "=") if [[ "$_equal_prefix" == true ]]; then
+                 _print_line "=" "$content"
+               else
+                 _print_line "" "$content"
+               fi ;;
           "<") _print_line "<" "$content" ;;
           ">") _print_line ">" "$content" ;;
           "|") _print_line "|" "$content" ;;
