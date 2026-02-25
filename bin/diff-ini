@@ -56,7 +56,10 @@ $(cl::fx b)Modes:$(cl::fx r)
                    Changed/added keys marked with < / >
 
 $(cl::fx b)Options:$(cl::fx r)
-  -c, --color      Colorize output (< red, > green, sections bold)
+  -i, --inline     Inline style for changed values (both on one line)
+                   | key = val1  ;; = val2
+                   Useful for bulk search-and-replace editing
+  -c, --color      Colorize output (< red, > green, | yellow, sections bold)
   -h, --help       Show this help
 
 $(cl::fx b)Examples:$(cl::fx r)
@@ -68,6 +71,7 @@ readonly _HELP
 
 # arguments
 declare _mode="diff"
+declare _inline=false
 declare _color=false
 declare _file1=""
 declare _file2=""
@@ -90,6 +94,10 @@ _parse_args() {
         ;;
       -m|--merge)
         _mode="merge"
+        shift
+        ;;
+      -i|--inline)
+        _inline=true
         shift
         ;;
       -c|--color)
@@ -224,6 +232,7 @@ _print_line() {
     case "$prefix" in
       "<") printf '%s%s %s%s\n' "$(cl::fx red)" "<" "$text" "$(cl::fx r)" ;;
       ">") printf '%s%s %s%s\n' "$(cl::fx green)" ">" "$text" "$(cl::fx r)" ;;
+      "|") printf '%s%s %s%s\n' "$(cl::fx yellow)" "|" "$text" "$(cl::fx r)" ;;
       *)   printf '%s\n' "$text" ;;
     esac
   else
@@ -235,13 +244,26 @@ _print_line() {
   fi
 }
 
-# Print a section header with optional color
+# Print a section header with optional prefix and color
+# Args: $1=prefix ("<", ">", ""), $2=section_name
 _print_section() {
-  local section="$1"
+  local prefix="$1"
+  local section="$2"
+
   if [[ "$_color" == true ]]; then
-    printf '%s[%s]%s\n' "$(cl::fx b)" "$section" "$(cl::fx r)"
+    local bold_section
+    bold_section="$(cl::fx b)[${section}]$(cl::fx r)"
+    case "$prefix" in
+      "<") printf '%s%s %s%s\n' "$(cl::fx red)" "<" "$bold_section" "$(cl::fx r)" ;;
+      ">") printf '%s%s %s%s\n' "$(cl::fx green)" ">" "$bold_section" "$(cl::fx r)" ;;
+      *)   printf '%s\n' "$bold_section" ;;
+    esac
   else
-    printf '[%s]\n' "$section"
+    if [[ -n "$prefix" ]]; then
+      printf '%s [%s]\n' "$prefix" "$section"
+    else
+      printf '[%s]\n' "$section"
+    fi
   fi
 }
 
@@ -278,7 +300,7 @@ _diff_ini() {
       if [[ "$_mode" == "diff" ]]; then
         [[ "$first_section" == true ]] || printf '\n'
         first_section=false
-        _print_section "$section"
+        _print_section "<" "$section"
         local keys1_str="${_keys1["$section"]:-}"
         while IFS='' read -r key; do
           [[ -z "$key" ]] && continue
@@ -288,7 +310,7 @@ _diff_ini() {
         # in merge mode, file1-only sections are output as-is (it's the base)
         [[ "$first_section" == true ]] || printf '\n'
         first_section=false
-        _print_section "$section"
+        _print_section "" "$section"
         local keys1_str="${_keys1["$section"]:-}"
         while IFS='' read -r key; do
           [[ -z "$key" ]] && continue
@@ -302,7 +324,7 @@ _diff_ini() {
       # section only in file2
       [[ "$first_section" == true ]] || printf '\n'
       first_section=false
-      _print_section "$section"
+      _print_section ">" "$section"
       local keys2_str="${_keys2["$section"]:-}"
       while IFS='' read -r key; do
         [[ -z "$key" ]] && continue
@@ -359,8 +381,12 @@ _diff_ini() {
         else
           # different values
           has_diff=true
-          section_output+="<$key = $val1"$'\n'
-          section_output+=">$key = $val2"$'\n'
+          if [[ "$_inline" == true ]]; then
+            section_output+="|$key = $val1  ;; = $val2"$'\n'
+          else
+            section_output+="<$key = $val1"$'\n'
+            section_output+=">$key = $val2"$'\n'
+          fi
         fi
       elif [[ -n "$has1" && -z "$has2" ]]; then
         # key only in file1
@@ -382,7 +408,7 @@ _diff_ini() {
     if [[ "$_mode" == "merge" || "$has_diff" == true ]]; then
       [[ "$first_section" == true ]] || printf '\n'
       first_section=false
-      _print_section "$section"
+      _print_section "" "$section"
 
       # print buffered lines
       while IFS='' read -r line; do
@@ -393,6 +419,7 @@ _diff_ini() {
           "=") _print_line "" "$content" ;;
           "<") _print_line "<" "$content" ;;
           ">") _print_line ">" "$content" ;;
+          "|") _print_line "|" "$content" ;;
         esac
       done <<< "$section_output"
     fi
