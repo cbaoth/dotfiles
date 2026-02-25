@@ -1,0 +1,180 @@
+#!/bin/bash
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash shell shell-script rsync backup gnu-parallel parallel jobs
+# author: Andreas Weyer
+
+# {{{ = COMMONS ==============================================================
+# -e: exit on error
+# -u: treat unset variables as an error
+# -o pipefail: return exit code of the last command in the pipeline that failed
+set -euo pipefail  # Fail if any command in a pipeline fails
+
+# debug: uncomment the following lines to enable verbose output and/or command tracing
+set -v
+#set -x
+
+# Prerequirements: rsynclt and rsync must be in path
+command -v rsync >/dev/null 2>&1 \
+  || { echo >&2 "rsync is required but not installed. Aborting."; exit 1; }
+command -v rsynclt >/dev/null 2>&1 \
+  || { echo >&2 "rsynclt is required but not installed (part of dotfiles repo). Aborting."; exit 1; }
+command -v parallel >/dev/null 2>&1 \
+  || { echo >&2 "parallel is required but not installed. Aborting."; exit 1; }
+
+declare -ra RSYNCLT_ARGS=(-b -d)  # -vv, use -- --rsynclt-args -v if needed
+declare -ri JOBS_DEFAULT=3
+declare -ra PARALLEL_ARGS=(--line-buffer --tagstring '{1}')  # --eta
+
+_echo_error() {
+  echo -e "\033[31mERROR\033[0m: $*"
+}
+
+_echo_warn() {
+  echo -e "\033[33mWARN\033[0m: $*"
+}
+
+_usage() {
+  cat <<EOF
+Usage: $(basename "$0") BASE_SRC_DIR BASE_TAR_DIR [OPTIONS] DIR...
+
+Sync one or more directories from:
+  ${BASE_SRC_DIR:-<src_base>}/DIR -> ${BASE_TAR_DIR:-<tar_base>}/DIR
+
+Options:
+  -j, --jobs N            Max parallel jobs (default: ${JOBS_DEFAULT})
+  -n, --dry-run           Print the resolved command and exit
+  -h, --help              Show this help message and exit
+  --rsynclt-args ARGS...  Extra arguments passed to rsynclt
+  --parallel-args ARGS... Extra arguments passed to GNU parallel
+  --                      End of options; all following args are DIR names
+EOF
+}
+
+# print command array adding quotes as needed
+_p_cmd() {
+  local -r pattern='[ |&;()<>*?"`$\\'"'"']'
+  local cmd=("$@"); shift || true
+  local output=""
+
+  for arg in "${cmd[@]}"; do
+    if [[ $arg =~ $pattern ]]; then
+      output+="\"$arg\" "
+    else
+      output+="$arg "
+    fi
+  done
+
+  echo "${output% }"
+}
+# }}} = COMMONS ==============================================================
+
+# {{{ = ARGUMENT PARSING =====================================================
+if [[ $# -lt 2 ]]; then
+  _usage
+  exit 1
+fi
+
+BASE_SRC_DIR="$1"
+BASE_TAR_DIR="$2"
+shift 2
+readonly BASE_SRC_DIR BASE_TAR_DIR
+# }}} = ARGUMENT PARSING =====================================================
+
+# {{{ = MAIN LOGIC ===========================================================
+_process_parallel() {
+  local -a dirs valid_dirs extra_rsynclt_args extra_parallel_args
+  local parse_mode="dirs"
+  local dry_run=false
+  local jobs=$JOBS_DEFAULT
+
+  [[ ! -d "${BASE_SRC_DIR}" ]] \
+    && { _echo_error "Source directory '${BASE_SRC_DIR}/' does not exist. Aborting."; exit 1; }
+  if ! mountpoint -q "$BASE_TAR_DIR"; then
+    [[ ! -d "${BASE_TAR_DIR}" ]] \
+      && { _echo_error "Target directory '${BASE_TAR_DIR}/' does not exist. Aborting."; exit 1; }
+    _echo_warn "Target base is not a mountpoint: ${BASE_TAR_DIR}"
+  fi
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -n|--dry-run)
+        dry_run=true
+        shift
+        ;;
+      -j|--jobs)
+        [[ -z "${2:-}" ]] && { _echo_error "Missing value for $1"; exit 1; }
+        jobs="$2"
+        shift 2
+        ;;
+      --help|-h)
+        _usage
+        exit 0
+        ;;
+      --rsynclt-args)
+        parse_mode="rsynclt"
+        shift
+        ;;
+      --parallel-args)
+        parse_mode="parallel"
+        shift
+        ;;
+      --)
+        parse_mode="dirs"
+        shift
+        ;;
+      *)
+        case "$parse_mode" in
+          rsynclt) extra_rsynclt_args+=("$1") ;;
+          parallel) extra_parallel_args+=("$1") ;;
+          *) dirs+=("$1") ;;
+        esac
+        shift
+        ;;
+    esac
+  done
+
+  if [[ ${#dirs[@]} -eq 0 ]]; then
+    _usage
+    exit 1
+  fi
+
+  for d in "${dirs[@]}"; do
+    local src="${BASE_SRC_DIR}/$d/"
+    if [[ ! -d "$src" ]]; then
+      _echo_warn "No such directory $src (skipping)"
+      continue
+    fi
+    local tar="${BASE_TAR_DIR}/$d/"
+    # Normalize both source and target paths by replacing double slashes with single slashes, just in case
+    src="${src//\/\//\/}"
+    tar="${tar//\/\//\/}"
+    mkdir -p "$tar" || { _echo_error "Failed to create target directory $tar"; continue; }
+    echo "Validated source \"$src\" and target \"$tar\" for directory \"$d\""
+    valid_dirs+=("$d")
+  done
+
+  if [[ ${#valid_dirs[@]} -eq 0 ]]; then
+    _echo_error "No valid directories to process. Aborting."
+    exit 1
+  fi
+
+  local -a rsynclt_args=("${RSYNCLT_ARGS[@]}" "${extra_rsynclt_args[@]}")
+  local -a parallel_args=(-j "$jobs" "${PARALLEL_ARGS[@]}" "${extra_parallel_args[@]}")
+  local -a cmd=(
+    parallel "${parallel_args[@]}"
+    rsynclt "${rsynclt_args[@]}" "${BASE_SRC_DIR}/{1}/" "${BASE_TAR_DIR}/{1}/"
+    ::: "${valid_dirs[@]}"
+  )
+
+  echo "> $(_p_cmd "${cmd[@]}")"
+  ${dry_run} && return 0
+
+  parallel "${parallel_args[@]}" \
+    rsynclt "${rsynclt_args[@]}" "${BASE_SRC_DIR}/{1}/" "${BASE_TAR_DIR}/{1}/" \
+    ::: "${valid_dirs[@]}"
+}
+# }}} = MAIN LOGIC ===========================================================
+
+_process_parallel "$@"
+
+exit 0
