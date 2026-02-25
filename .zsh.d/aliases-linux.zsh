@@ -196,6 +196,8 @@ if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
   alias fpi='flatpak install'
   alias fpu='flatpak update'
   alias fpr='flatpak uninstall'
+  alias fpi='flatpak info'
+  alias fpil='flatpak info --show-location'
   alias fpl='flatpak list'
   alias fplg='flatpak list | grep -i --color'
   alias fpd='flatpak info'

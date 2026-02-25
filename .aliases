@@ -219,24 +219,28 @@ alias mpv-nr='mpv --no-resume-playback'
 
 # http://askubuntu.com/a/634655
 alias yt="yt-dlp \
-            -f 'bestvideo[vcodec=vp9]+bestaudio[acodec=opus]
-                /bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]
-                /bestvideo[vcodec=vp8]+bestaudio[acodec=opus]
-                /bestvideo[vcodec=vp8]+bestaudio[acodec=vorbis]
-                /bestvideo[ext=webm]+bestaudio[ext=webm]
-                /bestvideo[ext=webm]+bestaudio[ext=ogg]
-                /best[ext=webm]/bestvideo+bestaudio/best' \
-            -i -o '%(title)s [%(id)s].%(ext)s'"
+#            -f 'bestvideo[vcodec=vp9]+bestaudio[acodec=opus]
+#                /bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]
+#                /bestvideo[vcodec=vp8]+bestaudio[acodec=opus]
+#                /bestvideo[vcodec=vp8]+bestaudio[acodec=vorbis]
+#                /bestvideo[ext=webm]+bestaudio[ext=webm]
+#                /bestvideo[ext=webm]+bestaudio[ext=ogg]
+#                /best[ext=webm]/bestvideo+bestaudio/best' \
+            -i -o '%(title)s [%(id)s].%(ext)s' \
+            --restrict-filenames"
 alias yta="yt-dlp \
             -f 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]
                 /best[ext=webm]/best[ext=ogg]/best' \
-            -i -x -o '%(title)s [%(id)s].ogg'"
+            -i -x -o '%(title)s [%(id)s].ogg' \
+            --restrict-filenames"
 alias yta-mp3="yt-dlp \
             --audio-format mp3 \
-            -i -x -o '%(title)s [%(id)s].mp3'"
+            -i -x -o '%(title)s [%(id)s].mp3' \
+            --restrict-filenames"
 alias yta-m4a="yt-dlp \
             -f 'bestaudio[ext=m4a]' \
-            -i -x -o '%(title)s [%(id)s].m4a'"
+            -i -x -o '%(title)s [%(id)s].m4a' \
+            --restrict-filenames"
 
 #alias mp3gain-track='replaygain -r 89 --no-album'
 #alias mp3gain-album='replaygain -r 89'

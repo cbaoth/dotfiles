@@ -6,6 +6,7 @@
 # {{{ = ENVIRONMENT (ALL SHELLS) =============================================
 # {{{ - PATHS ----------------------------------------------------------------
 export PATH="${HOME}/bin:${HOME}/.local/bin:/opt/bin:/snap/bin"\
+":/var/lib/flatpak/exports/bin"\
 ":/usr/local/bin:/usr/bin:/bin"\
 ":/usr/local/sbin:/usr/sbin:/sbin"\
 ":/usr/bin/X11:/usr/X11R6/bin:/usr/games"\
