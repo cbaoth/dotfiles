@@ -1,0 +1,261 @@
+#!/bin/bash
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash shell shell-script rsync backup
+# author: Andreas Weyer
+#
+# A lightweight rsync wrapper for common backup and synchronization tasks.
+
+# {{{ = COMMONS ==============================================================
+# -e: exit on error
+# -u: treat unset variables as an error
+# -o pipefail: return exit code of the last command in the pipeline that failed
+set -euo pipefail  # Fail if any command in a pipeline fails
+
+# Initialize constants
+declare -r BACKUP_SUBDIR=".backup/"
+declare -r RSYNC_CMD="rsync"
+declare -r SCRIPT_NAME="$(basename "$0")"
+declare -r SCRIPT_USER="${SCRIPT_USER:-$(whoami)}"
+declare -ri VERBOSITY_DEFAULT=0
+
+# Initialize variables with default values
+declare LOGFILE=""  # No logging by default, can be set to a file path
+declare -i VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity level for script and rsync
+
+# Logging function with levels and optional file logging, used from here on out
+__log() {
+  declare -r __LOG_UNKNOWN_TIMESTAMP="????-??-?? ??:??:??"
+  [[ $# -lt 2 ]] && { echo "Usage: __log LEVEL MESSAGE" >&2; return 1; }
+  local -r level=$1; shift
+  local -r msg="$*"
+  local -r timestamp=$( date +"%Y-%m-%d %H:%M:%S" 2> /dev/null || echo $__LOG_UNKNOWN_TIMESTAMP )
+  local -r timestamp_log=$( [[ -n "$LOGFILE" ]] && date -Ins 2>/dev/null || echo $__LOG_UNKNOWN_TIMESTAMP )
+
+  case "$level" in
+  E|ERR|ERROR)
+    echo -e "$timestamp [\033[31mERROR\033[0m] $msg" >&2
+    [[ -n "$LOGFILE" ]] && echo "$timestamp_log ERROR ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
+    ;;
+  W|WAR|WARN)
+    echo -e "$timestamp [\033[33mWARN\033[0m]  $msg"
+    [[ -n "$LOGFILE" ]] && echo "$timestamp_log WARN  ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
+    ;;
+  I|INF|INFO)
+    [[ "$VERBOSITY" -lt 1 ]] && return 0  # Skip info messages if verbosity < 1
+    echo -e "$timestamp [\033[32mINFO\033[0m]  $msg"
+    [[ -n "$LOGFILE" ]] && echo "$timestamp_log INFO  ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
+    ;;
+  D|DEB|DEBUG)
+    [[ "$VERBOSITY" -lt 2 ]] && return 0  # Skip debug messages if verbosity < 2
+    echo -e "$timestamp [\033[34mDEBUG\033[0m] $msg"
+    [[ -n "$LOGFILE" ]] && echo "$timestamp_log DEBUG ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
+    ;;
+  *)
+    echo -e "$timestamp [*]   $msg"
+    [[ -n "$LOGFILE" ]] && echo "$timestamp_log *   ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
+    ;;
+  esac
+}
+# Convenience wrappers
+_log()     { __log "" "$*"; }    # Always shown (no level)
+_log_error() { __log "ERROR" "$*"; } # Always shown
+_log_warn()  { __log "WARN"  "$*"; } # Always shown
+_log_info()  { __log "INFO"  "$*"; } # Shown if VERBOSITY >= 1
+_log_debug() { __log "DEBUG" "$*"; } # Shown if VERBOSITY >= 2
+
+# Normalize path: remove duplicate slashes within path, but preserve trailing slash
+_normalize_path() {
+  local path="$1"
+  local has_trailing_slash=false
+
+  # Check if path ends with a slash
+  [[ "$path" =~ /$ ]] && has_trailing_slash=true
+
+  # Remove duplicate slashes (replace // with / repeatedly)
+  while [[ "$path" =~ // ]]; do
+    path="${path//\/\//\/}"
+  done
+
+  # Restore trailing slash if it was present originally
+  if $has_trailing_slash && [[ ! "$path" =~ /$ ]]; then
+    path="${path}/"
+  fi
+
+  echo "$path"
+}
+# }}} = COMMONS ==============================================================
+
+# {{{ = ARGUMENT PARSING =====================================================
+_usage() {
+  cat <<EOL
+Usage: S{SCRIPT_NAME} [OPTIONS] SOURCE... TARGET
+
+Options:
+    -b, --backup           Create a backup of the target before syncing (files are backed up to TARGET/.backup/TIMESTAMP/)
+    -d, --delete           Delete extraneous files from target
+    -l, --logfile FILE     Log output to FILE in addition to console
+    -v, -vv, -vvv, -vvvv   Increase verbosity, affects both logging and rsync output
+    -q, --quiet            Suppress all output except errors
+    -h, --help             Show this help message and exit
+
+    --no-backup-dir-cleanup  Do not remove empty directories from TARGET/.backup/TIMESTAMP/ (default: enabled, implies --backup)
+
+SOURCE and TARGET:
+    - SOURCE can be one or more files/directories to sync
+    - TARGET is the destination directory where SOURCE will be synced to
+
+Important Notes:
+    The behavior of rsync with respect to trailing slashes on SOURCE is preserved:
+    - NO trailing slahs: Backup source file/directory itself into the target directory
+      S{SCRIPT_NAME} -b /path/to/source /path/to/target/
+    - Trailing slash in source: Backup CONTENT OF source directory into the target directory
+      S{SCRIPT_NAME} -b /path/to/source/ /path/to/target/
+EOL
+}
+
+# Initialize variables affected by CLI options
+declare DO_BACKUP=false
+declare DO_DELETE=false
+declare DO_DELETE_EMPTY_BACKUP_DIRS=true
+declare -a RSYNC_ARGS=(-a -v --safe-links --info=progress2)
+
+# Loop through arguments
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --backup|-b)
+      DO_BACKUP=true
+      shift
+    ;;
+    --delete|-d)
+      DO_DELETE=true
+      RSYNC_ARGS+=("--delete")
+      shift
+    ;;
+    --no-backup-dir-cleanup)
+      DO_DELETE_EMPTY_BACKUP_DIRS=false
+      shift
+    ;;
+    -l|--logfile)
+      [[ -z "$2" ]] && { _log_error "No logfile specified after [$1]. Exiting ..."; exit 1; }
+      LOGFILE="$2"; shift
+    ;;
+    -v|-vv|-vvv|-vvvv)
+      VERBOSITY=$((VERBOSITY + ${#1} - 1))
+      shift
+      ;;
+    -q|--quiet)
+      VERBOSITY=0
+      shift
+      ;;
+    -h|--help)
+      _usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+    ;;
+  esac
+done
+
+# Apply debug options and rsync verbosity based on final verbosity
+case "$VERBOSITY" in
+  0|1)
+    # debug options may be set above for gloabl debuggin so let's not override them with the default
+    #set +v +x
+  ;;
+  2)
+    #set +v +x
+    RSYNC_ARGS+=("-v")
+  ;;
+  3)
+    set -v +x  # Show commands but not their expansions
+    RSYNC_ARGS+=("-vv")
+  ;;
+  *)
+    set -v -x  # Show commands and their expansions
+    RSYNC_ARGS+=("-vv")
+  ;;
+esac
+
+# Exit if SOURCE and TARGET are not provided
+if [[ "$#" -lt 2 ]]; then
+  _log_error "SOURCE and TARGET must be specified."
+  exit 1
+fi
+
+# Set TARGET to last argument, then set SOURCE to all preceding arguments
+TARGET="${!#}"
+SOURCE=("${@:1:$#-1}")
+
+# Exit in case one of the SOURCE paths does not exist or is not readable
+for _normalize_pathsrc in "${SOURCE[@]}"; do
+  _src="$(_normalize_path "$_normalize_pathsrc")"
+  ls $_src
+  if [[ ! -r "$_src" ]]; then
+    _log_error "Source path '$_src' does not exist or is not readable."
+    exit 1
+  fi
+done
+# }}} = ARGUMENT PARSING =====================================================
+
+# {{{ = MAIN FUNCTION ========================================================
+_main() {
+  # Normalize source paths while preserving trailing slashes
+  local -a source=()
+  for src in "${SOURCE[@]}"; do
+    source+=("$(_normalize_path "$src")")
+  done
+
+  # Normalize target path while preserving trailing slash
+  local -r target="$(_normalize_path "$TARGET")"
+
+  # Rsync command and arguments
+  local -r rsync_command="$RSYNC_CMD"
+  local -a rsync_args=("${RSYNC_ARGS[@]}")
+  # If logfile is set, add --log-file to rsync arguments
+  [[ -n "$LOGFILE" ]] && rsync_args+=("--log-file=$LOGFILE")
+
+  # Handle optional backup directory
+  if $DO_BACKUP; then
+    local backup_base_dir="$(_normalize_path "${target}/${BACKUP_SUBDIR}/")"
+    # Remove potentially existing empty backup directories from previous runs to avoid clutter
+    if $DO_DELETE_EMPTY_BACKUP_DIRS; then
+        _log_info "Cleaning up any existing empty backup directories in $backup_base_dir"
+        #local -a rm_empty_dirs_args=(-depth -type d -empty -delete)
+        local -a rm_empty_dirs_args=(-mindepth 1 -maxdepth 1 -type d -empty -delete)
+        # Print deleted directories if verbosity is at least 1 (INFO)
+        [[ $VERBOSITY -ge 1 ]] && rm_empty_dirs_args+=("-print")
+        find "$backup_base_dir" "${rm_empty_dirs_args[@]}" 2>/dev/null || true
+    fi
+
+    # Create a new backup directory with timestamp, ensuring it is unique and does not overwrite previous backups
+    local backup_dir="$(_normalize_path "${backup_base_dir}$(date +%Y-%m-%dT%H%M%S)")"
+    mkdir -p "$backup_dir" || {
+      _log_error "Failed to create backup directory: $backup_dir"
+      exit 1
+    }
+    _log_info "Created backup directory: $backup_dir"
+    # Exclude backup directories from being considered for deletion if --delete is used
+    if $DO_DELETE; then
+      rsync_args+=("--exclude=.backup/")
+    fi
+    # Configure rsync to backup files to the backup directory
+    rsync_args+=("--backup" "--backup-dir=${backup_dir}")
+  fi
+
+  # Execution
+  _log_info "Running: $rsync_command ${rsync_args[*]} ${source[*]} $target"
+  "$rsync_command" "${rsync_args[@]}" "${source[@]}" "$target" || {
+    _log_error "Rsync command failed with exit code $?"
+    exit 1
+  }
+}
+# }}} = MAIN FUNCTION ========================================================
+
+_main
+
+exit 0
