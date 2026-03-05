@@ -1,4 +1,5 @@
 #!/bin/bash
+# code: language=bash insertSpaces=true tabSize=2
 
 # Moves image files to the following directory structure based on EXIP rating and label (if present):
 # <source-path>/<rating>/<label>/<source-filename>
@@ -22,11 +23,10 @@ set -euo pipefail  # Fail if any command in a pipeline fails
 
 # Logging function with timestamp and colored levels
 __log() {
-  local level="$1"; shift
-  local msg="$*"
-  local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-  local timestamp_log
-  [[ -n "$LOGFILE" ]] && timestamp_log=$(date -Ins)
+  local -r level="$1"; shift
+  local -r msg="$*"
+  local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  local -r timestamp_log=$(date -Ins)
 
   case "$level" in
     E|ERR|ERROR)
@@ -146,49 +146,50 @@ EOF
 [[ -n "${1:-}" ]] || { _usage; exit 1; }
 
 # Global variables with default values
-VERBOSITY=0
+declare -i VERBOSITY=0
 LOGFILE=""
 NO_ACT="false"
 # TODO remove this? this seems inappropriate, especially with mapping files
 #INCLUDE_PROCESSED="false"
 FORCE_OVERWRITE="false"
 OPERATION="move"
-FILE_TYPES=("jpg" "jpeg" "png" "tiff" "tif" "cr2" "dng" "orf")
+declare -a FILE_TYPES=("jpg" "jpeg" "png" "tiff" "tif" "cr2" "dng" "orf")
 TARGET_DIR=""
-SOURCE_PATHS=()
+declare -a SOURCE_PATHS=()
 CACHE_ENABLED="true"
 SKIP_CACHED_COMPLETELY="false"
 CACHE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/exif-move-to-rating-dirs/cache.tsv"
 CACHE_STRATEGY="multi"  # Options: path, hash, relpath, multi
-CACHE_RELPATH_LEVELS=2  # Number of directory levels for relpath strategy
+declare -i CACHE_RELPATH_LEVELS=2  # Number of directory levels for relpath strategy
 declare -A CACHE_MAP=()  # Primary index: absolute path -> cache value
 declare -A CACHE_MAP_HASH=()  # Secondary index: hash -> cache value
 declare -A CACHE_MAP_RELPATH=()  # Secondary index: relpath -> cache value
-CACHE_INITIAL_RECORDS=0
-CACHE_INITIAL_SIZE=0
-CACHE_FINAL_RECORDS=0
-CACHE_FINAL_SIZE=0
+LAST_CACHE_LOOKUP_STRATEGY=""  # Tracking variable for cache lookup strategy used
+declare -i CACHE_INITIAL_RECORDS=0
+declare -i CACHE_INITIAL_SIZE=0
+declare -i CACHE_FINAL_RECORDS=0
+declare -i CACHE_FINAL_SIZE=0
 SHOW_SUMMARY="true"
 INTERRUPTED="false"
 REMOVE_EMPTY_SOURCE_DIR="false"
-MIN_RATING=0
+declare -i MIN_RATING=0
 MAPPING_FILE=""
 declare -a MAPPING_PATTERNS=()
 declare -a MAPPING_TARGETS=()
-STATS_MOVED=0
-STATS_COPIED=0
-STATS_SKIPPED_CACHED=0
-STATS_SKIPPED_LOCATION=0
-STATS_SKIPPED_EXISTS=0
-STATS_SKIPPED_MIN_RATING=0
-STATS_FILES_UNREADABLE=0
-STATS_CACHE_HIT_PATH=0
-STATS_CACHE_HIT_HASH=0
-STATS_CACHE_HIT_RELPATH=0
-STATS_CACHE_MISS=0
-STATS_COLLISIONS_HASH=0
-STATS_COLLISIONS_RELPATH=0
-LAST_EXIF_TAG_STATUS=0
+declare -i STATS_MOVED=0
+declare -i STATS_COPIED=0
+declare -i STATS_SKIPPED_CACHED=0
+declare -i STATS_SKIPPED_LOCATION=0
+declare -i STATS_SKIPPED_EXISTS=0
+declare -i STATS_SKIPPED_MIN_RATING=0
+declare -i STATS_FILES_UNREADABLE=0
+declare -i STATS_CACHE_HIT_PATH=0
+declare -i STATS_CACHE_HIT_HASH=0
+declare -i STATS_CACHE_HIT_RELPATH=0
+declare -i STATS_CACHE_MISS=0
+declare -i STATS_COLLISIONS_HASH=0
+declare -i STATS_COLLISIONS_RELPATH=0
+declare -i LAST_EXIF_TAG_STATUS=0
 # Cache for current file's hash to avoid redundant computations
 CURRENT_FILE_PATH=""
 CURRENT_FILE_HASH=""
@@ -351,18 +352,18 @@ trap _handle_sigint SIGINT
 # Read a single EXIF tag, falling back to a default value on error/empty.
 # Sets LAST_EXIF_TAG_STATUS to the exiftool exit code (0 = success, non-zero = failure)
 _get_exif_tag() {
-  local tag=$1
-  local default_value=$2
-  local file=$3
-  local tmp_err
-  tmp_err=$(mktemp)
+  local -r tag=$1
+  local -r default_value=$2
+  local -r file=$3
+  local -r tmp_err=$(mktemp)
   local raw=""
-  local status=0
+  local -i status=0
   if ! raw=$(exiftool -s "-${tag}" "$file" 2>"$tmp_err"); then
     status=$?
   fi
   LAST_EXIF_TAG_STATUS=$status
   if [[ $VERBOSITY -ge 1 ]] && [[ -s "$tmp_err" ]]; then
+    local __exiftool_err_line
     while IFS= read -r __exiftool_err_line; do
       echo -e "\033[90mexiftool (stderr)\033[0m: ${__exiftool_err_line}" >&2
     done <"$tmp_err"
@@ -378,9 +379,8 @@ _get_exif_tag() {
 # Stable hash for cache identity.
 # Caches the hash for the current file to avoid redundant computations.
 _compute_file_hash() {
-  local file=$1
-  local canonical
-  canonical=$(realpath "$file")
+  local -r file=$1
+  local -r canonical=$(realpath "$file")
 
   # Check if we already computed hash for this file
   if [[ "$canonical" == "$CURRENT_FILE_PATH" ]] && [[ -n "$CURRENT_FILE_HASH" ]]; then
@@ -400,28 +400,25 @@ _compute_file_hash() {
 
 # mtime in epoch seconds for quick comparisons.
 _get_file_mtime() {
-  local file=$1
+  local -r file=$1
   stat -c %Y "$file"
 }
 
 # Compute relative path for cache lookup (last N directory levels + filename)
 # Example: _compute_relpath "/path/to/2024/Summer/IMG_1234.jpg" 2 -> "Summer/IMG_1234.jpg"
 _compute_relpath() {
-  local file=$1
-  local levels=${2:-$CACHE_RELPATH_LEVELS}
-  local canonical
-  canonical=$(realpath "$file")
+  local -r file=$1
+  local -r levels=${2:-$CACHE_RELPATH_LEVELS}
+  local -r canonical=$(realpath "$file")
 
   # Split path into components
-  local path_without_filename
-  path_without_filename=$(dirname "$canonical")
-  local filename
-  filename=$(basename "$canonical")
+  local -r path_without_filename=$(dirname "$canonical")
+  local -r filename=$(basename "$canonical")
 
   # Extract last N directory levels
   local relpath=""
   local remaining_path="$path_without_filename"
-  local i
+  local -i i
 
   for ((i=0; i<levels; i++)); do
     local dir_component
@@ -458,9 +455,8 @@ _compute_relpath() {
 # Returns cache value (hash|mtime|rating|label|relpath) or empty string
 # Sets global variable LAST_CACHE_LOOKUP_STRATEGY to indicate which strategy succeeded
 _lookup_cache_entry() {
-  local file=$1
-  local canonical
-  canonical=$(realpath "$file")
+  local -r file=$1
+  local -r canonical=$(realpath "$file")
 
   # Try primary lookup: absolute path (always fastest)
   if [[ -n "${CACHE_MAP[$canonical]:-}" ]]; then
@@ -530,7 +526,7 @@ _get_cache_size_bytes() {
 
 # Human readable size; falls back to raw bytes.
 _human_size() {
-  local bytes=$1
+  local -r bytes=$1
   if command -v numfmt >/dev/null 2>&1; then
     numfmt --to=iec --format "%.1f" "$bytes"
   else
@@ -555,7 +551,7 @@ _record_cache_final() {
 _load_cache() {
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
 
-  local cache_to_read="${CACHE_FILE}.gz"
+  local -r cache_to_read="${CACHE_FILE}.gz"
 
   # Check if cache file exists
   if [[ ! -f "$cache_to_read" ]]; then
@@ -571,9 +567,8 @@ _load_cache() {
   fi
 
   # Check cache size and warn if very large (>50MB compressed)
-  local cache_size
-  cache_size=$(stat -c %s "$cache_to_read")
-  local size_threshold=$((50 * 1024 * 1024))  # 50MB
+  local -r cache_size=$(stat -c %s "$cache_to_read")
+  local -r -i size_threshold=$((50 * 1024 * 1024))  # 50MB
 
   if [[ $cache_size -gt $size_threshold ]]; then
     _log_warn "Cache file is very large ($(_human_size $cache_size) compressed). Loading may take some time."
@@ -582,7 +577,7 @@ _load_cache() {
   _log_debug "Loading cache from \"$cache_to_read\" ..."
 
   # Read cache file and build indices
-  local line_count=0
+  local -i line_count=0
   while IFS=$'\t' read -r path hash mtime rating label relpath; do
     ((++line_count))
 
@@ -659,15 +654,14 @@ _save_cache() {
     return 1
   fi
 
-  local cache_dir
-  cache_dir=$(dirname "$CACHE_FILE")
+  local -r cache_dir=$(dirname "$CACHE_FILE")
   mkdir -p "$cache_dir" || return 1
 
-  local tmp
-  tmp=$(mktemp)
+  local -r tmp=$(mktemp)
 
   # Write all cache entries to temp file
   {
+    local key hash mtime rating label relpath
     for key in "${!CACHE_MAP[@]}"; do
       IFS='|' read -r hash mtime rating label relpath <<<"${CACHE_MAP[$key]}"
       printf "%s\t%s\t%s\t%s\t%s\t%s\n" "$key" "$hash" "$mtime" "${rating:-}" "${label:-}" "${relpath:-}"
@@ -675,8 +669,7 @@ _save_cache() {
   } | LC_ALL=C sort >"$tmp"
 
   # Compress and save
-  local tmp_size
-  tmp_size=$(stat -c %s "$tmp")
+  local -r tmp_size=$(stat -c %s "$tmp")
 
   if ! gzip -c "$tmp" > "${CACHE_FILE}.gz.tmp"; then
     rm -f "$tmp" "${CACHE_FILE}.gz.tmp"
@@ -688,8 +681,7 @@ _save_cache() {
     return 1
   fi
 
-  local compressed_size
-  compressed_size=$(stat -c %s "${CACHE_FILE}.gz")
+  local -r compressed_size=$(stat -c %s "${CACHE_FILE}.gz")
 
   _log_debug "Cache saved: $(_human_size $tmp_size) -> $(_human_size $compressed_size) (compressed)"
 
@@ -702,7 +694,7 @@ _save_cache() {
 _should_skip_cached() {
   [[ "$CACHE_ENABLED" == "true" ]] || return 1
 
-  local file=$1
+  local -r file=$1
   local cache_value
 
   # Try to find cache entry using configured strategy
@@ -722,20 +714,17 @@ _should_skip_cached() {
   fi
 
   # Otherwise, verify that file hasn't changed
-  local canonical
-  canonical=$(realpath "$file")
+  local -r canonical=$(realpath "$file")
 
   # Check mtime first (fast)
-  local current_mtime
-  current_mtime=$(_get_file_mtime "$canonical")
+  local -r current_mtime=$(_get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
     _log_debug "No cache match for \"$file\" (mtime changed: cached=$cached_mtime, current=$current_mtime)"
     return 1
   fi
 
   # Check hash (slow)
-  local current_hash
-  current_hash=$(_compute_file_hash "$canonical")
+  local -r current_hash=$(_compute_file_hash "$canonical")
   if [[ "$current_hash" != "$cached_hash" ]]; then
     _log_debug "No cache match for \"$file\" (hash changed: cached=$cached_hash, current=$current_hash)"
     return 1
@@ -749,7 +738,7 @@ _should_skip_cached() {
 # Get cached EXIF data (rating and label) for an unchanged file.
 # Outputs "rating|label" if file is cached and unchanged, empty string otherwise.
 _get_cached_exif() {
-  local file=$1
+  local -r file=$1
   [[ "$CACHE_ENABLED" == "true" ]] || return 1
 
   local cache_value
@@ -767,19 +756,16 @@ _get_cached_exif() {
   [[ -z "$cached_rating" ]] && return 1
 
   # Optimization: check mtime first (fast), only compute hash (slow) if mtime matches
-  local canonical
-  canonical=$(realpath "$file")
+  local -r canonical=$(realpath "$file")
 
-  local current_mtime
-  current_mtime=$(_get_file_mtime "$canonical")
+  local -r current_mtime=$(_get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
     _log_debug "Cache mtime mismatch for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY)"
     return 1
   fi
 
   # Mtime matches, now verify hash
-  local current_hash
-  current_hash=$(_compute_file_hash "$canonical")
+  local -r current_hash=$(_compute_file_hash "$canonical")
   if [[ "$current_hash" == "$cached_hash" ]]; then
     _log_debug "Cache hit for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY, rating=$cached_rating, label=$cached_label)"
     echo "${cached_rating}|${cached_label}"
@@ -792,19 +778,17 @@ _get_cached_exif() {
 
 # Remember a successfully processed file in the cache.
 _remember_processed_file() {
-  local file=$1
-  local rating=${2:-}
-  local label=${3:-}
+  local -r file=$1
+  local -r rating=${2:-}
+  local -r label=${3:-}
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
   [[ "$NO_ACT" == "true" ]] && return 0
 
-  local canonical
-  canonical=$(realpath "$file")
+  local -r canonical=$(realpath "$file")
 
-  local mtime hash relpath
-  mtime=$(_get_file_mtime "$canonical")
-  hash=$(_compute_file_hash "$canonical")
-  relpath=$(_compute_relpath "$canonical" "$CACHE_RELPATH_LEVELS")
+  local -r mtime=$(_get_file_mtime "$canonical")
+  local -r hash=$(_compute_file_hash "$canonical")
+  local -r relpath=$(_compute_relpath "$canonical" "$CACHE_RELPATH_LEVELS")
 
   if [[ -n "$hash" ]]; then
     CACHE_MAP["$canonical"]="$hash|$mtime|${rating:-}|${label:-}|${relpath:-}"
@@ -816,7 +800,7 @@ _remember_processed_file() {
 # Load and parse the mapping file (space-separated format with optional quotes)
 # Populates MAPPING_PATTERNS and MAPPING_TARGETS arrays
 _load_mapping_file() {
-  local mapping_file="$1"
+  local -r mapping_file="$1"
 
   # Check if file exists
   if [[ ! -f "$mapping_file" ]]; then
@@ -826,7 +810,7 @@ _load_mapping_file() {
 
   _log_info "Loading mapping file: \"$mapping_file\""
 
-  local line_no=0
+  local -i line_no=0
 
   while IFS= read -r line; do
     ((++line_no))
@@ -893,8 +877,8 @@ _load_mapping_file() {
 # Supports regex group substitution ($1, $2, etc.)
 # Returns the mapped target on match, or the original source_pattern on no match
 _apply_mapping() {
-  local source_pattern="$1"  # e.g., "5/Purple"
-  local i
+  local -r source_pattern="$1"  # e.g., "5/Purple"
+  local -i i
 
   # If no mappings loaded, return original unchanged
   [[ ${#MAPPING_PATTERNS[@]} -eq 0 ]] && {
@@ -913,7 +897,7 @@ _apply_mapping() {
       # Perform substitution if target contains $1, $2, etc.
       if [[ "$target" =~ \$[0-9] ]]; then
         # Replace $1, $2, ... with captured groups
-        local j
+        local -i j
         for ((j=1; j<${#captured_groups[@]}; j++)); do
           target="${target//\$$j/${captured_groups[$j]}}"
         done
@@ -931,7 +915,9 @@ _apply_mapping() {
 
 # Process each source path
 _process_source_paths() {
+  local -i IS_FIRST_SOURCE
   [[ ${IS_FIRST_SOURCE:-1} -eq 1 ]] && IS_FIRST_SOURCE=0
+  local source_path base_target_dir
   for source_path in "${SOURCE_PATHS[@]}"; do
     # Strip trailing slashes from source path
     source_path="${source_path%/}"
@@ -947,7 +933,7 @@ _process_source_paths() {
     fi
 
     # Build find command arguments
-    find_args=("$source_path" "-type" "f" "!" "-path" "*/.*")
+    local -a find_args=("$source_path" "-type" "f" "!" "-path" "*/.*")
 
     # TODO remove this? this seems inappropriate, especially with mapping files
     # # Skip already-processed rating directories unless --include-processed is set
@@ -961,8 +947,10 @@ _process_source_paths() {
     find_args+=("${FILE_TYPES_ARGS[@]}")
 
     # Iterate over known image files in source path
-    found_any="false"
-    dir_files_scanned=0
+    local found_any="false"
+    local -i dir_files_scanned=0
+    local rating label cached_exif
+    local -i rating_status label_status
     while IFS= read -r f; do
       # Stop immediately if interrupted
       if [[ "$INTERRUPTED" == "true" ]]; then
@@ -1046,7 +1034,7 @@ _process_source_paths() {
         _log "[DRY RUN] $command \"$f\" \"$target_dir/\""
         # Optionally indicate removal of empty source directory (single level) after move
         if [[ "$REMOVE_EMPTY_SOURCE_DIR" == "true" ]] && [[ "$OPERATION" == "move" ]]; then
-          src_dir=$(dirname "$f")
+          local src_dir=$(dirname "$f")
           # check if dir is empty, if so then log
           if [[ -d "$src_dir" && -z "$(ls -A "$src_dir" | head -n 1)" ]]; then
             _log "[DRY RUN] Would remove empty source directory: \"$src_dir\" (single level)"
@@ -1064,7 +1052,7 @@ _process_source_paths() {
         $command "$f" "$target_dir/"
         # Optionally remove empty source directory (single level) after move
         if [[ "$REMOVE_EMPTY_SOURCE_DIR" == "true" ]] && [[ "$OPERATION" == "move" ]]; then
-          src_dir=$(dirname "$f")
+          local src_dir=$(dirname "$f")
           if [[ -d "$src_dir" ]]; then
             # Only attempt removal when directory is empty
             if [[ -z "$(ls -A "$src_dir" )" ]]; then
@@ -1089,7 +1077,7 @@ _process_source_paths() {
     fi
 
     if [[ "$found_any" == "false" ]]; then
-      FILE_TYPES_PRETTY=$(IFS=,; echo "${FILE_TYPES_LIST[*]}")
+      local FILE_TYPES_PRETTY=$(IFS=,; echo "${FILE_TYPES_LIST[*]}")
       _log_warn "no matching files found in \"$source_path\" for extensions: ${FILE_TYPES_PRETTY}" >&2
     fi
 
@@ -1126,21 +1114,22 @@ _show_summary() {
     [[ "$CACHE_STRATEGY" =~ relpath|multi ]] && _log "Relpath levels: $CACHE_RELPATH_LEVELS"
 
     # Record counts
-    size_delta=$((CACHE_FINAL_SIZE - CACHE_INITIAL_SIZE))
-    records_delta=$((CACHE_FINAL_RECORDS - CACHE_INITIAL_RECORDS))
-    size_delta_abs=${size_delta#-}
-    records_delta_abs=${records_delta#-}
+    local -i size_delta=$((CACHE_FINAL_SIZE - CACHE_INITIAL_SIZE))
+    local -i records_delta=$((CACHE_FINAL_RECORDS - CACHE_INITIAL_RECORDS))
+    local -i size_delta_abs=${size_delta#-}
+    local -i records_delta_abs=${records_delta#-}
+    local records_delta_str size_delta_str
     [[ $records_delta -ge 0 ]] && records_delta_str="+${records_delta}" || records_delta_str="-${records_delta_abs}"
     [[ $size_delta -ge 0 ]] && size_delta_str="+" || size_delta_str="-"
-    human_initial_size=$(_human_size "$CACHE_INITIAL_SIZE")
-    human_final_size=$(_human_size "$CACHE_FINAL_SIZE")
-    human_delta_size=$(_human_size "$size_delta_abs")
+    local human_initial_size=$(_human_size "$CACHE_INITIAL_SIZE")
+    local human_final_size=$(_human_size "$CACHE_FINAL_SIZE")
+    local human_delta_size=$(_human_size "$size_delta_abs")
 
     _log "Records:        ${CACHE_INITIAL_RECORDS} -> ${CACHE_FINAL_RECORDS} (${records_delta_str})"
     _log "Size:           ${human_initial_size} -> ${human_final_size} (${size_delta_str}${human_delta_size})"
 
     # Cache hit breakdown
-    local total_lookups=$((STATS_CACHE_HIT_PATH + STATS_CACHE_HIT_HASH + STATS_CACHE_HIT_RELPATH + STATS_CACHE_MISS))
+    local -i total_lookups=$((STATS_CACHE_HIT_PATH + STATS_CACHE_HIT_HASH + STATS_CACHE_HIT_RELPATH + STATS_CACHE_MISS))
     if [[ $total_lookups -gt 0 ]]; then
       _log ""
       _log "Cache lookups:  $total_lookups total"
@@ -1174,8 +1163,9 @@ _main() {
   fi
 
   # Prepare file type find arguments
-  FILE_TYPES_LIST=(${FILE_TYPES[@]})
-  FILE_TYPES_ARGS=()
+  local -a FILE_TYPES_LIST=(${FILE_TYPES[@]})
+  local -a FILE_TYPES_ARGS=()
+  local ext
   for ext in "${FILE_TYPES_LIST[@]}"; do
     FILE_TYPES_ARGS+=("-iname" "*.${ext}")
     FILE_TYPES_ARGS+=("-o")
