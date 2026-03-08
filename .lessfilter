@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ~/.lessfilter: Enable general highlighting in less (if tools available on system)
 # code: language=bash insertSpaces=true tabSize=2
 # keywords: bash zsh dotfile less shell shell-script
