@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # code: language=bash insertSpaces=true tabSize=2
 # keywords: bash shell shell-script rsync backup gnu-parallel parallel jobs
 # author: Andreas Weyer
@@ -10,7 +10,7 @@
 set -euo pipefail  # Fail if any command in a pipeline fails
 
 # debug: uncomment the following lines to enable verbose output and/or command tracing
-set -v
+#set -v
 #set -x
 
 # Prerequirements: rsynclt and rsync must be in path
