@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # code: language=bash insertSpaces=true tabSize=2
 # keywords: bash shell shell-script rsync backup
 # author: Andreas Weyer

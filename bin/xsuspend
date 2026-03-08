@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ## lock screen if not in a light-dm session
 #ps aux | awk '$12=="light-dm" {exit 0} END{exit 1}' \
 #  ||
