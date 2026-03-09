@@ -1,9 +1,17 @@
 # Add files to ignore when using link.sh, one per line, using regular expressions
 \.git
 \.gitignore
+\.gitattributes
+\.github
 \.vscode
+\.claude
 adoc_assets
 README\.adoc
 LICENSE
+CLAUDE\.md
+docs
+Useful-Scripts
+notes\.txt
+fix-style\.sh
 _override
 
