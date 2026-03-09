@@ -1,0 +1,713 @@
+= Shell Script Style Guide
+Andreas Weyer <cbaoth>
+:toc: preamble
+:toclevels: 3
+:sectanchors:
+:sectlinks:
+:icons: font
+:source-highlighter: rouge
+
+== Introduction
+
+This document defines the shell scripting conventions for the
+https://github.com/cbaoth/dotfiles[cbaoth/dotfiles] repository. It covers
+Bash and Zsh scripts in a single guide, with clearly marked sections where
+shell-specific behavior differs.
+
+The guide builds on top of the
+https://google.github.io/styleguide/shellguide.html[Google Shell Style Guide]
+(https://github.com/google/styleguide/blob/gh-pages/shellguide.md[GitHub source]).
+Readers should be familiar with it; this document focuses on **additions,
+deviations, and project-specific conventions** rather than repeating every rule
+verbatim.
+
+=== Additional References
+
+* https://github.com/ohmyzsh/ohmyzsh/wiki/Code-Style-Guide[Oh My Zsh Code Style Guide]
+    (https://github.com/ohmyzsh/wiki/blob/main/Code-Style-Guide.md[GitHub source])
+    -- Zsh-specific conventions
+* https://style.ysap.sh[YSAP Shell Style Guide] -- opinionated alternative
+    reference (some recommendations differ from this guide)
+* https://tldp.org/HOWTO/Bash-Prog-Intro-HOWTO.html[TLDP Bash Programming Intro]
+    -- introductory reference
+* https://www.shellcheck.net/wiki/[ShellCheck Wiki] -- common pitfalls and fixes
+
+=== Scope
+
+This guide applies to all shell scripts in the repository:
+
+[cols="1,3"]
+|===
+| `bin/` | Standalone executable scripts (primarily Bash)
+| `lib/` | Shared libraries (sourced, not executed directly)
+| `.zsh.d/` | Zsh shell configuration (aliases, functions, host-specific)
+| `Useful-Scripts/` | Miscellaneous utility scripts (to be integrated, from https://github.com/cbaoth/Useful-Scripts)
+|===
+
+
+== Which Shell to Use
+
+**Zsh** is the primary interactive shell. All files under `.zsh.d/` are
+Zsh-specific.
+
+**Bash** is used for standalone scripts (`bin/`, `lib/`) to ensure portability
+across systems where Zsh may not be installed.
+
+**`lib/commons.sh`** must remain compatible with **both Bash and Zsh**, since
+it is sourced from scripts written in either shell.
+
+**POSIX `sh`** should only be used when absolutely required (e.g., system
+scripts, environments where neither Bash nor Zsh is available).
+
+
+== File Organization
+
+=== Shebang
+
+Always use `env` for portability:
+
+[source,bash]
+----
+#!/usr/bin/env bash
+#!/usr/bin/env zsh
+----
+
+Never use:
+
+* `#!/bin/bash` or `#!/bin/zsh` (not portable)
+* `#!/bin/env bash` (non-standard path)
+
+Libraries (`.sh` files intended to be sourced) do **not** have a shebang.
+
+=== File Extensions
+
+[cols="1,3"]
+|===
+| Executables | No extension (per Google convention), placed in `bin/`
+| Libraries | `.sh` extension (e.g., `lib/commons.sh`)
+| Zsh config files | `.zsh` extension (e.g., `.zsh.d/aliases.zsh`)
+|===
+
+=== File Header
+
+Every script should start with a metadata header immediately after the shebang:
+
+[source,bash]
+----
+#!/usr/bin/env bash
+# ~/bin/script-name: Brief description of the script
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash shell relevant-keywords
+# author: Andreas Weyer
+----
+
+For libraries (no shebang):
+
+[source,bash]
+----
+# ~/lib/commons.sh: Common shell function library
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: zsh bash lib shell shell-script
+# author: Andreas Weyer
+#
+# Additional notes (e.g., compatibility remarks)
+----
+
+=== Script Structure Order
+
+Scripts should follow this structure:
+
+[source,bash]
+----
+#!/usr/bin/env bash
+# File header (description, metadata, author)
+
+# 1. Script path / file constants
+declare -r SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+declare -r SCRIPT_FILE="$(basename "$0")"
+
+# 2. Source libraries (if applicable)
+# ... (see Library Usage section)
+
+# 3. Set options and traps
+set -euo pipefail  # if appropriate (see Error Handling)
+
+# 4. Constants
+declare -r MY_CONSTANT="value"
+
+# 5. Function definitions (alphabetical or logical grouping)
+usage() { ... }
+parse_args() { ... }
+do_work() { ... }
+
+# 6. Main function (last function defined)
+main() {
+  parse_args "$@"
+  do_work
+}
+
+# 7. Entry point (last line)
+main "$@"
+----
+
+
+== Error Handling & Safety
+
+=== `set` Options
+
+Whether to use `set -euo pipefail` is a **per-script decision**. Document the
+choice in a comment.
+
+==== When to use `set -euo pipefail`
+
+Recommended for standalone scripts that should **fail fast** on unexpected
+errors:
+
+[source,bash]
+----
+# -e: exit on error
+# -u: treat unset variables as an error
+# -o pipefail: return exit code of the last failed command in a pipeline
+set -euo pipefail
+----
+
+==== When NOT to use it
+
+* **Interactive shell functions** (`.zsh.d/`) -- an error in one function
+    should not terminate the shell session
+* Scripts with **intentional non-zero exits** from subcommands (e.g., using
+    `grep -q` which returns 1 on no match)
+* Scripts that need **fine-grained error control** -- `set -e` can mask
+    intentional failures and has subtle scoping rules (see
+    https://mywiki.wooledge.org/BashFAQ/105[BashFAQ #105])
+
+When `set -e` is active and a command is expected to fail, use explicit
+guards:
+
+[source,bash]
+----
+some_command || true            # Ignore failure
+if ! some_command; then ... fi  # Handle failure explicitly
+----
+
+==== Additional options
+
+`set -o errtrace` (`-E`) with an `ERR` trap provides detailed error reporting:
+
+[source,bash]
+----
+set -o errtrace
+trap '_rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+             "${BASH_COMMAND:-N/A}"; \
+      exit $_rc' ERR
+----
+
+`set -o xtrace` (`-x`) for debug output, typically guarded:
+
+[source,bash]
+----
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+----
+
+=== Traps
+
+Always set up traps for clean error reporting and interrupt handling:
+
+[source,bash]
+----
+trap '_rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+             "${BASH_COMMAND:-N/A}"; \
+      exit $_rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+----
+
+If the script creates temporary files or needs cleanup, use an `EXIT` trap:
+
+[source,bash]
+----
+cleanup() {
+  rm -f "${tmp_file:-}"
+}
+trap cleanup EXIT
+----
+
+=== IFS
+
+Setting `IFS` to exclude spaces can prevent subtle word-splitting bugs when
+handling filenames:
+
+[source,bash]
+----
+IFS=$'\t\n\0'
+----
+
+This is optional and should be used when the script processes filenames or
+other data that may contain spaces. Document when and why it is set.
+
+
+== Naming Conventions
+
+=== Functions
+
+Use `lowercase_with_underscores` (per Google convention):
+
+[source,bash]
+----
+parse_args() { ... }
+process_file() { ... }
+----
+
+**Library functions** use a namespace prefix with `::` separator:
+
+[source,bash]
+----
+cl::p_err() { ... }    # commons lib: print error
+cl::cmd_p() { ... }    # commons lib: command predicate
+----
+
+**Underscore prefix for "private" identifiers**: Not required as a general
+convention, but acceptable in **sourced files** (`.zsh.d/`, `lib/`) to
+distinguish internal helper functions from user-facing ones. This is a
+pragmatic approach for files where functions enter the user's shell namespace:
+
+[source,bash]
+----
+# In .zsh.d/functions.zsh:
+_helper_function() { ... }  # Internal, not intended for direct use
+public_function() { ... }   # User-facing, callable from the shell
+----
+
+In standalone scripts this distinction is unnecessary since functions do not
+leak into the caller's namespace.
+
+=== Variables
+
+**Local variables**: `lowercase_with_underscores`, declared with `local`:
+
+[source,bash]
+----
+local -r config_file="/etc/myapp.conf"
+local -i retry_count=3
+----
+
+**Constants and global variables**: `UPPERCASE_WITH_UNDERSCORES`:
+
+[source,bash]
+----
+declare -r MAX_RETRIES=5
+declare -ra REQUIRED_COMMANDS=(rsync parallel)
+----
+
+**Library constants**: namespace prefix:
+
+[source,bash]
+----
+declare -r CL_SCRIPT_PATH="..."
+declare -r CL_TIMESTAMP_FORMAT="%Y-%m-%dT%H:%M:%S%z"
+----
+
+=== Avoiding Name Conflicts
+
+Never use common environment variable names for local variables without a
+distinguishing prefix. Names to avoid in particular:
+
+`PATH`, `PWD`, `HOME`, `USER`, `SHELL`, `TERM`, `LANG`, `IFS`, `CMD`, `LOG`,
+`HOSTNAME`, `EDITOR`, `DISPLAY`, `UID`, `GROUPS`
+
+When in doubt, use a descriptive prefix or more specific name (e.g.,
+`log_file` instead of `LOG`, `target_path` instead of `PATH`).
+
+
+== Variable Declarations
+
+Use `declare` / `local` with appropriate type flags:
+
+[source,bash]
+----
+local -r name="value"        # readonly
+local -i count=0             # integer
+local -a items=()            # indexed array
+local -A map=()              # associative array
+declare -r GLOBAL_CONST="x"  # global readonly constant
+----
+
+Prefer `declare -r` / `local -r` over the `readonly` builtin for consistency.
+
+**Separate declaration from assignment** when capturing command output (prevents
+masking the command's exit code):
+
+[source,bash]
+----
+# Good:
+local result
+result=$(some_command)
+
+# Bad (exit code of some_command is lost):
+local result=$(some_command)
+----
+
+**Bash/Zsh compatibility**: In code that must work in both shells (notably
+`lib/commons.sh`), use `typeset` instead of `declare`, as its behavior is more
+consistent across shells.
+
+
+== Formatting
+
+=== Indentation
+
+**2 spaces**, no tabs. This is declared in the file metadata:
+
+[source]
+----
+# code: language=bash insertSpaces=true tabSize=2
+----
+
+=== Line Length
+
+* **Code lines**: 120-character soft limit. Prefer breaking long lines for
+    readability, but do not contort logic to fit an arbitrary limit.
+* **Decorative / folding lines**: 78 characters total (fill character `=` or
+    `-` padded to that length).
+* **URLs and file paths**: may exceed either limit; isolate on their own line
+    when possible.
+
+=== Variable Expansion
+
+Brace-delimit variables for clarity:
+
+[source,bash]
+----
+# Preferred:
+echo "${my_var}"
+echo "${array[@]}"
+
+# Acceptable for positional parameters and special variables:
+echo "$1" "$@" "$?" "$#"
+----
+
+Always double-quote variable expansions unless intentional word splitting is
+needed (which should be rare and documented).
+
+=== Control Flow
+
+Place `; then` and `; do` on the same line as the keyword:
+
+[source,bash]
+----
+if [[ -f "${file}" ]]; then
+  process "${file}"
+fi
+
+for item in "${items[@]}"; do
+  echo "${item}"
+done
+
+while read -r line; do
+  echo "${line}"
+done < "${input_file}"
+----
+
+=== Section Folding
+
+Use `{{{` / `}}}` markers for editor folding (compatible with
+https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS Code explicit-folding]
+and https://www.emacswiki.org/emacs/FoldingMode[Emacs folding-mode]):
+
+**Level 1** (top-level sections) -- fill with `=` to column 79:
+
+[source,bash]
+----
+# {{{ = SECTION NAME =========================================================
+
+# ... section content ...
+
+# }}} = SECTION NAME =========================================================
+----
+
+**Level 2** (sub-sections) -- fill with `-` to column 79:
+
+[source,bash]
+----
+# {{{ - Sub Section ----------------------------------------------------------
+
+# ... sub-section content ...
+
+# }}} - Sub Section ----------------------------------------------------------
+----
+
+The closing line **repeats the section name** for readability. The total line
+length (including `# {{{ = ` prefix and fill characters) is 78 characters.
+
+
+== Functions
+
+Use `name() {` syntax without the `function` keyword (per Google convention):
+
+[source,bash]
+----
+# Good:
+my_function() {
+  ...
+}
+
+# Avoid:
+function my_function {
+  ...
+}
+----
+
+=== Function Documentation
+
+Document non-trivial functions with a comment block. For library functions,
+include all applicable fields:
+
+[source,bash]
+----
+# Brief description of what the function does.
+#
+# Globals:
+#   SOME_GLOBAL  - read
+#   OTHER_GLOBAL - modified
+# Arguments:
+#   $1 - description
+#   $2 - description (optional, default: "foo")
+# Outputs:
+#   Writes result to stdout
+# Returns:
+#   0 on success, 1 on invalid input
+my_function() {
+  ...
+}
+----
+
+For simple helper functions in standalone scripts, a one-line comment suffices.
+
+=== Function Organization
+
+* Group all function definitions **before** `main`.
+* Define `main()` as the **last function**.
+* Call `main "$@"` as the **last line** of the script.
+
+=== `usage()` Function
+
+Every script that accepts arguments should have a `usage()` function using a
+heredoc:
+
+[source,bash]
+----
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] ARG...
+
+Description of what the script does.
+
+Options:
+  -n, --dry-run    Print commands without executing
+  -v, --verbose    Enable verbose output
+  -h, --help       Show this help message and exit
+EOF
+}
+----
+
+
+== Features & Builtins
+
+Follow the Google Shell Style Guide recommendations:
+
+* Prefer `[[ ... ]]` over `[ ... ]` or `test`
+* Prefer `$(command)` over backticks
+* Prefer `(( ... ))` / `$(( ... ))` for arithmetic; never `let` or `expr`
+* Prefer parameter expansion over external commands
+    (e.g., `${var##*/}` over `basename "$var"`)
+* Avoid `eval`
+* Use arrays for command argument lists
+* Use process substitution (`< <(command)`) instead of piping to `while`
+* Use `"$@"` instead of `$*`
+
+
+== Argument Parsing
+
+Use a `while` / `case` / `shift` loop:
+
+[source,bash]
+----
+parse_args() {
+  while (( $# > 0 )); do
+    case "$1" in
+      -n|--dry-run) dry_run=true ;;
+      -v|--verbose) verbose=true ;;
+      -j|--jobs)
+        shift
+        jobs="$1"
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        printf "Unknown option: %s\n" "$1" >&2
+        usage >&2
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+}
+----
+
+
+== Library Usage (`commons.sh`)
+
+=== Standard Inclusion Pattern
+
+[source,bash]
+----
+# include commons lib
+for f in {"${SCRIPT_PATH}"/,"${SCRIPT_PATH}"/lib/,"${HOME}"/lib/}commons.sh; do
+  if [[ -f "$f" ]]; then
+    source "$f"
+    break
+  fi
+done
+if ! command -v "cl::cmd_p" > /dev/null 2>&1; then
+  printf "commons lib not found, exiting ..\n" >&2
+  exit 1
+fi
+----
+
+=== When to Use commons.sh
+
+* **Prefer commons.sh** for logging (`cl::p_err`, `cl::p_war`, `cl::p_msg`),
+    text effects (`cl::fx`), predicates (`cl::is_int`, `cl::cmd_p`), and other
+    utilities it provides -- to reduce code duplication.
+* **Standalone is OK** for simple scripts that only need basic functionality
+    and benefit from having no external dependencies.
+* **Never duplicate** commons.sh functionality in a script that already sources
+    it.
+
+=== Namespace Convention
+
+All `commons.sh` public identifiers use the `cl` namespace:
+
+* Functions: `cl::function_name`
+* Constants: `CL_CONSTANT_NAME`
+
+
+== Zsh-Specific Conventions
+
+This section applies to files under `.zsh.d/` and other Zsh-only code.
+
+=== File Conventions
+
+* Files use `.zsh` extension
+* No shebang (they are sourced, not executed directly)
+* End sourced files with `return 0`
+
+=== Global Aliases
+
+Zsh supports global aliases (expanded anywhere in a command line). Use
+sparingly and with distinctive names to avoid accidental expansion:
+
+[source,zsh]
+----
+alias -g @G='| grep'
+alias -g @L='| less'
+alias -g @H='| head'
+alias -g @T='| tail'
+----
+
+=== Private Functions in Sourced Files
+
+In `.zsh.d/` function files, use underscore prefix for helper functions that
+should not be called directly by the user:
+
+[source,zsh]
+----
+# Internal helper -- not for direct use
+_format_output() { ... }
+
+# User-facing function
+my_tool() {
+  local result
+  result=$(_format_output "$@")
+  echo "${result}"
+}
+----
+
+=== Compatibility with Bash
+
+When writing code that must work in both shells (primarily `lib/commons.sh`):
+
+* Use `typeset` instead of `declare` for more consistent behavior
+* Be aware of array indexing differences (Zsh starts at 1, Bash at 0)
+* Test with both `bash` and `zsh` before committing
+
+
+== Logging & Output
+
+=== Error Output
+
+All error and warning messages go to **stderr** (`>&2`):
+
+[source,bash]
+----
+printf "ERROR: %s\n" "${message}" >&2
+----
+
+=== With commons.sh
+
+Use the provided logging functions:
+
+[source,bash]
+----
+cl::p_err "Something went wrong: ${details}"
+cl::p_war "Proceeding without optional feature"
+cl::p_msg "Processing file: ${file}"
+cl::p_dbg 1 "Debug detail (level 1)"
+----
+
+=== Without commons.sh
+
+Define minimal helpers for consistent formatting:
+
+[source,bash]
+----
+log_error() { printf "\033[31mERROR\033[0m: %s\n" "$*" >&2; }
+log_warn()  { printf "\033[33mWARN\033[0m: %s\n" "$*" >&2; }
+log_info()  { printf "%s\n" "$*"; }
+----
+
+
+== Linting & Static Analysis
+
+=== ShellCheck
+
+https://www.shellcheck.net/[ShellCheck]
+(https://github.com/koalaman/shellcheck[GitHub]) is the recommended linting
+tool. The Google Shell Style Guide also recommends it.
+
+Run it against scripts to catch common bugs, quoting issues, and portability
+problems:
+
+[source,bash]
+----
+shellcheck bin/my-script
+shellcheck lib/commons.sh
+----
+
+A VS Code extension is available:
+https://marketplace.visualstudio.com/items?itemName=timonwong.shellcheck[ShellCheck for VS Code].
+
+NOTE: Deeper integration with CI pipelines, pre-commit hooks, and testing
+frameworks is tracked in `docs/TODO.adoc`.
