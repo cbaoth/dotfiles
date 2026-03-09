@@ -1,0 +1,105 @@
+= TODO: Shell Script Improvements
+:toc:
+
+Ideas and future tasks for improving the shell scripts in this repository.
+
+== Linting & Static Analysis
+
+* [ ] Integrate https://www.shellcheck.net/[ShellCheck] into the development
+  workflow
+** VS Code extension:
+    https://marketplace.visualstudio.com/items?itemName=timonwong.shellcheck[ShellCheck for VS Code]
+** Run against all scripts: `find bin/ lib/ Useful-Scripts/ -type f -exec shellcheck {} +`
+** Consider a configuration file (`.shellcheckrc`) for project-wide settings
+* [ ] Evaluate other linting tools (e.g.,
+  https://github.com/mvdan/sh[shfmt] for formatting)
+
+== Pre-Commit Hooks
+
+* [ ] Investigate https://pre-commit.com/[pre-commit] framework
+* [ ] Add ShellCheck as a pre-commit hook
+* [ ] Add shfmt formatting check as a pre-commit hook
+* [ ] Consider a simple custom hook that validates shebangs and file headers
+
+== Testing
+
+* [ ] Evaluate shell testing frameworks:
+** https://github.com/bats-core/bats-core[BATS] (Bash Automated Testing
+     System)
+** https://github.com/shellspec/shellspec[ShellSpec]
+* [ ] Write tests for `lib/commons.sh` utility functions
+* [ ] Consider testing critical `bin/` scripts (argument parsing, edge cases)
+
+== Script Consolidation
+
+* [ ] Integrate `Useful-Scripts/` into the main repo structure (from https://github.com/cbaoth/Useful-Scripts)
+** Review each script for relevance and quality
+** Move system/root scripts to an appropriate location
+** Update or remove outdated scripts
+* [ ] Audit `bin/` scripts against the style guide
+** Standardize shebangs (`#!/usr/bin/env bash`)
+** Add missing file headers
+** Update `set` options and error handling
+** Apply naming conventions
+* [ ] Review `.zsh.d/` files for consistency
+* [ ] Consolidate duplicate logging/output implementations across scripts
+  (prefer `commons.sh` where appropriate)
+
+== Directory Structure
+
+* [ ] Evaluate `~/bin/` vs. `~/.local/bin/` as the canonical location for
+  user scripts (XDG Base Directory Specification suggests `~/.local/bin/`)
+* [ ] Consider organizing scripts by category if the collection grows
+
+== commons.sh Improvements
+
+* [ ] Review and clean up `commons.sh`
+** Fix known typos in comments (e.g., `FUNCTONS` -> `FUNCTIONS`)
+** Ensure all functions have proper documentation comments
+** Add missing type declarations (`-r`, `-i`, `-a`)
+* [ ] Expand test coverage for commons.sh functions
+* [ ] Consider versioning commons.sh for backward compatibility tracking
+* [ ] Streamline the sourcing mechanism for commons.sh across scripts. Example:
+. Keep one stable loader file (known path).
+. Loader finds and sources commons.sh, validates required symbols:
++
+[source,bash]
+----
+# ~/lib/commons-loader.sh: Locate and source commons.sh once
+# code: language=bash insertSpaces=true tabSize=2
+# keywords: bash shell loader commons
+# author: Andreas Weyer
+
+cl::require_commons() {
+  local -a candidates=(
+    "${SCRIPT_PATH}/commons.sh"
+    "${SCRIPT_PATH}/lib/commons.sh"
+    "${HOME}/lib/commons.sh"
+  )
+  local f
+
+  for f in "${candidates[@]}"; do
+    if [[ -f "${f}" ]]; then
+      # shellcheck source=/dev/null
+      source "${f}"
+      break
+    fi
+  done
+
+  if ! command -v "cl::cmd_p" > /dev/null 2>&1; then
+    printf "commons lib not found, exiting ..\n" >&2
+    return 1
+  fi
+
+  return 0
+}
+----
+. Scripts use a 1-liner source + 1-liner cl::require_commons call:
++
+[source,bash]
+----
+# ...existing code...
+source "${HOME}/lib/commons-loader.sh" || exit 1
+cl::require_commons || exit 1
+# ...existing code...
+----

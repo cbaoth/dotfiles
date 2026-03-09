@@ -3,3 +3,9 @@
 .zcompdump
 *.zwc
 .crush
+
+# Claude Code local/transient state (settings.local.json, memory, plans)
+.claude/settings.local.json
+.claude/memory/
+.claude/plans/
+.github/copilot-instructions.md
