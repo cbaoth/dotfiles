@@ -113,6 +113,24 @@ For libraries (no shebang):
 # Additional notes (e.g., compatibility remarks)
 ----
 
+=== Editor Modelines
+
+The `# code: ...` header line is treated as an editor modeline and should be
+kept in script headers where applicable:
+
+[source,bash]
+----
+# code: language=bash insertSpaces=true tabSize=2
+----
+
+In VS Code this repository currently relies on:
+https://marketplace.visualstudio.com/items?itemName=chrislajoie.vscode-modelines[vscode-modelines].
+
+Modelines are editor metadata only. They must not change script behavior.
+
+If a Vim modeline is added later, keep both modelines semantically aligned
+(indent width, tabs/spaces, etc.).
+
 === Script Structure Order
 
 Scripts should follow this structure:
