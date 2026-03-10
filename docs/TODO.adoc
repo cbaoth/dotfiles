@@ -51,6 +51,26 @@ Ideas and future tasks for improving the shell scripts in this repository.
   user scripts (XDG Base Directory Specification suggests `~/.local/bin/`)
 * [ ] Consider organizing scripts by category if the collection grows
 
+== Editor Modelines
+
+* [ ] Add Vim modelines to applicable files (currently only `(vs)code` modelines are used, if any)
+* [ ] Review existing VS Code modelines across relevant files and file types
+* [ ] Check for additional relevant VS Code modeline options before introducing Vim modelines
+* [ ] Review local Vim settings in repo `.vimrc` to choose appropriate Vim modeline options
+* [ ] Align Vim modelines with existing VS Code modelines where both are present
+* [ ] Add/verify references for modeline setup details:
+** https://vim.fandom.com/wiki/Modeline_magic[Vim Wiki: Modeline magic]
+** NOTE: links to vimdoc from the wiki appear to be broken
+** Working references:
+*** https://vimdoc.sourceforge.net/htmldoc/usr_21.html#21.6[Vim User Manual 21.6]
+*** https://vimdoc.sourceforge.net/htmldoc/starting.html#vimrc[Vim help: vimrc]
+* [ ] Add and test/review a Vim modeline example (candidate):
++
+[source,bash]
+----
+# vim: set filetype=sh expandtab shiftwidth=2 tabstop=2:
+----
+
 == commons.sh Improvements
 
 * [ ] Review and clean up `commons.sh`
