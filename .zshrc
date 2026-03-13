@@ -129,7 +129,8 @@ setopt INC_APPEND_HISTORY # write immediately (default: on exit only)
 #setopt HIST_IGNORE_DUPS # don't add duplicates
 setopt HIST_IGNORE_ALL_DUPS # delete old entry in favor of new one if duplicate
 setopt SHARE_HISTORY # share history between sesions
-#setopt EXTENDED_HISTORY # store in ":start:elapsed;command" format
+setopt EXTENDED_HISTORY # store in ":start:elapsed;command" format
+# some plugins enable EXTENDED_HISTORY, enable to be indepent of plugin setup
 setopt HIST_IGNORE_SPACE # don't record lines stating with a space (privacy)
 #setopt HIST_REDUCE_BLANKS # remove unnecessary spaces
 #setopt HIST_VERIFY # don't execute immediately after history expansion
