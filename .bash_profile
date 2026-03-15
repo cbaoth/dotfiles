@@ -1,7 +1,9 @@
-# ~/.profile: bash(1) - The personal initialization file, executed for login shells
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: bash dotfile bashrc profile shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
+#
+# ~/.bash_profile: initialization for bash login shells.
 #
 # This file is only read and executed by bash in a non-interactive login shell,
 # or in login shell invoked with option --login.

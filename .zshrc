@@ -1,7 +1,9 @@
-# ~/.zshrc: executed by zsh(1)
+# -*- mode: sh; sh-shell: zsh; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
 # code: language=zsh insertSpaces=true tabSize=2
-# keywords: zsh dotfile zshrc shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
+#
+# ~/.zshrc: interactive zsh configuration.
 #
 # interactive shell: .zshenv > .zshrc
 # login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
@@ -82,7 +84,7 @@ setopt extendedglob
 # Remove non-matching globs from command instead of failing
 #setopt -o nullglob
 
-# CSH_NULL_GLOB <C>
+# CSH_NULL_GLOB (-C)
 #   If a pattern for filename generation has no matches, delete the pattern
 #   from the argument list; do not report an error unless all the patterns in
 #   a command have no matches. Overrides NOMATCH.
@@ -968,17 +970,17 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 # Disabled e.g. in favor of KeePassXC (Secret Service Integration)
 #
 # are we in a x-windows session?
-if [[ -n "${DESKTOP_SESSION-}" ]]; then
-    # is gnome-keyring-daemon availlable? use it as ssh agent
-    if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
-        # start unless already running
-        if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
-            export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
-            # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
-            export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
-        fi
-    fi
-fi
+# if [[ -n "${DESKTOP_SESSION-}" ]]; then
+#     # is gnome-keyring-daemon availlable? use it as ssh agent
+#     if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
+#         # start unless already running
+#         if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
+#             export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
+#             # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+#             export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+#         fi
+#     fi
+# fi
 # }}} - X WINDOWS ------------------------------------------------------------
 # {{{ - DTAG -----------------------------------------------------------------
 # enabale dtag (when available)

@@ -1,3 +1,9 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+
 printf "%s\n---\n%s\n---\n%s" \
     "$(egrep -v '^Personal' /proc/mdstat)" \
     "$(journalctl -l -n 50 -o short --no-pager | fold -w140 | tail -n 50)" \

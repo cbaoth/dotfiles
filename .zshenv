@@ -1,7 +1,9 @@
-# ~/.zshenv: executed by zsh(1) initially.
+# -*- mode: sh; sh-shell: zsh; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
 # code: language=zsh insertSpaces=true tabSize=2
-# keywords: zsh dotfile zshrc zshenv shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
+#
+# ~/.zshenv: executed by zsh(1) before other startup files.
 #
 # interactive shell: .zshenv > .zshrc
 # login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
@@ -18,9 +20,6 @@
 # It should contain commands to set the command search path, plus other important environment variables.
 # .zshenv should not contain commands that produce output or assume the shell is attached to a tty.
 #
-# author: Andreas Weyer
-# keywords: zsh zshrc zshenv shell-script
-
 # Source environment settings common to all my shells
 [[ -f ~/.common_profile ]] && source ~/.common_profile
 
