@@ -3,7 +3,37 @@
 
 Ideas and future tasks for improving the shell scripts in this repository.
 
-== Linting & Static Analysis
+== 1. Repo Structure & Organization
+
+=== Script Consolidation
+
+* [ ] Integrate `Useful-Scripts/` into the main repo structure (from https://github.com/cbaoth/Useful-Scripts)
+** Review each script for relevance and quality
+** Move system/root scripts to an appropriate location
+** Update or remove outdated scripts
+** Merge README.adoc into the main repo README.adoc (since separate Useful-Scripts repo will be removed). Review content if needed, the structure should be consistent and the info updated / extended if needed (readme files were sometimes more, sometimes less well maintained).
+* [ ] Audit `bin/` scripts against the style guide
+** Standardize shebangs (`#!/usr/bin/env bash`)
+** Add missing file headers
+** Update `set` options and error handling
+** Apply naming conventions
+* [ ] Review `.zsh.d/` files for consistency
+* [ ] Consolidate duplicate logging/output implementations across scripts
+  (prefer `commons.sh` where appropriate)
+
+=== Directory Structure
+
+* [ ] Evaluate `~/bin/` vs. `~/.local/bin/` as the canonical location for
+  user scripts (XDG Base Directory Specification suggests `~/.local/bin/`)
+* [ ] Consider organizing scripts by category if the collection grows
+* [ ] Consider moving all dotfile related files and directories into a `dotfiles/` subdirectory (or smilar) for clarity.
+** Dotfile tooling files (e.g. `link.sh`, `.linkignore`, etc.) should be moved to an appropriate location as well. Ideally not into `dofiles/` directly, where they can easily be overlooked or confused with actual dotfiles. This may also allow less complex tools (e.g. `.linkignore` could potentially be obsolete if things can be in such a manner).
+** The system/root scripts mentioned above (Useful-Scripts repo integration) could be moved to a seprate directory alongside the dotfiles, e.g. `system-scripts/` or `root-scripts/`.
+** General tooling scripts that may be helpful oustide the repository (e.g. `fix-modelines.py`) could be moved to a `bin/` or similar (add shebang and make executable, or add wapper shell script with same name but without file extions). Everything that is left (if anything) can either stay in the root (if it is now much less cluttered) or e.g. moved to appropriate directories (like e.g. `scripts/` or `tools/` in case of scipt files).
+
+== 2. Code Quality & Style
+
+=== Linting & Static Analysis
 
 * [ ] Integrate https://www.shellcheck.net/[ShellCheck] into the development
   workflow
@@ -14,14 +44,14 @@ Ideas and future tasks for improving the shell scripts in this repository.
 * [ ] Evaluate other linting tools (e.g.,
   https://github.com/mvdan/sh[shfmt] for formatting)
 
-== Pre-Commit Hooks
+=== Pre-Commit Hooks
 
 * [ ] Investigate https://pre-commit.com/[pre-commit] framework
 * [ ] Add ShellCheck as a pre-commit hook
 * [ ] Add shfmt formatting check as a pre-commit hook
 * [ ] Consider a simple custom hook that validates shebangs and file headers
 
-== Testing
+=== Testing
 
 * [ ] Evaluate shell testing frameworks:
 ** https://github.com/bats-core/bats-core[BATS] (Bash Automated Testing
@@ -30,58 +60,9 @@ Ideas and future tasks for improving the shell scripts in this repository.
 * [ ] Write tests for `lib/commons.sh` utility functions
 * [ ] Consider testing critical `bin/` scripts (argument parsing, edge cases)
 
-== Script Consolidation
+== 3. Improvements & Ideas for Specific Scripts
 
-* [ ] Integrate `Useful-Scripts/` into the main repo structure (from https://github.com/cbaoth/Useful-Scripts)
-** Review each script for relevance and quality
-** Move system/root scripts to an appropriate location
-** Update or remove outdated scripts
-* [ ] Audit `bin/` scripts against the style guide
-** Standardize shebangs (`#!/usr/bin/env bash`)
-** Add missing file headers
-** Update `set` options and error handling
-** Apply naming conventions
-* [ ] Review `.zsh.d/` files for consistency
-* [ ] Consolidate duplicate logging/output implementations across scripts
-  (prefer `commons.sh` where appropriate)
-
-== Directory Structure
-
-* [ ] Evaluate `~/bin/` vs. `~/.local/bin/` as the canonical location for
-  user scripts (XDG Base Directory Specification suggests `~/.local/bin/`)
-* [ ] Consider organizing scripts by category if the collection grows
-
-== Editor Modelines
-
-* [x] Review existing VS Code modelines across relevant files and file types
-** All `# code: language=(bash|zsh)` modelines are consistent across `bin/`, `lib/`, `Useful-Scripts/`
-* [x] Check for additional relevant VS Code modeline options before introducing Vim modelines
-** Decision: also add Emacs modelines (`# -*- mode: sh; ... -*-`) alongside Vim modelines
-* [x] Add Vim and Emacs modelines to applicable files
-** Canonical three-line header block added to all scripts that had `# code:` modelines:
-+
-[source,bash]
-----
-# code: language=bash insertSpaces=true tabSize=2
-# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
-# vim: ft=bash:et:ts=2:sts=2:sw=2
-----
-** `fix-style.sh`, `bin/git-fix-chmod`, `bin/xsuspend` also updated (were missing modelines entirely)
-** NOTE: 5 files in `Useful-Scripts/` still missing modelines — address during Script Consolidation
-** `fix-modelines.py` added to repo root to normalize ordering/deduplication going forward
-* [x] Align Vim modelines with existing VS Code modelines where both are present
-** `filetype` matches `language` (bash/zsh); indent settings match `insertSpaces`/`tabSize`
-* [x] Add/verify references for modeline setup details:
-** https://vim.fandom.com/wiki/Modeline_magic[Vim Wiki: Modeline magic]
-** NOTE: links to vimdoc from the wiki appear to be broken
-** Working references:
-*** https://vimdoc.sourceforge.net/htmldoc/usr_21.html#21.6[Vim User Manual 21.6]
-*** https://vimdoc.sourceforge.net/htmldoc/starting.html#vimrc[Vim help: vimrc]
-* [ ] Review local Vim settings in repo `.vimrc` to confirm modeline options match local config
-** Verify `expandtab tabstop=2 shiftwidth=2` and `filetype=bash/bash/sh` align with `.vimrc` defaults
-** (Modeline will override vimrc per-file; this is a post-hoc consistency check)
-
-== commons.sh Improvements
+=== commons.sh Improvements
 
 * [ ] Review and clean up `commons.sh`
 ** Fix known typos in comments (e.g., `FUNCTONS` -> `FUNCTIONS`)
@@ -136,7 +117,43 @@ cl::require_commons || exit 1
 # ...existing code...
 ----
 
-== Text formatting
+=== Review .vimrc and Sync with new Modeline
+
+* [ ] Review local Vim settings in repo `.vimrc` to confirm modeline options match local config
+** Verify `expandtab tabstop=2 shiftwidth=2` and `filetype=bash/bash/sh` align with `.vimrc` defaults
+** (Modeline will override vimrc per-file; this is a post-hoc consistency check)
+
+== 4. General Improvements & Ideas
+
+=== Text formatting
 
 * [ ] Consolidate output text formatting (if needed)
 ** [ ] Consider https://zsh.sourceforge.io/Doc/Release/Prompt-Expansion.html[Zsh Prompt Expansion] for zsh scripts (e.g. `print -P "%Uunderlined%u regular"`)
+
+
+== A.1 Editor Modelines ✅
+
+* [x] Review existing VS Code modelines across relevant files and file types
+** All `# code: language=(bash|zsh)` modelines are consistent across `bin/`, `lib/`, `Useful-Scripts/`
+* [x] Check for additional relevant VS Code modeline options before introducing Vim modelines
+** Decision: also add Emacs modelines (`# -*- mode: sh; ... -*-`) alongside Vim modelines
+* [x] Add Vim and Emacs modelines to applicable files
+** Canonical three-line header block added to all scripts that had `# code:` modelines:
++
+[source,bash]
+----
+# code: language=bash insertSpaces=true tabSize=2
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+----
+** `fix-style.sh`, `bin/git-fix-chmod`, `bin/xsuspend` also updated (were missing modelines entirely)
+** NOTE: 5 files in `Useful-Scripts/` still missing modelines — address during Script Consolidation
+** `fix-modelines.py` added to repo root to normalize ordering/deduplication going forward
+* [x] Align Vim modelines with existing VS Code modelines where both are present
+** `filetype` matches `language` (bash/zsh); indent settings match `insertSpaces`/`tabSize`
+* [x] Add/verify references for modeline setup details:
+** https://vim.fandom.com/wiki/Modeline_magic[Vim Wiki: Modeline magic]
+** NOTE: links to vimdoc from the wiki appear to be broken
+** Working references:
+*** https://vimdoc.sourceforge.net/htmldoc/usr_21.html#21.6[Vim User Manual 21.6]
+*** https://vimdoc.sourceforge.net/htmldoc/starting.html#vimrc[Vim help: vimrc]
