@@ -11,8 +11,10 @@
 # - Provide more appropriate blacklist
 # - Add override/custom structure, instead of (mandatory) deployment of custom (e.g. host specific) files
 
-LINK_FILE=$(realpath $0)
-DOTFILES=$(dirname $LINK_FILE)
+LINK_FILE=$(realpath "$0")
+TOOLS_DIR=$(dirname "$LINK_FILE")
+REPO_ROOT=$(dirname "$TOOLS_DIR")
+DOTFILES="${REPO_ROOT}/dotfiles"
 BAKDIR=$HOME/dotfiles_bak_$(date +%s)
 KEEP_LAST_BAKS=1
 DRY_RUN=false
@@ -72,10 +74,12 @@ vlog() { # usage: vlog <level> <message...>
 info() { vlog 1 "$@"; }
 debug() { vlog 2 "$@"; }
 
-cd "$DOTFILES"
 # safety check before we create wrong links
-[ ! -d ".git" ] \
-  && echo "error: .git not found, this doesn't seem to be the right folder" \
+[ ! -d "${REPO_ROOT}/.git" ] \
+  && echo "error: .git not found in ${REPO_ROOT}, this doesn't seem to be the right folder" \
+  && exit 1
+[ ! -d "${DOTFILES}" ] \
+  && echo "error: dotfiles directory not found: ${DOTFILES}" \
   && exit 1
 
 # create backup dir (skipped in dry-run)
@@ -99,12 +103,16 @@ run_and_report() {
 run_and_report "mkdir -p \"$BAKDIR\""
 
 # Define the ignore file
-IGNORE_FILE=".linkignore"
+IGNORE_FILE="${TOOLS_DIR}/.linkignore"
 
 # Read the ignore file and create a regex pattern
-IGNORE_PATTERN=$(grep -vE "^\s*#" "$IGNORE_FILE" | sed ':a;N;$!ba;s/\n/\\|/g')
-IGNORE_PATTERN=".*/\($(basename $0)\|\.linkignore\|${IGNORE_PATTERN}\)\(/.*\)\?"
-debug "Global Ignore Pattern ($IGNORE_FILE): $IGNORE_PATTERN"
+IGNORE_ENTRIES=$(grep -vE "^\s*#|^\s*$" "$IGNORE_FILE" | sed ':a;N;$!ba;s/\n/\\|/g')
+if [[ -n "${IGNORE_ENTRIES}" ]]; then
+  IGNORE_PATTERN=".*/\(${IGNORE_ENTRIES}\)\(/.*\)\?"
+else
+  IGNORE_PATTERN=""
+fi
+debug "Global Ignore Pattern (${IGNORE_FILE}): ${IGNORE_PATTERN}"
 
 typeset -a WARNINGS
 typeset -a ERRORS
@@ -166,7 +174,7 @@ while IFS= read -r -d '' f; do
     info "Creating new SymLink: '$f' -> '$target'"
     run_and_report "ln -sf \"$f\" \"$target\""
   fi
-done < <(find "$DOTFILES" -regextype sed ! -regex "$IGNORE_PATTERN" -print0)
+done < <(find "$DOTFILES" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PATTERN"} -print0)
 
 # report all warnings and errors (if any)
 if [ ${#WARNINGS[@]} -gt 0 ]; then

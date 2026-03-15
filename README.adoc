@@ -31,6 +31,19 @@ endif::[]
 
 My core configuration (dot) files, shell functions and utility scripts.
 
+=== Repository Structure
+
+[source]
+----
+dotfiles/        Actual dotfiles symlinked to $HOME (zsh, bash, vim, X11, etc.)
+bin/             User utility scripts (added to PATH via ~/bin/)
+system-scripts/  System/admin scripts (some require root)
+lib/             Shared shell libraries (commons.sh)
+tools/           Repo tooling: link.sh, fix-modelines.py, etc.
+docs/            Documentation and TODO
+_archive/        Archived scripts pending review (not in PATH)
+----
+
 * `ZSH` is the leading shell.
 * `Bash` configs exist for rare cases in which zsh is not available, they are not regularly maintained and usually outdated.
 * If not clearly `ZSH` related, all alias, function, etc. files should be `Bash` compatible _(but not always POSIX compliant)_.
@@ -159,14 +172,15 @@ Scripts intended for system administrators or privileged operations (some requir
 |===
 
 
-=== Other Repository Files
+=== Repository Tooling (`tools/`)
 
 [%header,cols="1,3"]
 |===
 |File|Description
-|`link:link.sh[]`|Link all dotfiles (except local scripts and documentation) to the user's home directory. Missing directories are created in the process. Existing files that would be overwritten are moved to a backup location.
-|`link:permissions.sh[]`|Update dotfile repo file permissions.
-|`link:fix-modelines.py[]`|Normalize and deduplicate editor modelines (Emacs, Vim, VS Code, ShellCheck) across shell scripts.
+|`link:tools/link.sh[]`|Symlink all files in `dotfiles/` to the user's home directory. Missing directories are created in the process. Existing files that would be overwritten are moved to a backup location.
+|`link:tools/permissions.sh[]`|Update dotfile repo file permissions.
+|`link:tools/fix-modelines.py[]`|Normalize and deduplicate editor modelines (Emacs, Vim, VS Code, ShellCheck) across shell scripts.
+|`link:tools/fix-style.sh[]`|Apply style fixes to shell scripts.
 |README.adoc|This file.
 |===
 
