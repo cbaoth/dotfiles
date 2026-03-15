@@ -1,7 +1,9 @@
-# ~/lib/commons.sh: Common shell function library
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: zsh bash dotfile zshrc bashrc functions lib shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
+#
+# ~/lib/commons.sh: Common shell function library.
 #
 # All functions are written in a way that they work on both, zsh and bash
 

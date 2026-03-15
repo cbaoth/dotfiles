@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# just tries to fix a few common bad practices (may mess up everything)
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Try to fix common shell style issues in-place.
 
 set -o errexit
 set -o pipefail

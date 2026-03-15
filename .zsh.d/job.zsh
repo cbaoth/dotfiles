@@ -1,7 +1,9 @@
-# ~/.zsh/functions.zsh: Job functions
+# -*- mode: sh; sh-shell: zsh; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
 # code: language=zsh insertSpaces=true tabSize=2
-# keywords: zsh dotfile zshrc functions job shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
+#
+# ~/.zsh.d/job.zsh: Job queue helper functions.
 
 # {{{ = JOB QUEUE ============================================================
 # A simple job queue that should run on all systems without the need for 3rd

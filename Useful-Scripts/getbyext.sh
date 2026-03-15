@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# getbyext.sh
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Fetch direct-linked media files from a URL by extension.
 
 # == Description ============================================================
 # Fetch all direct linked media files (e.g. mp3/jpg) from a given URL
@@ -348,4 +353,3 @@ done
 p_msg2 $verbosity 1 ".. tranfer complete"
 
 exit 0
-

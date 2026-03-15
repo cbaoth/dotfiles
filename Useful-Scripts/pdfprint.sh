@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# pdfprint.sh
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Print PDF/PS files with configurable n-up and duplex-friendly output.
 
 # == Description ============================================================
 # A small script to print pdf/ps files with cupsdoprint
@@ -89,4 +94,3 @@ else
 	doprint "_$ifile.$pps.or.ps" "_$ifile.$pps.e.ps"
 fi
 rm -f _$ifile.$pps.ps
-

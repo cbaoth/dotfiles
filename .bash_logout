@@ -1,7 +1,9 @@
-# ~/.bash_logout: executed by bash(1) when login shell exits.
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: bash dotfile bashrc bash_logout shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
+#
+# ~/.bash_logout: executed by bash(1) when a login shell exits.
 
 # when leaving the console clear the screen to increase privacy
 

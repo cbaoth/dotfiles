@@ -1,5 +1,10 @@
-#!/bin/sh
-# backup2ftp.sh
+#!/usr/bin/env sh
+# -*- mode: sh; sh-shell: sh; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=sh:et:ts=2:sts=2:sw=2
+# code: language=sh insertSpaces=true tabSize=2
+# shellcheck shell=sh
+#
+# Copy local backups to an FTP server while retaining the previous backup.
 
 # == Description ============================================================
 # Copy a local backup to an ftp server, and always keep the prev backup on the ftp.
@@ -38,4 +43,3 @@ cd /
 mput home* opt*
 quit
 EOF
-

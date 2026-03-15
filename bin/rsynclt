@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: bash shell shell-script rsync backup
-# author: Andreas Weyer
+# shellcheck shell=bash
 #
-# A lightweight rsync wrapper for common backup and synchronization tasks.
+# Lightweight rsync wrapper for backup and synchronization tasks.
+
 
 # {{{ = COMMONS ==============================================================
 # -e: exit on error
@@ -14,7 +16,8 @@ set -euo pipefail  # Fail if any command in a pipeline fails
 # Initialize constants
 declare -r BACKUP_SUBDIR=".backup/"
 declare -r RSYNC_CMD="rsync"
-declare -r SCRIPT_NAME="$(basename "$0")"
+declare SCRIPT_NAME; SCRIPT_NAME="$(basename "$0")"  # not directly assigned to protect from masking return value
+declare -r SCRIPT_NAME
 declare -r SCRIPT_USER="${SCRIPT_USER:-$(whoami)}"
 declare -ri VERBOSITY_DEFAULT=0
 
@@ -88,7 +91,7 @@ _normalize_path() {
 # {{{ = ARGUMENT PARSING =====================================================
 _usage() {
   cat <<EOL
-Usage: S{SCRIPT_NAME} [OPTIONS] SOURCE... TARGET
+Usage: ${SCRIPT_NAME} [OPTIONS] SOURCE... TARGET
 
 Options:
     -b, --backup           Create a backup of the target before syncing (files are backed up to TARGET/.backup/TIMESTAMP/)

@@ -1,7 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
 #
-# Bedtime Shutdown Script - Forces system shutdown at a configured time each night
+# Force system shutdown at a configured bedtime.
 # For installation and configuration, see README.adoc or run: sudo ./install.sh
 
 # {{{ = COMMONS ==============================================================

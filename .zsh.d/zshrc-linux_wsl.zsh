@@ -1,7 +1,9 @@
-# ~/.zsh/zshrc-linux_wsl.zsh: Windows Subsystem Linux zshrc
+# -*- mode: sh; sh-shell: zsh; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
 # code: language=zsh insertSpaces=true tabSize=2
-# keywords: zsh dotfile zshrc linux wsl shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
+#
+# ~/.zsh.d/zshrc-linux_wsl.zsh: WSL-specific zshrc settings.
 
 # load  weasel-pageant (https://github.com/vuori/weasel-pageant) if available
 [[ -f $HOME/weasel-pageant/weasel-pageant ]] \

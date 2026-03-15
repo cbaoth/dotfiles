@@ -1,8 +1,10 @@
-#!/bin/sh
-# ~/.xsession: executed by display manager ("custom" mode)
-# code: language=bash insertSpaces=true tabSize=2
-# keywords: bash zsh dotfile xsession x11 shell shell-script
-# author: Andreas Weyer
+#!/usr/bin/env sh
+# -*- mode: sh; sh-shell: sh; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=sh:et:ts=2:sts=2:sw=2
+# code: language=sh insertSpaces=true tabSize=2
+# shellcheck shell=sh
+#
+# ~/.xsession: display-manager session entrypoint.
 
 # /usr/share/xsessions/custom.desktop:
 #[Desktop Entry]

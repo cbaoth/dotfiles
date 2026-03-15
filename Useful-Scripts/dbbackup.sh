@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# dbbackup.sh: Backup databases
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script postgresql mysql db backup
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Backup PostgreSQL and MySQL databases.
 
 # FIXME mysql auth only possible via --config (default file not used)
 # TODO error handling, delete partial backups on interrupt / error
@@ -169,7 +171,7 @@ _parse_args() {
   if [[ -z "${_dbs:-}" ]]; then
     ${_backup_full} || _exit 1 "No DB provided."
   else
-    ${_backup_full} && echo "WARNING: Ignoring specifically provided DB name(s) [${_dbs[@]}], full backup will be performed instead." >&2 
+    ${_backup_full} && echo "WARNING: Ignoring specifically provided DB name(s) [${_dbs[@]}], full backup will be performed instead." >&2
   fi
 
   # set defaults where needed
@@ -287,7 +289,7 @@ _backup_mysql_full() {
       --events --ignore-table=mysql.event \
       | gzip > "${_outfilepath}"
   return 0
-} 
+}
 
 _backup() {
   local _dir="${_backup_dir}"
@@ -324,4 +326,3 @@ _main() {
 _main "$@"
 
 exit 0
-

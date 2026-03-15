@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# backup.sh: Backup system
-
-# Author:   Andreas Weyer <dev@cbaoth.de>
-# Keywords: bash shell-script backup
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Run full or incremental system backups.
 
 PATH=/opt/bin:/usr/local/bin:/usr/bin:/bin
 
@@ -144,4 +146,3 @@ main() {
 main "$@"
 
 exit 0
-

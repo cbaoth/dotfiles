@@ -1,13 +1,12 @@
-# ~/.bashrc: bash(1) - The individual per-interactive-shell startup file.
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: bash dotfile bashrc shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
+#
+# ~/.bashrc: startup file for interactive non-login bash shells.
 #
 # This file is read and executed by bash for non-login interactive shells.
 # It is not read by bash login shells (.bash_profile is used for that).
-
-# author: Andreas Weyer
-# keywords: bashrc shell-script
 
 # To view this file correctly use fold-mode for emacs and add the following
 # line to your .emacs:

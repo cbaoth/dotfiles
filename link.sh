@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# links.sh: symlink dotfiles from git repo to home directory
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: zsh bash shell shell-script dotfiles-tools
-# author: Andreas Weyer
+# shellcheck shell=bash
+#
+# Symlink repository dotfiles into the home directory.
 
 # TODO
 # - Skip existing links that already point to the right destination

@@ -1,5 +1,10 @@
-#!/bin/sh
-# getbyext.sh
+#!/usr/bin/env sh
+# -*- mode: sh; sh-shell: sh; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=sh:et:ts=2:sts=2:sw=2
+# code: language=sh insertSpaces=true tabSize=2
+# shellcheck shell=sh
+#
+# Create a simple HTML image gallery.
 
 # == Description ============================================================
 # Simple HTML Image gallery creation script
@@ -128,4 +133,3 @@ cat <<EOF >> $file
 </body>
 </html>
 EOF
-
