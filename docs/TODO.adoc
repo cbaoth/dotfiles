@@ -26,16 +26,15 @@ Ideas and future tasks for improving the shell scripts in this repository.
 
 === Directory Structure
 
-* [ ] `~/bin/` vs. `~/.local/bin/`: Decision made to keep `~/bin/` for now.
+* [~] `~/bin/` vs. `~/.local/bin/`: Decision made to keep `~/bin/` for now.
   XDG Base Directory Specification suggests `~/.local/bin/`, but `~/bin/` is
   conventional and most distributions add it to `PATH` automatically.
   Revisit if/when a full XDG migration is planned.
 * [ ] Consider organizing scripts by category if the collection grows
-* [ ] Move actual dotfiles into a `dotfiles/` subdirectory for clarity, and
-  move repo tooling (`link.sh`, `.linkignore`, `fix-modelines.py`, etc.) into
-  a `tools/` subdirectory.
-** This requires updating `link.sh` to scan from `dotfiles/` instead of the repo root.
-** `.linkignore` can be greatly simplified once non-dotfile files are separated.
+* [x] Move actual dotfiles into `dotfiles/` subdirectory, and repo tooling
+  (`link.sh`, `.linkignore`, `fix-modelines.py`, etc.) into `tools/`.
+** `tools/link.sh` updated to scan `$REPO_ROOT/dotfiles/`
+** `tools/.linkignore` simplified (non-dotfile files are no longer in the scan path)
 * [ ] Review the dotfile linking approach — the current `link.sh` + `_overrides/` solution
   is a rough first cut. Specifically:
 ** `_overrides/` was a quick solution for host-specific file overrides; reconsider
