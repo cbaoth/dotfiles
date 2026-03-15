@@ -1,0 +1,101 @@
+= Z-Shell Notes
+:note-caption: ℹ Note
+:tip-caption: 💡 Tip
+:important-caption: ❗ Important
+:caution-caption: ⚠ Caution
+:warning-caption: ⚠ Warning
+
+Some random notes on zsh, mostly for my own reference.
+
+== Options
+
+=== Enabled
+
+==== `EXTENDED_GLOB`
+
+Treats `#`, `~`, and `^` as pattern operators for advanced globbing
+footnote:[https://devdocs.io/zsh/options#index-BAREGLOBQUAL[DevDocs: `EXTENDED_GLOB`]]
+footnote:[https://gist.github.com/roblogic/63f70f13665c689adca099c8d6d73641[Gist examples]].
+
+* Option: `setopt extendedglob`
+* Why enabled: Mandatory for some functions and aliases in this setup
+* Examples:
+* `rm *-[0-9]##.png`: removes files like `foo-123.png`
+* `rm ^*.(tar|bz2|gz) /tmp/`: removes non-archive files (`^` negates)
+* `rm my-service.<12-234>.log`: removes files with numeric range in name
+
+=== Optional (currently disabled)
+
+There are many more optionsfootnote:[https://devdocs.io/zsh/options[DevDocs: Options]]footnote:[https://zsh.sourceforge.net/Doc/Release/Options.html#Expansion-and-Globbing[ZSH Documentation: Options]] that can be enabled for specific use cases. Here are some that I have considered or want to mention for future reference.
+
+==== `CORRECT_ALL` (`-O`)
+
+Tries to correct the spelling of all arguments in a command line
+footnote:[https://devdocs.io/zsh/options#index-CLOBBER[DevDocs: `CORRECT_ALL`]].
+
+* Option: `#setopt correctall`
+* Notes: Can use `CORRECT_IGNORE_FILE` to exclude filename patterns
+
+==== `AUTO_CD` (`-J`)
+
+If a command is not executable but names a directory, zsh performs `cd` to it
+footnote:[https://devdocs.io/zsh/options#index-AUTO_005fCD[DevDocs: `AUTO_CD`]].
+
+* Option: `#setopt autocd`
+* Examples:
+* `~` behaves like `cd ~`
+* `/var/log` behaves like `cd /var/log`
+
+==== `NULL_GLOB` (`-G`)
+
+If a glob pattern has no matches, it is removed from the argument list instead
+of causing an error
+footnote:[https://devdocs.io/zsh/options#index-CASE_005fMATCH[DevDocs: `NULL_GLOB`]].
+
+* Option: `#setopt -o nullglob`
+* Note: Overrides `NOMATCH`
+
+==== `CSH_NULL_GLOB` (`<C>`)
+
+Like `NULL_GLOB`, but reports an error only if _all_ patterns in a command have
+no matches
+footnote:[https://devdocs.io/zsh/options#index-BARE_005fGLOB_005fQUAL[DevDocs: `CSH_NULL_GLOB`]].
+
+* Option: `#setopt -o cshnullglob`
+* Note: Also overrides `NOMATCH`
+
+==== `GLOB_DOTS` (`-4`) / `DOT_GLOB`
+
+Includes dotfiles in glob matches without requiring a leading `.` in the pattern.
+
+* Option: `#setopt globdots`
+* Note: `DOT_GLOB` is the bash-compatibility name for `GLOB_DOTS`
+
+WARNING: This can be dangerous. For example, `rm ^.*` can match and delete more than expected when dotfiles are included.
+
+== Global Expansion
+
+Glob patterns are short expressions that match filenames or strings. They are used in various contexts, such as filename expansion, parameter expansion, and command substitution.
+
+Z-Shell supports a rich set of glob patternsfootnote:[https://zsh.sourceforge.io/Doc/Release/Expansion.html[ZSH Documentation: 14 Expansion]]footnote:[https://wiki.zshell.dev/community/zsh_guide/roadmap/expansion[Z-Shell Community Wiki: Roadmap - Expansion]].
+
+In my setup, I use `setopt extendedglob` but not `setopt dotglob`. The latter can be enabled on a per-command basis by using the suffix `(D.)` in glob patterns.
+
+Examples:
+[source,zsh]
+----
+print -l **/*~(.git|node_modules)/*~*.(md|adoc|png)(D.)
+# print -l:   print each match on a separate line
+# **/*:       recursive glob for all files/directories
+# ~(pattern): exclude matches of `pattern` (can be repeated)
+# (D.):       include dot-files/directories in glob
+----
+
+== External Resources
+
+* https://zsh.org Official Website
+** https://zsh.sourceforge.io - Z shell website _on SourceForge_
+** https://zsh.sourceforge.io/Doc/ - ZSH Documentation _on SourceForge_
+* https://devdocs.io/zsh/ - Z-Shell _on DevDocs_
+* https://zshell.dev - Z-Shell Community (Wiki)
+* https://en.wikipedia.org/wiki/Z_shell - Z shell _on Wikipedia (EN)_
