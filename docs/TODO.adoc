@@ -7,29 +7,44 @@ Ideas and future tasks for improving the shell scripts in this repository.
 
 === Script Consolidation
 
-* [ ] Integrate `Useful-Scripts/` into the main repo structure (from https://github.com/cbaoth/Useful-Scripts)
-** Review each script for relevance and quality
-** Move system/root scripts to an appropriate location
-** Update or remove outdated scripts
-** Merge README.adoc into the main repo README.adoc (since separate Useful-Scripts repo will be removed). Review content if needed, the structure should be consistent and the info updated / extended if needed (readme files were sometimes more, sometimes less well maintained).
+* [x] Integrate `Useful-Scripts/` into the main repo structure (from https://github.com/cbaoth/Useful-Scripts)
+** Reviewed each script for relevance and quality
+** Moved system/root scripts to `system-scripts/`
+** Moved user utility scripts to `bin/`
+** Archived outdated/deprecated scripts to `_archive/` (see <<archived-scripts-review>>)
+** Merged `Useful-Scripts/README.adoc` into the main `README.adoc`
 * [ ] Audit `bin/` scripts against the style guide
 ** Standardize shebangs (`#!/usr/bin/env bash`)
 ** Add missing file headers
 ** Update `set` options and error handling
 ** Apply naming conventions
+** NOTE: Includes newly added scripts from Useful-Scripts integration (apt-update, exif-move-to-rating-dirs, smfetch)
 * [ ] Review `.zsh.d/` files for consistency
 * [ ] Consolidate duplicate logging/output implementations across scripts
   (prefer `commons.sh` where appropriate)
+* [ ] Review and resolve FIXME/TODO comments in `system-scripts/dbbackup`
 
 === Directory Structure
 
-* [ ] Evaluate `~/bin/` vs. `~/.local/bin/` as the canonical location for
-  user scripts (XDG Base Directory Specification suggests `~/.local/bin/`)
+* [ ] `~/bin/` vs. `~/.local/bin/`: Decision made to keep `~/bin/` for now.
+  XDG Base Directory Specification suggests `~/.local/bin/`, but `~/bin/` is
+  conventional and most distributions add it to `PATH` automatically.
+  Revisit if/when a full XDG migration is planned.
 * [ ] Consider organizing scripts by category if the collection grows
-* [ ] Consider moving all dotfile related files and directories into a `dotfiles/` subdirectory (or smilar) for clarity.
-** Dotfile tooling files (e.g. `link.sh`, `.linkignore`, etc.) should be moved to an appropriate location as well. Ideally not into `dofiles/` directly, where they can easily be overlooked or confused with actual dotfiles. This may also allow less complex tools (e.g. `.linkignore` could potentially be obsolete if things can be in such a manner).
-** The system/root scripts mentioned above (Useful-Scripts repo integration) could be moved to a seprate directory alongside the dotfiles, e.g. `system-scripts/` or `root-scripts/`.
-** General tooling scripts that may be helpful oustide the repository (e.g. `fix-modelines.py`) could be moved to a `bin/` or similar (add shebang and make executable, or add wapper shell script with same name but without file extions). Everything that is left (if anything) can either stay in the root (if it is now much less cluttered) or e.g. moved to appropriate directories (like e.g. `scripts/` or `tools/` in case of scipt files).
+* [ ] Move actual dotfiles into a `dotfiles/` subdirectory for clarity, and
+  move repo tooling (`link.sh`, `.linkignore`, `fix-modelines.py`, etc.) into
+  a `tools/` subdirectory.
+** This requires updating `link.sh` to scan from `dotfiles/` instead of the repo root.
+** `.linkignore` can be greatly simplified once non-dotfile files are separated.
+* [ ] Review the dotfile linking approach — the current `link.sh` + `_overrides/` solution
+  is a rough first cut. Specifically:
+** `_overrides/` was a quick solution for host-specific file overrides; reconsider
+   how host-specific overrides should work (e.g. host-specific branches, chezmoi templates, or a clean override mechanism in link.sh).
+** The underscore-prefix convention for "non-repo" dirs (`_local`, `_archive`, `_overrides`)
+   is useful but may conflict if `_*` is ever added to `.gitignore`. Consider whether a
+   dedicated `.nolink` file (gitignore-style) would be cleaner than `.linkignore`.
+** Evaluate alternatives to the current find+symlink approach: https://www.gnu.org/software/stow/[GNU Stow],
+   https://www.chezmoi.io/[chezmoi], or a significantly cleaned-up `link.sh`.
 
 == 2. Code Quality & Style
 
@@ -39,7 +54,7 @@ Ideas and future tasks for improving the shell scripts in this repository.
   workflow
 ** VS Code extension:
     https://marketplace.visualstudio.com/items?itemName=timonwong.shellcheck[ShellCheck for VS Code]
-** Run against all scripts: `find bin/ lib/ Useful-Scripts/ -type f -exec shellcheck {} +`
+** Run against all scripts: `find bin/ lib/ system-scripts/ -type f -exec shellcheck {} +`
 ** Consider a configuration file (`.shellcheckrc`) for project-wide settings
 * [ ] Evaluate other linting tools (e.g.,
   https://github.com/mvdan/sh[shfmt] for formatting)
@@ -147,7 +162,7 @@ cl::require_commons || exit 1
 # vim: ft=bash:et:ts=2:sts=2:sw=2
 ----
 ** `fix-style.sh`, `bin/git-fix-chmod`, `bin/xsuspend` also updated (were missing modelines entirely)
-** NOTE: 5 files in `Useful-Scripts/` still missing modelines — address during Script Consolidation
+** All scripts moved from `Useful-Scripts/` to `bin/` and `system-scripts/` verified to have correct modelines
 ** `fix-modelines.py` added to repo root to normalize ordering/deduplication going forward
 * [x] Align Vim modelines with existing VS Code modelines where both are present
 ** `filetype` matches `language` (bash/zsh); indent settings match `insertSpaces`/`tabSize`
@@ -157,3 +172,28 @@ cl::require_commons || exit 1
 ** Working references:
 *** https://vimdoc.sourceforge.net/htmldoc/usr_21.html#21.6[Vim User Manual 21.6]
 *** https://vimdoc.sourceforge.net/htmldoc/starting.html#vimrc[Vim help: vimrc]
+
+
+[[archived-scripts-review]]
+== A.2 Archived Scripts Review
+
+Scripts moved to `_archive/` during Useful-Scripts integration. Each needs individual
+evaluation: keep as-is, update/rewrite, find an alternative solution, or delete.
+
+* [ ] `_archive/audio-volume.sh` — Toggle mute and change volume via hotkeys.
+  Deprecated; superseded by `bin/media-keys`. Confirm full overlap then delete.
+* [ ] `_archive/gallery.sh` — Create a simple static HTML image gallery with JPEG
+  thumbnails. Very old (2005); depends on `libjpeg-progs`. Evaluate if still useful
+  or whether a modern alternative (e.g. sigal, thumbsup) is preferred.
+* [ ] `_archive/getbyext.sh` — Fetch media files from a URL by extension using wget.
+  Very old (2001). Compare functionality with `bin/getbyext`; delete if redundant.
+* [ ] `_archive/pdfprint.sh` — Print PDF/PS files with configurable n-up and duplex
+  via `psnup`. Old (2003); check if still functional and whether cups/lp alternatives
+  suffice.
+* [ ] `_archive/backup2ftp.sh` — Copy local backups to an FTP server. Old (2010),
+  uses legacy FTP. Consider replacing with rsync/sftp/rclone if FTP backup is still
+  needed.
+* [ ] `_archive/wget-mp.py` — Parallel file fetching using wget. Old (2010), Python 2
+  only. Evaluate against `bin/wget-p` and modern alternatives (aria2c, curl-based).
+* [ ] `_archive/clear-cache.sh` — Clear known local caches and temp files. Old (2011);
+  cache paths may be stale. Review and update paths if still needed, else delete.
