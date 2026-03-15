@@ -1,8 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
 #
-# nextcloud-maintenance.sh
-# Runs Nextcloud Maintenance: Integrity, Indices, Update-Check, Log-Cleanup etc.
-# With security checks and lock while critical steps are exectude.
+# Run routine Nextcloud maintenance tasks with safety checks.
 #
 # contrab example:
 # # Nextcloud Maintenance
@@ -103,4 +105,3 @@ run_occ update:check
 
 # 7) Finalize
 log_line "== Nextcloud Maintenance End =="
-

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# ~/bin/media-keys: Control media player and pa volume, optional OSD
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: zsh bash shell shell-script osdsh osdctl pactl alsa alsa-utils amixer pulse-audio pulseaudio-utils pactl playerctl
-# author: Andreas Weyer
+# shellcheck shell=bash
+#
+# Control media playback and audio volume with optional OSD output.
 
 # # Example config for i3 using media-keys:
 # # volume media keys: volume up/down/topple-mute (req.: pulseaudio, osdsh)

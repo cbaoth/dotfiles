@@ -1,8 +1,10 @@
-# ~/.profile: executed by the command interpreter for login shells.
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: bash dotfile bashrc bash_profile shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash disable=SC2148
 #
+# ~/.profile: login-shell profile for the de4012101 override.
+
 # This file is not read by bash(1), if ~/.bash_profile or ~/.bash_login
 # exists. This file is read in case some WMs are started.
 

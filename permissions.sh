@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# permissions.sh: fix permissions of dotfiles repo
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: zsh bash shell shell-script dotfiles-tools
-# author: Andreas Weyer
+# shellcheck shell=bash
+#
+# Normalize file and directory permissions in this dotfiles repository.
 
 # safety check before chaning mod bits for the wrong files
 [ ! -d ".git" ] \

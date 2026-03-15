@@ -1,5 +1,10 @@
-#!/bin/bash
-# smfetch.sh
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Fetch RTMP and direct HTTP media links from broadcaster pages.
 
 # == Description ============================================================
 # A script to fetch rtmp media streams and direct (http) media links from
