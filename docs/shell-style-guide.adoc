@@ -90,46 +90,75 @@ Libraries (`.sh` files intended to be sourced) do **not** have a shebang.
 
 === File Header
 
-Every script should start with a metadata header immediately after the shebang:
+Header layout differs between executable scripts and sourced/rc files.
+
+For executable scripts (with shebang):
 
 [source,bash]
 ----
 #!/usr/bin/env bash
-# ~/bin/script-name: Brief description of the script
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# keywords: bash shell relevant-keywords
-# author: Andreas Weyer
-----
-
-For libraries (no shebang):
-
-[source,bash]
-----
-# ~/lib/commons.sh: Common shell function library
-# code: language=bash insertSpaces=true tabSize=2
-# keywords: zsh bash lib shell shell-script
-# author: Andreas Weyer
+# shellcheck shell=bash
 #
-# Additional notes (e.g., compatibility remarks)
+# Brief description of what the script does.
 ----
+
+For sourced files and shell config files (no shebang):
+
+[source,zsh]
+----
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash disable=SC2148
+#
+# ~/.zshrc: executed by zsh(1)
+----
+
+* *Shebang:*
+  * Files named `*.zsh` use `#!/usr/bin/env zsh` (there may be other cases where `zsh` is to be used).
+  * For compatibility reasons `#!/usr/bin/env sh` may be used in rare cases.
+  * Otherwise always use `#!/usr/bin/env bash`.
+* *Modelines:* Emacs, Vim, and VSCode (in that order for editor compatibility).
+  * *Emacs:* Always `# -*- mode: sh; sh-shell: $SHELL; indent-tabs-mode: nil; tab-width: 2 -*-` where `$SHELL` is one of `bash`, `zsh`, or `sh`
+  * *VIM:* Always `# vim: ft=$SHELL:et:ts=2:sts=2:sw=2`, same `$SHELL` value as the above
+  * *VS Code:* Always `# code: language=bash insertSpaces=true tabSize=2`, same `$SHELL` value as the above
+  * *ShellCheck:* Always `# shellcheck shell=$SHELL` for singlefile/executable files (with shebang), and `# shellcheck shell=$SHELL disable=SC2148` for sourced/rc files to prevent "missing shebang" lint error. In case of shellcheck, the $SHELL must never be `zsh` (not supported, use `bash` instead).
+* *Description:* a concise, single line summary of the script's purpose and usage. For sourced/rc files where location is semantically important (for example
+`~/.zshrc`), include the canonical path.
+* *Spacing:* Leave one empty line between the header block and the script implementation (incl. additional documentation).
+
 
 === Editor Modelines
 
-The `# code: ...` header line is treated as an editor modeline and should be
-kept in script headers where applicable:
+The header includes three editor metadata lines in this order:
 
-[source,bash]
-----
-# code: language=bash insertSpaces=true tabSize=2
-----
+1. Emacs modeline
+2. Vim modeline
+3. VS Code modeline (`# code: ...`)
+
+Use matching values for tabs/spaces and indentation width across all modelines.
+
+For files with a shebang, keep the Emacs modeline on line 2.
+For files without a shebang, keep the Emacs modeline on line 1.
 
 In VS Code this repository currently relies on:
 https://marketplace.visualstudio.com/items?itemName=chrislajoie.vscode-modelines[vscode-modelines].
 
+* It parses Vim `vim:`, Emacs `-*-`, and VS Code `code:` modelines, then merges them in that orderfootnote:[https://github.com/ctlajoie/vscode-modelines/blob/master/src/modelines.ts].
+* Effective precedence is two-layered: first by parser order (Vim < Emacs < VS Code), then by scan order within each parser (top and bottom file regions, left-to-right). In conflicts, the later parsed value wins.
+* Practical implication: if you keep modelines for multiple editors, keep overlapping keys (`tabSize`/`tab-width`/`tabstop`, `insertSpaces`/`indent-tabs-mode`/`expandtab`, `language`/`mode`/`filetype`) semantically aligned to avoid accidental overrides.
+* Language values `sh`, `zsh`, `ksh`, `csh`, and `bash` are translated to VS Code `shellscript`, so shell-specific filetypes do not remain distinct in VS Code after modelines are applied.
+* Use shell-specific values in Vim/VS Code modelines anyway (`zsh` for zsh files, `bash` for bash files): this keeps intent explicit for other editors/tools and remains future-proof if translation behavior changes.
+
+ShellCheck should also be provided with explicit shell information, specifically the shell (`bash` or `sh`, since `zsh` is not supported) and `disable=SC2148` to prevent "missing shebang" errors for sourced/rc files without a shebang.
+
 Modelines are editor metadata only. They must not change script behavior.
 
-If a Vim modeline is added later, keep both modelines semantically aligned
-(indent width, tabs/spaces, etc.).
+If modelines are changed, keep them semantically aligned (indent width,
+tabs/spaces, filetype/language).
 
 === Script Structure Order
 
@@ -138,7 +167,9 @@ Scripts should follow this structure:
 [source,bash]
 ----
 #!/usr/bin/env bash
-# File header (description, metadata, author)
+# Modelines
+#
+# File description
 
 # 1. Script path / file constants
 declare -r SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"

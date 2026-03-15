@@ -34,13 +34,35 @@ Never `#!/bin/bash`, `#!/bin/zsh`, or `#!/bin/env bash`. Libraries have no sheba
 
 ### File Header
 
+For executable scripts (with shebang):
+
 ```bash
 #!/usr/bin/env bash
-# ~/bin/script-name: Brief description
-# code: language=bash insertSpaces=true tabSize=2
-# keywords: bash shell relevant-keywords
-# author: Andreas Weyer
+# -*- mode: sh; sh-shell: (bash|zsh|sh); indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=(bash|zsh|sh):et:ts=2:sts=2:sw=2
+# code: language=(bash|zsh|sh) insertSpaces=true tabSize=2
+# shellcheck shell=(bash|sh)
+#
+# Brief description of what the script does.
 ```
+
+For sourced files and shell config files (no shebang):
+
+```zsh
+# -*- mode: sh; sh-shell: (bash|zsh|sh); indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=(bash|zsh|sh):et:ts=2:sts=2:sw=2
+# code: language=(bash|zsh|sh) insertSpaces=true tabSize=2
+# shellcheck shell=(bash|sh) disable=SC2148
+#
+# ~/.zshrc: executed by zsh(1)
+```
+
+* **Emacs** modeline `# -*- `: Always use `mode: sh` and set `ft=(bash|zsh|sh)` to the script specific shell (if any, fallback `bash).
+* **VIM** modeline `# vim:`: Set `language=(bash|zsh|sh)` to the script specific shell (if any, fallback `bash).
+* **Spellcheck** modeline `# spellcheck `: Set `shell=(bash|sh)` to either `bash` (fallback, no support for `zsh`), or `sh` if specifically required.
+** For sourced/rc files (no shebang) set spellcheck `disable=SC2148` (prevents "no shebang" lint error).
+* **Description:** a concise, single line summary of the script's purpose/usage/functionality. For sourced/rc files where location is semantically important lead with the canonical path.
+* **Spacing:** empty line between header block and following script implementation.
 
 ### Script Structure Order
 
@@ -158,3 +180,11 @@ Use [ShellCheck](https://www.shellcheck.net/) for static analysis.
 - End sourced files with `return 0`
 - Global aliases use distinctive prefixes (e.g., `@G`, `@L`)
 - Underscore prefix for internal helper functions
+
+### AI Agent Mode
+
+When working in interactive shell you can expect the following to be setup for you:
+
+- Default shell is `zsh` with:
+  - `setopt EXTENDED_GLOB`
+  - `setopt INTERACTIVECOMMENTS`

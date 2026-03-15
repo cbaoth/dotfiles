@@ -53,23 +53,33 @@ Ideas and future tasks for improving the shell scripts in this repository.
 
 == Editor Modelines
 
-* [ ] Add Vim modelines to applicable files (currently only `(vs)code` modelines are used, if any)
-* [ ] Review existing VS Code modelines across relevant files and file types
-* [ ] Check for additional relevant VS Code modeline options before introducing Vim modelines
-* [ ] Review local Vim settings in repo `.vimrc` to choose appropriate Vim modeline options
-* [ ] Align Vim modelines with existing VS Code modelines where both are present
-* [ ] Add/verify references for modeline setup details:
+* [x] Review existing VS Code modelines across relevant files and file types
+** All `# code: language=(bash|zsh)` modelines are consistent across `bin/`, `lib/`, `Useful-Scripts/`
+* [x] Check for additional relevant VS Code modeline options before introducing Vim modelines
+** Decision: also add Emacs modelines (`# -*- mode: sh; ... -*-`) alongside Vim modelines
+* [x] Add Vim and Emacs modelines to applicable files
+** Canonical three-line header block added to all scripts that had `# code:` modelines:
++
+[source,bash]
+----
+# code: language=bash insertSpaces=true tabSize=2
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+----
+** `fix-style.sh`, `bin/git-fix-chmod`, `bin/xsuspend` also updated (were missing modelines entirely)
+** NOTE: 5 files in `Useful-Scripts/` still missing modelines — address during Script Consolidation
+** `fix-modelines.py` added to repo root to normalize ordering/deduplication going forward
+* [x] Align Vim modelines with existing VS Code modelines where both are present
+** `filetype` matches `language` (bash/zsh); indent settings match `insertSpaces`/`tabSize`
+* [x] Add/verify references for modeline setup details:
 ** https://vim.fandom.com/wiki/Modeline_magic[Vim Wiki: Modeline magic]
 ** NOTE: links to vimdoc from the wiki appear to be broken
 ** Working references:
 *** https://vimdoc.sourceforge.net/htmldoc/usr_21.html#21.6[Vim User Manual 21.6]
 *** https://vimdoc.sourceforge.net/htmldoc/starting.html#vimrc[Vim help: vimrc]
-* [ ] Add and test/review a Vim modeline example (candidate):
-+
-[source,bash]
-----
-# vim: set filetype=sh expandtab shiftwidth=2 tabstop=2:
-----
+* [ ] Review local Vim settings in repo `.vimrc` to confirm modeline options match local config
+** Verify `expandtab tabstop=2 shiftwidth=2` and `filetype=bash/bash/sh` align with `.vimrc` defaults
+** (Modeline will override vimrc per-file; this is a post-hoc consistency check)
 
 == commons.sh Improvements
 
@@ -87,6 +97,8 @@ Ideas and future tasks for improving the shell scripts in this repository.
 ----
 # ~/lib/commons-loader.sh: Locate and source commons.sh once
 # code: language=bash insertSpaces=true tabSize=2
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
 # keywords: bash shell loader commons
 # author: Andreas Weyer
 
@@ -123,3 +135,8 @@ source "${HOME}/lib/commons-loader.sh" || exit 1
 cl::require_commons || exit 1
 # ...existing code...
 ----
+
+== Text formatting
+
+* [ ] Consolidate output text formatting (if needed)
+** [ ] Consider https://zsh.sourceforge.io/Doc/Release/Prompt-Expansion.html[Zsh Prompt Expansion] for zsh scripts (e.g. `print -P "%Uunderlined%u regular"`)

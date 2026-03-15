@@ -81,11 +81,22 @@ EOF
 
 sudo tee /etc/systemd/system/bedtime.timer <<'EOF'
 [Unit]
-Description=Run Bedtime Script at 21:30 (repeat every 10 min until 05:00)
+Description=Run Bedtime Script every 10 min (21:30 - 05:00)
 
 [Timer]
-OnCalendar=*-*-* 21:30:00
-OnCalendar=*-*-* 21..04:00/10:00
+# Cover 21:30 to 21:50 in 10 min intervals
+OnCalendar=*-*-* 21:30,40,50
+
+# Cover 22:00 to 23:50 in 10 min intervals
+OnCalendar=*-*-* 22,23:0/10
+
+# Cover 00:00 to 04:50 in 10 min intervals
+OnCalendar=*-*-* 00..04:0/10
+
+# Final trigger at 05:00 (not really needed if "Bedtime Zone" ends at 05:00)
+#OnCalendar=*-*-* 05:00:00
+
+# Keep Persistent=true (catches missed runs on boot)
 Persistent=true
 
 [Install]
