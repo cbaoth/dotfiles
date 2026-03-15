@@ -4,8 +4,26 @@
 *.zwc
 .crush
 
-# Claude Code local/transient state (settings.local.json, memory, plans)
+# IDE / editor specific
+*.vscode/
+.idea/
+
+# local: configuratins and variables, may contain sensitive info (e.g., API keys)
 .claude/settings.local.json
 .claude/memory/
 .claude/plans/
 .github/copilot-instructions.md
+
+/env/
+/.env/
+.env
+*.env
+
+/_local/
+/local/
+/.local/
+*.local.*
+*.local
+
+# local: tool output in working directory (root only)
+# /...
