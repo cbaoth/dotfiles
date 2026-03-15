@@ -1,0 +1,5 @@
+# Files/directories inside dotfiles/ to skip when linking with link.sh.
+# One pattern per line, using sed regular expressions.
+# Most repo-level files (README, docs, bin, tools, etc.) are already excluded
+# by being outside the dotfiles/ subdirectory — only add entries here for
+# things inside dotfiles/ that should NOT be symlinked to $HOME.
