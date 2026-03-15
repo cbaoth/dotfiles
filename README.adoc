@@ -32,14 +32,11 @@ endif::[]
 My core configuration (dot) files, shell functions and utility scripts.
 
 * `ZSH` is the leading shell.
-* `Bash` configs exist for rare cases in which zsh is not availlable, they are not regularly maintained and usually outdated.
+* `Bash` configs exist for rare cases in which zsh is not available, they are not regularly maintained and usually outdated.
 * If not clearly `ZSH` related, all alias, function, etc. files should be `Bash` compatible _(but not always POSIX compliant)_.
 * All files use the `" \{\{\{( .*)?$"` _(or `{{{ }}}` in short)_ folding comment pattern _(use e.g. https://www.emacswiki.org/emacs/FoldingMode[emacs], https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS Code], https://stackoverflow.com/a/6947590[eclipse])_
 
-== TODO
-
-* Review `functions.zsh` and aliases _(update ancient code, remove obsolete code, maybe modularize)_
-* Include additional shell and python scripts
+NOTE: See link:docs/TODO.adoc[docs/TODO.adoc] for the full task/improvement list.
 
 === Dot-files
 
@@ -54,14 +51,14 @@ My core configuration (dot) files, shell functions and utility scripts.
  `link:.zsh.d/zshrc-motoko.zsh[]` +
  `link:.zsh.d/zshrc-puppet.zsh[]` +
  `link:.zsh.d/zshrc-saito.zsh[]` +
- `link:.zsh.d/zshrc-11001001_org.zsh[]`|{icon-shell} ZSH|OS, distirbution, and/or host specific ZSH configs.
+ `link:.zsh.d/zshrc-11001001_org.zsh[]`|{icon-shell} ZSH|OS, distribution, and/or host specific ZSH configs.
 |`link:.zsh.d/aliases.zsh[]`|{icon-shell} SH|Common aliases
 |`link:.zsh.d/aliases-freebsd.zsh[]` +
- `link:.zsh.d/aliases-linux.zsh[]`|{icon-shell} SH|OS, distirbution, and/or host specific specific aliases.
+ `link:.zsh.d/aliases-linux.zsh[]`|{icon-shell} SH|OS, distribution, and/or host specific aliases.
 |`link:.zsh.d/functions.zsh[]`|{icon-shell} SH|Common shell functions.
-|`link:.zsh.d/functions-freebsd.zsh[]`|{icon-shell} SH|OS, distirbution, and/or  host specific shell aliases.
+|`link:.zsh.d/functions-freebsd.zsh[]`|{icon-shell} SH|OS, distribution, and/or host specific shell aliases.
 |`link:.bash.d/bashrc[]`|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Common Bash config _(rarely maintained)_.
-|`link:.profile[]`|{icon-shell}{icon-xwin}|Currently only loaded from insicede `.xsession` to prepare the enviroment (variables) without a login shell. It's basically a copy of `.zshenv` though the latter can contain `zsh` specific stuff.
+|`link:.profile[]`|{icon-shell}{icon-xwin}|Currently only loaded from inside `.xsession` to prepare the environment (variables) without a login shell. It's basically a copy of `.zshenv` though the latter can contain `zsh` specific stuff.
 |`link:.xsession[]`|{icon-xwin} X, Wayland|Used by the display manager. Currently only loades `.profile` and `.xinitrc`.
 |`link:.xinitrc[]`|{icon-xwin} https://en.wikipedia.org/wiki/X_Window_System[X], https://en.wikipedia.org/wiki/Wayland_(display_server_protocol)[Wayland]|Loaded from inside `.xsession` or when starting `xinit`.
 |`link:.xession/common[]` +
@@ -77,15 +74,10 @@ My core configuration (dot) files, shell functions and utility scripts.
  `link:.mplayer/input.conf[]`|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|Old MPlayer configuration and key bindings (switched to `mpv`).
 |===
 
-ip=(192 168 100 18)
-printf "ip: %s\n" $(join_by . $ip)
-exp=$(join_by + $(seq 1 10))
-printf "%s = %s\n" $exp $((exp))
-
 
 ==== Host / OS specific zsh files
 
-Custom host / OS  specific ZSH configurtaions, aliases, functions, xsessions and xresources can be created and they are dynamically loaded in case of a match. This provides a conveniant way to enrich the envoronment in case of a spicific host / os without messing around with the core files.
+Custom host / OS specific ZSH configurations, aliases, functions, xsessions and xresources can be created and they are dynamically loaded in case of a match. This provides a convenient way to enrich the environment in case of a specific host / os without messing around with the core files.
 
 //This function is used to load the files:
 //
@@ -124,26 +116,59 @@ The special suffix `_wsl` is used on https://en.wikipedia.org/wiki/Windows_Subsy
 Some examples can be seen in the <<Dot-files>> list above.
 
 
-=== Scripts
+=== User Scripts (`bin/`)
 
 [%header,cols="1,3"]
 |===
 |File|Description
-|`link:bin/media-keys.sh[]`|Script to be used from within X (e.g. media key mappings) for media player control (play/pause, perv/next song) and pulse audio volume control (+/-5% and toggle mute) optionally showing an OSD.
+|`link:bin/media-keys[]`|Script to be used from within X (e.g. media key mappings) for media player control (play/pause, prev/next song) and pulse audio volume control (+/-5% and toggle mute) optionally showing an OSD.
+|`link:bin/apt-update[]`|Quietly update apt package indexes and store a timestamp.
+|`link:bin/exif-move-to-rating-dirs[]`|Organize image files into a directory hierarchy based on EXIF star ratings (0-5) and color labels. Features smart caching, directory mapping with regex patterns, and move/copy modes. See `link:bin/exif-move-to-rating-dirs.d/README.adoc[]` for full documentation.
+|`link:bin/smfetch[]`|Fetch RTMP and direct HTTP media links from broadcaster pages using wget and rtmpdump.
+|`link:bin/aria2c-d[]`|aria2c downloader wrapper.
+|`link:bin/diff-ini[]`|Diff INI files.
+|`link:bin/ff-copy[]`|Firefox copy utility.
+|`link:bin/ff-copy-mpv-bookmarks[]`|Copy MPV bookmarks from Firefox.
+|`link:bin/getbyext[]`|Get files by extension from a given URL using wget.
+|`link:bin/gif-cycle[]`|GIF frame cycling utility.
+|`link:bin/gif-delay[]`|GIF frame delay inspector/modifier.
+|`link:bin/git-fix-chmod[]`|Fix Git file permissions (chmod).
+|`link:bin/image-concat[]`|Concatenate images.
+|`link:bin/mpv-find[]`|Find media files and play with mpv.
+|`link:bin/rsync-parallel-backup[]`|Parallel rsync backup.
+|`link:bin/rsynclt[]`|rsync with limited throughput.
+|`link:bin/wget-p[]`|Parallel file fetching wrapper for wget.
+|`link:bin/while-read[]`|Execute a command for each line read from stdin.
+|`link:bin/xsuspend[]`|Suspend the X session.
 |===
-//include::.aliases[lines=1..2]
 
 
-=== Other repository files
+=== System / Admin Scripts (`system-scripts/`)
+
+Scripts intended for system administrators or privileged operations (some require root).
 
 [%header,cols="1,3"]
 |===
 |File|Description
-|`link:link.sh[]`|Link all dotfile repo files (except for loacl scripts and documentation) to the user's home directory. Missing directories are created in the process. _It currently moves existing files / links, that would be overwritten in the process, to a backup location inside the home directory._
-|`link:permissions.sh[]`|Updates the dotfile repo file permissions.
-|README.adoc|This file
+|`link:system-scripts/backup[]`|System backup script with exclusion list; supports full and incremental backups.
+|`link:system-scripts/bedtime-shutdown/bedtime-shutdown.sh[]`|Force system shutdown at a configured bedtime with grace periods, desktop notifications, and emergency overrides. See `link:system-scripts/bedtime-shutdown/README.adoc[]` for full documentation.
+|`link:system-scripts/dbbackup[]`|Backup script for MySQL and PostgreSQL databases.
+|`link:system-scripts/fail2ban-summary-mail[]`|Send a weekly Fail2Ban summary email from recent log data (intended for cron).
+|`link:system-scripts/nextcloud-maintenance[]`|Run routine Nextcloud maintenance tasks (DB indices, repair, integrity checks, app updates). Intended for cron with cronic.
+|`link:system-scripts/openvpn-client-cfg[]`|Generate OpenVPN client configuration bundles from server PKI assets; manage static IPs, CCD, and certificate revocation.
 |===
-//include::.aliases[lines=1..2]
+
+
+=== Other Repository Files
+
+[%header,cols="1,3"]
+|===
+|File|Description
+|`link:link.sh[]`|Link all dotfiles (except local scripts and documentation) to the user's home directory. Missing directories are created in the process. Existing files that would be overwritten are moved to a backup location.
+|`link:permissions.sh[]`|Update dotfile repo file permissions.
+|`link:fix-modelines.py[]`|Normalize and deduplicate editor modelines (Emacs, Vim, VS Code, ShellCheck) across shell scripts.
+|README.adoc|This file.
+|===
 
 
 == Shell Functions
@@ -186,7 +211,7 @@ Some of the shell functions contained in `link:.zsh.d/functions.zsh[]` will be d
 |Function|Description
 |`*p_colortable*`|Print 256 ansi color table. +
  image:func_p_colortable_1.png[]
-|`*tputs* _STYLE.._`|Execute multiple `tput` commands in sequence. _Exapmle:_ +
+|`*tputs* _STYLE.._`|Execute multiple `tput` commands in sequence. _Example:_ +
  image:func_tputs_1.png[]
 |`*tp* _STYLE.._`|Set one or more tput colors and text effects by (short) name. All values are looked up from a map _(no need to run an external process)_. +
  image:func_tp_1.png[]
