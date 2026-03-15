@@ -56,35 +56,33 @@ NOTE: See link:docs/TODO.adoc[docs/TODO.adoc] for the full task/improvement list
 [%header,cols="2,1,4",options="header"]
 |===
 |File / Folder|App|Description
-|`link:.zshenv[]`|{icon-shell} https://en.wikipedia.org/wiki/Z_shell[ZSH]|Common
- ZSH login shell environment (variables).
-|`link:.zlogout[]`|{icon-shell} ZSH|Common ZSH logout cleanup
-|`link:.zshrc[]`|{icon-shell} ZSH|Common ZSH config
-|`link:.zsh.d/zshrc-freebsd.zsh[]` +
- `link:.zsh.d/zshrc-motoko.zsh[]` +
- `link:.zsh.d/zshrc-puppet.zsh[]` +
- `link:.zsh.d/zshrc-saito.zsh[]` +
- `link:.zsh.d/zshrc-11001001_org.zsh[]`|{icon-shell} ZSH|OS, distribution, and/or host specific ZSH configs.
-|`link:.zsh.d/aliases.zsh[]`|{icon-shell} SH|Common aliases
-|`link:.zsh.d/aliases-freebsd.zsh[]` +
- `link:.zsh.d/aliases-linux.zsh[]`|{icon-shell} SH|OS, distribution, and/or host specific aliases.
-|`link:.zsh.d/functions.zsh[]`|{icon-shell} SH|Common shell functions.
-|`link:.zsh.d/functions-freebsd.zsh[]`|{icon-shell} SH|OS, distribution, and/or host specific shell aliases.
-|`link:.bash.d/bashrc[]`|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Common Bash config _(rarely maintained)_.
-|`link:.profile[]`|{icon-shell}{icon-xwin}|Currently only loaded from inside `.xsession` to prepare the environment (variables) without a login shell. It's basically a copy of `.zshenv` though the latter can contain `zsh` specific stuff.
-|`link:.xsession[]`|{icon-xwin} X, Wayland|Used by the display manager. Currently only loades `.profile` and `.xinitrc`.
-|`link:.xinitrc[]`|{icon-xwin} https://en.wikipedia.org/wiki/X_Window_System[X], https://en.wikipedia.org/wiki/Wayland_(display_server_protocol)[Wayland]|Loaded from inside `.xsession` or when starting `xinit`.
-|`link:.xession/common[]` +
- `link:.xession/default[]` +
- `link:.xession/saito[]`|{icon-xwin} X, Wayland|Common, default and host specific xsession initialization scripts loaded from inside `.xinitrc`. The `common` script is always loaded, the host specific script `.xsession.d/{hostname}` (e.g. `.xsession.d/saito`) is loaded if existing, else the fallback default is loaded `.xsession.d/default`.
-|`link:.Xresources[]` +
- `link:.Xresources.d/saito[]`|{icon-xwin} X, Wayland|Common and host specific https://en.wikipedia.org/wiki/X_resources[X Resources]. The `.Xresources` file is loaded from inside `.xsession.d/common`. If a host specific Xresources `.Xresources.d/{hostname}` (e.g. `Xresources.d/saito`) exists, it is merged into the common resources.
-|`link:.imwheelrc[]`|{icon-xwin} http://imwheel.sourceforge.net/[IMWheel]|General and app specific mouse button/wheel mappings.
-|`link:.vimrc[]`|{icon-edit} https://www.vim.org/[VIM]|VIM configuration
-|`link:.config/mpv/config[]` +
- `link:.config/mpv/input.conf[]`|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|MPV configuration and key bindings.
-|`link:.mplayer/config[]` +
- `link:.mplayer/input.conf[]`|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|Old MPlayer configuration and key bindings (switched to `mpv`).
+|`link:dotfiles/.zshenv[]`|{icon-shell} https://en.wikipedia.org/wiki/Z_shell[ZSH]|Common ZSH login shell environment (variables).
+|`link:dotfiles/.zlogout[]`|{icon-shell} ZSH|Common ZSH logout cleanup
+|`link:dotfiles/.zshrc[]`|{icon-shell} ZSH|Common ZSH config
+|`link:dotfiles/.zsh.d/zshrc-freebsd.zsh[]` +
+ `link:dotfiles/.zsh.d/zshrc-motoko.zsh[]` +
+ `link:dotfiles/.zsh.d/zshrc-puppet.zsh[]` +
+ `link:dotfiles/.zsh.d/zshrc-saito.zsh[]` +
+ `link:dotfiles/.zsh.d/zshrc-11001001_org.zsh[]`|{icon-shell} ZSH|OS, distribution, and/or host specific ZSH configs.
+|`link:dotfiles/.zsh.d/aliases.zsh[]`|{icon-shell} SH|Common aliases
+|`link:dotfiles/.zsh.d/aliases-freebsd.zsh[]` +
+ `link:dotfiles/.zsh.d/aliases-linux.zsh[]` +
+ `link:dotfiles/.zsh.d/aliases-linux_wsl.zsh[]`|{icon-shell} SH|OS, distribution, and/or host specific aliases.
+|`link:dotfiles/.zsh.d/functions/functions.zsh[]`|{icon-shell} SH|Common shell functions.
+|`link:dotfiles/.bashrc[]`|{icon-shell} https://en.wikipedia.org/wiki/Bash_(Unix_shell)[Bash]|Common Bash config _(rarely maintained)_.
+|`link:dotfiles/.xsession[]`|{icon-xwin} X, Wayland|Used by the display manager. Loads `.profile` and `.xinitrc`.
+|`link:dotfiles/.xinitrc[]`|{icon-xwin} https://en.wikipedia.org/wiki/X_Window_System[X], https://en.wikipedia.org/wiki/Wayland_(display_server_protocol)[Wayland]|Loaded from inside `.xsession` or when starting `xinit`.
+|`link:dotfiles/.xsession.d/common[]` +
+ `link:dotfiles/.xsession.d/default[]` +
+ `link:dotfiles/.xsession.d/saito[]`|{icon-xwin} X, Wayland|Common, default and host specific xsession initialization scripts loaded from inside `.xinitrc`. The `common` script is always loaded, the host specific script `.xsession.d/{hostname}` is loaded if existing, else the fallback `default` is loaded.
+|`link:dotfiles/.Xresources[]` +
+ `link:dotfiles/.Xresources.d/saito[]`|{icon-xwin} X, Wayland|Common and host specific https://en.wikipedia.org/wiki/X_resources[X Resources]. The `.Xresources` file is loaded from inside `.xsession.d/common`. If a host specific `.Xresources.d/{hostname}` exists, it is merged into the common resources.
+|`link:dotfiles/.imwheelrc[]`|{icon-xwin} http://imwheel.sourceforge.net/[IMWheel]|General and app specific mouse button/wheel mappings.
+|`link:dotfiles/.vimrc[]`|{icon-edit} https://www.vim.org/[VIM]|VIM configuration
+|`link:dotfiles/.config/mpv/config[]` +
+ `link:dotfiles/.config/mpv/input.conf[]`|{icon-video} https://en.wikipedia.org/wiki/Mpv_(media_player)[mpv]|MPV configuration and key bindings.
+|`link:dotfiles/.mplayer/config[]` +
+ `link:dotfiles/.mplayer/input.conf[]`|{icon-video} https://en.wikipedia.org/wiki/MPlayer[MPlayer]|Old MPlayer configuration and key bindings (switched to `mpv`).
 |===
 
 
@@ -99,7 +97,7 @@ Custom host / OS specific ZSH configurations, aliases, functions, xsessions and 
 //include::.zshrc[lines=120..137]
 //----
 
-This is the sequence in which zshrc's, aleases and functions are loaded from within `.zshrc`:
+This is the sequence in which zshrc's, aliases and functions are loaded from within `.zshrc`:
 
 [source,bash]
 ----
