@@ -37,7 +37,7 @@ alias fsck-ntfs-clear-dirty="sudo ntfsfix --clear-dirty"
 
 # {{{ - NETWORK --------------------------------------------------------------
 alias route-newdefault='sudo route delete default; sudo route add default gw'
-alias wifi-status='nmcli d wifi list; echo; iw dev wlp2s0 link'
+alias wifi-status="nmcli d wifi list; echo; iw dev $(iw dev | awk '/Interface/{print $2; exit}') link"
 # }}} - NETWORK --------------------------------------------------------------
 
 # {{{ - MULTIMEDIA -----------------------------------------------------------
