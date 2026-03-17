@@ -29,11 +29,40 @@ alias llg="ls -al | grep -Ei --color"
 # {{{ - SYSTEM ---------------------------------------------------------------
 alias fontcache-refresh="xset fp rehash; sudo fc-cache -f -v"
 alias remount-exec="sudo mount -o remount,exec"
-alias sleep-enable="sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target"
-alias sleep-disable="sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target"
-alias hibernate="systemctl hibernate"
 alias fsck-ntfs-clear-dirty="sudo ntfsfix --clear-dirty"
 # }}} - SYSTEM ---------------------------------------------------------------
+
+# {{{ - POWER MANAGEMENT -----------------------------------------------------
+# See systemctl(1)
+# Avoid SysV compatibility poweroff(8), reboot, and halt
+alias pm-enable-all="sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target"
+alias pm-disable-all="sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target"
+# Sleep: suspend-then-hibernate > suspend > hibernate (deault sequence)
+alias pm-sleep="systemctl sleep"
+# Suspend: to ram, power consumed
+alias pm-suspend="systemctl suspend"
+alias suspend="pm-suspend"
+# Hibernate: to disk/swap, power off
+alias pm-hibernate="systemctl hibernate"
+alias hibernate="pm-hibernate"
+# Suspend then Hibernate: suspend and hibernate e.g. battery low
+alias pm-suspend-then-hibernate="systemctl suspend-then-hibernate"
+alias suspend-then-hibernate="pm-suspend-then-hibernate"
+# Hibernate and Suspend: suspend to ram and disk/swap like hibernate but power consumed
+alias pm-suspend-hybrid="systemctl hybrid-sleep"
+alias suspend-hybrid="pm-suspend-hybrid"
+
+# reboot: shut kernel and reboot system
+alias reboot="systemctl reboot"
+# Halt: shut down kernel but power stays on
+# Opposed to many SysV halt implementations that also power off
+alias halt="systemctl halt"
+# poweroff: shut down kernel and power off
+alias poweroff="systemctl poweroff"
+
+# List inhibitors (e.g. processes that block suspend/shutdown)
+alias pm-inhibitors-list="systemd-inhibit --list"
+# }}} - POWER MANAGEMENT -----------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
 alias route-newdefault='sudo route delete default; sudo route add default gw'
