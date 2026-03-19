@@ -110,7 +110,7 @@ setopt extendedglob
 # globally raise (but never lower) the default debug level of cl::p_dbg -t
 # this is set in ~/.common_profile to be available for all shells, override
 # here if needed
-#export DEBUG_LVL=3
+export DEBUG_LVL=3
 # {{{ - CORE OPTIONS & COMMONS -----------------------------------------------
 
 
@@ -287,7 +287,8 @@ source_ifex_custom () {
       "${base_file}-${host}.zsh" \
       "${base_file}-${host}-${os}.zsh" \
       $($IS_WSL && print "${base_file}-${host}-${os}_wsl.zsh") \
-      $($IS_ANDROID && print "${base_file}-${host}-${os}_android.zsh")
+      $($IS_ANDROID && print "${base_file}-${host}-${os}_android.zsh") \
+      $([[ -n "${DESKTOP_SESSION:-}" ]] && print "${base_file}-${os}_desktop.zsh")
     shift
   done
   return 0
