@@ -23,7 +23,6 @@ alias mount-saito='__mount_mountpoints /srv/saito/*/'
 alias umount-saito='__mount_mountpoints -u /srv/saito/*/'
 alias mount-all='mount-win; mount-saito'
 alias umount-all='umount-win; umount-saito'
-
 # }}} - MOUNT ----------------------------------------------------------------
 
 return 0
