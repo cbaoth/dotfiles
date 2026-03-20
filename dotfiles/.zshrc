@@ -110,7 +110,7 @@ setopt extendedglob
 # globally raise (but never lower) the default debug level of cl::p_dbg -t
 # this is set in ~/.common_profile to be available for all shells, override
 # here if needed
-export DEBUG_LVL=3
+#export DEBUG_LVL=3
 # {{{ - CORE OPTIONS & COMMONS -----------------------------------------------
 
 
