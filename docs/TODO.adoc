@@ -20,6 +20,8 @@ Ideas and future tasks for improving the shell scripts in this repository.
 ** Apply naming conventions
 ** NOTE: Includes newly added scripts from Useful-Scripts integration (apt-update, exif-move-to-rating-dirs, smfetch)
 * [ ] Review `.zsh.d/` files for consistency
+** Include a review for shell-agnostic content that could be moved/shared so it
+   can be reused from bash-only setups.
 * [ ] Consolidate duplicate logging/output implementations across scripts
   (prefer `commons.sh` where appropriate)
 * [ ] Review and resolve FIXME/TODO comments in `system-scripts/dbbackup`
@@ -37,6 +39,13 @@ Ideas and future tasks for improving the shell scripts in this repository.
 ** `tools/.linkignore` simplified (non-dotfile files are no longer in the scan path)
 * [ ] Review the dotfile linking approach — the current `link.sh` + `_overrides/` solution
   is a rough first cut. Specifically:
+** Define and document a portability contract for this repo:
+  no root requirement, no package-install requirement, and usable baseline on
+  bash-only hosts.
+** Keep `tools/link.sh` dependency-free (pure shell tooling). Treat GNU Stow /
+  chezmoi as optional alternatives, not hard requirements.
+** Add a design note for optional capability detection (bash/zsh/tools) and
+  profile-based setup decisions, but do not increase script complexity yet.
 ** `_overrides/` was a quick solution for host-specific file overrides; reconsider
    how host-specific overrides should work (e.g. host-specific branches, chezmoi templates, or a clean override mechanism in link.sh).
 ** The underscore-prefix convention for "non-repo" dirs (`_local`, `_archive`, `_overrides`)
@@ -44,6 +53,9 @@ Ideas and future tasks for improving the shell scripts in this repository.
    dedicated `.nolink` file (gitignore-style) would be cleaner than `.linkignore`.
 ** Evaluate alternatives to the current find+symlink approach: https://www.gnu.org/software/stow/[GNU Stow],
    https://www.chezmoi.io/[chezmoi], or a significantly cleaned-up `link.sh`.
+** Evaluate a shell-agnostic dynamic loader for host/OS specific aliases,
+   functions and rc fragments, so shared logic can be sourced from both zsh and
+   bash where possible.
 
 == 2. Code Quality & Style
 
@@ -73,6 +85,17 @@ Ideas and future tasks for improving the shell scripts in this repository.
 ** https://github.com/shellspec/shellspec[ShellSpec]
 * [ ] Write tests for `lib/commons.sh` utility functions
 * [ ] Consider testing critical `bin/` scripts (argument parsing, edge cases)
+
+=== Consistency & Maintenance Audit
+
+* [ ] Run a repo-wide audit for redundant/outdated/broken/no-longer-used
+  scripts, functions, files and features
+* [ ] Build an inventory of repeated or diverging implementations (logging,
+  output formatting, argument parsing, capability checks, etc.)
+* [ ] Define consolidation targets and migrate callers to shared helpers where
+  sensible (prefer `lib/commons.sh` or a small shared loader)
+* [ ] Establish a ShellCheck cleanup baseline and iteratively reduce warnings to
+  minimal/near-zero for active scripts
 
 == 3. Improvements & Ideas for Specific Scripts
 
