@@ -1,0 +1,440 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Merge files from SOURCE_DIR into TARGET_DIR while preserving subdirectories.
+
+# Keep strict unset-variable checks, but avoid set -e so we can handle
+# per-file conflicts and continue safely where requested.
+set -u
+
+declare -r PATTERN_NEED_QUOTES='[ |&;()<>*?"`$\\'"'"']'
+
+usage() {
+  cat <<'EOF'
+Usage:
+  mv-merge [OPTIONS] SOURCE_DIR TARGET_DIR [--find-args FIND_ARGS...]
+
+Description:
+  Moves or copies files from SOURCE_DIR to TARGET_DIR, preserving the source
+  sub-directory structure below SOURCE_DIR.
+
+Input Mode:
+  Default mode uses internal find on SOURCE_DIR.
+  Use --stdin to read file paths from stdin (newline-delimited).
+
+Conflict Policy (default: --skip-existing):
+  --skip-existing      Skip files when target already exists.
+  -f, --force          Overwrite existing target files.
+  --fail-on-conflict   Abort on first conflict.
+  -i, --interactive    Prompt on each conflict.
+
+Options:
+  -m, --mode MODE      MODE is move (default) or copy.
+  -n, --dry-run        Print planned actions without changing files.
+  -p, --prune-empty-dirs
+                       Remove empty source directories after move.
+  -c, --create-target  Create target directory when missing.
+  --stdin              Read file list from stdin.
+  -v, --verbose        Print commands before execution.
+  -h, --help           Show this help.
+
+Find passthrough:
+  --find-args ...      All remaining args are passed to find.
+                       Internal -type f is always included.
+
+Examples:
+  mv-merge src dst --find-args -iname '2026-03*'
+  print -l **/*.png | mv-merge --stdin -m move src dst
+  find src -type f -iname '2026-03*' | mv-merge --stdin src dst
+EOF
+}
+
+log_info() { printf "> %s\n" "$*"; }
+log_warn() { printf "WARNING: %s\n" "$*" >&2; }
+log_err()  { printf "ERROR: %s\n" "$*" >&2; }
+
+format_cmd() {
+  local cmd=("$@")
+  local output=""
+  local arg escaped
+
+  for arg in "${cmd[@]}"; do
+    if [[ "$arg" =~ $PATTERN_NEED_QUOTES ]]; then
+      escaped="${arg//\\/\\\\}"
+      escaped="${escaped//\"/\\\"}"
+      output+="\"${escaped}\" "
+    else
+      output+="${arg} "
+    fi
+  done
+
+  printf "%s" "${output% }"
+}
+
+print_cmd_if_verbose() {
+  local verbose="$1"
+  shift
+  (( verbose == 1 )) || return 0
+  log_info "$(format_cmd "$@")"
+}
+
+in_source_dir() {
+  local file_abs="$1"
+  local source_abs="$2"
+  [[ "$file_abs" == "$source_abs"/* ]]
+}
+
+main() {
+  local mode="move"
+  local dry_run=0
+  local verbose=0
+  local prune_empty_dirs=0
+  local create_target=0
+  local use_stdin=0
+  local conflict_policy="skip"
+  local parse_find_args=0
+
+  local -a find_args=()
+  local -a positionals=()
+
+  while [[ $# -gt 0 ]]; do
+    if (( parse_find_args == 1 )); then
+      find_args+=("$1")
+      shift
+      continue
+    fi
+
+    case "$1" in
+      -h|--help)
+        usage
+        return 0
+        ;;
+      -m|--mode)
+        if [[ -z "${2:-}" ]]; then
+          log_err "missing value for $1"
+          usage
+          return 1
+        fi
+        mode="$2"
+        shift 2
+        ;;
+      -n|--dry-run|--no-act)
+        dry_run=1
+        shift
+        ;;
+      -p|--prune-empty-dirs)
+        prune_empty_dirs=1
+        shift
+        ;;
+      -c|--create-target)
+        create_target=1
+        shift
+        ;;
+      --stdin)
+        use_stdin=1
+        shift
+        ;;
+      --skip-existing)
+        conflict_policy="skip"
+        shift
+        ;;
+      -f|--force)
+        conflict_policy="force"
+        shift
+        ;;
+      --fail-on-conflict)
+        conflict_policy="fail"
+        shift
+        ;;
+      -i|--interactive)
+        conflict_policy="interactive"
+        shift
+        ;;
+      -v|--verbose)
+        verbose=1
+        shift
+        ;;
+      --find-args)
+        parse_find_args=1
+        shift
+        ;;
+      --)
+        shift
+        while [[ $# -gt 0 ]]; do
+          positionals+=("$1")
+          shift
+        done
+        ;;
+      -*)
+        log_err "unknown option: $1"
+        usage
+        return 1
+        ;;
+      *)
+        positionals+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ "$mode" != "move" && "$mode" != "copy" ]]; then
+    log_err "invalid mode: $mode (expected move or copy)"
+    return 1
+  fi
+
+  if (( ${#positionals[@]} != 2 )); then
+    log_err "SOURCE_DIR and TARGET_DIR are mandatory"
+    usage
+    return 1
+  fi
+
+  local source_dir="${positionals[0]}"
+  local target_dir="${positionals[1]}"
+
+  if [[ ! -d "$source_dir" ]]; then
+    log_err "source directory not found: $source_dir"
+    return 1
+  fi
+
+  local source_dir_abs
+  source_dir_abs="$(cd "$source_dir" && pwd -P)" || {
+    log_err "unable to resolve SOURCE_DIR: $source_dir"
+    return 1
+  }
+
+  if [[ -e "$target_dir" && ! -d "$target_dir" ]]; then
+    log_err "target exists but is not a directory: $target_dir"
+    return 1
+  fi
+
+  if [[ ! -d "$target_dir" ]]; then
+    if (( create_target == 1 )); then
+      if (( dry_run == 1 )); then
+        log_info "[DRY] $(format_cmd mkdir -p -- "$target_dir")"
+      else
+        print_cmd_if_verbose "$verbose" mkdir -p -- "$target_dir"
+        mkdir -p -- "$target_dir" || {
+          log_err "unable to create target directory: $target_dir"
+          return 1
+        }
+      fi
+    else
+      log_err "target directory not found: $target_dir (use --create-target)"
+      return 1
+    fi
+  fi
+
+  local target_dir_abs
+  if [[ -d "$target_dir" ]]; then
+    target_dir_abs="$(cd "$target_dir" && pwd -P)" || {
+      log_err "unable to resolve TARGET_DIR: $target_dir"
+      return 1
+    }
+  else
+    local target_parent target_name
+    target_parent="$(dirname -- "$target_dir")"
+    target_name="$(basename -- "$target_dir")"
+    target_dir_abs="$(cd "$target_parent" && pwd -P)/$target_name" || {
+      log_err "unable to resolve TARGET_DIR parent: $target_parent"
+      return 1
+    }
+  fi
+
+  find_args=(-type f "${find_args[@]}")
+
+  local total_seen=0
+  local total_done=0
+  local total_skipped=0
+  local total_conflicts=0
+  local total_errors=0
+  local aborted=0
+
+  process_one_file() {
+    local input_path="$1"
+    (( total_seen++ ))
+
+    [[ -n "$input_path" ]] || return 0
+
+    local source_path="$input_path"
+    if [[ "$source_path" != /* ]]; then
+      source_path="$PWD/$source_path"
+    fi
+
+    local source_abs
+    source_abs="$(readlink -f -- "$source_path" 2>/dev/null || true)"
+    if [[ -z "$source_abs" || ! -f "$source_abs" ]]; then
+      log_warn "skipping non-file or missing path: $input_path"
+      (( total_skipped++ ))
+      return 0
+    fi
+
+    if ! in_source_dir "$source_abs" "$source_dir_abs"; then
+      log_warn "skipping file outside SOURCE_DIR: $source_abs"
+      (( total_skipped++ ))
+      return 0
+    fi
+
+    local rel_path="${source_abs#"${source_dir_abs}/"}"
+    if [[ "$rel_path" == "$source_abs" || -z "$rel_path" ]]; then
+      log_warn "unable to derive relative path for: $source_abs"
+      (( total_skipped++ ))
+      return 0
+    fi
+
+    local target_abs="${target_dir_abs}/${rel_path}"
+    local target_parent
+    target_parent="$(dirname -- "$target_abs")"
+
+    if [[ -e "$target_abs" ]]; then
+      (( total_conflicts++ ))
+      case "$conflict_policy" in
+        skip)
+          log_warn "conflict, skipping existing target: $target_abs"
+          (( total_skipped++ ))
+          return 0
+          ;;
+        fail)
+          log_err "conflict, aborting due to --fail-on-conflict: $target_abs"
+          (( total_errors++ ))
+          return 2
+          ;;
+        interactive)
+          if (( dry_run == 1 )); then
+            log_info "[DRY] conflict would prompt: $target_abs"
+            (( total_skipped++ ))
+            return 0
+          fi
+
+          local answer=""
+          while true; do
+            printf "Conflict for %s\n" "$target_abs" >&2
+            printf "Overwrite, skip, or abort? [o/s/a]: " >&2
+            read -r answer || answer="a"
+            case "$answer" in
+              o|O)
+                break
+                ;;
+              s|S)
+                (( total_skipped++ ))
+                return 0
+                ;;
+              a|A)
+                (( total_errors++ ))
+                return 2
+                ;;
+              *)
+                ;;
+            esac
+          done
+          ;;
+        force)
+          ;;
+      esac
+    fi
+
+    local -a mkdir_cmd=(mkdir -p -- "$target_parent")
+    local -a file_cmd=()
+    if [[ "$mode" == "move" ]]; then
+      file_cmd=(mv -- "$source_abs" "$target_abs")
+    else
+      file_cmd=(cp -a -- "$source_abs" "$target_abs")
+    fi
+
+    if (( dry_run == 1 )); then
+      log_info "[DRY] $(format_cmd "${mkdir_cmd[@]}")"
+      log_info "[DRY] $(format_cmd "${file_cmd[@]}")"
+      (( total_done++ ))
+      return 0
+    fi
+
+    print_cmd_if_verbose "$verbose" "${mkdir_cmd[@]}"
+    "${mkdir_cmd[@]}" || {
+      log_err "failed to create target directory: $target_parent"
+      (( total_errors++ ))
+      return 1
+    }
+
+    print_cmd_if_verbose "$verbose" "${file_cmd[@]}"
+    "${file_cmd[@]}" || {
+      log_err "failed to ${mode} file: $source_abs"
+      (( total_errors++ ))
+      return 1
+    }
+
+    (( total_done++ ))
+    return 0
+  }
+
+  if (( use_stdin == 1 )); then
+    if [[ -t 0 ]]; then
+      log_err "--stdin was provided but stdin is a terminal"
+      return 1
+    fi
+
+    while IFS= read -r file_path; do
+      process_one_file "$file_path"
+      case $? in
+        0|1)
+          ;;
+        2)
+          aborted=1
+          break
+          ;;
+      esac
+    done
+  else
+    local -a find_cmd=(find "$source_dir_abs" "${find_args[@]}")
+    print_cmd_if_verbose "$verbose" "${find_cmd[@]}"
+
+    local tmp_filelist
+    tmp_filelist="$(mktemp)" || {
+      log_err "unable to create temporary file"
+      return 1
+    }
+
+    "${find_cmd[@]}" -print0 > "$tmp_filelist" || {
+      rm -f -- "$tmp_filelist"
+      log_err "find failed"
+      return 1
+    }
+
+    while IFS= read -r -d '' file_path; do
+      process_one_file "$file_path"
+      case $? in
+        0|1)
+          ;;
+        2)
+          aborted=1
+          break
+          ;;
+      esac
+    done < "$tmp_filelist"
+    rm -f -- "$tmp_filelist"
+  fi
+
+  if (( prune_empty_dirs == 1 )) && [[ "$mode" == "move" ]]; then
+    local -a prune_cmd=(find "$source_dir_abs" -depth -type d -empty -delete)
+    if (( dry_run == 1 )); then
+      log_info "[DRY] $(format_cmd "${prune_cmd[@]}")"
+    else
+      print_cmd_if_verbose "$verbose" "${prune_cmd[@]}"
+      "${prune_cmd[@]}" || {
+        log_warn "prune-empty-dirs failed"
+      }
+    fi
+  elif (( prune_empty_dirs == 1 )) && [[ "$mode" == "copy" ]]; then
+    log_warn "--prune-empty-dirs ignored in copy mode"
+  fi
+
+  log_info "Summary: seen=${total_seen}, done=${total_done}, skipped=${total_skipped}, conflicts=${total_conflicts}, errors=${total_errors}, aborted=${aborted}"
+
+  if (( aborted == 1 || total_errors > 0 )); then
+    return 1
+  fi
+  return 0
+}
+
+main "$@"
