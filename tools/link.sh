@@ -15,8 +15,12 @@ LINK_FILE=$(realpath "$0")
 TOOLS_DIR=$(dirname "$LINK_FILE")
 REPO_ROOT=$(dirname "$TOOLS_DIR")
 DOTFILES="${REPO_ROOT}/dotfiles"
-BAKDIR=$HOME/dotfiles_bak_$(date +%s)
-KEEP_LAST_BAKS=1
+REPO_BIN_DIR="${REPO_ROOT}/bin"
+HOME_BIN_DIR="$HOME/bin"
+BACKUP_BASE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles-link/backups"
+BAKDIR="${BACKUP_BASE_DIR}/run-$(date +%Y%m%dT%H%M%S)"
+KEEP_LAST_BAKS=10
+BACKUP_DIR_READY=false
 DRY_RUN=false
 VERBOSE=0
 
@@ -81,26 +85,48 @@ debug() { vlog 2 "$@"; }
 [ ! -d "${DOTFILES}" ] \
   && echo "error: dotfiles directory not found: ${DOTFILES}" \
   && exit 1
+[ ! -d "${REPO_BIN_DIR}" ] \
+  && echo "error: repo bin directory not found: ${REPO_BIN_DIR}" \
+  && exit 1
 
-# create backup dir (skipped in dry-run)
+# format command arguments for display
+format_cmd() {
+  local output=""
+  local arg
+
+  for arg in "$@"; do
+    printf -v output '%s%q ' "$output" "$arg"
+  done
+  printf "%s" "${output% }"
+}
+
+# create backup dir lazily (skipped in dry-run)
 run_and_report() {
-  local cmd="$1"
   if $DRY_RUN; then
-    info "\e[34mDRY-RUN: would run: $cmd\e[0m"
+    info "\e[34mDRY-RUN: would run: $(format_cmd "$@")\e[0m"
     return 0
   fi
-  info "\e[34m$cmd\e[0m"
-  eval "$cmd"
+  info "\e[34m$(format_cmd "$@")\e[0m"
+  "$@"
   local rc=$?
   if [ $rc -ne 0 ]; then
-    local msg="ERROR: Command failed with exit code $rc: $cmd"
+    local msg
+    msg="ERROR: Command failed with exit code $rc: $(format_cmd "$@")"
     ERRORS+=("$msg")
     echo -e "> \e[31m${msg}\e[0m" >&2
   fi
   return $rc
 }
 
-run_and_report "mkdir -p \"$BAKDIR\""
+ensure_backup_dir() {
+  if $BACKUP_DIR_READY; then
+    return 0
+  fi
+
+  run_and_report mkdir -p -- "$BAKDIR" || return 1
+  BACKUP_DIR_READY=true
+  return 0
+}
 
 # Define the ignore file
 IGNORE_FILE="${TOOLS_DIR}/.linkignore"
@@ -123,11 +149,16 @@ backup_existing() {
   local type="${3:-}"
   local reason="${4:-}"
   local targetbak="$BAKDIR/$relpath"
+  local targetbak_dir
+  targetbak_dir="$(dirname -- "$targetbak")"
   local msg="Target${type} '$target' exists${reason}, moving to backup '$targetbak'"
   WARNINGS+=("$msg")
   echo -e "\e[33mWARNING: ${msg}\e[0m" >&2
-  run_and_report "mkdir -p \"$BAKDIR/\`dirname $relpath\`\""
-  run_and_report "mv \"$target\" \"$targetbak\""
+
+  ensure_backup_dir || return 1
+  run_and_report mkdir -p -- "$targetbak_dir" || return 1
+  run_and_report mv -- "$target" "$targetbak" || return 1
+  return 0
 }
 
 # Use the pattern in the find command; avoid subshell so arrays persist
@@ -147,34 +178,75 @@ while IFS= read -r -d '' f; do
   if [ -d "$f" ]; then # is dir?
     [ "$relpath" = "." ] && continue
     if [ -e "$target" ]; then # target exists?
-      if [ ! -d "$target" ]; then
-        backup_existing "$target" "$relpath" " directory" " but is not a directory"
-      elif [ -L "$target" ]; then
-        backup_existing "$target" "$relpath" " directory" " but is a symlink"
+        if [ ! -d "$target" ]; then
+          backup_existing "$target" "$relpath" " directory" " but is not a directory" || continue
+        elif [ -L "$target" ]; then
+          backup_existing "$target" "$relpath" " directory" " but is a symlink" || continue
       else
         info "\e[32mOK: Correct directory already exists, skipping (nothing to do): $target\e[0m"
         continue
       fi
     fi
     info "Creating directory: '$target'"
-    run_and_report "mkdir -p \"$target\""
+      run_and_report mkdir -p -- "$target"
   else
     if [ -e "$target" ]; then # target exists?
       # is a link pointing to the desired target?
-      if [[ -L "$target" && "$(readlink $target)" -ef "$f" ]]; then
+        if [[ -L "$target" && "$(readlink "$target")" -ef "$f" ]]; then
         info "\e[32mOK: Correct symlink already exists (nothing to do), skipping ..\e[0m"
         continue
       fi
       if [[ -L "$target" ]]; then
-        backup_existing "$target" "$relpath" " symlink" " but points to '$(readlink $target)'"
+          backup_existing "$target" "$relpath" " symlink" " but points to '$(readlink "$target")'" || continue
       elif [[ -f "$target" ]]; then
-        backup_existing "$target" "$relpath" " file" " but is a regular file instead of symlink"
+          backup_existing "$target" "$relpath" " file" " but is a regular file instead of symlink" || continue
       fi
     fi
     info "Creating new SymLink: '$f' -> '$target'"
-    run_and_report "ln -sf \"$f\" \"$target\""
+      run_and_report ln -sf -- "$f" "$target"
   fi
 done < <(find "$DOTFILES" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PATTERN"} -print0)
+
+# synchronize top-level repo bin/ -> ~/bin symlinks
+info ""
+info "Syncing repo bin scripts: ${REPO_BIN_DIR} -> ${HOME_BIN_DIR} ..."
+run_and_report mkdir -p -- "$HOME_BIN_DIR"
+
+typeset -A BIN_BASENAMES
+while IFS= read -r -d '' src_file; do
+  base_name="$(basename "$src_file")"
+  BIN_BASENAMES["$base_name"]=1
+
+  target_link="${HOME_BIN_DIR}/${base_name}"
+  if [[ -e "$target_link" || -L "$target_link" ]]; then
+    if [[ -L "$target_link" && "$(readlink "$target_link")" -ef "$src_file" ]]; then
+      debug "bin sync: correct symlink already exists: $target_link"
+      continue
+    fi
+    backup_existing "$target_link" "bin/${base_name}" " symlink" " but points to '$(readlink "$target_link" 2>/dev/null || printf "%s" "non-symlink")'" || continue
+  fi
+
+  info "Creating new SymLink: '$src_file' -> '$target_link'"
+  run_and_report ln -sf -- "$src_file" "$target_link"
+done < <(find "$REPO_BIN_DIR" -mindepth 1 -maxdepth 1 -type f -print0)
+
+# remove stale ~/bin links that point into this repo's bin/ but no longer exist there
+while IFS= read -r -d '' existing_link; do
+  link_target="$(readlink "$existing_link" 2>/dev/null || true)"
+  [[ -n "$link_target" ]] || continue
+
+  # Only manage links that target this repository's bin directory.
+  if [[ "$link_target" != "${REPO_BIN_DIR}/"* ]]; then
+    debug "bin sync: preserving external/custom symlink: $existing_link -> $link_target"
+    continue
+  fi
+
+  base_name="$(basename "$existing_link")"
+  if [[ -z "${BIN_BASENAMES[$base_name]:-}" ]]; then
+    info "Removing stale repo bin symlink: $existing_link"
+    run_and_report rm -f -- "$existing_link"
+  fi
+done < <(find "$HOME_BIN_DIR" -mindepth 1 -maxdepth 1 -type l -print0)
 
 # report all warnings and errors (if any)
 if [ ${#WARNINGS[@]} -gt 0 ]; then
@@ -206,18 +278,25 @@ fi
 echo
 
 # Remove backup dir if empty (skipped in dry-run)
-run_and_report "rmdir --ignore-fail-on-non-empty \"$BAKDIR\""
+if $BACKUP_DIR_READY; then
+  run_and_report rmdir --ignore-fail-on-non-empty "$BAKDIR"
+fi
 
-# Delete all but the latest dofiles backup $HOME/dotfiles_bak_$(date +%s)
-typeset -a EXISTING_BAKS
-EXISTING_BAKS=$(find $HOME -maxdepth 1 -type d -name "dotfiles_bak_*" | sort -r | tail -n +$((KEEP_LAST_BAKS + 1)))
-if [ -z "$EXISTING_BAKS" ]; then
+# Delete all but the latest backup directories in the state dir.
+typeset -a EXISTING_BAKS=()
+if [[ -d "$BACKUP_BASE_DIR" ]]; then
+  while IFS= read -r d; do
+    EXISTING_BAKS+=("$d")
+  done < <(find "$BACKUP_BASE_DIR" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | sort -r | tail -n +$((KEEP_LAST_BAKS + 1)))
+fi
+
+if (( ${#EXISTING_BAKS[@]} == 0 )); then
   debug "Cleanup: No outdated backup directories found (always keeping last $KEEP_LAST_BAKS), skipping cleanup."
 else
   info "Cleanup: Removing ${#EXISTING_BAKS[@]} outdated backup directories (\$KEEP_LAST_BAKS=$KEEP_LAST_BAKS) ..."
-  for d in $EXISTING_BAKS; do
+  for d in "${EXISTING_BAKS[@]}"; do
     debug "Cleanup: Removing outdated backup directory: $d"
-    run_and_report "rm -rf \"$d\""
+    run_and_report rm -rf -- "$d"
   done
   info "Cleanup: Done."
 fi

@@ -760,3 +760,15 @@ https://marketplace.visualstudio.com/items?itemName=timonwong.shellcheck[ShellCh
 
 NOTE: Deeper integration with CI pipelines, pre-commit hooks, and testing
 frameworks is tracked in `docs/TODO.adoc`.
+
+
+== Documentation
+
+* Use `README.md` for high-level overview and link to detailed docs in `@docs/`. Use `TODO.md` for tracking tasks and future improvements. Keep both files up to date with the project's current state and plans.
+** Create new documentation files in `@docs/` whenever it seems appropriate; especially when more extensive changes are planned/made, or complex features are added that require detailed explanation.
+* Use this `@docs/shell-style-guide.adoc` for the full style guide, and `CLAUDE.md` for a concise summary.
+
+=== Formatting and Style Guidelines
+
+* Use [Asciidoc](https://asciidoctor.org/docs/asciidoc-syntax-quick-reference/) for documentation.
+* Avoid the use of tabs, use spaces for indentation.
