@@ -45,7 +45,14 @@ _archive/        Archived scripts pending review (not in PATH)
 ----
 
 * `ZSH` is the leading shell.
-* `Bash` configs exist for rare cases in which zsh is not available, they are not regularly maintained and usually outdated.
+* `Bash` configs exist for rare cases in which zsh is not available, they are
+	not regularly maintained and usually outdated (consolidation is however a
+	backlog topic).
+* Portability is a core goal: the `dotfiles/` + `bin/` + `lib/` + `tools/link.sh`
+	approach is intentionally dependency-free and should work without additional
+	packages or root access.
+* Restricted-host support matters: basic setup should still be usable on
+	systems with only `bash` available (no `zsh`, no extra tooling).
 * If not clearly `ZSH` related, all alias, function, etc. files should be `Bash` compatible _(but not always POSIX compliant)_.
 * All files use the `" \{\{\{( .*)?$"` _(or `{{{ }}}` in short)_ folding comment pattern _(use e.g. https://www.emacswiki.org/emacs/FoldingMode[emacs], https://marketplace.visualstudio.com/items?itemName=zokugun.explicit-folding[VS Code], https://stackoverflow.com/a/6947590[eclipse])_
 

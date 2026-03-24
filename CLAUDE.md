@@ -147,3 +147,14 @@ When working in interactive shell you can expect the following to be setup for y
 - Default shell is `zsh` with:
   - `setopt EXTENDED_GLOB`
   - `setopt INTERACTIVECOMMENTS`
+
+## Documentation
+
+- Use `README.md` for high-level overview and link to detailed docs in `@docs/`. Use `TODO.md` for tracking tasks and future improvements. Keep both files up to date with the project's current state and plans.
+  - Create new documentation files in `@docs/` whenever it seems appropriate; especially when more extensive changes are planned/made, or complex features are added that require detailed explanation.
+- Use `@docs/shell-style-guide.adoc` for the full style guide, and this `CLAUDE.md` for a concise summary.
+
+### Formatting and Style Guidelines
+
+- Use [Asciidoc](https://asciidoctor.org/docs/asciidoc-syntax-quick-reference/) for documentation.
+- Avoid the use of tabs, use spaces for indentation.
