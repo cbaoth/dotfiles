@@ -39,7 +39,7 @@ __add_flatpak_app_functions() {
     done
 
     # Use eval with quoted app ID so each generated function keeps its own target.
-    eval "${function_name}() { flatpak run ${(q)application} \\\"\$@\\\"; }"
+    eval "${function_name}() { flatpak run ${(q)application} \"\$@\"; }"
     compdef _files "${function_name}"
   done < <(flatpak list --app --columns=name,application 2>/dev/null | tail -n +2)
 }
