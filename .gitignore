@@ -25,5 +25,8 @@
 *.local.*
 *.local
 
+# TODO: re-evaluate, ignore copilot related files for the time being
+.github/
+
 # local: tool output in working directory (root only)
 # /...
