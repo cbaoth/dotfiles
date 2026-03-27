@@ -91,6 +91,13 @@ print -l **/*~(.git|node_modules)/*~*.(md|adoc|png)(D.)
 # (D.):       include dot-files/directories in glob
 ----
 
+
+== Commands to Remember
+
+=== rehash
+
+When you install new software that includes command-line tools, you may need to run `rehash` in zsh to update the command hash table. This allows zsh to recognize the new commands without needing to restart the shell.
+
 == External Resources
 
 * https://zsh.org Official Website

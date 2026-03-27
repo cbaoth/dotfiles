@@ -817,6 +817,7 @@ if $ZPLUG_MODE_IS_FULL && ! cl::is_ssh; then
   #zstyle :omz:plugins:ssh-agent lifetime 4h
 fi
 
+# TODO compctl is a legacy feature which may be brittle with OMZ, review and useg compdef instead if needed
 # file type command detecton
 #compctl -g '*.ebuild' ebuild
 #compctl -g '*.tex' + -g '*(-/)' latex
@@ -824,20 +825,27 @@ fi
 #compctl -g '*.java' + -g '*(-/)' javac
 #compctl -g '*.tar.bz2 *.tar.gz *.bz2 *.gz *.jar *.rar *.tar *.tbz2 *.tgz *.zip *.Z' \
 #        + -g '*(-/)' extract
-compctl -g '*.mp3 *.ogg *.opus *.mod *.wav *.avi *.mpg *.mpeg *.wmv *.mkv *.webm *.mp4' \
-        + -g '*(-/)' mpv
-compctl -g '*.py' python
+#compctl -g '*.mp3 *.ogg *.opus *.mod *.wav *.avi *.mpg *.mpeg *.wmv *.mkv *.webm *.mp4' \
+#        + -g '*(-/)' mpv
+#compctl -g '*.py' python
 #compctl -g '*(-/D)' cd
 #compctl -g '*(-/)' mkdir
 
-# user name auto completion
-function _userlist {
-  [[ -r /etc/passwd ]] && reply=($(cat /etc/passwd | cut -d : -f 1))
-}
-compctl -K _userlist ps -fU
-compctl -K _userlist finger
+## user name auto completion
+#function _userlist {
+#  [[ -r /etc/passwd ]] && reply=($(cat /etc/passwd | cut -d : -f 1))
+#}
+#compctl -K _userlist ps -fU
+#compctl -K _userlist finger
 
-set COMPLETE_ALIASES
+# if set, aliases are treated as their own completion context, default: expand aliases before completion
+# with this option: `alias ll=ls -all` -> `ll -<TAB>` completes `ll` options (if any, none per default)
+# default behavior: `alias ll=ls -all` -> `ll -<TAB>` completes `ls -all` options)
+# there should usually not be a need to set this. if aliases don't behave as expected, consider using a function with specific compcfg instead, e.g.
+#   mpv() { flatpak run io.mpv.Mpv "$@" }
+#   vlc() { flatpak org.videolan.VLC "$@" }
+#   compdef _files mpv vlc
+#setopt completealiases
 # }}} - COMPLETION -----------------------------------------------------------
 # {{{ - MISC -----------------------------------------------------------------
 # cd ... completes cd ../../../ etc.
