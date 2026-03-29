@@ -81,20 +81,14 @@ EOF
 
 sudo tee /etc/systemd/system/bedtime.timer <<'EOF'
 [Unit]
-Description=Run Bedtime Script every 10 min (21:30 - 05:00)
+Description=Run Bedtime Script every 10 min (10:00 - 04:50)
 
 [Timer]
-# Cover 21:30 to 21:50 in 10 min intervals
-OnCalendar=*-*-* 21:30,40,50
-
-# Cover 22:00 to 23:50 in 10 min intervals
-OnCalendar=*-*-* 22,23:0/10
+# Cover 10:00 to 23:50 in 10 min intervals, time ranges can't span midnight
+OnCalendar=*-*-* 10..23:00/10
 
 # Cover 00:00 to 04:50 in 10 min intervals
-OnCalendar=*-*-* 00..04:0/10
-
-# Final trigger at 05:00 (not really needed if "Bedtime Zone" ends at 05:00)
-#OnCalendar=*-*-* 05:00:00
+OnCalendar=*-*-* 00..04:00/10
 
 # Keep Persistent=true (catches missed runs on boot)
 Persistent=true
@@ -103,10 +97,20 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# Verify the timer configuration and see the next trigger times:
+systemd-analyze verify /etc/systemd/system/bedtime.timer
+# Validate the calendar syntax, and see the next 5 trigger times:
+# systemd-analyze calendar --iterations=5 "*-*-* 00..04:0/10"
+
 # Enable and start the timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now bedtime.timer
 ----
+
+The suggested timer shown above is set to start much earlier (10:00) than the actual bedtime start in the script configuration file (default: 21:30), but does not cover 24 hours. This is intentional, for the following reasons:
+* In case you configure the "Bedtime Zone" to start earlier than before, this way there is usually no need to remember and update the timer configuration as well, since the timer already covers a wide time range (10:00 to 05:00).
+** Note that the script itself will check the actual time and exit early if it's not within the "Bedtime Zone", so there is no risk of it shutting down your system at 10:00.
+* In case your configuration accidentally covers the entire 24 hours, or the script has a bug, the time range between 05:00 and 10:00 will always be safe.
 
 **Option B: Manual systemd setup**
 
