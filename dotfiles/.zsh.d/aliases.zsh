@@ -11,6 +11,7 @@
 alias /='cd /'
 alias h='history'
 alias hs='history | grep -Ei'
+alias help='run-help'
 
 alias reload-functions='. $HOME/.zsh.d/functions.zsh;
   source_ifex_custom $HOME/.zsh.d/functions'
