@@ -69,6 +69,7 @@ Ideas and future tasks for improving the shell scripts in this repository.
 ** Consider a configuration file (`.shellcheckrc`) for project-wide settings
 * [ ] Evaluate other linting tools (e.g.,
   https://github.com/mvdan/sh[shfmt] for formatting)
+** Consider adding a pre-commit hook to run linters on staged files (see https://github.com/koalaman/shellcheck?tab=readme-ov-file#pre-commit[ShellCheck README.md#pre-commit])
 
 === Pre-Commit Hooks
 
