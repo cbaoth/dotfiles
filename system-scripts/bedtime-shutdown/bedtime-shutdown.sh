@@ -221,16 +221,6 @@ _format_time() {
 declare -r USER_ID=$(id -u "$BSS_USER_NAME")
 _log_debug "Resolved user '$BSS_USER_NAME' to UID $USER_ID"
 
-# Get current time as a number (e.g. 2130 for 21:30 or 9:30 PM)
-declare -r CURRENT_TIME=$(date +%H%M)
-
-# Force base-10 ((10#...)) to prevent bash from thinking "0800" is an octal number and crashing.
-# Also strip any colons from time values to support both HHMM and HH:MM formats
-declare -r NOW=$((10#$CURRENT_TIME))
-declare -r START=$((10#${BSS_SHUTDOWN_START//:/}))  # Strip colons for HH:MM format support
-declare -r END=$((10#${BSS_SHUTDOWN_END//:/}))      # Strip colons for HH:MM format support
-
-_log_debug "Time check - NOW: $NOW ($(date '+%H:%M')), START: $START ($(_format_time ${BSS_SHUTDOWN_START//:/})), END: $END ($(_format_time ${BSS_SHUTDOWN_END//:/}))"
 _log_debug "DRY_RUN: $DRY_RUN, VERBOSITY: $VERBOSITY"
 
 if [[ "$DRY_RUN" == "true" ]]; then
@@ -275,30 +265,40 @@ _notify_user() {
 
 # Exits the script if we are in the "Safe Zone" (no shutdown allowed)
 _exit_if_safe_zone() {
+  # Get current time as a number (e.g. 2130 for 21:30 or 9:30 PM)
+  local -r current_time=$(date +%H%M)
+
+  # Force base-10 ((10#...)) to prevent bash from thinking "0800" is an octal number and crashing.
+  # Also strip any colons from time values to support both HHMM and HH:MM formats
+  local -r now=$((10#$current_time))
+  local -r start=$((10#${BSS_SHUTDOWN_START//:/}))  # Strip colons for HH:MM format support
+  local -r end=$((10#${BSS_SHUTDOWN_END//:/}))      # Strip colons for HH:MM format support
+
   local -i is_safe=0
 
   _log_debug "Checking if current time is within safe zone..."
-  _log_debug "Time boundaries - NOW: $NOW, START: $START, END: $END"
+  _log_debug "Time boundaries: [now=$now,end=$end, start=$start]"
+  _log_debug "Time check - NOW: $now ($(date '+%H:%M')), start: $start ($(_format_time "${BSS_SHUTDOWN_START//:/}")), end: $end ($(_format_time "${BSS_SHUTDOWN_END//:/}"))"
 
   # Case 1: Standard day `START > END` (e.g. 05:00 to 21:30)
-  if (( START > END )); then
-    _log_debug "Standard schedule mode (START > END): Safe zone is [END=$END, START=$START)"
-    if (( NOW >= END && NOW < START )); then
+  if (( start > end )); then
+    _log_debug "Standard schedule mode (start > end): Safe zone is [end=$end, start=$start]"
+    if (( now >= end && now < start )); then
       is_safe=1
-      _log_debug "Current time $NOW is within safe zone"
+      _log_debug "Current time $now is within safe zone"
     fi
   # Case 2: Wrapping over midnight `START < END` (e.g. 21:30 to 05:00)
   else
-    _log_debug "Wrapping schedule mode (START < END): Safe zone is [END=$END or NOW < START=$START)"
+    _log_debug "Wrapping schedule mode (start < end): Safe zone is [END=$end or NOW < START=$start)"
     # Safe if it's AFTER morning start OR BEFORE night shutdown
-    if (( NOW >= END || NOW < START )); then
+    if (( now >= end || now < start )); then
       is_safe=1
-      _log_debug "Current time $NOW is within safe zone"
+      _log_debug "Current time $now is within safe zone"
     fi
   fi
 
   if (( is_safe == 1 )); then
-      _log "Current time ($(_format_time $CURRENT_TIME)) is within the safe window [$(_format_time ${BSS_SHUTDOWN_END//:/}) to $(_format_time ${BSS_SHUTDOWN_START//:/})]. Skipping shutdown."
+      _log "Current time ($(_format_time "$current_time")) is within the safe window [$(_format_time "${BSS_SHUTDOWN_END//:/}") to $(_format_time "${BSS_SHUTDOWN_START//:/}")]. Skipping shutdown."
       exit 0
   else
     _log_debug "Current time is within shutdown window. Proceeding with checks."
@@ -558,6 +558,9 @@ main() {
   if [[ "$BSS_GRACE_PERIOD_USER" -gt 0 ]]; then
     _log_info "Waiting ${BSS_GRACE_PERIOD_USER} seconds before proceeding to shutdown..."
     sleep $BSS_GRACE_PERIOD_USER
+    # Run all checks again in case conditions have changed (e.g., system suspended -> "time jump")
+    _exit_if_safe_zone
+    _exit_if_emergency_override
   fi
 
   # 3. Shutdown Sequence
@@ -575,6 +578,9 @@ main() {
   if [[ $BSS_GRACE_PERIOD_SYSTEM -gt 0 ]]; then
     _log_info "Waiting ${BSS_GRACE_PERIOD_SYSTEM} seconds for graceful shutdown..."
     sleep $BSS_GRACE_PERIOD_SYSTEM
+    # Run all checks again in case conditions have changed (e.g., system suspended -> "time jump")
+    _exit_if_safe_zone
+    _exit_if_emergency_override
 
     # Stage 3: Pre-shutdown Cleanup (Best-effort unmount)
     # Attempt to cleanly unmount specified filesystems to prevent dirty flags
