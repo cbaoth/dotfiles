@@ -24,6 +24,8 @@ declare -ri VERBOSITY_DEFAULT=0
 # Initialize variables with default values
 declare LOGFILE=""  # No logging by default, can be set to a file path
 declare -i VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity level for script and rsync
+declare BACKUP_DIR_CURRENT=""
+declare BACKUP_BASE_DIR_CURRENT=""
 
 # Logging function with levels and optional file logging, used from here on out
 __log() {
@@ -65,6 +67,35 @@ _log_error() { __log "ERROR" "$*"; } # Always shown
 _log_warn()  { __log "WARN"  "$*"; } # Always shown
 _log_info()  { __log "INFO"  "$*"; } # Shown if VERBOSITY >= 1
 _log_debug() { __log "DEBUG" "$*"; } # Shown if VERBOSITY >= 2
+
+# Remove run-specific backup directory if it stayed empty.
+_cleanup_empty_backup_dirs() {
+  $DO_BACKUP || return 0
+  $DO_DELETE_EMPTY_BACKUP_DIRS || return 0
+
+  if [[ -n "$BACKUP_DIR_CURRENT" && -d "$BACKUP_DIR_CURRENT" ]]; then
+    if rmdir "$BACKUP_DIR_CURRENT" 2>/dev/null; then
+      _log_info "Removed empty backup directory: $BACKUP_DIR_CURRENT"
+    fi
+  fi
+
+  if [[ -n "$BACKUP_BASE_DIR_CURRENT" && -d "$BACKUP_BASE_DIR_CURRENT" ]]; then
+    if rmdir "$BACKUP_BASE_DIR_CURRENT" 2>/dev/null; then
+      _log_info "Removed empty backup base directory: $BACKUP_BASE_DIR_CURRENT"
+    fi
+  fi
+}
+
+_on_exit() {
+  local -r exit_code=$?
+  _cleanup_empty_backup_dirs
+  exit "$exit_code"
+}
+
+_on_interrupt() {
+  _log_warn "Received interrupt/termination signal, cleaning up before exit."
+  exit 130
+}
 
 # Normalize path: remove duplicate slashes within path, but preserve trailing slash
 _normalize_path() {
@@ -205,6 +236,9 @@ for _normalize_pathsrc in "${SOURCE[@]}"; do
 done
 # }}} = ARGUMENT PARSING =====================================================
 
+trap _on_interrupt INT TERM HUP
+trap _on_exit EXIT
+
 # {{{ = MAIN FUNCTION ========================================================
 _main() {
   # Normalize source paths while preserving trailing slashes
@@ -224,7 +258,9 @@ _main() {
 
   # Handle optional backup directory
   if $DO_BACKUP; then
-    local backup_base_dir="$(_normalize_path "${target}/${BACKUP_SUBDIR}/")"
+    local backup_base_dir
+    backup_base_dir="$(_normalize_path "${target}/${BACKUP_SUBDIR}/")"
+    BACKUP_BASE_DIR_CURRENT="$backup_base_dir"
     # Remove potentially existing empty backup directories from previous runs to avoid clutter
     if $DO_DELETE_EMPTY_BACKUP_DIRS; then
         _log_info "Cleaning up any existing empty backup directories in $backup_base_dir"
@@ -236,11 +272,13 @@ _main() {
     fi
 
     # Create a new backup directory with timestamp, ensuring it is unique and does not overwrite previous backups
-    local backup_dir="$(_normalize_path "${backup_base_dir}$(date +%Y-%m-%dT%H%M%S)")"
+    local backup_dir
+    backup_dir="$(_normalize_path "${backup_base_dir}$(date +%Y-%m-%dT%H%M%S)")"
     mkdir -p "$backup_dir" || {
       _log_error "Failed to create backup directory: $backup_dir"
       exit 1
     }
+    BACKUP_DIR_CURRENT="$backup_dir"
     _log_info "Created backup directory: $backup_dir"
     # Exclude backup directories from being considered for deletion if --delete is used
     if $DO_DELETE; then
