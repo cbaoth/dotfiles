@@ -748,7 +748,7 @@ zstyle ':completion:*:*:kill:*:processes' list-colors '=(#b) #([0-9]#)*=0=01;31'
 # http://zsh.sourceforge.net/Doc/Release/Completion-System.html
 # http://zsh.sourceforge.net/Guide/zshguide06.html
 zstyle ':completion:*' completer _complete _match _approximate
-# _exand: use only with tab -> complete-word, not with expand-or-complete (default)
+# _expand: use only with tab -> complete-word, not with expand-or-complete (default)
 #zstyle ':completion:*' completer _expand _complete _match _approximate _ignored
 
 # _match context: dont insert * at the end (when pressing tab)

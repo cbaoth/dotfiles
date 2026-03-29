@@ -94,6 +94,18 @@ print -l **/*~(.git|node_modules)/*~*.(md|adoc|png)(D.)
 
 == Commands to Remember
 
+=== run-help
+
+The `run-help` command is a zsh built-in that provides access to the shell's help system. It can be used to get information about built-in commands, shell options, and other topics.
+
+=== whence
+
+The `whence` command is used to determine how a command name is interpreted by the shell. It can show whether a command is an alias, function, builtin, or external executable.
+
+Compared to `which` (which only shows the path of external executables), `whence` provides more comprehensive information about command resolution in zsh.
+
+Compared to `command -v` (which is POSIX-compliant and shows the path of external executables or indicates if it's a shell builtin), `whence` can also identify aliases and functions, making it more versatile for zsh users.
+
 === rehash
 
 When you install new software that includes command-line tools, you may need to run `rehash` in zsh to update the command hash table. This allows zsh to recognize the new commands without needing to restart the shell.
