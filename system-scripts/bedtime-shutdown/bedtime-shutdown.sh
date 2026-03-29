@@ -20,7 +20,8 @@ declare -ri VERBOSITY_DEFAULT=0
 declare CONFIG_FILE="/etc/bedtime-shutdown.conf"
 declare DRY_RUN=false
 declare LOGFILE=""   # Set via --logfile or BSS_LOGFILE config variable
-declare SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")  # Get current user for logging context
+declare SCRIPT_USER=""
+SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")
 declare -i VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity after config/CLI merge
 declare -i VERBOSITY_CLI=0               # Tracks CLI-requested verbosity before config merge
 
@@ -31,8 +32,8 @@ __log() {
   [[ $# -lt 2 ]] && { echo "Usage: __log LEVEL MESSAGE" >&2; return 1; }
   local -r level=$1; shift
   local -r msg="$*"
-  local -r timestamp=$( date +"%Y-%m-%d %H:%M:%S" 2> /dev/null || echo $__LOG_UNKNOWN_TIMESTAMP )
-  local -r timestamp_log=$( [[ -n "$LOGFILE" ]] && date -Ins 2>/dev/null || echo $__LOG_UNKNOWN_TIMESTAMP )
+  local -r timestamp=$( date +"%Y-%m-%d %H:%M:%S" 2> /dev/null || echo "$__LOG_UNKNOWN_TIMESTAMP" )
+  local -r timestamp_log=$( [[ -n "$LOGFILE" ]] && date -Ins 2>/dev/null || echo "$__LOG_UNKNOWN_TIMESTAMP" )
 
   case "$level" in
     E|ERR|ERROR)
@@ -91,7 +92,7 @@ while [[ "$#" -gt 0 ]]; do
     ;;
     -h|--help)
       cat <<EOL
-Usage: $(basename $0) [OPTIONS]
+Usage: $(basename "$0") [OPTIONS]
 
 Options:
   -c, --config FILE        Specify an alternative configuration file (default: /etc/bedtime-shutdown.conf).
@@ -128,7 +129,8 @@ if [[ -f "$CONFIG_FILE" ]]; then
     _log_error "Config file [$CONFIG_FILE] is not readable by current user. Run as root or use --config to specify a readable config file. Exiting ..."
     exit 1
   fi
-  source "$CONFIG_FILE"
+  # shellcheck source=/etc/bedtime-shutdown.conf disable=SC1091
+  source "$CONFIG_FILE"  # SC1091: only available when installed, only readable by root
 else
   _log_error "Configuration file [$CONFIG_FILE] not found. Exiting ..."
   exit 1
@@ -218,7 +220,9 @@ _format_time() {
 }
 
 # Get the user ID of BSS_USER_NAME
-declare -r USER_ID=$(id -u "$BSS_USER_NAME")
+declare USER_ID=""
+USER_ID=$(id -u "$BSS_USER_NAME")
+declare -r USER_ID
 _log_debug "Resolved user '$BSS_USER_NAME' to UID $USER_ID"
 
 _log_debug "DRY_RUN: $DRY_RUN, VERBOSITY: $VERBOSITY"
@@ -251,7 +255,7 @@ _notify_user() {
   # Ignore failure if user is not logged in, PAM blocked notifications, etc.
   # This is async via notify-send, so no need to wait
   _log_debug "Sending GUI notification to user '$BSS_USER_NAME': $msg"
-  sudo -u "$BSS_USER_NAME" DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${USER_ID}/bus \
+  sudo -u "$BSS_USER_NAME" DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"${USER_ID}"/bus \
     notify-send --urgency=critical "BEDTIME" "$msg" 2>/dev/null || {
     _log_warn "GUI notification to user '$BSS_USER_NAME' failed (user may not be logged in)"
   }
@@ -262,7 +266,6 @@ _notify_user() {
     _log_warn "wall broadcast failed (no terminal sessions available)"
   }
 }
-
 # Exits the script if we are in the "Safe Zone" (no shutdown allowed)
 _exit_if_safe_zone() {
   # Get current time as a number (e.g. 2130 for 21:30 or 9:30 PM)
@@ -362,7 +365,7 @@ _exit_if_emergency_override() {
 # This is a best-effort operation to prevent dirty flags on NTFS/exFAT partitions
 _cleanup_mounts() {
   # Check if cleanup is enabled
-  if [[ -z "${BSS_CLEANUP_MOUNTS[@]:-}" ]] || [[ "${#BSS_CLEANUP_MOUNTS[@]}" -eq 0 ]]; then
+  if [[ -z "${BSS_CLEANUP_MOUNTS+x}" ]] || (( ${#BSS_CLEANUP_MOUNTS[@]} == 0 )); then
     _log_debug "Mount cleanup disabled (BSS_CLEANUP_MOUNTS is empty)"
     return 0
   fi
@@ -376,10 +379,8 @@ _cleanup_mounts() {
   for pattern in "${BSS_CLEANUP_MOUNTS[@]}"; do
     _log_debug "Processing pattern: $pattern"
 
-    # Expand glob pattern (disable error on no match)
-    expanded=($pattern)
-    shopt -s nullglob
-    shopt -u nullglob
+    # Expand glob pattern while preserving literal patterns with no matches.
+    mapfile -t expanded < <(compgen -G "$pattern" || true)
 
     if [[ "${#expanded[@]}" -eq 0 ]]; then
       _log_debug "Pattern '$pattern' matched no paths"
@@ -419,7 +420,8 @@ _cleanup_mounts() {
     _log_info "PHASE 1: Stopping automount units..."
     local mount_point
     for mount_point in "${mounted_targets[@]}"; do
-      local unit_name=$(systemd-escape --path --suffix=automount "$mount_point" 2>/dev/null || true)
+      local unit_name=""
+      unit_name=$(systemd-escape --path --suffix=automount "$mount_point" 2>/dev/null || true)
       if [[ -n "$unit_name" ]]; then
         if systemctl is-active --quiet "$unit_name" 2>/dev/null; then
           _log_info "Stopping automount trigger: $unit_name"
@@ -557,7 +559,7 @@ main() {
 
   if [[ "$BSS_GRACE_PERIOD_USER" -gt 0 ]]; then
     _log_info "Waiting ${BSS_GRACE_PERIOD_USER} seconds before proceeding to shutdown..."
-    sleep $BSS_GRACE_PERIOD_USER
+    sleep "$BSS_GRACE_PERIOD_USER"
     # Run all checks again in case conditions have changed (e.g., system suspended -> "time jump")
     _exit_if_safe_zone
     _exit_if_emergency_override
@@ -577,7 +579,7 @@ main() {
   # Skip if BSS_GRACE_PERIOD_SYSTEM is set to 0 or less.
   if [[ $BSS_GRACE_PERIOD_SYSTEM -gt 0 ]]; then
     _log_info "Waiting ${BSS_GRACE_PERIOD_SYSTEM} seconds for graceful shutdown..."
-    sleep $BSS_GRACE_PERIOD_SYSTEM
+    sleep "$BSS_GRACE_PERIOD_SYSTEM"
     # Run all checks again in case conditions have changed (e.g., system suspended -> "time jump")
     _exit_if_safe_zone
     _exit_if_emergency_override
