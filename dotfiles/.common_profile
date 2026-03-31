@@ -7,13 +7,12 @@
 
 # {{{ = ENVIRONMENT (ALL SHELLS) =============================================
 # {{{ - PATHS ----------------------------------------------------------------
-export PATH="${HOME}/bin:${HOME}/.local/bin:/opt/bin:/snap/bin"\
-":/var/lib/flatpak/exports/bin"\
-":/usr/local/bin:/usr/bin:/bin"\
-":/usr/local/sbin:/usr/sbin:/sbin"\
-":/usr/bin/X11:/usr/X11R6/bin:/usr/games"\
-":/opt/oracle/instantclient_21_4"\
-"${PATH:+:${PATH}}"
+export PATH="${HOME}/bin:${HOME}/.local/bin:/opt/bin:/snap/bin:\
+/var/lib/flatpak/exports/bin:\
+/usr/local/bin:/usr/bin:/bin:\
+/usr/local/sbin:/usr/sbin:/sbin:\
+/usr/bin/X11:/usr/X11R6/bin:/usr/games:\
+/opt/oracle/instantclient_21_4${PATH:+:${PATH}}"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}/usr/local/lib"
 # }}} - PATHS ----------------------------------------------------------------
 
@@ -43,15 +42,12 @@ umask 022
 export IS_ZSH
 
 # Set core system variables if not already set
-if $IS_ZSH; then
-  OS=${OS:=${$(uname 2> /dev/null):l}}
-  HOST=${HOSTNAME:=${(L)$(hostname 2> /dev/null)}}
-  ARCH=${ARCH:=${$(uname -m 2> /dev/null):l}}
-else # should always be bash, otherwise we would not use the dotfiles repo
-  OS=${OS:=$(uname 2> /dev/null),,}
-  HOST=${HOSTNAME:=$(hostname 2> /dev/null),,}
-  ARCH=${ARCH:=$(uname -m 2> /dev/null),,}
-fi
+: "${OS:=$(uname 2> /dev/null)}"
+: "${HOST:=${HOSTNAME:-$(hostname 2> /dev/null)}}"
+: "${ARCH:=$(uname -m 2> /dev/null)}"
+OS=$(printf '%s' "${OS}" | tr '[:upper:]' '[:lower:]')
+HOST=$(printf '%s' "${HOST}" | tr '[:upper:]' '[:lower:]')
+ARCH=$(printf '%s' "${ARCH}" | tr '[:upper:]' '[:lower:]')
 export OS HOST ARCH
 
 # Is X available? Unreliable for ssh x-forwading., suffices for local sessions
@@ -109,6 +105,13 @@ export IS_TERMUX=${IS_TERMUX:-false}
 export IS_DOCKER=${IS_DOCKER:-false}
 export IS_WSL1=${IS_WSL1:-false}
 export IS_WSL2=${IS_WSL2:-false}
+
+# Is conda (anaconda/miniconda) available?
+HAS_CONDA=false
+if [[ -f "$HOME/anaconda3/bin/conda" || -f "$HOME/miniconda3/bin/conda" ]]; then
+  HAS_CONDA=true
+fi
+export HAS_CONDA
 # }}} - SYSTEM/ENV STATE -----------------------------------------------------
 
 # {{{ - SSH, KEY AGENT, PASSWORD MANAGER -------------------------------------
@@ -128,7 +131,9 @@ export CLASSPATH=".:$HOME/.class${CLASSPATH+:$CLASSPATH}"
 export PYTHONPATH="${PYTHONPATH+:$PYTHONPATH}:$HOME/lib/python/site-packages"
 export SCALA_HOME="$HOME/scala"
 command -v java >& /dev/null \
-  && export JAVA_HOME="${$(realpath $(command -v java))/bin\/java/}"
+  && JAVA_HOME="$(realpath "$(command -v java)" 2> /dev/null)" \
+  && JAVA_HOME="${JAVA_HOME%/bin/java}" \
+  && export JAVA_HOME
 
 # Check if we are in the 32bit chroot
 #export INCHROOT=0
@@ -211,13 +216,12 @@ export XDG_CACHE_HOME="${HOME}/.cache"
 # The following should be set automatically / via /etc/environment, but in case
 # it is not set here to avoid flatpak warnings / issues
 if [[ -z "${XDG_DATA_DIRS-}" ]]; then
-    XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:${HOME}/.local/share"\
-":/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/gnome:/usr/share/"
+  XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:${HOME}/.local/share:\
+/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/gnome:/usr/share/"
 # if flatpak paths are missing, only add those and local user paths
 elif [[ ${XDG_DATA_DIRS} != *flatpak* ]]; then
-    XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:${HOME}/.local/share"\
-":/var/lib/flatpak/exports/share"\
-"${XDG_DATA_DIRS:+:${XDG_DATA_DIRS}}"
+  XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:${HOME}/.local/share:\
+/var/lib/flatpak/exports/share${XDG_DATA_DIRS:+:${XDG_DATA_DIRS}}"
 fi
 export XDG_DATA_DIRS
 # Note that this is mainly here to avoid warnings from flatpak.
