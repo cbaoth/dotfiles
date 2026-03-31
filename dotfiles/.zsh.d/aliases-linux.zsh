@@ -117,6 +117,7 @@ if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
   alias dpr='sudo dpkg -r' # remove package (keep config files)
   alias dpr!='sudo dpkg --force-all --purge' # purge package (remove including config files)
   alias dpgs='dpkg --get-selections'
+  alias dpgsg='dpkg --get-selections | grep -i --color'
   alias dpl='dpkg -l --no-pager'
   alias dplg='dpl | grep -i --color'
   alias dpli='dpkg --get-selections --no-pager'
