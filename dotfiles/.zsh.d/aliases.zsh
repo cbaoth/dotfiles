@@ -83,4 +83,25 @@ alias -g @sum="| awk '{s+=\$1} END {print s}'"
 #alias -g @Sk="*~(*.bz2|*.gz|*.tgz|*.zip|*.z)"
 # }}} - GLOBAL ALIASES -------------------------------------------------------
 
+# {{{ - PYTHON ---------------------------------------------------------------
+# https://docs.conda.io/projects/conda/en/latest/commands/index.html
+if $HAS_CONDA; then
+  # conda environments
+  alias condai="conda init"
+  alias condar="conda run"
+  alias condaa="conda activate"
+  alias condad="conda deactivate"
+  alias condac="conda check"
+  alias condal="conda list"
+  # conda packages
+  alias condaps="conda search"
+  alias condapi="conda install"
+  alias condapr="conda remove"
+  alias condapu="conda update"
+  alias condapc="conda clean"
+  alias condapd="conda compare"
+  alias conda\?="conda info"
+fi
+# }}} - PYTHON ---------------------------------------------------------------
+
 return 0
