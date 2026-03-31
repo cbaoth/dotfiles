@@ -1459,7 +1459,7 @@ pkg-search () {
       || cl::p_msg ".. no matching flatpak package found"
 }
 alias pkgs="pkg-search"
-alias pkgss="pkg-search -i -n"
+alias pkgsg="pkg-search -i -n"
 
 # }}} - Debian/Ubuntu --------------------------------------------------------
 
