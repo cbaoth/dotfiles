@@ -23,7 +23,7 @@ DIRECTORIES+=(var/log var/lib var/spool/cron var/www)
 DIRECTORIES+=(home root)
 #DIRECTORIES+=($DIRECTORIES var/lib/postgresql) # pgsql only (if var/lib is not included)
 #DIRECTORIES+=(usr/lib/oracle/xe/app/oracle/product/10.2.0/server/dbs usr/lib/oracle/xe/app/oracle/flash_recovery_area usr/lib/oracle/xe/oradata/XE/)
-readonly DIRECTORIES
+declare -r DIRECTORIES
 # backup target directory
 declare -r BACKUPDIR="/backup"
 declare -r ERRORLOG="$BACKUPDIR/backup.err"
@@ -36,7 +36,7 @@ declare -r FULLDATE="$BACKUPDIR/full-date"
 declare -r EXCLUDEFILE="/etc/backup-exclude"
 declare -a TARARGS=(-C / -cp)
 [[ -f "${EXCLUDEFILE:-}" ]] && TARARGS+=(--exclude-from "$EXCLUDEFILE")
-readonly TARARGS
+declare -r TARARGS
 
 declare -r TAR=/bin/tar
 declare -r DATE=$(date +%Y-%m-%d)

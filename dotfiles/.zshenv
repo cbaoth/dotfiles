@@ -6,7 +6,7 @@
 # ~/.zshenv: executed by zsh(1) before other startup files.
 #
 # interactive shell: .zshenv > .zshrc
-# login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
+# login shell: .zshenv > .zprofile > .zshrc > .zlogin (.zlogout on exit)
 #
 # https://manpages.ubuntu.com/manpages/bionic//man1/zsh.1.html
 # 1. Commands are first read from /etc/zsh/zshenv; this cannot be overridden
@@ -18,10 +18,15 @@
 # https://zsh.sourceforge.io/Intro/intro_3.html
 # .zshenv is sourced on all invocations of the shell, unless the -f option is set.
 # It should contain commands to set the command search path, plus other important environment variables.
-# .zshenv should not contain commands that produce output or assume the shell is attached to a tty.
-#
-# Source environment settings common to all my shells
-[[ -f ~/.common_profile ]] && source ~/.common_profile
+# .zshenv should NOT contain commands that produce output or assume the shell is attached to a tty.
+
+# Source common shell environment (same for zsh and bash)
+if [[ -f ~/.common_env ]]; then
+  # shellcheck source=/dev/null
+  source ~/.common_env
+else
+  echo "Warning: ~/.common_env not found, some potentially crucial environment settings or functionality may be missing!" >&2
+fi
 
 # If ZDOTDIR is not set, then the value of $HOME is (usually) used but ZDOTDIR stays unset.
 # Since we specifically use it in some places (primarily .zshrc) it should always be set here.

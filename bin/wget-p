@@ -78,7 +78,7 @@ $(cl::fx b)Options:$(cl::fx r)
                       --referer might already be set by this script.
 EOF
 
-readonly _HELP
+declare -r _HELP
 
 # arguments
 declare _dynamic_filename=false

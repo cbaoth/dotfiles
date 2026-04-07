@@ -491,6 +491,42 @@ and https://www.emacswiki.org/emacs/FoldingMode[Emacs folding-mode]):
 The closing line **repeats the section name** for readability. The total line
 length (including `# {{{ = ` prefix and fill characters) is 78 characters.
 
+==== Enabling Folding in Editors
+
+For *VS Code explicit-folding* add suggested default to`settings.json`:
+
+[source,jsonc]
+----
+"explicitFolding.rules": {
+    "*": {
+        "begin": "{{{",
+        "end": "}}}"
+    }
+},
+----
+
+Alternatively more specific and only for shell scripts:
+[source,jsonc]
+----
+"[shellscript]": {
+  "explicitFolding.rules": [
+    {
+      "begin": "# {{{",
+      "end": "# }}}"
+    }
+  ]
+}
+----
+
+For *Emacs fold-mode*, add the following to `.emacs`:
+
+[source,lisp]
+----
+;; folding-mode
+(load "folding" 'nomessage 'noerror)
+(folding-add-to-marks-list 'shell-script-mode "# {{{ " "# }}}" nil t)
+(folding-mode-add-find-file-hook)
+----
 
 == Functions
 

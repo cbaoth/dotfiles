@@ -115,7 +115,7 @@ $(cl::fx b)Examples:$(cl::fx r)
   # monitor xclip for URLs and open matches in new firefox tabs
   ${_SCRIPT_FILE} -x -b -m '^\w+://' firefox --new-tab
 EOF
-readonly _HELP
+declare -r _HELP
 
 # arguments
 declare bg=false

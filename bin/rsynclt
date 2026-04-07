@@ -16,7 +16,8 @@ set -euo pipefail  # Fail if any command in a pipeline fails
 # Initialize constants
 declare -r BACKUP_SUBDIR=".backup/"
 declare -r RSYNC_CMD="rsync"
-declare SCRIPT_NAME; SCRIPT_NAME="$(basename "$0")"  # not directly assigned to protect from masking return value
+declare SCRIPT_NAME
+SCRIPT_NAME="$(basename "$0")"
 declare -r SCRIPT_NAME
 declare -r SCRIPT_USER="${SCRIPT_USER:-$(whoami)}"
 declare -ri VERBOSITY_DEFAULT=0
@@ -29,7 +30,7 @@ declare BACKUP_BASE_DIR_CURRENT=""
 
 # Logging function with levels and optional file logging, used from here on out
 __log() {
-  declare -r __LOG_UNKNOWN_TIMESTAMP="????-??-?? ??:??:??"
+  local -r __LOG_UNKNOWN_TIMESTAMP="????-??-?? ??:??:??"
   [[ $# -lt 2 ]] && { echo "Usage: __log LEVEL MESSAGE" >&2; return 1; }
   local -r level=$1; shift
   local -r msg="$*"

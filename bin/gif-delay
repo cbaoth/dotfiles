@@ -86,7 +86,7 @@ $(cl::fx b)Convert:$(cl::fx r)
   # .. to 15/100 sec. delay (slow down), the 'x100' can be omitted (default)
   $(cl::fx green)convert -delay 15 infile.gif outfile.gif$(cl::fx r)
 EOF
-readonly _HELP
+declare -r _HELP
 
 # arguments
 declare format="#%s %T"

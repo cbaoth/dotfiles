@@ -62,7 +62,7 @@ $(cl::fx b)Examples:$(cl::fx r)
   # deactivating mpv's resume-playback feature
   $(cl::fx b)${_SCRIPT_FILE} /video -m ".*\.webm" -i 10 -a --no-resume-playback$(cl::fx r)
 EOF
-readonly _HELP
+declare -r _HELP
 
 # TODO find a way to stop the playback loop when exiting mpv but ignoring errors
 #$(cl::fx b)MPV Config:$(cl::fx r)
