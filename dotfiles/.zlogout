@@ -4,16 +4,18 @@
 # shellcheck shell=bash disable=SC2148
 #
 # ~/.zlogout: executed by zsh(1) when a login shell exits.
-
+#
 # interactive shell: .zshenv > .zshrc
-# login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
+# login shell: .zshenv > .zprofile > .zshrc > .zlogin (.zlogout on exit)
 
 # {{{ = FINAL CLEANUP ========================================================
 # remove core dump files (if existing)
 rm -f ~/*.core(N) ~/*.dump(N) &!
 
 # when leaving the console clear the screen to increase privacy
-if (($SHLVL == 1)); then
-    [[ -x /usr/bin/clear_console ]] && /usr/bin/clear_console -q
+if (( SHLVL == 1 )); then
+  if [[ -x /usr/bin/clear_console ]]; then
+    /usr/bin/clear_console -q
+  fi
 fi
 # }}} = FINAL CLEANUP ========================================================

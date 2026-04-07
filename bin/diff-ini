@@ -71,7 +71,7 @@ $(cl::fx b)Examples:$(cl::fx r)
   ${_SCRIPT_FILE} --merge -c base.ini changes.ini
   ${_SCRIPT_FILE} --merge base.ini changes.ini > merged.ini
 EOF
-readonly _HELP
+declare -r _HELP
 
 # arguments
 declare _mode="diff"
