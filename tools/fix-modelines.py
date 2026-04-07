@@ -41,10 +41,10 @@ ZSH_CONFIGS = {
 }
 
 # Basenames of well-known bash/sh config files (no extension).
-# Files shared across shells (e.g. .profile, .common_profile) → bash as safest default.
+# Files shared across shells (e.g. .profile, .common_env) → bash as safest default.
 BASH_CONFIGS = {
   '.bashrc', '.bash_profile', '.bash_logout', '.bashenv',
-  '.profile', '.common_profile',
+  '.profile', '.common_env',
 }
 
 # ANSI colour codes.

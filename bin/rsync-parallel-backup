@@ -80,7 +80,7 @@ fi
 BASE_SRC_DIR="$1"
 BASE_TAR_DIR="$2"
 shift 2
-readonly BASE_SRC_DIR BASE_TAR_DIR
+declare -r BASE_SRC_DIR BASE_TAR_DIR
 # }}} = ARGUMENT PARSING =====================================================
 
 # {{{ = MAIN LOGIC ===========================================================

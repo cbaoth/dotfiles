@@ -3,7 +3,12 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash disable=SC2148
 #
-# ~/.common_profile: shared environment settings sourced by shell startup files.
+# ~/.common_env: shared shell environment settings sourced by shell startup files.
+#
+# This file is sourced from .zshenv and .bash_profile. Note that:
+# .zshenv is sourced on all invocations of the shell, unless the -f option is set.
+# It should contain commands to set the command search path, plus other important environment variables.
+# .zshenv should NOT contain commands that produce output or assume the shell is attached to a tty.
 
 # {{{ = ENVIRONMENT (ALL SHELLS) =============================================
 # {{{ - PATHS ----------------------------------------------------------------
@@ -38,8 +43,11 @@ umask 022
 # }}} - UMASK ----------------------------------------------------------------
 
 # {{{ - SYSTEM/ENV STATE -----------------------------------------------------
-[[ -n "$ZSH_VERSION" ]] && IS_ZSH=true || IS_ZSH=false
-export IS_ZSH
+# these version variables are mutuable and they could also be inherited from parent process
+# but this is unlikely and should not cause issues in practice
+[[ -n "${ZSH_VERSION:-}" ]] && IS_ZSH=true || IS_ZSH=false
+[[ -n "${BASH_VERSION:-}" ]] && IS_BASH=true || IS_BASH=false
+export IS_BASH IS_ZSH
 
 # Set core system variables if not already set
 : "${OS:=$(uname 2> /dev/null)}"
@@ -247,3 +255,11 @@ UAGENT="Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:143.0) Gecko/20100101 Firefox
 export UAGENT
 # }}} - WEB BROWSER ----------------------------------------------------------
 # }}} = MISCELLANEOUS ========================================================
+
+# {{{ = SOURCE/INITIALIZE TOOLS ==============================================
+# Source Nix profile if it exists
+if [[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
+  # shellcheck source=/dev/null
+  source ~/.nix-profile/etc/profile.d/nix.sh
+fi
+# }}} = SOURCE/INITIALIZE TOOLS ==============================================

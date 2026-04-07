@@ -5,32 +5,33 @@
 #
 # ~/.bashrc: startup file for interactive non-login bash shells.
 #
-# This file is read and executed by bash for non-login interactive shells.
-# It is not read by bash login shells (.bash_profile is used for that).
-
-# To view this file correctly use fold-mode for emacs and add the following
-# line to your .emacs:
-#   (folding-add-to-marks-list 'shell-script-mode "# {{{ " "# }}}" nil t)
+# interactive non-login shell: .bashrc
+# login shell: .bash_profile (or .bash_login or .profile, first found) > .bash_logout
 
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
-# Source environment settings common to all my shells
-[[ -f ~/.common_profile ]] && source ~/.common_profile
+# {{{ - COMMON ENV VARIABLE --------------------------------------------------
+# Source common shell environment (same for zsh and bash)
+if [[ -f ~/.common_env ]]; then
+  # shellcheck source=/dev/null
+  source ~/.common_env
+else
+  echo "Warning: ~/.common_env not found, some potentially crucial environment settings or functionality may be missing!" >&2
+fi
 
-# {{{ - ENV STATE ------------------------------------------------------------
-# This is already done in ~/.common_profile, but kept here for reference or to
-# override if needed
-#export OS=$(uname | tr '[A-Z]' '[a-z]')
-#[[ -z "${HOST-}" ]] && export HOST=$HOSTNAME
-# }}} - ENV STATE ------------------------------------------------------------
+# globally raise (but never lower) the default debug level of cl::p_dbg -t
+#export DEBUG_LVL=3
+# }}} - COMMON ENV VARIABLE --------------------------------------------------
 
-# {{{ - CUSTOM VARIABLES -----------------------------------------------------
-# globally raise (but never lower) the default debug level of cl::p_dbg
-# this is set in ~/.common_profile to be available for all shells, override
-# here if needed
-#export DBG_LVL=0
-# }}} - CUSTOM VARIABLES -----------------------------------------------------
+# {{{ - COMMON OPTIONS & COMMONS ---------------------------------------------
+if [[ -f ~/lib/commons.sh ]]; then
+  # shellcheck source=/dev/null
+  source ~/lib/commons.sh
+else
+  echo "Warning: ~/lib/commons.sh not found, some potentially crucial environment settings or functionality may be missing!" >&2
+fi
+# }}} - COMMON OPTIONS & COMMONS ---------------------------------------------
 # }}} = ENVIRONMENT (ALL SHELLS) =============================================
-# {{{ - PRIVACY --------------------------------------------------------------
+# {{{ - SECURITY & PRIVACY RELATED -------------------------------------------
 # private session
 #export HISTFILE="" # don't create shell history file
 #export SAVEHIST=0 # set shell history file limit to zero
@@ -38,43 +39,89 @@
 export HISTSIZE=10000 # set in-memory history limit
 export SAVEHIST=10000 # set history file limit
 export HISTFILE="$HOME/.bhistory" # set history file (default: ~/.bash_history)
-# }}} - PRIVACY --------------------------------------------------------------
-# }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
+# }}} - SECURITY & PRIVACY RELATED -------------------------------------------
 
-# {{{ = PROMPT ===============================================================
-#export LANG=C
+# {{{ - PROMPT ---------------------------------------------------------------
 export PS1="\[\e[0;37m\](\w)\[\\033[0;39m\]
 [\[\\033[0;34m\]\u\[\\033[0;39m\]@\[\\033[4;38m\]\h\[\\033[0;39m\]]\$ "
-# }}} = PROMPT ===============================================================
+# }}} - PROMPT ---------------------------------------------------------------
+# }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 
-# {{{ = INCLUDES =============================================================
-source $HOME/.aliases
-# }}} = INCLUDES =============================================================
+# {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
+# shellcheck source=/dev/null
+source "$HOME/.aliases"
+# }}} = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 
 # {{{ = FINAL EXECUTIONS =====================================================
-# {{{ - X WINDOWS ------------------------------------------------------------
+# {{{ - X WINDOWS / WAYLAND --------------------------------------------------
 # Ensure that Gnome Key Ring allows access to SSH keys
 # Disabled e.g. in favor of KeePassXC (Secret Service Integration)
 #
 # are we in a x-windows session?
-if [[ -n "${DESKTOP_SESSION-}" ]]; then
-    # is gnome-keyring-daemon availlable? use it as ssh agent
-    if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
-        # start unless already running
-        if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
-            export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
-            # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
-            export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
-        fi
-    fi
+# if [[ -n "${DESKTOP_SESSION-}" ]]; then
+#     # is gnome-keyring-daemon availlable? use it as ssh agent
+#     if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
+#         # start unless already running
+#         if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
+#             export "$(gnome-keyring-daemon --start --components=ssh)" #--components=pkcs11,secret,ssh)
+#             # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
+#             export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
+#         fi
+#     fi
+# fi
+# }}} - X WINDOWS / WAYLAND --------------------------------------------------
+# {{{ - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
+# Load NodeJS version manager if installed
+# - https://nodejs.org/en/download
+# - https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
+if [[ -d "$HOME/.config/nvm" ]]; then
+  export NVM_DIR="$HOME/.config/nvm"
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "$NVM_DIR/nvm.sh"
+  fi
+  if [[ -s "$NVM_DIR/bash_completion" ]]; then
+    # shellcheck source=/dev/null
+    source "$NVM_DIR/bash_completion"
+  fi
 fi
-# }}} - X WINDOWS ------------------------------------------------------------
+
+# anaconda3 / miniconda3
+# - https://www.anaconda.com/docs/getting-started/miniconda/main
+# - https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+if [[ -f "$HOME/anaconda3/bin/conda" ]]; then
+  _MY_CONDA="$HOME/anaconda3"
+elif [[ -f "$HOME/miniconda3/bin/conda" ]]; then
+  _MY_CONDA="$HOME/miniconda3"
+fi
+if [[ -n "${_MY_CONDA:-}" ]]; then
+  if __conda_setup="$("$_MY_CONDA/bin/conda" 'shell.bash' 'hook' 2>/dev/null)"; then
+    eval "$__conda_setup"
+  else
+    if [[ -f "$_MY_CONDA/etc/profile.d/conda.sh" ]]; then
+      # shellcheck source=/dev/null
+      source "$_MY_CONDA/etc/profile.d/conda.sh"
+    else
+      export PATH="$_MY_CONDA/bin:$PATH"
+    fi
+  fi
+  unset __conda_setup
+fi
+
+# # angular CLI autocompletion, if ng is avaiable
+# if command -v ng 2>&1 >/dev/null; then
+#   source <(ng completion script)
+# fi
+# }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
+
 # {{{ - MOTD -----------------------------------------------------------------
-# print welcome message (if top-level shell)
-if (($SHLVL == 1)); then
-    printf -P "%B%F{white}Welcome to %F{green}%m %F{white}running %F{green}$(uname -srm)%F{white}"
-    # on %F{green}#%l%f%b"
-    printf -P "%B%F{white}Uptime:%b%F{green}$(uptime)\e%f"
+# Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)
+if (( SHLVL == 1 )); then
+  # Print welcome message only for login shells (includes ssh sessions)
+  if shopt -q login_shell; then
+    printf "%s\n" "$(cl::fx b)$(cl::fx white)Welcome to $(cl::fx green)$(hostname) $(cl::fx white)running $(cl::fx green)$(uname -srm)$(cl::fx reset)"
+  fi
+  printf "%s\n" "$(cl::fx b)$(cl::fx white)System time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), up since: $(cl::fx green)$(uptime -s)$(cl::fx white) ($(cl::fx green)$(uptime | awk '{for(i=4;i<=NF;i++) printf "%s%s", $i, (i<NF?FS:ORS)}')$(cl::fx white))$(cl::fx reset)"
 fi
 # }}} - MOTD -----------------------------------------------------------------
 # }}} = FINAL EXECUTIONS =====================================================

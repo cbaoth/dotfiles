@@ -1793,7 +1793,7 @@ $(cl::fx b)Examples:$(cl::fx r)
         printf "%s - w:%s x h:%s -> %s\n" "\$f" "\$w" "\$h" "\$pixels"
       done$(cl::fx r)
 EOF
-  readonly HELP
+  declare -r HELP
   # parse arguments
   [[ -z "$1" ]] && cl::p_usg "$USG" && return 1
   local d='|'
@@ -1841,7 +1841,7 @@ rm_smallimage () {
 foo
   bar
 EOF
-  readonly HELP
+  declare -r HELP
   print "$help"
 }
 

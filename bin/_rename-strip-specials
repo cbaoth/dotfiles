@@ -58,7 +58,7 @@ OPTIONS:
   -ns   don't rename spaces (including %20) to '_' (enabled by default)
   -v    debug mode (high verbosity)
 EOF
-readonly HELP
+declare -r _HELP
 
 # arguments
 declare recursive=false

@@ -6,7 +6,7 @@
 # ~/.zshrc: interactive zsh configuration.
 #
 # interactive shell: .zshenv > .zshrc
-# login shell: .zshenv > .zprofile > .zshrc > zlogin / .zlogout
+# login shell: .zshenv > .zprofile > .zshrc > .zlogin (.zlogout on exit)
 #
 # https://manpages.ubuntu.com/manpages/bionic//man1/zsh.1.html
 # 1. Commands are first read from /etc/zsh/zshenv; this cannot be overridden
@@ -105,20 +105,24 @@ setopt extendedglob
 # }}} = ZSH OPTIONS ==========================================================
 
 # {{{ = ENVIRONMENT (INTERACTIVE SHELL) ======================================
-# For login shell / general variable like PATH see ~/.common_profile
+# {{{ - COMMON ENV VARIABLE --------------------------------------------------
+# Common environment variables (e.g. PATH) are exported by ~/.common_env (sourced from .zshenv)
+# Local overrides, if needed:
 
 # globally raise (but never lower) the default debug level of cl::p_dbg -t
-# this is set in ~/.common_profile to be available for all shells, override
-# here if needed
 #export DEBUG_LVL=3
-# {{{ - CORE OPTIONS & COMMONS -----------------------------------------------
+# }}} - COMMON ENV VARIABLE --------------------------------------------------
 
+# {{{ - COMMON OPTIONS & COMMONS ---------------------------------------------
+if [[ -f ~/lib/commons.sh ]]; then
+  # shellcheck source=/dev/null
+  source ~/lib/commons.sh
+else
+  echo "Warning: ~/lib/commons.sh not found, some potentially crucial environment settings or functionality may be missing!" >&2
+fi
+# }}} - COMMON OPTIONS & COMMONS ---------------------------------------------
 
-# include core functions, must simply be there (used everywhere)
-source $HOME/lib/commons.sh
-# }}} - CORE OPTIONS & COMMONS -----------------------------------------------
-
-# {{{ - SECURITY & PRIVACY ---------------------------------------------------
+# {{{ - SECURITY & PRIVACY RELATED -------------------------------------------
 # private session
 #export HISTFILE="" # don't create shell history file
 #export SAVEHIST=0 # set shell history file limit to zero
@@ -138,7 +142,7 @@ setopt HIST_IGNORE_SPACE # don't record lines stating with a space (privacy)
 #setopt HIST_VERIFY # don't execute immediately after history expansion
 #setopt HIST_NO_STORE # don't store history / fc commands
 setopt HIST_NO_FUNCTIONS # don't store function definitions
-# }}} - SECURITY & PRIVACY ---------------------------------------------------
+# }}} - SECURITY & PRIVACY RELATED -------------------------------------------
 
 # {{{ -- SYSTEM/ENV STATE ----------------------------------------------------
 if ${IS_PC:-true}; then
@@ -303,10 +307,10 @@ source_ifex $HOME/.zsh.d/functions/functions.zsh
 
 # hash some common directories for easy access existing (if they exist)
 # TODO consider moving this to commons.sh and use in host specific files as well
-_hash_mountpoints() {
+__hash_mountpoints() {
   # define directories to hash
   # suffixes "_*" are ignored for hash names. they can be used define more than one path per hash (first one found is used)
-  typeset -A _hashdirs=(
+  local -Ar _hashdirs=(
     [c]="/mnt/c"
     [d]="/mnt/d"
     [e]="/mnt/e"
@@ -341,7 +345,8 @@ _hash_mountpoints() {
     hash -d "${key}=${dir}"
   done
 }
-_hash_mountpoints
+__hash_mountpoints
+unfunction __hash_mountpoints  # cleanup, not needed anymore
 
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # }}} = CORE FUNCTIONS, SOURCING, ALIASES ====================================
@@ -476,6 +481,18 @@ autoload -U promptinit
 promptinit
 #prompt yasuo 0 >/dev/null || prompt fade 0
 prompt fade 0
+
+export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump"
+# enable new style completion system
+autoload -Uz compinit && compinit
+# check cache only once per day (can be slow when done more frequently)
+# https://gist.github.com/ctechols/ca1035271ad134841284
+#if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
+#  compinit
+#  #touch .zcompdump
+#else
+#  compinit -C
+#fi
 # }}} - BASIC ----------------------------------------------------------------
 
 # {{{ - PL9K -----------------------------------------------------------------
@@ -611,13 +628,14 @@ POWERLEVEL9K_VCS_MODIFIED_BACKGROUND='yellow'
 # }}} = PROMPT ===============================================================
 
 # {{{ = ZPLUG PLUGINS ========================================================
+# TODO consider https://github.com/zsh-users/zsh-completions
+
 #https://github.com/zsh-users/zsh-autosuggestions
 $ZPLUG_CMD "zsh-users/zsh-autosuggestions"
 ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=25
 
 # https://github.com/zsh-users/zaw
 $ZPLUG_CMD "zsh-users/zaw"
-
 # {{{ - OH MY ZSH ------------------------------------------------------------
 # https://github.com/robbyrussell/oh-my-zsh/wiki/Plugins
 # WSL: May be skipped (see above)
@@ -649,22 +667,49 @@ $ZPLUG_CMD "plugins/web-search", from:oh-my-zsh
 $ZPLUG_CMD "plugins/wd", from:oh-my-zsh # wd (warp directory)
 #$ZPLUG_CMD "zsh-users/zsh-history-substring-search"
 
+# TODO review
+# https://github.com/chrissicool/zsh-256color
+#$ZPLUG_CMD "chrissicool/zsh-256color"
+
 # ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
 # do not lode if
 # 1. we are in an ssh session, use ssh -A agent forwarding if needed
 # 2. we are in wsl/termux, use other means if needed
 # 3. SSH_AUTH_SOCK is already set (e.g. KeePassXC, Gnome Keyring, Pageant etc.)
-#    Note that SSH_AUTH_SOCK may also be set in .common_profile
+#    Note that SSH_AUTH_SOCK may also be set in .common_env
 if $ZPLUG_MODE_IS_FULL && ! cl::is_ssh && [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
   $ZPLUG_CMD "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
 fi
+
+if ${HAS_CONDA:-false}; then
+  $ZPLUG_CMD "esc/conda-zsh-completion"
+fi
+
+# TODO review and consider potential key binding conflicts
+# https://github.com/junegunn/fzf/blob/master/shell/key-bindings.zsh
+#
+# if command -v fzf >/dev/null 2>&1; then
+#   $ZPLUG_CMD "junegunn/fzf", use:shell/key-bindings.zsh
+# fi
 # }}} - OH MY ZSH ------------------------------------------------------------
 
+# {{{ - OTHER PLUGINS --------------------------------------------------------
+# A Zsh plugin to help remembering those shell aliases and Git aliases you once defined.
+# https://github.com/djui/alias-tips
+$ZPLUG_CMD "djui/alias-tips"
+
+
+# }}} - OTHER PLUGINS --------------------------------------------------------
+
 # activate syntax highlighting, load last to affect everything loaded before
-# apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
-[[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] \
-  && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
-  || $ZPLUG_CMD "zsh-users/zsh-syntax-highlighting"
+# # apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
+# [[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] \
+#   && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+#    || $ZPLUG_CMD "zsh-users/zsh-syntax-highlighting"
+
+# alternative syntax highlighter:
+# lightweight (less features, maybe faster; if relevant) and different style (if prefered)
+$ZPLUG_CMD zdharma-continuum/fast-syntax-highlighting
 # }}} = ZPLUG PLUGINS ========================================================
 
 # {{{ = ZPLUG LOAD ===========================================================
@@ -699,7 +744,7 @@ if $IS_ZPLUG; then
 fi
 
 # load local plugins
-#$ZPLUG_CMD "~/.zsh.d", from:local
+#$ZPLUG_CMD "$HOME/.zsh.d", from:local
 
 $ZPLUG_CMD load
 # }}} = ZPLUG LOAD ===========================================================
@@ -717,18 +762,6 @@ $ZPLUG_CMD load
 # load zmv extension (http://zshwiki.org/home/builtin/functions/zmv)
 autoload zmv
 #zmodload zsh/mathfunc
-
-export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump"
-# enable new style completion system
-autoload -Uz compinit
-# check cache only once per day (can be slow when done more frequently)
-# https://gist.github.com/ctechols/ca1035271ad134841284
-#if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
-#  compinit
-#  #touch .zcompdump
-#else
-#  compinit -C
-#fi
 
 # {{{ - COMPLETION -----------------------------------------------------------
 # menu
@@ -965,7 +998,7 @@ fi
 # }}} - ZAW ------------------------------------------------------------------
 # }}} = ZSH KEYBINDINGS ======================================================
 
-# {{{ = INCLUDES =============================================================
+# {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 # include os/host specific functon files
 #source_ifex_custom $HOME/.zsh.d/functions
 fpath=($HOME/.zsh.d/functions $HOME/.zfunc $fpath)
@@ -973,9 +1006,9 @@ fpath=($HOME/.zsh.d/functions $HOME/.zfunc $fpath)
 source_ifex_custom $HOME/.zsh.d/aliases
 # include os/host specific zshrc files
 source_ifex_custom $HOME/.zsh.d/zshrc
-# }}} = INCLUDES =============================================================
+# }}} = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 
-# {{{ = FINAL LOGIN EXECUTIONS ===============================================
+# {{{ = FINAL EXECUTIONS =====================================================
 # {{{ - X WINDOWS ------------------------------------------------------------
 # Ensure that Gnome Key Ring allows access to SSH keys
 # Disabled e.g. in favor of KeePassXC (Secret Service Integration)
@@ -986,12 +1019,12 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 #     if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
 #         # start unless already running
 #         if [[ -n "${GNOME_KEYRING_PID-}" ]]; then
-#             export $(gnome-keyring-daemon --start --components=ssh) #--components=pkcs11,secret,ssh)
+#             export "$(gnome-keyring-daemon --start --components=ssh)" #--components=pkcs11,secret,ssh)
 #             # SSH_AGENT_PID required to stop xinitrc-common from starting ssh-agent
 #             export SSH_AGENT_PID=${GNOME_KEYRING_PID:-gnome}
 #         fi
 #     fi
-# fi
+# fit
 # }}} - X WINDOWS ------------------------------------------------------------
 # {{{ - DTAG -----------------------------------------------------------------
 # enabale dtag (when available)
@@ -1000,57 +1033,61 @@ source_ifex_custom $HOME/.zsh.d/zshrc
 #  || cl::p_war "unable to activate dtags, dtags-activate not found" \
 #) &!
 # }}} - DTAG -----------------------------------------------------------------
-# {{{ - X STUFF --------------------------------------------------------------
-#if [[ -n "$DESKTOP_SESSION" ]]; then
-#    ...
-#fi
-# }}} - X STUFF --------------------------------------------------------------
-# {{{ - DEV ------------------------------------------------------------------
+# {{{ - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
 # Load NodeJS if existing
 # - https://nodejs.org/en/download
 # - https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
 if [[ -d "$HOME/.config/nvm" ]]; then
   export NVM_DIR="$HOME/.config/nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "$NVM_DIR/nvm.sh"
+  fi
+  if [[ -s "$NVM_DIR/bash_completion" ]]; then
+    # shellcheck source=/dev/null
+    source "$NVM_DIR/bash_completion"
+  fi
 fi
 
 # anaconda3 / miniconda3
+# - https://www.anaconda.com/docs/getting-started/miniconda/main
+# - https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 if [[ -f "$HOME/anaconda3/bin/conda" ]]; then
   _MY_CONDA="$HOME/anaconda3"
 elif [[ -f  "$HOME/miniconda3/bin/conda" ]]; then
   _MY_CONDA="$HOME/miniconda3"
 fi
 if [[ -n "${_MY_CONDA:-}" ]]; then
-  __conda_setup="$("$_MY_CONDA/bin/conda" 'shell.zsh' 'hook' 2> /dev/null)"
-  if [ $? -eq 0 ]; then
+  if __conda_setup="$("$_MY_CONDA/bin/conda" 'shell.zsh' 'hook' 2>/dev/null)"; then
     eval "$__conda_setup"
   else
-    if [ -f "$_MY_CONDA/etc/profile.d/conda.sh" ]; then
-      . "$_MY_CONDA/etc/profile.d/conda.sh"
+    if [[ -f "$_MY_CONDA/etc/profile.d/conda.sh" ]]; then
+      # shellcheck source=/dev/null
+      source "$_MY_CONDA/etc/profile.d/conda.sh"
     else
-      export PATH="/$_MY_CONDA/bin:$PATH"
+      export PATH="$_MY_CONDA/bin:$PATH"
     fi
   fi
   unset __conda_setup
-
-  # # try to activate conda environment 'default' if it exists
-  # # created via: conda create -n default python=3.14
-  # # for versions see: https://devguide.python.org/versions/
-  # # conda doc: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#
-  # conda info --envs | grep -qE '^\s*default\s' \
-  #   && conda activate default >& /dev/null \
-  #   && cl::p_msg "Conda environment 'default' activated." \
-  #   || cl::p_dbg -t 0 1 "conda env 'default' not found, skipping activation"
 fi
 
-# angular CLI autocompletion, if ng is avaiable
-(command -v ng 2>&1 >/dev/null) \
-  && source <(ng completion script)
-# }}} - DEV ------------------------------------------------------------------
+# # angular CLI autocompletion, if ng is avaiable
+# if command -v ng 2>&1 >/dev/null; then
+#   source <(ng completion script)
+# fi
+# }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
+# {{{ - MOTD -----------------------------------------------------------------
+# Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)
+if (( SHLVL == 1 )); then
+  # Print welcome message only for login shells (includes ssh sessions)
+  if [[ -o login ]]; then
+    printf "%s\n" "$(cl::fx b)$(cl::fx white)Welcome to $(cl::fx green)$(hostname) $(cl::fx white)running $(cl::fx green)$(uname -srm)$(cl::fx reset)"
+  fi
+  printf "%s\n" "$(cl::fx b)$(cl::fx white)System time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), up since: $(cl::fx green)$(uptime -s)$(cl::fx white) ($(cl::fx green)$(uptime | awk '{for(i=4;i<=NF;i++) printf "%s%s", $i, (i<NF?FS:ORS)}')$(cl::fx white))$(cl::fx reset)"
+fi
+# }}} - MOTD -----------------------------------------------------------------
 
 # PROFILING (DEBUG)
 #echo "zprof result: $(date)"
 #time zprof
-
-# }}} = FINAL LOGIN EXECUTIONS ===============================================
+# }}} = FINAL EXECUTIONS =====================================================

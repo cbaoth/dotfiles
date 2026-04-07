@@ -5,17 +5,14 @@
 #
 # ~/.bash_profile: initialization for bash login shells.
 #
-# This file is only read and executed by bash in a non-interactive login shell,
-# or in login shell invoked with option --login.
-# It is not read by bash interactive shells (.bashrc is used for that).
-#
-# Load order:
-# 1. /etc/profile (first existing, this will always be read)
-# 2. The first file that is found and readable of the following:
-#    ~/.bash_profile
-#    ~/.bash_login
-#    ~/.profile
+# interactive non-login shell: .bashrc
+# login shell: .bash_profile (or .bash_login or .profile, first found) > .bash_logout
 
-
-# Source environment settings common to all my shells
-[[ -f ~/.common_profile ]] && source ~/.common_profile
+# {{{ - SOURCE BASHRC --------------------------------------------------------
+if [[ -f "$HOME/.bashrc" ]]; then
+  # shellcheck source=/dev/null
+  source "$HOME/.bashrc"
+else
+  echo "Warning: ~/.bashrc not found, some potentially crucial environment settings or functionality may be missing!" >&2
+fi
+# }}} - SOURCE BASHRC --------------------------------------------------------

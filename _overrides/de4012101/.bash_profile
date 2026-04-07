@@ -3,10 +3,18 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash disable=SC2148
 #
-# ~/.profile: login-shell profile for the de4012101 override.
+# ~/.bash_profile: login-shell profile for the de4012101 override.
+#
+# interactive non-login shell: .bashrc
+# login shell: .bash_profile (or .bash_login or .profile, first found) > .bash_logout
 
-# This file is not read by bash(1), if ~/.bash_profile or ~/.bash_login
-# exists. This file is read in case some WMs are started.
+# Source bashrc if it exists (for interactive non-login shell settings)
+if [[ -f ~/.bashrc ]]; then
+  # shellcheck source=/dev/null
+  source ~/.bashrc
+else
+  echo "Warning: ~/.bashrc not found, some potentially crucial environment settings or functionality may be missing!" >&2
+fi
 
 # {{{ - PATH -----------------------------------------------------------------
 PATH="$HOME/bin:/opt/bin:/opt/oracle/instantclient_21_4"
@@ -31,7 +39,7 @@ export LESSCHARSET="utf-8"
 #export HISTFILESIZE=0 # set shell history file limit to zero
 #export HISTSIZE=10000 # set (in memory) history limit
 # persisted session
-export HISTFILE="~/.bash_history" # don't create shell history file
+export HISTFILE="$HOME/.bash_history" # don't create shell history file
 export HISTFILESIZE=10000 # set shell history file limit to zero
 export HISTSIZE=10000 # set (in memory) history limit
 # }}} - SECURITY & PRIVACY ---------------------------------------------------
@@ -39,9 +47,10 @@ export HISTSIZE=10000 # set (in memory) history limit
 # {{{ - BASH -----------------------------------------------------------------
 # if running bash
 if [[ -n "${BASH_VERSION-}" ]]; then
-    # include .bashrc if it exists
-    if [[ -f "$HOME/.bashrc" ]]; then
-	. "$HOME/.bashrc"
-    fi
+  # include .bashrc if it exists
+  if [[ -f "$HOME/.bashrc" ]]; then
+    # shellcheck source=/dev/null
+    source "$HOME/.bashrc"
+  fi
 fi
 # }}} - BASH -----------------------------------------------------------------

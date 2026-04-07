@@ -7,24 +7,42 @@
 #
 # All functions are written in a way that they work on both, zsh and bash
 
-
-# just in case thi script is re-loaded
-typeset +r CL_SCRIPT_PATH CL_SCRIPT_FILE CL_TIMESTAMP_FORMAT
+# declare +r makes the variable mutable, this is to allow script reload in zsh
+# e.g. when making changes to this script without needing to restart the shell
+# note that this does not work in bash (warnings, variable values persist)
+declare +r CL_SCRIPT_PATH CL_SCRIPT_FILE CL_TIMESTAMP_FORMAT
 # constants
-typeset -r CL_SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
-typeset -r CL_SCRIPT_FILE="$(basename "$0")"
+# bash: $0 is the shell name when sourcing (e.g. -bash for login shells), use BASH_SOURCE[0] instead
+# zsh: $0 is correctly set to the sourced file path
+if [[ -n "${BASH_VERSION:-}" ]]; then
+  _cl_self="${BASH_SOURCE[0]}"
+else
+  _cl_self="$0"
+fi
+CL_SCRIPT_PATH="$(cd "$(dirname "${_cl_self}")" 2>/dev/null && pwd -P || exit 1)"
+CL_SCRIPT_FILE="$(basename "${_cl_self}")"
+unset _cl_self
 # used given date format for print/log messages
-typeset -r CL_TIMESTAMP_FORMAT="%Y-%m-%dT%H:%M:%S%z"  # full timestamp
+CL_TIMESTAMP_FORMAT="%Y-%m-%dT%H:%M:%S%z"  # full timestamp
+declare -r CL_SCRIPT_PATH CL_SCRIPT_FILE CL_TIMESTAMP_FORMAT
+export CL_SCRIPT_PATH CL_SCRIPT_FILE CL_TIMESTAMP_FORMAT
 
-declare +r CL_PATTERN_SINGLE_QUOTE='['"'"']'
-declare -r CL_PATTERN_SINGLE_QUOTE
-declare +r CL_PATTERN_NEED_QUOTES='[ |&;()<>*?"\`$\\'"'"']'
-declare -r CL_PATTERN_SINGLE_QUOTE
+# FIXME it seems that this approach does not work anymore (tested before, either changed or wrong version commited)
+declare +r CL_PATTERN_SINGLE_QUOTE CL_PATTERN_NEED_QUOTES
+# #shellcheck disable=SC2089
+# reason: variable used for string pattern matching, arrays not supported in regex
+CL_PATTERN_SINGLE_QUOTE='['"'"']'
+# #shellcheck disable=SC2089
+CL_PATTERN_NEED_QUOTES='[ |&;()<>*?"\`$\\'"'"']'
+declare -r CL_PATTERN_SINGLE_QUOTE CL_PATTERN_NEED_QUOTES
+# #shellcheck disable=SC2090
+export CL_PATTERN_SINGLE_QUOTE CL_PATTERN_NEED_QUOTES
 
 # {{{ = LIBRARIES ============================================================
 # include shell script library SCRIPT_FILE searching in:
 # SCRIPT_PATH, SCRIPT_PATH/lib/, SCRIPT_PATH/../lib/, ~/lib/, /lib/, /usr/lib/
 # if not fount, print error message (optionaly custom ERROR_MSG) and return 1
+# shellcheck disable=SC1090
 cl::include_lib() {
   if [[ -z "${2:-}" ]]; then
     printf "Usage: %s\n" "$(cl::func_name) SCRIPT_PATH SCRIPT_FILE [ERROR_MSG..]"
@@ -175,7 +193,7 @@ EOF
 
   # parse arguments
   if [[ -z "${1:-}" ]]; then
-    printf "Usage: %s\n" "${$_usage}"
+    printf "Usage: %s\n" "${_usage}"
     return 1
   fi
   if [[ "$1" =~ ^(-h|--help)$ ]]; then
@@ -245,6 +263,7 @@ cl::p_cmd() {
 
   for arg in "${cmd[@]}"; do
     # Check if the argument requires quoting
+    # FIXME it seems that this approach does not work anymore (tested before, either changed or wrong version commited)
     if [[ $arg =~ $CL_PATTERN_NEED_QUOTES ]]; then
       output+="\"$arg\" "  # Append the quoted argument and a space
     else
@@ -286,7 +305,7 @@ cl::p_err() {
     timestamp=${CL_TIMESTAMP_FORMAT:+"$(date +"${CL_TIMESTAMP_FORMAT}")"}
     shift
   fi
-  readonly timestamp
+  declare -r timestamp
   # sufficient arguments?
   if [[ -z "${1:-}" ]]; then
     cl::p_usg "$(cl::func_name) [-t|--timestamp] MSG.."
@@ -309,7 +328,7 @@ cl::p_war() {
     timestamp=${CL_TIMESTAMP_FORMAT:+"$(date +"${CL_TIMESTAMP_FORMAT}")"}
     shift
   fi
-  readonly timestamp
+  declare -r timestamp
   # sufficient arguments?
   if [[ -z "${1:-}" ]]; then
     echo "cl::p_war [-t|--timestamp] MSG.."
@@ -376,8 +395,10 @@ cl::_debug_level_name_for_term() {
   if [[ -z "${1:-}" ]]; then
     return 1
   fi
-  local lvl="$1"
-  local lvl_name="$(cl::_debug_level_name ${lvl})"
+  local -r lvl="$1"
+  local lvl_name
+  lvl_name="$(cl::_debug_level_name "${lvl}")"
+  declare -r lvl_name
   case "$lvl_name" in
     INFO)
       printf "%s%s(%s)%s" "$(cl::fx black b_green)" "${lvl_name}" "${lvl}" "$(cl::fx r)"
@@ -420,7 +441,7 @@ cl::p_dbg() {
     timestamp=${CL_TIMESTAMP_FORMAT:+"$(date +"${CL_TIMESTAMP_FORMAT}")"}
     shift
   fi
-  readonly timestamp
+  declare -r timestamp
   # sufficient arguments?
   if [[ -z "$3" ]]; then
     cat <<EOF
@@ -466,7 +487,7 @@ EOF
 
   # compare against DEBUG_LVL if set
   dbg_lvl=$(( ${DEBUG_LVL:-$dbg_lvl} > dbg_lvl ? ${DEBUG_LVL:-$dbg_lvl} : dbg_lvl ))
-  (( $dbg_lvl < $show_at_lvl )) \
+  (( dbg_lvl < show_at_lvl )) \
     && return 0
 
   local show_at_lvl_name
@@ -553,12 +574,22 @@ cl::join_by_n() {
 # {{{ = PREDICATES ===========================================================
 # predicate: is current shell zsh?
 cl::is_zsh() {
-  [[ "$(readlink /proc/$$/exe)" = *zsh ]]
+  # this approach is linux specific (will not work on bsd, macos, etc.)
+  #[[ "$(readlink /proc/$$/exe)" = *zsh ]]
+
+  # the version variable is mutuable and it could also also be inherited from parent process
+  # but this is unlikely and should not cause issues in practice
+  [[ -n "${ZSH_VERSION:-}" ]]
 }
 
 # predicate: is current shell bash?
 cl::is_bash() {
-  [[ "$(readlink /proc/$$/exe)" = *bash ]]
+  # this approach is linux specific (will not work on bsd, macos, etc.)
+  #[[ "$(readlink /proc/$$/exe)" = *bash ]]
+
+  # the version variable is mutuable and it could also also be inherited from parent process
+  # but this is unlikely and should not cause issues in practice
+  [[ -n "${BASH_VERSION:-}" ]]
 }
 
 # predicate: is current user superuse?
@@ -579,6 +610,11 @@ cl::is_sudo_cached() {
 # predicate: is this a ssh session we are in?
 cl::is_ssh() {
   [[ -n "$SSH_CLIENT" || -n "$SSH_TTY" ]]
+}
+
+# predicate: is this a login shell session we are in?
+cl::is_login() {
+  cl::is_zsh && [[ -o login ]] || shopt -q login_shell
 }
 
 # predicate: is CMD available?
@@ -918,29 +954,40 @@ EOF
 # }}} = FILE OPERATIONS ======================================================
 
 # {{{ = PYTHON ===============================================================
-# execute python3's print function with the given [code] argument(s)
-# examples:
-#   py_print "192,168,0,1,sep='.'"
-#   py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"
+# execute python3's print function with the given argument(s)
 cl::py_print() {
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) [-i IMPORT] PY_CODE.."
+    cat <<EOF
+$(cl::p_usg "$(cl::func_name) [-i IMPORT] PRINT_ARG..")
+
+Arguments:
+  PRINT_ARG         Argument(s) to be passed to python print function. Can be multiple, will be separated by space.
+
+Options:
+  -i, --import IMPORT   import given module(s) before executing print. Can be multiple (e.g. -i math -i os.path)
+
+Examples:
+  cl::py_print "192,168,0,1,sep='.'"
+  cl::py_print -i math "'SQRT({0}) = {1}'.format(1.3, math.sqrt(1.3))"
+EOF
     return 1
   fi
 
-  local py_import
-  if [[ "$1" =~ ^(-i|--import)$ ]]; then
+  local -a py_imports=()
+  while [[ "$1" =~ ^(-i|--import)$ ]]; do
     if [[ -z "$2" ]]; then
-      cl::p_err "missing value for argument [-i]"
+      cl::p_err "missing value for argument $1"
       return 1
     fi
-    py_import="$2"
+    py_imports+=("$2")
     shift 2
-  fi
+  done
 
   # print arguments via python print
-  python3<<<"${py_import+import ${py_import}}
-print($@)"
+  python3 <<EOF
+$(for lib in "${py_imports[@]}"; do echo "import $lib"; done)
+print($*)
+EOF
 }
 # }}} = PYTHON ===============================================================
 
