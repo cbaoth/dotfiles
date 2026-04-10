@@ -258,7 +258,7 @@ export UAGENT
 
 # {{{ = SOURCE/INITIALIZE TOOLS ==============================================
 # Source Nix profile if it exists
-if [[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
+if ! command -v nix 2>&1 > /dev/null &&[[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
   # shellcheck source=/dev/null
   source ~/.nix-profile/etc/profile.d/nix.sh
 fi
