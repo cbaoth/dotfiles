@@ -121,7 +121,7 @@ if (( SHLVL == 1 )); then
   if shopt -q login_shell; then
     printf "%s\n" "$(cl::fx b)$(cl::fx white)Welcome to $(cl::fx green)$(hostname) $(cl::fx white)running $(cl::fx green)$(uname -srm)$(cl::fx reset)"
   fi
-  printf "%s\n" "$(cl::fx b)$(cl::fx white)System time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), up since: $(cl::fx green)$(uptime -s)$(cl::fx white) ($(cl::fx green)$(uptime | awk '{for(i=4;i<=NF;i++) printf "%s%s", $i, (i<NF?FS:ORS)}')$(cl::fx white))$(cl::fx reset)"
+  printf "%s\n" "$(cl::fx b)$(cl::fx white)Time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), Uptime: $(cl::fx green)$(uptime -p)$(cl::fx white) since $(cl::fx green)$(uptime -s)$(cl::fx white)$(cl::fx reset)"
 fi
 # }}} - MOTD -----------------------------------------------------------------
 # }}} = FINAL EXECUTIONS =====================================================
