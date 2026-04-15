@@ -12,13 +12,26 @@
 
 # {{{ = ENVIRONMENT (ALL SHELLS) =============================================
 # {{{ - PATHS ----------------------------------------------------------------
-export PATH="${HOME}/bin:${HOME}/.local/bin:/opt/bin:/snap/bin:\
+export PATH="\
+${HOME}/bin:\
+${HOME}/.local/bin:\
+/opt/bin:\
+/snap/bin:\
+${HOME}/.local/share/flatpak/exports/bin:\
 /var/lib/flatpak/exports/bin:\
+${HOME}/node_modules/.bin:\
 /usr/local/bin:/usr/bin:/bin:\
 /usr/local/sbin:/usr/sbin:/sbin:\
 /usr/bin/X11:/usr/X11R6/bin:/usr/games:\
-/opt/oracle/instantclient_21_4${PATH:+:${PATH}}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}/usr/local/lib"
+/opt/oracle/instantclient_21_4\
+${PATH:+:${PATH}}"
+
+export LD_LIBRARY_PATH="\
+${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}\
+${HOME}/lib:\
+${HOME}/.local/lib:\
+/usr/local/lib:\
+/usr/lib"
 # }}} - PATHS ----------------------------------------------------------------
 
 # {{{ - LOCALE ---------------------------------------------------------------
@@ -258,7 +271,7 @@ export UAGENT
 
 # {{{ = SOURCE/INITIALIZE TOOLS ==============================================
 # Source Nix profile if it exists
-if ! command -v nix 2>&1 > /dev/null &&[[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
+if ! command -v nix > /dev/null 2>&1 &&[[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
   # shellcheck source=/dev/null
   source ~/.nix-profile/etc/profile.d/nix.sh
 fi

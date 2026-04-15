@@ -28,6 +28,10 @@ else
   echo "Warning: ~/.common_env not found, some potentially crucial environment settings or functionality may be missing!" >&2
 fi
 
+# Deduplicate path variables (zsh-specific, safe if variables are unset)
+typeset -U PATH path
+typeset -U LD_LIBRARY_PATH
+
 # If ZDOTDIR is not set, then the value of $HOME is (usually) used but ZDOTDIR stays unset.
 # Since we specifically use it in some places (primarily .zshrc) it should always be set here.
 #export ZDOTDIR="$HOME/.zsh"
