@@ -32,6 +32,7 @@ alias v='vim -N'
 alias findre='find -regextype posix-extended'
 
 # add --color option to all grep commands and add -i aliases
+# shellcheck disable=SC2139  # ${c} intentionally expands at definition time to build alias names/values
 for c in '' e f r z; do
   alias ${c}grep="${c}grep --color"
   alias ${c}grepi="${c}grep --color -i"
@@ -86,6 +87,7 @@ alias smart-attr='sudo smartctl -A'
 
 # query standby status without warking the drive
 alias smart-sbstatus='sudo smartctl -n standby -i'
+# shellcheck disable=SC2154  # d is assigned by the for loop; shellcheck confused by multi-line alias
 alias smart-sbstatus-all='for d in /dev/sd[a-z]; do
     echo $d; sudo smartctl -n standby -i $d;
   done'
@@ -105,6 +107,7 @@ alias udevadm-reload-and-apply='sudo udevadm control --reload-rules && sudo udev
 
 # raid
 alias mdstat='cat /proc/mdstat'
+# shellcheck disable=SC2142  # $1/$NF are awk field refs, not shell positional params
 alias mdstat-md=$'awk \'/^md/ {printf "%s: ", $1}; /blocks/ {print $NF}\' /proc/mdstat'
 alias mdstat-sync='cat /sys/block/md*/md/sync_action'
 alias mddetails='sudo mdadm --detail /dev/md*'
@@ -173,8 +176,11 @@ alias git-editor-vim="export GIT_EDITOR=vim"
 # }}} - DEV ------------------------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
+# shellcheck disable=SC2139  # $UAGENT intentionally baked in at definition time (it's a constant)
 alias wget="wget -U '$UAGENT'"
+# shellcheck disable=SC2139  # $UAGENT intentionally baked in at definition time (it's a constant)
 alias wget-mirror="wget -U '$UAGENT' -m -k -K -E -np -N"
+# shellcheck disable=SC2139  # $UAGENT intentionally baked in at definition time (it's a constant)
 alias aria2c="aria2c -U '$UAGENT' -c -x4 -j4"
 
 alias proxy-set-tor-saito="export all_proxy='socks5://10.0.23.2:9050'"
@@ -197,7 +203,7 @@ alias wake-motoko='wakeonlan 1C:1B:0D:E7:BE:B3'
 alias speedtest='wget -O - -q https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python'
 # }}} - NETWORK --------------------------------------------------------------
 
-# {{{ - XORG -----------------------------------------------------------------
+# {{{ - XORG / WAYLAND -------------------------------------------------------
 alias xdisplay-local0='export DISPLAY=:0.0'
 alias xdefaults-reload='xrdb -load ~/.Xdefaults'
 
@@ -214,7 +220,7 @@ alias xprop-basic="xprop WM_CLASS WM_NAME WM_WINDOW_ROLE _NET_WM_WINDOW_TYPE \
              s/^NAME/TITLE/g;s/^(CLASS:\s+\"[^\"]*\"), (.*)/\1\nNAME:\t\2/g;
              s/\s*not found\.//g'"
 alias barrierc='barrierc --enable-crypto -d ERROR'
-# }}} - XORG -----------------------------------------------------------------
+# }}} - XORG / WAYLAND  ------------------------------------------------------
 
 # {{{ - MULTIMEDIA -----------------------------------------------------------
 alias mpv-nr='mpv --no-resume-playback'
@@ -271,28 +277,34 @@ alias id3-remove-v1-rec='find -type f -iname "*.mp3" -exec eyeD3 \
 alias tr-to-lowercase="tr '[A-Z]' '[a-z]'"
 alias tr-to-uppercase="tr '[a-z]' '[A-Z]'"
 
+# shellcheck disable=SC2142  # \$1 is escaped, passed as literal $1 to rename's regex
 alias rename-reduce-periods-to-underscore="rename 's/\./_/g;s/_([^_]{1,5})$/.\$1/'"
+# shellcheck disable=SC2142  # \$1 is escaped, passed as literal $1 to rename's regex
 alias rename-reduce-spaces-to-underscore="rename 's/ /_/g;s/_([^_]{1,5})$/.\$1/'"
 
 alias rename-strip-specials="rename \"s/[^ \w()\[\]~&%#@.,+'-]/_/g\""
 alias rename-strip-specials-rec="find . -type f -depth -execdir rename \"s/^\.\///g;
   s/[^ \w()\[\]~&%#@.,+'-]/_/g; s/^/\.\//\" '{}' +"
 
-alias rename-to-titlecase="rename 's/(^|[\s_-])([a-z])/$1\u$2/g'"
-alias rename-to-camelcase="rename 's/(^|[\s_-])([a-z])/\u$2/g'"
+# TODO review these rename aliases; they may not even work correctly (a very limited approach)
+# shellcheck disable=SC2139,SC2142  # \$1/\$2 prevent shell expansion; $1/$2 are Perl backrefs inside single quotes
+alias rename-to-titlecase="rename 's/(^|[\s_-])([a-z])/\$1\u\$2/g'"
+# shellcheck disable=SC2139,SC2142  # \$2 prevents shell expansion; $2 is a Perl backref inside single quotes
+alias rename-to-camelcase="rename 's/(^|[\s_-])([a-z])/\u\$2/g'"
 
 alias rename-exif-date-prefix='exiv2 -v -F -k -r %Y-%m-%d_%H%M%S_:basename:'
 
-alias sed-to-titlecase="sed -E 's/(^|[\s_-])([a-z])/$1\u$2/g'"
-alias sed-to-camelcase="sed -E 's/(^|[\s_-])([a-z])/\u$2/g'"
+alias sed-to-titlecase="sed -E 's/(^|[\s_-])([a-z])/\1\u\2/g'"
+alias sed-to-camelcase="sed -E 's/(^|[\s_-])([a-z])/\u\2/g'"
 
 alias sed-url-clean="sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi;
                           s/%3d/:/gi; s/%3f/?/gi'"
 alias sed-url-clean2="sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
                            s/%3f/?/gi'"
 
-alias sed-url-decode="sed -E 's/%([0-9A-F][0-9A-F])/\\\\\\\\x$1/g' | while read l;
-  do echo -e \"\$l\"; done"
+# TODO review this alias, it seems to be incorrect/broken (even before the shellcheck related change)
+# shellcheck disable=SC2154  # l is assigned by while read l; shellcheck confused by alias body
+alias sed-url-decode="sed -E 's/%([0-9A-F][0-9A-F])/\\\\x\1/g' | while read l; do echo -e \"\$l\"; done"
 
 alias cat-utf16-to-utf8='iconv -f utf-16 -t utf-8'
 alias cat-utf16-to-iso-8859-1='iconv -f utf-16 -t ISO-8859-1'
@@ -316,7 +328,7 @@ alias dupes-find-unique-rec='jdupes -Or -u'
 alias mysqlr='mysql -u root -p'
 alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'
 alias sleep-usb='sudo ~/bin/scsi-idle 900&'
-alias rpm-extract='rpm2cpio "$1" | cpio -ivd'
+rpm-extract() { rpm2cpio "$1" | cpio -ivd; }
 
 alias occ='sudo -u www-data php --define apc.enable_cli=1 /var/www/nextcloud/occ'
 alias occd='cd /var/www/nextcloud; sudo -u www-data php --define apc.enable_cli=1 occ'
@@ -324,6 +336,7 @@ alias occd='cd /var/www/nextcloud; sudo -u www-data php --define apc.enable_cli=
 alias wallabag-console='sudo -u www-data php /var/www/wallabag.11001001.org/bin/console -e prod'
 # }}} - MISC -----------------------------------------------------------------
 
+# shellcheck disable=SC1091  # optional local override; path is dynamic
 [[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"
 
 return 0
