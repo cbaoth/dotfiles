@@ -110,6 +110,28 @@ Compared to `command -v` (which is POSIX-compliant and shows the path of externa
 
 When you install new software that includes command-line tools, you may need to run `rehash` in zsh to update the command hash table. This allows zsh to recognize the new commands without needing to restart the shell.
 
+== Keyboard Shortcuts
+
+You can use the `bindkey` command to display all key bindings in zsh.
+
+=== Special Characters
+
+`M-(^M|^J|^I)` as well as `ESC, (ENTER|...)` insert the literal character. For example, `Alt-RETURN` and `ESC, RETURN` both insert a literal newline instead of executing the command, and `ESC, TAB` insearts a literal tab `\t` character instead of triggering `completion`.
+
+```shell
+"^[^I" self-insert-unmeta
+"^[^J" self-insert-unmeta
+"^[^M" self-insert-unmeta
+"!"-"~" self-insert
+"\M-^@"-"\M-^?" self-insert
+```
+
+=== Expansion, Completion, History
+
+* `C-x, r`: `"^Xr" history-incremental-search-backward` &rarr; Incrementally search backward through command history.
+* `C-r`: `"^R" zaw-history` &rarr; Search/filter command history with `zaw` fuzzy finder.
+* `C-x a`: `"^Xa" _expand_alias` &rarr; Expand aliases in the current command line.
+
 == External Resources
 
 * https://zsh.org Official Website
