@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Connect to an Android device via ADB over Wi-Fi and launch scrcpy.
+
+declare -r DEFAULT_DEVICE_IP="10.0.23.40"
+declare -ra SEARCH_DIRS=("${HOME}/bin" "${HOME}" "/opt/bin" "/opt/scrcpy")
+
+# Find a command in PATH or well-known fallback directories.
+# Sets the named variable to the resolved path, or exits with error.
+#
+# Arguments:
+#   $1 - variable name to set
+#   $2 - command name to resolve
+resolve_cmd() {
+  local -r var_name="$1"
+  local -r cmd="$2"
+  local dir path
+
+  if command -v "${cmd}" &> /dev/null; then
+    printf -v "${var_name}" '%s' "${cmd}"
+    return 0
+  fi
+
+  for dir in "${SEARCH_DIRS[@]}"; do
+    path="${dir}/${cmd}"
+    if [[ -f "${path}" ]]; then
+      printf -v "${var_name}" '%s' "${path}"
+      return 0
+    fi
+  done
+
+  printf "Error: %s not found in PATH or common locations.\n" "${cmd}" >&2
+  exit 1
+}
+
+declare ADB_CMD SCRCPY_CMD
+resolve_cmd ADB_CMD "adb"
+resolve_cmd SCRCPY_CMD "scrcpy"
+declare -r ADB_CMD SCRCPY_CMD
+
+# parse command line argument for device IP
+declare DEVICE_IP=""
+if [[ -n "${1:-}" ]]; then
+  if [[ ! "$1" =~ ^[a-zA-Z0-9.-]+(:[0-9]+)?$ ]]; then
+    printf "Invalid device IP format: %s\n" "$1" >&2
+    printf "Usage: %s [device_ip]\n" "$0" >&2
+    exit 1
+  fi
+  DEVICE_IP="$1"
+  printf "Using provided device IP: %s\n" "${DEVICE_IP}"
+else
+  DEVICE_IP="${DEFAULT_DEVICE_IP}"
+  printf "No device IP provided. Using default IP: %s\n" "${DEFAULT_DEVICE_IP}"
+fi
+declare -r DEVICE_IP
+
+declare ADB_STATE
+ADB_STATE="$("${ADB_CMD}" get-state 2>/dev/null)"
+declare -r ADB_STATE
+
+if [[ "${ADB_STATE}" == "device" ]]; then
+  printf "Device already connected.\n"
+else
+  printf "No device connected. Attempting to connect via ADB over Wi-Fi...\n"
+  "${ADB_CMD}" connect "${DEVICE_IP}" || { printf "Failed to connect to device\n" >&2; exit 1; }
+fi
+
+printf "Starting scrcpy...\n"
+"${SCRCPY_CMD}"
