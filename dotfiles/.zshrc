@@ -1076,8 +1076,8 @@ fi
 # {{{ - MOTD -----------------------------------------------------------------
 # Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)
 if (( SHLVL == 1 )); then
-  # Print welcome message only for login shells (includes ssh sessions)
-  if [[ -o login ]]; then
+  # Print welcome message for login shells (includes ssh sessions) or docker containers
+  if [[ -o login ]] || [[ -n "${IS_DOCKER:-}" ]]; then
     printf "%s\n" "$(cl::fx b)$(cl::fx white)Welcome to $(cl::fx green)$(hostname) $(cl::fx white)running $(cl::fx green)$(uname -srm)$(cl::fx reset)"
   fi
   printf "%s\n" "$(cl::fx b)$(cl::fx white)Time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), Uptime: $(cl::fx green)$(uptime -p)$(cl::fx white) since $(cl::fx green)$(uptime -s)$(cl::fx white)$(cl::fx reset)"
