@@ -15,8 +15,11 @@ LINK_FILE=$(realpath "$0")
 TOOLS_DIR=$(dirname "$LINK_FILE")
 REPO_ROOT=$(dirname "$TOOLS_DIR")
 DOTFILES="${REPO_ROOT}/dotfiles"
-REPO_BIN_DIR="${REPO_ROOT}/bin"
-HOME_BIN_DIR="$HOME/bin"
+# repo_dir:home_dir pairs to sync (flat file symlinks, stale-link cleanup)
+declare -A SYNC_DIRS=(
+  ["${REPO_ROOT}/bin"]="$HOME/bin"
+  ["${REPO_ROOT}/lib"]="$HOME/lib"
+)
 BACKUP_BASE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles-link/backups"
 BAKDIR="${BACKUP_BASE_DIR}/run-$(date +%Y%m%dT%H%M%S)"
 KEEP_LAST_BAKS=10
@@ -85,9 +88,12 @@ debug() { vlog 2 "$@"; }
 [ ! -d "${DOTFILES}" ] \
   && echo "error: dotfiles directory not found: ${DOTFILES}" \
   && exit 1
-[ ! -d "${REPO_BIN_DIR}" ] \
-  && echo "error: repo bin directory not found: ${REPO_BIN_DIR}" \
-  && exit 1
+for _sync_src in "${!SYNC_DIRS[@]}"; do
+  [ ! -d "${_sync_src}" ] \
+    && echo "error: repo sync source directory not found: ${_sync_src}" \
+    && exit 1
+done
+unset _sync_src
 
 # format command arguments for display
 format_cmd() {
@@ -207,46 +213,62 @@ while IFS= read -r -d '' f; do
   fi
 done < <(find "$DOTFILES" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PATTERN"} -print0)
 
-# synchronize top-level repo bin/ -> ~/bin symlinks
-info ""
-info "Syncing repo bin scripts: ${REPO_BIN_DIR} -> ${HOME_BIN_DIR} ..."
-run_and_report mkdir -p -- "$HOME_BIN_DIR"
+# Sync flat files from a repo dir to a home dir: create symlinks for all files,
+# remove stale links that pointed into the repo dir but no longer exist there.
+# Arguments: $1=repo_dir $2=home_dir
+sync_dir() {
+  local repo_dir="$1"
+  local home_dir="$2"
+  local label
+  label="$(basename "$repo_dir")"
 
-typeset -A BIN_BASENAMES
-while IFS= read -r -d '' src_file; do
-  base_name="$(basename "$src_file")"
-  BIN_BASENAMES["$base_name"]=1
+  info ""
+  info "Syncing repo ${label}/: ${repo_dir} -> ${home_dir} ..."
+  run_and_report mkdir -p -- "$home_dir"
 
-  target_link="${HOME_BIN_DIR}/${base_name}"
-  if [[ -e "$target_link" || -L "$target_link" ]]; then
-    if [[ -L "$target_link" && "$(readlink "$target_link")" -ef "$src_file" ]]; then
-      debug "bin sync: correct symlink already exists: $target_link"
+  typeset -A seen_names
+  while IFS= read -r -d '' src_file; do
+    local base_name
+    base_name="$(basename "$src_file")"
+    seen_names["$base_name"]=1
+
+    local target_link="${home_dir}/${base_name}"
+    if [[ -e "$target_link" || -L "$target_link" ]]; then
+      if [[ -L "$target_link" && "$(readlink "$target_link")" -ef "$src_file" ]]; then
+        debug "${label} sync: correct symlink already exists: $target_link"
+        continue
+      fi
+      backup_existing "$target_link" "${label}/${base_name}" " symlink" \
+        " but points to '$(readlink "$target_link" 2>/dev/null || printf "%s" "non-symlink")'" || continue
+    fi
+
+    info "Creating new SymLink: '$src_file' -> '$target_link'"
+    run_and_report ln -sf -- "$src_file" "$target_link"
+  done < <(find "$repo_dir" -mindepth 1 -maxdepth 1 -type f -print0)
+
+  # remove stale links pointing into repo_dir that no longer exist there
+  while IFS= read -r -d '' existing_link; do
+    local link_target
+    link_target="$(readlink "$existing_link" 2>/dev/null || true)"
+    [[ -n "$link_target" ]] || continue
+
+    if [[ "$link_target" != "${repo_dir}/"* ]]; then
+      debug "${label} sync: preserving external/custom symlink: $existing_link -> $link_target"
       continue
     fi
-    backup_existing "$target_link" "bin/${base_name}" " symlink" " but points to '$(readlink "$target_link" 2>/dev/null || printf "%s" "non-symlink")'" || continue
-  fi
 
-  info "Creating new SymLink: '$src_file' -> '$target_link'"
-  run_and_report ln -sf -- "$src_file" "$target_link"
-done < <(find "$REPO_BIN_DIR" -mindepth 1 -maxdepth 1 -type f -print0)
+    local base_name
+    base_name="$(basename "$existing_link")"
+    if [[ -z "${seen_names[$base_name]:-}" ]]; then
+      info "Removing stale repo ${label} symlink: $existing_link"
+      run_and_report rm -f -- "$existing_link"
+    fi
+  done < <(find "$home_dir" -mindepth 1 -maxdepth 1 -type l -print0)
+}
 
-# remove stale ~/bin links that point into this repo's bin/ but no longer exist there
-while IFS= read -r -d '' existing_link; do
-  link_target="$(readlink "$existing_link" 2>/dev/null || true)"
-  [[ -n "$link_target" ]] || continue
-
-  # Only manage links that target this repository's bin directory.
-  if [[ "$link_target" != "${REPO_BIN_DIR}/"* ]]; then
-    debug "bin sync: preserving external/custom symlink: $existing_link -> $link_target"
-    continue
-  fi
-
-  base_name="$(basename "$existing_link")"
-  if [[ -z "${BIN_BASENAMES[$base_name]:-}" ]]; then
-    info "Removing stale repo bin symlink: $existing_link"
-    run_and_report rm -f -- "$existing_link"
-  fi
-done < <(find "$HOME_BIN_DIR" -mindepth 1 -maxdepth 1 -type l -print0)
+for repo_dir in "${!SYNC_DIRS[@]}"; do
+  sync_dir "$repo_dir" "${SYNC_DIRS[$repo_dir]}"
+done
 
 # report all warnings and errors (if any)
 if [ ${#WARNINGS[@]} -gt 0 ]; then
