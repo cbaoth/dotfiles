@@ -117,11 +117,11 @@ if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
   alias dpr='sudo dpkg -r' # remove package (keep config files)
   alias dpr!='sudo dpkg --force-all --purge' # purge package (remove including config files)
   alias dpgs='dpkg --get-selections'
-  alias dpgsg='dpkg --get-selections | grep -i --color'
+  alias dpgsg='dpkg --get-selections | grep -iE --color'
   alias dpl='dpkg -l --no-pager'
-  alias dplg='dpl | grep -i --color'
+  alias dplg='dpl | grep -iE --color'
   alias dpli='dpkg --get-selections --no-pager'
-  alias dplig='dpli --no-pager | grep -i --color'
+  alias dplig='dpli --no-pager | grep -iE --color'
 
   # common aliases with ap(t) prefix
   alias apl=dpl
@@ -190,6 +190,7 @@ fi
 if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
   alias ac="apt-cache"
   alias acs="apt-cache search"
+  acsg() { apt-cache search "$@" | grep -iE --color "$@"; }
   alias acsn='apt-cache search --names-only' # search package names only
   alias acsf='apt-cache search --full' # search full text
   #alias acsB='apt-cache -t buster-backports search' # search backports
@@ -197,6 +198,7 @@ if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
 
   # common aliases with ap(t) prefix
   alias aps=acs # apt-cache search
+  alias apsg=acsg # apt-cache search and grep
   alias apsn=acsn # search package names only
   alias apsf=acsf # search full text
   alias apss=aci # apt-cache show
@@ -211,11 +213,12 @@ fi
 if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
   alias sn='sudo snap'
   alias sns='snap search'
+  snsg() { snap search "$@" | grep -iE --color "$@"; }
   alias sni='sudo snap install'
   alias snu='sudo snap refresh'
   alias snr='sudo snap remove'
   alias snl='snap list'
-  alias snlg='snap list | grep -i --color'
+  alias snlg='snap list | grep -iE --color'
   alias snd='snap info'
   alias snh='snap changes'
 fi
@@ -225,6 +228,7 @@ fi
 if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
   alias fp='flatpak'
   alias fps='flatpak search'
+  fpsg() { flatpak search "$@" | grep -iE --color "$@"; }
   alias fpi='flatpak install'
   alias fpu='flatpak update'
   alias fpr='flatpak uninstall'
@@ -271,6 +275,14 @@ __add_flatpak_app_functions() {
     # Use eval with quoted app ID so each generated function keeps its own target.
     eval "${function_name}() { flatpak run ${(q)application} \"\$@\"; }"
     compdef _files "${function_name}"
+
+    # App specific aliases/functions (extend case statement as needed).
+    case "${alias_name}" in
+      protontricks)  # [f]protontricks-launch
+        eval "${function_name}-launch() { flatpak run --command=protontricks-launch  ${(q)application} \"\$@\"; }"
+        compdef _files "${function_name}-launch"
+      ;;
+    esac
   done < <(flatpak list --app --columns=name,application 2>/dev/null)
 }
 __add_flatpak_app_functions
@@ -281,9 +293,10 @@ unfunction __add_flatpak_app_functions 2>/dev/null
 if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
   alias pmi="sudo pacman -S"
   alias pms="sudo pacman -Ss"
+  pmsg() { sudo pacman -Ss "$@" | grep -iE --color "$@"; }
   alias pmr="sudo pacman -Rs"
   alias pml="pacman -Q"
-  alias pmlg="pacman -Q | grep -i --color"
+  alias pmlg="pacman -Q | grep -iE --color"
   alias pmy="sudo pacman -Sy"
   alias pmu="sudo pacman -Syu"
   alias aurb="makepkg"
@@ -344,7 +357,7 @@ pkgl() {
   fi
 }
 
-alias pkglg='pkgl | grep -i --color' # list installed packages from all package managers and grep
+alias pkglg='pkgl | grep -iE --color' # list installed packages from all package managers and grep
 # }}} - PKG (*) --------------------------------------------------------------
 # }}} = DISTRIBUTION SPECIFIC ================================================
 
