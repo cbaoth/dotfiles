@@ -715,16 +715,13 @@ $ZPLUG_CMD zdharma-continuum/fast-syntax-highlighting
 # {{{ = ZPLUG LOAD ===========================================================
 # check for updates no more than every 14 days
 _zplug_install_and_update() {
-  if $ZPLUG_IS_NEW_INSTALL_FORCE || cl::q_yesno "Install missing zplug packages"; then
-    if $ZPLUG_CMD check --verbose; then
-      cl::p_war "Please be patient. This may take a while, without progress output ..."
-      zplug install
-    else
-      cl::p_msg "No missing zplug packages found."
-    fi
+  if $ZPLUG_IS_NEW_INSTALL_FORCE && cl::p_msg "Installing missing zplug packages (if any)..." || cl::q_yesno "Install missing zplug packages (if any)"; then
+    cl::p_war "Please be patient: Even after \"Installation finished successfully!\" is shown it can take a while to finish..."
+    $ZPLUG_CMD install
   fi
   cl::p_msg "Updating zplug packages ..."
-  zplug update && touch ~/.zplug/lastcheck
+  cl::p_war "Please be patient: Even after \"Updating finished successfully!\" is shown it can take a while to finish..."
+  $ZPLUG_CMD update && touch ~/.zplug/lastcheck
   return 0
 }
 
