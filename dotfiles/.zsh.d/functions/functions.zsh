@@ -1463,6 +1463,130 @@ alias pkgsg="pkg-search -i -n"
 
 # }}} - Debian/Ubuntu --------------------------------------------------------
 
+# {{{ - Wine -----------------------------------------------------------------
+
+# List processes matching PATTERN (case-insensitive), resolving Wine/Windows
+# executable paths in the cmdline to Linux paths via WINEPREFIX found in
+# /proc/PID/environ. Output format mirrors pgrep -a: "PID LINUX_PATH [ARGS]".
+#
+# Arguments:
+#   $1 - pattern passed to pgrep -i (case-insensitive)
+# Options:
+#   -q, --quiet   suppress annotations for non-wine / unreadable processes
+#   -h, --help    show usage
+ps-wine() {
+  local -r max_results=50
+  local quiet=false
+
+  # ANSI colors: gray for unresolved lines, yellow for annotations, green for
+  # the wine env suffix on successfully resolved lines.
+  local -r c_reset=$'\e[0m' c_gray=$'\e[90m' c_yellow=$'\e[33m' c_green=$'\e[32m'
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -q|--quiet) quiet=true ;;
+      -h|--help)
+        cat <<EOF
+Usage: $(cl::func_name) [-q] PATTERN
+
+Finds processes matching PATTERN (case-insensitive, via pgrep -i) and
+resolves Windows-style executable paths in the cmdline to Linux paths using
+WINEPREFIX from /proc/PID/environ.
+
+Output format (mirrors pgrep -a):
+  PID LINUX_EXE_PATH [ARGS] [wine: PREFIX]  -- resolved (white + green suffix)
+  PID CMDLINE [env: no access]              -- unreadable environ (gray + yellow)
+  PID CMDLINE [env: no WINEPREFIX]          -- not a wine process (gray + yellow)
+  PID CMDLINE [no win path]                 -- wine env but no Windows path (gray + yellow)
+
+Options:
+  -q, --quiet   suppress annotated lines; only print resolved wine processes
+  -h, --help    show this help
+EOF
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        cl::p_err "unknown option: $1"
+        return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [-q] PATTERN"
+    return 1
+  fi
+
+  local -r pattern="$1"
+  local -a lines
+  lines=("${(@f)$(pgrep -ai "${pattern}" 2>/dev/null)}")
+
+  if (( ${#lines[@]} == 0 )); then
+    cl::p_err "no processes found matching: ${pattern}"
+    return 1
+  fi
+
+  if (( ${#lines[@]} > max_results )); then
+    cl::p_err "too many results (${#lines[@]} > ${max_results}), please refine your pattern"
+    return 1
+  fi
+
+  local pid cmd wineprefix cmd_lower before exe_end exe_win drive win_path args
+
+  for line in "${lines[@]}"; do
+    pid="${line%% *}"
+    cmd="${line#* }"
+
+    # Attempt to read WINEPREFIX from process environment
+    if [[ ! -r "/proc/${pid}/environ" ]]; then
+      ${quiet} || printf "%s%s %s%s %s[env: no access]%s\n" \
+        "${c_gray}" "${pid}" "${cmd}" "${c_reset}" "${c_yellow}" "${c_reset}"
+      continue
+    fi
+
+    wineprefix="$(tr '\0' '\n' < "/proc/${pid}/environ" 2>/dev/null \
+      | grep '^WINEPREFIX=' | sed 's/^WINEPREFIX=//')"
+
+    if [[ -z "${wineprefix}" ]]; then
+      ${quiet} || printf "%s%s %s%s %s[env: no WINEPREFIX]%s\n" \
+        "${c_gray}" "${pid}" "${cmd}" "${c_reset}" "${c_yellow}" "${c_reset}"
+      continue
+    fi
+
+    # Resolve Windows exe path to Linux path.
+    # Wine reports cmdlines as: C:\path\to\app.exe [args...]
+    # The path may contain spaces; locate the first .exe occurrence.
+    cmd_lower="${cmd:l}"
+    if [[ "${cmd_lower}" =~ '^[a-z]:\\' ]]; then
+      before="${cmd_lower%%.exe*}"           # everything before first .exe
+      exe_end=$(( ${#before} + 4 ))          # +4 for ".exe"
+      exe_win="${cmd[1,${exe_end}]}"         # original-case exe path
+      args="${cmd[$(( exe_end + 1 )),-1]}"   # remaining args (incl. leading space)
+
+      drive="${(L)exe_win[1]}"               # drive letter, lowercased
+      win_path="${exe_win[4,-1]}"            # strip "X:\" prefix
+      win_path="${win_path//\\//}"           # backslashes -> forward slashes
+
+      printf "%s %s/drive_%s/%s%s %s[wine: %s]%s\n" \
+        "${pid}" "${wineprefix}" "${drive}" "${win_path}" "${args}" \
+        "${c_green}" "${wineprefix}" "${c_reset}"
+    else
+      ${quiet} || printf "%s%s %s%s %s[no win path]%s\n" \
+        "${c_gray}" "${pid}" "${cmd}" "${c_reset}" "${c_yellow}" "${c_reset}"
+    fi
+  done
+}
+
+# }}} - Wine -----------------------------------------------------------------
+
 # }}} = SYSTEM ===============================================================
 
 
