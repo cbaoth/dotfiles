@@ -40,7 +40,9 @@ done
 
 #alias sws='echo 4 > /proc/acpi/sleep'
 alias psa='ps uxaw --cols 64000'
+alias psag='ps uxaw --cols 64000 | grep -iE'
 alias psf='ps aw --forest --cols 64000'
+alias psfg='ps aw --forest --cols 64000 | grep -iE'
 alias killall9='pkill -9 -x'
 alias kill-suspend='kill -TSTP'
 alias kill-resume='kill -CONT'
