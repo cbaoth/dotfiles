@@ -1,32 +1,41 @@
-.gitconfig
-.vscode
+# Zsh cache / compiled
 .zcompdump
+.zcompdump-*
 *.zwc
-.crush
 
-# IDE / editor specific
-*.vscode/
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor artifacts
+.vscode/
 .idea/
 
-# local: configuratins and variables, may contain sensitive info (e.g., API keys)
+# Temp / scratch artifacts
+*.tmp
+*.temp
+*.bak
+*.log
+
+# Local scratch space — never commit
+# Convention: _local/ dirs are for test dumps, scratch work, ad-hoc experiments
+_local/
+
+# Local config overrides — may contain sensitive data (e.g., credentials, API keys)
+# Convention: foo.local or foo.local.conf overrides the tracked foo config (not committed)
+*.local
+*.local.*
+
+# Claude Code — machine-specific / auto-generated
 .claude/settings.local.json
 .claude/memory/
 .claude/plans/
-.github/copilot-instructions.md
 
-/env/
-/.env/
+# Environment files — may contain secrets
 .env
-*.env
+.env.*
 
-/_local/
-/local/
-/.local/
-*.local.*
-*.local
-
-# TODO: re-evaluate, ignore copilot related files for the time being
-.github/
-
-# local: tool output in working directory (root only)
-# /...
+# GitHub Copilot — local instructions not tracked
+# TODO Define appropriate agent, instruction, and skill files before removing or replcing this pattern
+.github
