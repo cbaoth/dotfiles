@@ -175,6 +175,74 @@ alias ocamli='ledit ocaml'
 alias cmucl="rlwrap -b \$BREAK_CHARS cmucl"
 alias python-profile="python -m cProfile -s time"
 alias git-editor-vim="export GIT_EDITOR=vim"
+
+# TPM - Tmux Plugin Manager https://github.com/tmux-plugins/tpm
+tmux-tpm-install() {
+  if [[ -d ~/.tmux/plugins/tpm ]]; then
+    echo "TPM already installed at ~/.tmux/plugins/tpm"
+    return 0
+  fi
+  echo "Installing TPM to ~/.tmux/plugins/tpm..."
+  if git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm; then
+    cat <<'EOF'
+TMP installed successfully.
+
+
+To use TPM, follow these steps:
+
+1. Put the following lines at the bottom of your ~/.tmux.conf:
+
+  # List of plugins
+  set -g @plugin 'tmux-plugins/tpm'
+  set -g @plugin 'tmux-plugins/tmux-sensible'
+
+  # Other examples:
+  # set -g @plugin 'github_username/plugin_name'
+  # set -g @plugin 'github_username/plugin_name#branch'
+  # set -g @plugin 'git@github.com:user/plugin'
+  # set -g @plugin 'git@bitbucket.com:user/plugin'
+
+  # Initialize TMUX plugin manager (keep this line at the very bottom of tmux.conf)
+  run '~/.tmux/plugins/tpm/tpm'
+
+2. Reload your tmux environment, or run the following in an existing environment:
+
+  # type this in terminal if tmux is already running
+  tmux source ~/.tmux.conf
+
+3. Press prefix + I (capital i, as in Install) to fetch the plugins and source them.
+
+
+TPM key bindings:
+
+  prefix + I (capital i) to fetch the plugins and source them
+  prefix + U (capital u) to update plugins
+  prefix + alt + u to uninstall plugins
+  prefix + alt + r to clean plugins (remove unused plugins)
+
+For more information refer to the TPM GitHub page:
+
+  https://github.com/tmux-plugins/tpm
+EOF
+  else
+    echo "Failed to install TPM"
+  fi
+
+}
+tmux-tpm-update() {
+  if [[ -d ~/.tmux/plugins/tpm ]]; then
+    echo "Updating TPM at ~/.tmux/plugins/tpm..."
+    if git -C ~/.tmux/plugins/tpm pull --ff-only; then
+      echo "TPM updated successfully."
+    else
+      echo "Failed to update TPM."
+    fi
+  else
+    echo "TPM is not installed at ~/.tmux/plugins/tpm. Please run tmux-tpm-install first."
+  fi
+}
+# before starting tmux, ensure that TPM is installed (if not found, best effort)
+alias tmux='[[ -d ~/.tmux/plugins/tpm ]] || tmux-tpm-install; command tmux'
 # }}} - DEV ------------------------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
