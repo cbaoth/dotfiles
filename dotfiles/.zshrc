@@ -204,7 +204,6 @@ if ${IS_DOCKER:-false}; then
 fi
 # }}} - SYSTEM/ENV STATE -----------------------------------------------------
 
-
 # {{{ - IRC ------------------------------------------------------------------
 export IRCNICK="cbaoth"
 export IRCNAME="Jorus C'Baoth"
@@ -698,7 +697,6 @@ fi
 # https://github.com/djui/alias-tips
 $ZPLUG_CMD "djui/alias-tips"
 
-
 # }}} - OTHER PLUGINS --------------------------------------------------------
 
 # activate syntax highlighting, load last to affect everything loaded before
@@ -941,7 +939,6 @@ bindkey '^[[1;5B' end-of-line # ctrl-down
 #bindkey '^r' down-line-or-history # ctrl-r
 #bindkey '^s' up-line-or-history # ctrl-w
 
-
 if [[ "$TERM" = *xterm* ]]; then
   # end of line: emacs ctrl-a, vim
   #bindkey "${terminfo[khome]}" beginning-of-line
@@ -1068,8 +1065,21 @@ if [[ -n "${_MY_CONDA:-}" ]]; then
   unset __conda_setup
 fi
 
+# determinate-nix > official nix CLI
+if command -v determinate-nixd >/dev/null 2>&1; then
+  # activate determinate-nixd auto completion subcommand
+  # https://docs.determinate.systems/determinate-nix/#determinate-nixd-completion
+  eval "$(determinate-nixd completion zsh)"
+else
+  # source Nix profile (official version, see below for Determinate Nix)
+  if ! command -v nix >/dev/null 2>&1 && [[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
+    # shellcheck source=/dev/null
+    source ~/.nix-profile/etc/profile.d/nix.sh
+  fi
+fi
+
 # # angular CLI autocompletion, if ng is avaiable
-# if command -v ng 2>&1 >/dev/null; then
+# if command -v ng >/dev/null 2>&1; then
 #   source <(ng completion script)
 # fi
 # }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------

@@ -268,11 +268,3 @@ UAGENT="Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:143.0) Gecko/20100101 Firefox
 export UAGENT
 # }}} - WEB BROWSER ----------------------------------------------------------
 # }}} = MISCELLANEOUS ========================================================
-
-# {{{ = SOURCE/INITIALIZE TOOLS ==============================================
-# Source Nix profile if it exists
-if ! command -v nix > /dev/null 2>&1 &&[[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
-  # shellcheck source=/dev/null
-  source ~/.nix-profile/etc/profile.d/nix.sh
-fi
-# }}} = SOURCE/INITIALIZE TOOLS ==============================================

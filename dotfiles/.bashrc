@@ -108,8 +108,21 @@ if [[ -n "${_MY_CONDA:-}" ]]; then
   unset __conda_setup
 fi
 
+# determinate-nix > official nix CLI
+if command -v determinate-nixd >/dev/null 2>&1; then
+  # activate determinate-nixd auto completion subcommand
+  # https://docs.determinate.systems/determinate-nix/#determinate-nixd-completion
+  eval "$(determinate-nixd completion bash)"
+else
+  # source Nix profile (official version, see below for Determinate Nix)
+  if ! command -v nix >/dev/null 2>&1 && [[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
+    # shellcheck source=/dev/null
+    source ~/.nix-profile/etc/profile.d/nix.sh
+  fi
+fi
+
 # # angular CLI autocompletion, if ng is avaiable
-# if command -v ng 2>&1 >/dev/null; then
+# if command -v ng >/dev/null 2>&1; then
 #   source <(ng completion script)
 # fi
 # }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
