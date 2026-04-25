@@ -98,9 +98,12 @@ if $HAS_CONDA; then
   alias condapi="conda install"
   alias condapr="conda remove"
   alias condapu="conda update"
+  alias condapua="echo 'NOTE: Running conda update --all might not update all the packages in a given environment to their latest versions. If the latest version of a package is incompatible with other packages installed in the environment, conda will only update that package to the latest compatible version.' >&2; conda update --all"
   alias condapc="conda clean"
   alias condapd="conda compare"
   alias conda\?="conda info"
+  # conda base
+  alias conda-update-base="conda update -n base -c defaults conda"
 fi
 # }}} - PYTHON ---------------------------------------------------------------
 
