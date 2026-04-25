@@ -1082,6 +1082,10 @@ fi
 # if command -v ng >/dev/null 2>&1; then
 #   source <(ng completion script)
 # fi
+
+# finally let's ensure that ~/bin is listed before everything else in PATH (even if duplicated)
+# e.g., ffmpeg in conda env should not override static ffmpeg binary in ~/bin
+export PATH="${HOME}/bin:$PATH"
 # }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)
