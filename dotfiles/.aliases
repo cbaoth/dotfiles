@@ -241,8 +241,15 @@ tmux-tpm-update() {
     echo "TPM is not installed at ~/.tmux/plugins/tpm. Please run tmux-tpm-install first."
   fi
 }
-# before starting tmux, ensure that TPM is installed (if not found, best effort)
-alias tmux='[[ -d ~/.tmux/plugins/tpm ]] || tmux-tpm-install; command tmux'
+# alias `tmux` may may be defined later, so let's use a shorter name (e.g. `tmux=_zsh_tmux_plugin_run` via .zshrc)
+tm() {
+  if [[ ! -d ~/.tmux/plugins/tpm ]]; then
+    # most likely only visible after exiting tmux, but should be discovered by the user eventually (sufficient)
+    echo "TPM not found at ~/.tmux/plugins/tpm. To install run tmp-tpm-install."
+    echo "Starting tmux without TPM..."
+  fi
+  tmux "$@"
+}
 # }}} - DEV ------------------------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
