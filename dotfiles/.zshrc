@@ -310,20 +310,34 @@ __hash_mountpoints() {
   # define directories to hash
   # suffixes "_*" are ignored for hash names. they can be used define more than one path per hash (first one found is used)
   local -Ar _hashdirs=(
+    # common mount points
+    [b]="/backup"  # more than one may exist, but first one found is used, add seperately if needed
+    [b_mnt]="/mnt/backup"
+    [b_media]="/media/backup"
+
+    # saito server: local mount points
+    [l_SAITO]="/media/data"
+    [d_SAITO]="/media/data" # L: on windows systems
+    [s_SAITO]="/media/stash"
+
+    # saito clients: common client side mount points for saito network shares
+    [d]="/srv/saito/data"
+    [l]="/srv/saito/data"  # L: on windows systems
+    [s]="/srv/saito/stash"
+    [l_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=data"
+    [s_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=stash"
+
+    # hosts with windows partitions (dual boot or wsl), c-f should be sufficient for the most common setups
     [c]="/mnt/c"
     [d]="/mnt/d"
     [e]="/mnt/e"
     [f]="/mnt/f"
+
+    # motoko: specific mount points on motoko (windows dual boot)
     [c_GVFS]="/media/$USERNAME/Windows"
     [d_GVFS]="/media/$USERNAME/Games"
     [e_GVFS]="/media/$USERNAME/Data"
     [f_GVFS]="/media/$USERNAME/Temp"
-    [l]="/srv/saito/data"
-    [s]="/srv/saito/stash"
-    [l_SAITO]="/media/data"
-    [s_SAITO]="/media/stash"
-    [l_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=data"
-    [s_GVFS]="/run/user/1000/gvfs/smb-share:server=saito,share=stash"
   )
   local key dir
   for key in ${(k)_hashdirs}; do
