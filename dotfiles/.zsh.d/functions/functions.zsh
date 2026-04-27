@@ -1047,14 +1047,17 @@ examples:
 # Mount and unmount functions and aliases for common mount points, with glob support and color-coded output.
 __mount_mountpoints() {
   local do_unmount=false
+  local had_failures=false
+
   if [[ $1 == -u || $1 == --unmount || $1 == unmount ]]; then
     do_unmount=true
     shift
   fi
   if [[ -z "$1" ]]; then
-    echo "Usage: __mount_mountpoints [-u|--unmount|unmount] MOUNTPOINTS..." >&2;
+    echo "Usage: __mount_mountpoints [-u|--unmount|unmount] MOUNTPOINTS..." >&2
     return 1
   fi
+
   local -a mountpoints expanded
   local -r c_green=$'\e[32m' c_red=$'\e[31m' c_yellow=$'\e[33m' c_reset=$'\e[0m'
 
@@ -1065,6 +1068,7 @@ __mount_mountpoints() {
     mountpoints+=("${expanded[@]}")
   done
 
+  local cmd_err
   for m in "${mountpoints[@]}"; do
     if [[ $do_unmount == true ]]; then
       if ! mountpoint -q -- "$m"; then
@@ -1072,11 +1076,13 @@ __mount_mountpoints() {
         continue
       fi
       printf 'Unmounting: %s ...' "$m"
-      if umount -- "$m"; then
+      if cmd_err="$(umount -- "$m" 2>&1)"; then
         printf ' %sdone%s\n' "$c_green" "$c_reset"
       else
-        printf '\n%sfailed!%s\n' "$c_red" "$c_reset" >&2
-        return 1
+        printf ' %sFAILED!%s\n' "$c_red" "$c_reset" >&2
+        [[ -n "$cmd_err" ]] && printf '%sERROR: %s%s\n' "$c_red" "$cmd_err" "$c_reset" >&2
+        had_failures=true
+        continue
       fi
     else
       if mountpoint -q -- "$m"; then
@@ -1084,15 +1090,21 @@ __mount_mountpoints() {
         continue
       fi
       printf 'Mounting: %s ...' "$m"
-      if mount -- "$m"; then
+      if cmd_err="$(mount -- "$m" 2>&1)"; then
         printf ' %sdone%s\n' "$c_green" "$c_reset"
       else
-        printf '\n%sfailed!%s\n' "$c_red" "$c_reset" >&2
-        return 1
+        printf ' %sFAILED!%s\n' "$c_red" "$c_reset" >&2
+        [[ -n "$cmd_err" ]] && printf '%sERROR: %s%s\n' "$c_red" "$cmd_err" "$c_reset" >&2
+        had_failures=true
+        continue
       fi
     fi
   done
+
+  [[ "$had_failures" == true ]] && return 1
+  return 0
 }
+
 # aliases for the function above, note that in case no mount points are provided, the function usage will be printed
 alias mount-mountpoints='__mount_mountpoints'
 alias umount-mountpoints='__mount_mountpoints -u'
