@@ -1,0 +1,618 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# netshare-bench: Benchmark mounted NFS/CIFS network shares using fio and iozone.
+
+# {{{ = CONSTANTS ============================================================
+
+# shellcheck disable=SC2155  # basename cannot fail
+declare -r  SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
+declare -r  TEST_DIR_NAME=".net-perf-test"
+
+declare -r  DEFAULT_FIO_FILE_SIZE="1g"
+declare -ri DEFAULT_FIO_RUNTIME=30
+declare -r  DEFAULT_IOZONE_FILE_SIZE="256m"
+declare -ri DEFAULT_SIM_DIRS=20
+declare -ri DEFAULT_SIM_FILES_PER_DIR=100
+
+declare -a  ACTIVE_TEST_DIRS=()
+
+# }}} = CONSTANTS ============================================================
+
+
+# {{{ = SETUP ================================================================
+
+# -e: exit on error  -u: unset vars are errors  -o pipefail: pipe errors exit
+set -euo pipefail
+
+# shellcheck disable=SC2154  # _rc is assigned inside the trap string
+trap '_rc=$?
+  printf "\n\033[31mERROR(%s)\033[0m in %s:%s\n  func: %s\n  cmd:  %s\n" \
+    "${_rc}" "${BASH_SOURCE[0]:-?}" "${LINENO:-?}" "${FUNCNAME[*]:-?}" \
+    "${BASH_COMMAND:-?}" >&2
+  exit "${_rc}"' ERR
+
+trap 'printf "\nINTERRUPT\n" >&2; exit 130' SIGINT SIGTERM
+
+_cleanup() {
+  local dir
+  for dir in "${ACTIVE_TEST_DIRS[@]+"${ACTIVE_TEST_DIRS[@]}"}"; do
+    [[ -d "${dir}" ]] && rm -rf "${dir}" 2>/dev/null || true
+  done
+}
+trap _cleanup EXIT
+
+# }}} = SETUP ================================================================
+
+
+# {{{ = FUNCTIONS ============================================================
+
+# {{{ - Output ---------------------------------------------------------------
+
+p_header() {
+  printf "\n\033[1;34m"
+  printf '=%.0s' {1..78}; printf "\n  %s\n" "$*"
+  printf '=%.0s' {1..78}; printf "\033[0m\n\n"
+}
+
+p_section() {
+  printf "\n\033[1;36m>> %s\033[0m\n\033[36m" "$*"
+  printf -- '-%.0s' {1..78}; printf "\033[0m\n\n"
+}
+
+p_info() { printf "  \033[32m*\033[0m %s\n" "$*"; }
+p_warn() { printf "  \033[33m!\033[0m %s\n" "$*" >&2; }
+p_err()  { printf "\033[31mERROR\033[0m: %s\n" "$*" >&2; }
+p_kv()   { printf "  %-30s %s\n" "${1}:" "${2:-}"; }
+
+# Print a literal command string (for display only — caller runs it separately)
+p_cmd()  { printf "  \033[90m$ %s\033[0m\n\n" "$*"; }
+
+# Print a command (one arg per line with \ continuation) then execute it
+p_run() {
+  local -a _cmd=("$@")
+  printf "  \033[90m$ %s" "${_cmd[0]}"
+  local -i _i
+  local _arg
+  for (( _i = 1; _i < ${#_cmd[@]}; _i++ )); do
+    _arg="${_cmd[_i]}"
+    if [[ "${_arg}" == *' '* ]]; then
+      printf ' \\\n      "%s"' "${_arg}"
+    else
+      printf ' \\\n      %s' "${_arg}"
+    fi
+  done
+  printf "\033[0m\n\n"
+  "${_cmd[@]}"
+}
+
+# }}} - Output ---------------------------------------------------------------
+
+
+# {{{ - Utilities ------------------------------------------------------------
+
+check_deps() {
+  local -a missing=()
+  for cmd in fio iozone findmnt ping find stat dd; do
+    command -v "${cmd}" > /dev/null 2>&1 || missing+=("${cmd}")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    p_err "Missing required commands: ${missing[*]}"
+    p_err "Install: sudo apt install fio iozone3 util-linux iputils-ping"
+    exit 1
+  fi
+}
+
+# Convert a path/string to a filesystem-safe label
+to_label() { printf '%s' "${1//\//_}" | tr -s '_' | sed 's/^_//; s/_$//'; }
+
+# Flush write buffers and optionally drop page cache
+drop_caches() {
+  sync
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    echo 3 > /proc/sys/vm/drop_caches
+    p_info "Page cache flushed."
+  else
+    p_warn "Not root — cannot drop page cache. Read results may include cached data."
+  fi
+}
+
+# Get FS type, source, and mount options for a mount point
+get_mount_info() {
+  findmnt -n -o FSTYPE,SOURCE,OPTIONS --target "$1" 2>/dev/null || printf "<unknown>"
+}
+
+# Extract server hostname/IP from NFS (server:/export) or CIFS (//server/share) source
+get_mount_server() {
+  local src
+  src="$(findmnt -n -o SOURCE --target "$1" 2>/dev/null)" || return 0
+  printf '%s' "${src}" | grep -oP '(?<=//)[^/]+' 2>/dev/null \
+    || printf '%s' "${src}" | grep -oP '^[^:/]+' 2>/dev/null \
+    || true
+}
+
+# }}} - Utilities ------------------------------------------------------------
+
+
+# {{{ - Tests ----------------------------------------------------------------
+
+run_network_latency() {
+  local -r mp="$1"
+
+  p_section "Network Latency (ping)"
+
+  local server
+  server="$(get_mount_server "${mp}")"
+
+  if [[ -z "${server}" ]]; then
+    p_warn "Could not detect server address from mount — skipping ping test."
+    return 0
+  fi
+
+  p_kv "Target" "${server}"
+  printf "\n"
+  p_cmd "ping -c 20 -q ${server}"
+  ping -c 20 -q "${server}" 2>&1 || p_warn "Ping failed (server may block ICMP)"
+}
+
+
+run_fio_sequential() {
+  local -r test_dir="$1"
+  local -r file_size="$2"
+  local -r test_file="${test_dir}/fio-seq.dat"
+
+  p_section "Sequential Throughput (fio)  |  file: ${file_size}  |  block: 1M"
+
+  p_info "Write pass (sequential, 1M blocks, end_fsync)..."
+  p_run fio \
+    --name="seq-write" \
+    --filename="${test_file}" \
+    --rw=write \
+    --bs=1M \
+    --size="${file_size}" \
+    --numjobs=1 \
+    --ioengine=psync \
+    --fallocate=none \
+    --refill_buffers \
+    --end_fsync=1 \
+    --group_reporting \
+    --output-format=normal
+  printf "\n"
+
+  drop_caches
+
+  p_info "Read pass (sequential, 1M blocks)..."
+  p_run fio \
+    --name="seq-read" \
+    --filename="${test_file}" \
+    --rw=read \
+    --bs=1M \
+    --size="${file_size}" \
+    --numjobs=1 \
+    --ioengine=psync \
+    --group_reporting \
+    --output-format=normal
+
+  rm -f "${test_file}"
+}
+
+
+run_fio_random() {
+  local -r test_dir="$1"
+  local -r file_size="$2"
+  local -ri runtime="$3"
+  local -r test_file="${test_dir}/fio-rand.dat"
+
+  p_section "Random Read I/O (fio)  |  file: ${file_size}  |  ${runtime}s per sub-test"
+  p_info "Simulates photo app access patterns: thumbnail metadata, embedded previews, full RAW."
+  printf "\n"
+
+  p_info "Creating test file (write pass)..."
+  p_run fio \
+    --name="rand-prep" \
+    --filename="${test_file}" \
+    --rw=write \
+    --bs=1M \
+    --size="${file_size}" \
+    --numjobs=1 \
+    --ioengine=psync \
+    --fallocate=none \
+    --refill_buffers \
+    --end_fsync=1 \
+    --group_reporting \
+    --output-format=normal
+  printf "\n"
+
+  local bs desc
+  for bs in "4K" "128K" "1M"; do
+    case "${bs}" in
+      "4K")   desc="EXIF / thumbnail metadata reads" ;;
+      "128K") desc="embedded JPEG preview reads (RAW files)" ;;
+      "1M")   desc="large block random reads" ;;
+    esac
+
+    drop_caches
+
+    p_info "Rand read, ${bs} blocks  [${desc}]..."
+    p_run fio \
+      --name="rand-read-${bs,,}" \
+      --filename="${test_file}" \
+      --rw=randread \
+      --bs="${bs}" \
+      --time_based \
+      --runtime="${runtime}" \
+      --numjobs=1 \
+      --ioengine=psync \
+      --group_reporting \
+      --output-format=normal
+    printf "\n"
+  done
+
+  rm -f "${test_file}"
+}
+
+
+run_fio_photo_parallel() {
+  local -r test_dir="$1"
+  local -ri runtime="$2"
+  local -r file_size="$3"
+  local -r test_file="${test_dir}/fio-photo.dat"
+
+  p_section "Parallel Photo Read (fio)  |  file: ${file_size}  |  ${runtime}s per sub-test"
+  p_info "Simulates Lightroom / XnView MP reading multiple RAW files concurrently."
+  printf "\n"
+
+  p_info "Creating test file (write pass)..."
+  p_run fio \
+    --name="photo-prep" \
+    --filename="${test_file}" \
+    --rw=write \
+    --bs=1M \
+    --size="${file_size}" \
+    --numjobs=1 \
+    --ioengine=psync \
+    --fallocate=none \
+    --refill_buffers \
+    --end_fsync=1 \
+    --group_reporting \
+    --output-format=normal
+  printf "\n"
+
+  drop_caches
+
+  p_info "4 parallel readers, 256K blocks  [preview generation — Lightroom-like]..."
+  p_run fio \
+    --name="photo-preview-4j" \
+    --filename="${test_file}" \
+    --rw=read \
+    --bs=256K \
+    --numjobs=4 \
+    --time_based \
+    --runtime="${runtime}" \
+    --ioengine=psync \
+    --group_reporting \
+    --output-format=normal
+  printf "\n"
+
+  drop_caches
+
+  p_info "1 sequential reader, 1M blocks  [full-resolution RAW load]..."
+  p_run fio \
+    --name="photo-fullres-1j" \
+    --filename="${test_file}" \
+    --rw=read \
+    --bs=1M \
+    --numjobs=1 \
+    --time_based \
+    --runtime="${runtime}" \
+    --ioengine=psync \
+    --group_reporting \
+    --output-format=normal
+
+  rm -f "${test_file}"
+}
+
+
+run_dir_traversal() {
+  local -r test_dir="$1"
+  local -ri num_dirs="$2"
+  local -ri files_per_dir="$3"
+  local -r sim_dir="${test_dir}/dir-sim"
+  local -ri total_files=$(( num_dirs * files_per_dir ))
+
+  p_section "Directory Traversal  |  ${num_dirs} dirs × ${files_per_dir} files = ${total_files} total"
+  p_info "Simulates photo library scan: readdir RPCs, getattr RPCs, EXIF header reads."
+  p_info "NFS and SMB differ significantly here due to metadata caching and RPC overhead."
+  printf "\n"
+
+  p_info "Creating directory tree with ${total_files} stub files on share..."
+  mkdir -p "${sim_dir}"
+  local -i d
+  local f
+  for (( d = 1; d <= num_dirs; d++ )); do
+    mkdir -p "${sim_dir}/$(printf 'dir%03d' "${d}")"
+    for (( f = 1; f <= files_per_dir; f++ )); do
+      printf 'x' > "${sim_dir}/$(printf 'dir%03d' "${d}")/$(printf 'photo%04d' "${f}").RAF"
+    done
+  done
+  p_info "Done."
+  printf "\n"
+
+  local -i t_start t_elapsed
+  local found_count
+
+  # Test 1: directory listing — readdir RPCs
+  p_info "--- Traversal 1: find -type f | wc -l  [readdir RPCs, dentry count] ---"
+  p_cmd "find \"${sim_dir}\" -type f | wc -l"
+  t_start="${SECONDS}"
+  found_count="$(find "${sim_dir}" -type f | wc -l)"
+  t_elapsed=$(( SECONDS - t_start ))
+  p_kv "  Files found" "${found_count}"
+  p_kv "  Elapsed"     "${t_elapsed}s"
+  printf "\n"
+
+  # Test 2: stat each file — getattr RPCs (Lightroom import scan)
+  p_info "--- Traversal 2: find + stat per file  [getattr RPCs — library import scan] ---"
+  p_cmd "find \"${sim_dir}\" -type f -exec stat --printf '%n %s %Y\\n' {} \\;"
+  t_start="${SECONDS}"
+  find "${sim_dir}" -type f -exec stat --printf '%n %s %Y\n' {} \; > /dev/null
+  t_elapsed=$(( SECONDS - t_start ))
+  p_kv "  Files stat'd" "${total_files}"
+  p_kv "  Elapsed"      "${t_elapsed}s"
+  printf "\n"
+
+  # Test 3: read first 4K of each file — EXIF header read simulation
+  p_info "--- Traversal 3: read first 4K per file  [EXIF header / sidecar read] ---"
+  p_cmd "find \"${sim_dir}\" -type f -print0 | while IFS= read -r -d '' f; do dd if=\"\$f\" bs=4K count=1 > /dev/null; done"
+  t_start="${SECONDS}"
+  while IFS= read -r -d '' f; do
+    dd if="${f}" bs=4K count=1 > /dev/null 2>&1 || true
+  done < <(find "${sim_dir}" -type f -print0)
+  t_elapsed=$(( SECONDS - t_start ))
+  p_kv "  Files read" "${total_files}"
+  p_kv "  Elapsed"    "${t_elapsed}s"
+
+  rm -rf "${sim_dir}"
+}
+
+
+run_iozone() {
+  local -r test_dir="$1"
+  local -r file_size="$2"
+  local -r xls_file="$3"
+  local -r test_file="${test_dir}/iozone-test.dat"
+
+  p_section "iozone I/O Matrix  |  file: ${file_size}  |  records: 4K, 64K, 256K, 1M"
+  p_info "Tests: write/rewrite (-i 0), read/reread (-i 1), random read/write (-i 2)"
+  p_info "XLS output: ${xls_file}"
+  printf "\n"
+
+  # -i 0: write/rewrite  -i 1: read/reread  -i 2: random read/write
+  p_run iozone \
+    -s "${file_size}" \
+    -r 4k \
+    -r 64k \
+    -r 256k \
+    -r 1m \
+    -i 0 \
+    -i 1 \
+    -i 2 \
+    -f "${test_file}" \
+    -b "${xls_file}" \
+    || p_warn "iozone exited non-zero (results may be partial)"
+
+  rm -f "${test_file}"
+}
+
+
+run_tests_for_mount() {
+  local -r mp="$1"
+  local -r label="$2"
+  local -r output_dir="$3"
+  local -r timestamp="$4"
+  local -r fio_file_size="$5"
+  local -ri fio_runtime=$6
+  local -r iozone_file_size="$7"
+  local -r skip_iozone="$8"
+  local -ri sim_dirs=$9
+  local -ri sim_files_per_dir=${10}
+  local -r test_dir="${mp}/${TEST_DIR_NAME}"
+
+  p_header "Mount: ${mp}"
+  p_kv "Mount info" "$(get_mount_info "${mp}")"
+  p_kv "Label"      "${label}"
+  p_kv "Test dir"   "${test_dir}"
+  printf "\n"
+
+  if ! mkdir -p "${test_dir}"; then
+    p_err "Cannot create test directory: ${test_dir}"
+    return 1
+  fi
+
+  run_network_latency    "${mp}"
+  run_fio_sequential     "${test_dir}" "${fio_file_size}"
+  run_fio_random         "${test_dir}" "${fio_file_size}" "${fio_runtime}"
+  run_fio_photo_parallel "${test_dir}" "${fio_runtime}"   "${fio_file_size}"
+  run_dir_traversal      "${test_dir}" "${sim_dirs}"      "${sim_files_per_dir}"
+
+  if [[ "${skip_iozone}" != "true" ]]; then
+    local -r xls_file="${output_dir}/iozone_${label}_${timestamp}.xls"
+    run_iozone "${test_dir}" "${iozone_file_size}" "${xls_file}"
+  fi
+
+  rm -rf "${test_dir}"
+}
+
+# }}} - Tests ----------------------------------------------------------------
+
+
+# {{{ - Arg Parsing / Main ---------------------------------------------------
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] MOUNTPOINT...
+
+Benchmark mounted network shares (NFS/CIFS/SMB) using fio and iozone.
+Tests sequential/random I/O, parallel photo reads, directory traversal,
+and network latency — designed to compare NFS vs SMB for photo workflows.
+
+Output is written to both stdout and a timestamped log file.
+
+Arguments:
+  MOUNTPOINT...         One or more mount points to test
+
+Options:
+  -l, --label LABEL     Run label (used in log/XLS filenames; default: timestamp)
+  -o, --output-dir DIR  Directory for logs and iozone XLS output (default: \$PWD)
+  -s, --file-size SIZE  fio test file size, e.g. 512m, 2g (default: ${DEFAULT_FIO_FILE_SIZE})
+  -t, --runtime SECS    fio runtime per random sub-test in seconds (default: ${DEFAULT_FIO_RUNTIME})
+  -z, --iozone-size S   iozone file size (default: ${DEFAULT_IOZONE_FILE_SIZE})
+  -d, --sim-dirs N      Number of dirs for traversal simulation (default: ${DEFAULT_SIM_DIRS})
+  -f, --sim-files N     Files per dir for traversal simulation (default: ${DEFAULT_SIM_FILES_PER_DIR})
+  --skip-iozone         Skip iozone tests (significantly faster overall run)
+  -n, --dry-run         Print configuration and exit without running tests
+  -h, --help            Show this help message and exit
+
+Examples:
+  # Basic test of two shares
+  ${SCRIPT_FILE} /srv/saito/data /srv/saito/stash
+
+  # Label run as 'nfs-lan', smaller files, shorter runtime, skip iozone
+  ${SCRIPT_FILE} -l nfs-lan -s 512m -t 20 --skip-iozone /srv/saito/data
+
+  # Full test, save results to ~/results (remount as SMB and run again with -l smb-lan)
+  ${SCRIPT_FILE} -l nfs-lan -o ~/results /srv/saito/data /srv/saito/stash
+  ${SCRIPT_FILE} -l smb-lan -o ~/results /srv/saito/data /srv/saito/stash
+EOF
+}
+
+parse_args() {
+  fio_file_size="${DEFAULT_FIO_FILE_SIZE}"
+  fio_runtime="${DEFAULT_FIO_RUNTIME}"
+  iozone_file_size="${DEFAULT_IOZONE_FILE_SIZE}"
+  sim_dirs="${DEFAULT_SIM_DIRS}"
+  sim_files_per_dir="${DEFAULT_SIM_FILES_PER_DIR}"
+  output_dir="$(pwd)"
+  label=""
+  skip_iozone=false
+  dry_run=false
+  mountpoints=()
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -l|--label)       shift; label="$1" ;;
+      -o|--output-dir)  shift; output_dir="$1" ;;
+      -s|--file-size)   shift; fio_file_size="$1" ;;
+      -t|--runtime)     shift; fio_runtime="$1" ;;
+      -z|--iozone-size) shift; iozone_file_size="$1" ;;
+      -d|--sim-dirs)    shift; sim_dirs="$1" ;;
+      -f|--sim-files)   shift; sim_files_per_dir="$1" ;;
+      --skip-iozone)    skip_iozone=true ;;
+      -n|--dry-run)     dry_run=true ;;
+      -h|--help)        usage; exit 0 ;;
+      --)               shift; break ;;
+      -*)
+        p_err "Unknown option: $1"
+        usage >&2
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  mountpoints=("$@")
+}
+
+main() {
+  parse_args "$@"
+
+  if (( ${#mountpoints[@]} == 0 )); then
+    p_err "No mount points specified."
+    printf "Usage: %s [OPTIONS] MOUNTPOINT...\nRun '%s --help' for more information.\n" \
+      "${SCRIPT_FILE}" "${SCRIPT_FILE}" >&2
+    exit 1
+  fi
+
+  for mp in "${mountpoints[@]}"; do
+    if [[ ! -d "${mp}" ]]; then
+      p_err "Not a directory: ${mp}"
+      exit 1
+    fi
+  done
+
+  mkdir -p "${output_dir}"
+
+  local timestamp
+  timestamp="$(date +%Y%m%d_%H%M%S)"
+  [[ -z "${label}" ]] && label="${timestamp}"
+
+  local -r log_file="${output_dir}/perf-test_${label}_${timestamp}.log"
+
+  # Route all output through tee to log file (stdout + stderr)
+  exec > >(tee -a "${log_file}") 2>&1
+
+  check_deps
+
+  if [[ "${dry_run}" == "true" ]]; then
+    p_header "Dry Run — Configuration"
+    p_kv "Mount points"      "${mountpoints[*]}"
+    p_kv "Label"             "${label}"
+    p_kv "Output dir"        "${output_dir}"
+    p_kv "Log file"          "${log_file}"
+    p_kv "fio file size"     "${fio_file_size}"
+    p_kv "fio runtime/test"  "${fio_runtime}s"
+    p_kv "iozone file size"  "${iozone_file_size}"
+    p_kv "Skip iozone"       "${skip_iozone}"
+    p_kv "Traversal dirs"    "${sim_dirs}"
+    p_kv "Traversal files"   "${sim_files_per_dir} per dir"
+    exit 0
+  fi
+
+  p_header "Network Share Performance Test"
+  p_kv "Date"            "$(date)"
+  p_kv "Host"            "$(hostname -f 2>/dev/null || hostname)"
+  p_kv "Label"           "${label}"
+  p_kv "Log file"        "${log_file}"
+  p_kv "Mount points"    "${mountpoints[*]}"
+  p_kv "fio file size"   "${fio_file_size}"
+  p_kv "fio runtime"     "${fio_runtime}s per random sub-test"
+  p_kv "iozone size"     "${iozone_file_size}"
+  p_kv "Skip iozone"     "${skip_iozone}"
+  p_kv "Traversal sim"   "${sim_dirs} dirs × ${sim_files_per_dir} files/dir"
+  printf "\n"
+
+  local mp mp_label
+  for mp in "${mountpoints[@]}"; do
+    mp_label="$(to_label "${mp}")"
+    ACTIVE_TEST_DIRS+=("${mp}/${TEST_DIR_NAME}")
+    run_tests_for_mount \
+      "${mp}" \
+      "${label}_${mp_label}" \
+      "${output_dir}" \
+      "${timestamp}" \
+      "${fio_file_size}" \
+      "${fio_runtime}" \
+      "${iozone_file_size}" \
+      "${skip_iozone}" \
+      "${sim_dirs}" \
+      "${sim_files_per_dir}"
+  done
+
+  p_header "All tests complete"
+  p_kv "Log file" "${log_file}"
+  if [[ "${skip_iozone}" != "true" ]]; then
+    p_kv "iozone XLS" "${output_dir}/iozone_${label}_*.xls"
+  fi
+}
+
+# }}} - Arg Parsing / Main ---------------------------------------------------
+
+# }}} = FUNCTIONS ============================================================
+
+main "$@"

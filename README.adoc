@@ -153,6 +153,7 @@ Some examples can be seen in the <<Dot-files>> list above.
 |`link:bin/git-fix-chmod[]`|Fix Git file permissions (chmod).
 |`link:bin/image-concat[]`|Concatenate images.
 |`link:bin/mpv-find[]`|Find media files and play with mpv.
+|`link:bin/netshare-bench[]`|Benchmark mounted network shares (NFS/CIFS/SMB) using `fio` and `iozone`. Tests sequential/random I/O, parallel photo-app reads (Lightroom/XnView MP workload), directory traversal (readdir/getattr RPC load), and network latency. Useful for comparing protocols and configuration tuning (LAN vs. Wi-Fi, server/client settings). All output is logged to a timestamped file alongside stdout.
 |`link:bin/rsync-parallel-backup[]`|Parallel rsync backup.
 |`link:bin/rsynclt[]`|rsync with limited throughput.
 |`link:bin/wget-p[]`|Parallel file fetching wrapper for wget.
