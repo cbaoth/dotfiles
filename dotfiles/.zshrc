@@ -203,51 +203,6 @@ if ${IS_DOCKER:-false}; then
   cl::p_msg "Docker environment detected."
 fi
 # }}} - SYSTEM/ENV STATE -----------------------------------------------------
-
-# {{{ - IRC ------------------------------------------------------------------
-export IRCNICK="cbaoth"
-export IRCNAME="Jorus C'Baoth"
-#export IRCUSER="cbaoth"
-# }}} - IRC ------------------------------------------------------------------
-
-# {{{ - ZSH ------------------------------------------------------------------
-# Function that exports a variable to the first provided command found in PATH
-# (if any)
-# $1:  variable name
-# $2+: commands to check, first one found wins
-_export_to_first_cmd() {
-  [[ -z "${1-}" || $# -lt 2 ]] && cl::p_usg "$0 var-name command.." && return 1
-  local var_name="$1"
-  shift
-  local cmd
-  for cmd in "$@"; do
-    if command -v "$cmd" >/dev/null 2>&1; then
-      cl::p_dbg -t 0 1 "Exporting '$var_name' to command '$cmd' ..."
-      # set the variable named $var_name to $cmd
-      export $var_name="$cmd"
-      return 0
-    fi
-  done
-  cl::p_dbg -t 0 2 "No matching command found to export '$var_name' to. Provided commands: $*"
-  return 1
-}
-
-# Default apps, if available
-_export_to_first_cmd MPLAYER mpv
-# In X11/Wayland? Then use GUI apps as default, otherwise terminal apps
-if ${IS_X:-false}; then
-  _export_to_first_cmd VISUAL code emacs vim vi nano
-  _export_to_first_cmd EDITOR code emacs vim vi nano
-  _export_to_first_cmd BROWSER vivaldi google-chrome firefox edge links2 links
-  _export_to_first_cmd IMGVIEWER xnview feh catimg
-else
-  _export_to_first_cmd VISUAL vim emacs vi nano
-  _export_to_first_cmd EDITOR vim emacs vi nano
-  _export_to_first_cmd BROWSER links2 links lynx w3m
-  _export_to_first_cmd IMGVIEWER catimg
-fi
-# }}} - ZSH ------------------------------------------------------------------
-
 # {{{ - MISC -----------------------------------------------------------------
 #UAGENT="Mozilla/5.0 (X11; U; FreeBSD i386; en-US; rv:1.4b) Gecko/20030517"
 #UAGENT+=" Mozilla Firebird/0.6"
@@ -1097,9 +1052,13 @@ fi
 #   source <(ng completion script)
 # fi
 
-# finally let's ensure that ~/bin is listed before everything else in PATH (even if duplicated)
+# finally let's ensure that ~/bin and some other things are listed before everything else in PATH
 # e.g., ffmpeg in conda env should not override static ffmpeg binary in ~/bin
-export PATH="${HOME}/bin:$PATH"
+# note: may result in duplicates but shouldn't be an issue, just a bit inefficient
+# TODO review this approach (including base PATH in .common_env) and see if there there are better alternatives
+export PATH="\
+${HOME}/bin:\
+$PATH"
 # }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)
