@@ -12,26 +12,33 @@
 
 # {{{ = ENVIRONMENT (ALL SHELLS) =============================================
 # {{{ - PATHS ----------------------------------------------------------------
-export PATH="\
+# TODO review this approach (see .zshrc comment as well, and .bashrc for consistency)
+[[ -d "/usr/local/cuda" ]] && export CUDA_HOME="/usr/local/cuda"
+
+PATH="\
 ${HOME}/bin:\
 ${HOME}/.local/bin:\
+$([[ -d "/usr/local/cuda/bin" ]] && echo "/usr/local/cuda/bin:")\
 /opt/bin:\
 /snap/bin:\
-${HOME}/.local/share/flatpak/exports/bin:\
-/var/lib/flatpak/exports/bin:\
-${HOME}/node_modules/.bin:\
+$([[ -d "${HOME}/.local/share/flatpak/exports/bin" ]] && echo "${HOME}/.local/share/flatpak/exports/bin:")\
+$([[ -d "/var/lib/flatpak/exports/bin" ]] && echo "/var/lib/flatpak/exports/bin:")\
+$([[ -d "${HOME}/node_modules/.bin" ]] && echo "${HOME}/node_modules/.bin:")\
 /usr/local/bin:/usr/bin:/bin:\
 /usr/local/sbin:/usr/sbin:/sbin:\
 /usr/bin/X11:/usr/X11R6/bin:/usr/games:\
-/opt/oracle/instantclient_21_4\
+$([[ -d "/opt/oracle/instantclient_21_4" ]] && echo "/opt/oracle/instantclient_21_4:")\
 ${PATH:+:${PATH}}"
+export PATH
 
-export LD_LIBRARY_PATH="\
+LD_LIBRARY_PATH="\
+$([[ -d "/usr/local/cuda/lib64" ]] && echo "/usr/local/cuda/lib64:")\
 ${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}\
 ${HOME}/lib:\
 ${HOME}/.local/lib:\
 /usr/local/lib:\
 /usr/lib"
+export LD_LIBRARY_PATH
 # }}} - PATHS ----------------------------------------------------------------
 
 # {{{ - LOCALE ---------------------------------------------------------------

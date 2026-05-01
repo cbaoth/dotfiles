@@ -128,7 +128,9 @@ fi
 
 # finally let's ensure that ~/bin is listed before everything else in PATH (even if duplicated)
 # e.g., ffmpeg in conda env should not override static ffmpeg binary in ~/bin
-export PATH="${HOME}/bin:$PATH"
+export PATH="\
+${HOME}/bin:\
+$PATH"
 # }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
 
 # {{{ - MOTD -----------------------------------------------------------------
