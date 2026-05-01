@@ -22,12 +22,6 @@ alias ....='cd ../../..'
 alias cp='cp -i'
 alias mv='mv -i'
 
-# editors
-alias e='emacs -nw'
-alias vim='vim -N'
-alias vi='vim -N'
-alias v='vim -N'
-
 # find
 alias findre='find -regextype posix-extended'
 
@@ -72,6 +66,66 @@ alias rsync-clone='rsync -axWS --numeric-ids --info=progress2'
 alias rsync-diff='rsync -axvnc'
 alias rsync-diff-quick='rsync -axvnu'
 # }}} - GENERAL --------------------------------------------------------------
+
+# {{{ - DEFAULT APPS ---------------------------------------------------------
+# Function that exports a variable to the first provided command found in PATH
+# (if any)
+# $1:  variable name
+# $2+: commands to check, first one found wins
+_export_to_first_cmd() {
+  [[ -z "${1-}" || $# -lt 2 ]] && cl::p_usg "$0 var-name command.." && return 1
+  local var_name="$1"
+  shift
+  local cmd cmd_bin
+  for cmd in "$@"; do
+    cmd_bin="${cmd%% *}"  # first word only, for command availability check
+    if command -v "$cmd_bin" >/dev/null 2>&1; then
+      cl::p_dbg -t 0 1 "Exporting '$var_name' to command '$cmd' ..."
+      export "$var_name=$cmd"
+      return 0
+    fi
+  done
+  cl::p_dbg -t 0 2 "No matching command found to export '$var_name' to. Provided commands: $*"
+  return 1
+}
+
+# Default apps, if available
+_export_to_first_cmd MPLAYER mpv
+# In X11/Wayland? Then use GUI apps as default, otherwise terminal apps
+if ${IS_X:-false}; then
+  _export_to_first_cmd VISUAL code 'emacs -nw' 'vim -N' vi nano
+  _export_to_first_cmd EDITOR code 'emacs -nw' 'vim -N' vi nano
+  _export_to_first_cmd BROWSER vivaldi google-chrome firefox edge links2 links
+  _export_to_first_cmd IMGVIEWER xnview feh catimg
+else
+  _export_to_first_cmd VISUAL 'vim -N' 'emacs -nw' vi nano
+  _export_to_first_cmd EDITOR 'vim -N' 'emacs -nw' vi nano
+  _export_to_first_cmd BROWSER links2 links lynx w3m
+  _export_to_first_cmd IMGVIEWER catimg
+fi
+unset -f _export_to_first_cmd
+
+# editors
+# the debian/ubuntu `editor` command uses the system wide default (not always under our control)
+# so let's shadow it to ensure it's always our prefered $EDITOR
+# Use a function so $EDITOR (which may include args like "vim -N") is word-split correctly.
+# Zsh requires ${=var} to force word-splitting; bash splits unquoted $var in command position.
+editor() {
+  if [[ -n "${ZSH_VERSION-}" ]]; then
+    # shellcheck disable=SC2296  # ${=var} is zsh-specific syntax, not valid in bash/sh
+    ${=EDITOR} "$@"
+  else
+    # shellcheck disable=SC2086  # intentional word-split on $EDITOR
+    ${EDITOR} "$@"
+  fi
+}
+# the same for nano, since it is commonly used in guides and by AI (no need to rewrite instructions that use nanon)
+alias nano='editor'
+alias e='emacs -nw'
+alias vim='vim -N'  # -N disable nvi compatibility mode, which causes various issues (e.g. with plugins), but note that some scripts may rely on defaults
+alias vi='vim -N'
+alias v='vim -N'
+# }}} - DEFAULT APPS ---------------------------------------------------------
 
 # {{{ - SYSTEM ---------------------------------------------------------------
 alias ls-disk-uuid='sudo blkid -c /dev/null'
