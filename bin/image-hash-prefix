@@ -1,0 +1,276 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Rename image files with a short content-based hash prefix derived from pixel data only.
+# The hash is metadata-independent (EXIF, ratings, etc. do not affect it).
+# Useful as a stable identifier to link source and edited/processed output files.
+# Usage: image-hash-prefix [OPTIONS] FILE...
+
+declare _SCRIPT_PATH; _SCRIPT_PATH="$(cd "$(dirname "$0")" || exit; pwd -P)"
+declare -r _SCRIPT_PATH
+declare _SCRIPT_FILE; _SCRIPT_FILE="$(basename "$0")"
+declare -r _SCRIPT_FILE
+
+# include commons lib
+# shellcheck source=/dev/null
+for f in {"${_SCRIPT_PATH}"/,"${_SCRIPT_PATH}"/lib/,"${HOME}"/lib/}commons.sh; do
+  if [[ -f "$f" ]]; then source "$f"; break; fi
+done
+if ! command -v "cl::cmd_p" > /dev/null 2>&1; then
+  printf "commons lib not found, exiting ..\n" >&2; exit 1
+fi
+
+# set options
+set -o errtrace
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# traps
+# shellcheck disable=SC2154
+trap '_rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+             "${BASH_COMMAND:-N/A}"; \
+      exit "${_rc}"' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+
+# constants
+declare -r _DEFAULT_HASH_LENGTH=12
+declare -r _DEFAULT_TAG="cx_"
+
+# arguments
+declare -i _dry_run=0
+declare -i _verbose=0
+declare -i _hash_length="${_DEFAULT_HASH_LENGTH}"
+declare _force_mode="none"  # none | append | replace
+declare -i _null_hash=1  # use zero-filled hash for unreadable files; disable with --no-null-hash
+declare _tag="${_DEFAULT_TAG}"
+declare _hash_regex   # built after parse_args
+declare _null_prefix  # built after parse_args
+declare -a _files
+
+# {{{ = FUNCTIONS =============================================================
+
+usage() {
+  cat <<EOF
+Usage: ${_SCRIPT_FILE} [OPTIONS] FILE...
+
+Rename image files by prepending a short content-based hash prefix.
+The hash is derived from pixel data only via ImageMagick's image signature
+(SHA-256 of pixel values), making it independent of EXIF/metadata changes.
+
+This creates a stable link between source files and any processed outputs
+(e.g. ComfyUI edits) that record the prefix in their output filenames.
+
+Options:
+  -l, --length N       Hash length in hex chars (default: ${_DEFAULT_HASH_LENGTH})
+  -t, --tag TAG        Tag prepended before the hash (default: "${_DEFAULT_TAG}")
+                       Set to "" to use bare hash with no tag
+      --no-null-hash   Fail instead of using a zero-filled hash for unreadable files
+  -f, --force          Append a new hash prefix to already-prefixed files
+                       Result: <TAG><NEW>_<TAG><OLD>_original.jpg
+      --force-replace  Strip existing tag+hash prefix, then add new one
+                       Result: <TAG><NEW>_original.jpg
+  -n, --dry-run        Print what would be done without renaming
+  -v, --verbose        Show skipped files and extra detail
+  -h, --help           Show this help message and exit
+
+Examples:
+  ${_SCRIPT_FILE} photos/*.jpg
+  ${_SCRIPT_FILE} --dry-run --length 8 scan_001.tiff scan_002.tiff
+  ${_SCRIPT_FILE} -n ~/originals/**/*.{jpg,png,tif}
+  ${_SCRIPT_FILE} --tag "" photos/*.jpg        # bare hash, no tag
+
+  # Typical multi-generation workflow (default tag "cx_", length 12):
+  #   original:         cx_e844bff34f51_photo.jpg
+  #   edited variant:   cx_0e6e2a1c15ad_cx_e844bff34f51_photo.jpg  (-f)
+
+Output format: <TAG><HASH>_<original_filename>
+  e.g. cx_a3f8c12e4b7d_holiday_scan_001.jpg   (default tag "cx_")
+  e.g. a3f8c12e4b7d_holiday_scan_001.jpg       (empty tag)
+
+Notes:
+  - Skip detection matches only the currently configured tag+hash pattern.
+    Files prefixed with a different tag will not be recognised as already
+    processed (use --force or retroactively rename with e.g. rename(1)).
+  - Use --force to re-prefix files, e.g. after changing --length or --tag.
+  - Requires: ImageMagick (identify / magick)
+EOF
+}
+
+# Check that required commands are available.
+check_deps() {
+  local -a missing=()
+  for cmd in identify magick; do
+    command -v "${cmd}" > /dev/null 2>&1 || missing+=("${cmd}")
+  done
+  # need at least one of identify or magick
+  if (( ${#missing[@]} == 2 )); then
+    cl::p_err "ImageMagick not found (tried: identify, magick). Please install ImageMagick."
+    return 1
+  fi
+}
+
+# Compute the ImageMagick pixel-data signature for FILE and return the first
+# HASH_LENGTH hex characters via stdout.
+#
+# Arguments:
+#   $1 - image file path
+#   $2 - hash length (number of hex chars to return)
+# Outputs:
+#   Writes hash prefix string to stdout
+# Returns:
+#   0 on success, non-zero on ImageMagick error
+image_hash() {
+  local -r file="$1"
+  local -r length="$2"
+  local full_hash
+  # `identify -format "%#"` computes the ImageMagick image signature:
+  # a SHA-256 hash of the normalized pixel data (metadata-independent).
+  if command -v identify > /dev/null 2>&1; then
+    full_hash="$(identify -format "%#\n" "${file}" 2>/dev/null | head -1)"
+  else
+    full_hash="$(magick identify -format "%#\n" "${file}" 2>/dev/null | head -1)"
+  fi
+  if [[ -z "${full_hash}" ]]; then
+    return 1
+  fi
+  printf "%s" "${full_hash:0:${length}}"
+}
+
+# Rename a single file with a hash prefix.
+#
+# Arguments:
+#   $1 - image file path
+# Globals:
+#   _dry_run, _verbose, _force_mode, _hash_length, _tag, _hash_regex - read
+# Returns:
+#   0 on success or skip, 1 on error
+process_file() {
+  local -r file="$1"
+  local dir base new_base new_path hash
+
+  if [[ ! -f "${file}" ]]; then
+    cl::p_err "Not a file: ${file}"
+    return 1
+  fi
+
+  dir="$(dirname "${file}")"
+  base="$(basename "${file}")"
+
+  # Handle already-prefixed files based on force mode
+  if [[ "${base}" =~ ${_hash_regex} ]]; then
+    case "${_force_mode}" in
+      none)
+        (( _verbose )) && cl::p_msg "SKIP (already prefixed): ${file}"
+        return 0
+        ;;
+      append)
+        ;;  # fall through: prepend new hash to the full basename as-is
+      replace)
+        base="${base:${#BASH_REMATCH[0]}}"  # strip matched prefix, keep remainder
+        ;;
+    esac
+  fi
+
+  if ! hash="$(image_hash "${file}" "${_hash_length}")"; then
+    if (( ! _null_hash )); then
+      cl::p_err "Failed to compute hash for: ${file}"
+      return 1
+    fi
+    cl::p_war "Unreadable image, using null hash: ${file}"
+    hash="${_null_prefix}"
+  fi
+
+  new_base="${_tag}${hash}_${base}"
+  new_path="${dir}/${new_base}"
+
+  if [[ "${file}" == "${new_path}" ]]; then
+    (( _verbose )) && cl::p_msg "SKIP (unchanged): ${file}"
+    return 0
+  fi
+
+  if [[ -e "${new_path}" ]]; then
+    cl::p_war "Target already exists, skipping: ${new_path}"
+    return 0
+  fi
+
+  if (( _dry_run )); then
+    cl::p_msg "DRY-RUN: ${file} -> ${new_path}"
+  else
+    mv -- "${file}" "${new_path}"
+    (( _verbose )) && cl::p_msg "RENAMED: ${file} -> ${new_path}"
+    printf "%s\n" "${new_path}"
+  fi
+}
+
+parse_args() {
+  while (( $# > 0 )); do
+    case "$1" in
+      -l|--length)
+        shift
+        if ! [[ "$1" =~ ^[0-9]+$ ]] || (( $1 < 4 || $1 > 64 )); then
+          cl::p_err "--length must be an integer between 4 and 64"
+          exit 1
+        fi
+        _hash_length="$1"
+        ;;
+      -t|--tag)
+        shift
+        _tag="$1"
+        ;;
+      --no-null-hash)   _null_hash=0 ;;
+      -f|--force)       _force_mode="append" ;;
+      --force-replace)  _force_mode="replace" ;;
+      -n|--dry-run)  _dry_run=1 ;;
+      -v|--verbose)  _verbose=1 ;;
+      -h|--help)     usage; exit 0 ;;
+      --)            shift; break ;;
+      -*)
+        cl::p_err "Unknown option: $1"
+        usage >&2
+        exit 1
+        ;;
+      *) break ;;
+    esac
+    shift
+  done
+
+  if (( $# == 0 )); then
+    cl::p_err "No files specified."
+    usage >&2
+    exit 1
+  fi
+
+  _files=("$@")
+}
+
+main() {
+  parse_args "$@"
+  check_deps || exit 1
+
+  # Build skip-detection regex and null-hash prefix from the configured tag and length.
+  # Only files matching this exact pattern are considered already processed.
+  local escaped_tag
+  escaped_tag="$(printf '%s' "${_tag}" | sed 's/[.^$*+?()[\]{}|\\]/\\&/g')"
+  _hash_regex="^${escaped_tag}[0-9a-f]{${_hash_length}}_"
+  printf -v _null_prefix '%0*d' "${_hash_length}" 0
+
+  local -i errors=0
+  for f in "${_files[@]}"; do
+    process_file "${f}" || (( errors++ )) || true
+  done
+
+  if (( errors > 0 )); then
+    cl::p_war "${errors} file(s) failed."
+    exit 1
+  fi
+}
+
+# }}} = FUNCTIONS =============================================================
+
+main "$@"
