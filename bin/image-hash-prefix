@@ -42,12 +42,22 @@ trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 declare -r _DEFAULT_HASH_LENGTH=12
 declare -r _DEFAULT_TAG="cx_"
 
+# Known image file extensions (lowercase). Used by the default extension filter.
+# Disable with --all-files.
+declare -rA _IMAGE_EXT_MAP=(
+  [jpg]=1   [jpeg]=1  [jfif]=1
+  [png]=1   [gif]=1   [webp]=1
+  [tif]=1   [tiff]=1  [bmp]=1
+  [avif]=1  [heic]=1  [heif]=1
+)
+
 # arguments
 declare -i _dry_run=0
 declare -i _verbose=0
 declare -i _hash_length="${_DEFAULT_HASH_LENGTH}"
 declare _force_mode="none"  # none | append | replace
 declare -i _null_hash=1  # use zero-filled hash for unreadable files; disable with --no-null-hash
+declare -i _filter_ext=1  # skip non-image extensions by default; disable with --all-files
 declare _tag="${_DEFAULT_TAG}"
 declare _hash_regex   # built after parse_args
 declare _null_prefix  # built after parse_args
@@ -75,6 +85,8 @@ Options:
                        Result: <TAG><NEW>_<TAG><OLD>_original.jpg
       --force-replace  Strip existing tag+hash prefix, then add new one
                        Result: <TAG><NEW>_original.jpg
+  -a, --all-files      Process all files regardless of extension (disables the
+                       default image extension filter)
   -n, --dry-run        Print what would be done without renaming
   -v, --verbose        Show skipped files and extra detail
   -h, --help           Show this help message and exit
@@ -84,6 +96,9 @@ Examples:
   ${_SCRIPT_FILE} --dry-run --length 8 scan_001.tiff scan_002.tiff
   ${_SCRIPT_FILE} -n ~/originals/**/*.{jpg,png,tif}
   ${_SCRIPT_FILE} --tag "" photos/*.jpg        # bare hash, no tag
+  ${_SCRIPT_FILE} --all-files ~/media/**/*     # include non-image files too,
+                  e.g. video files which take much longer to process, but all other
+                  file types as well (make sure to provide only appropriate files)
 
   # Typical multi-generation workflow (default tag "cx_", length 12):
   #   original:         cx_e844bff34f51_photo.jpg
@@ -94,6 +109,10 @@ Output format: <TAG><HASH>_<original_filename>
   e.g. a3f8c12e4b7d_holiday_scan_001.jpg       (empty tag)
 
 Notes:
+  - By default only files with a known image extension are processed
+    (jpg, jpeg, jfif, png, gif, webp, tif, tiff, bmp, avif, heic, heif).
+    Use --all-files to disable this filter. Files that pass the filter but
+    cannot be read by ImageMagick still receive a null hash (see --no-null-hash).
   - Skip detection matches only the currently configured tag+hash pattern.
     Files prefixed with a different tag will not be recognised as already
     processed (use --force or retroactively rename with e.g. rename(1)).
@@ -162,6 +181,20 @@ process_file() {
   dir="$(dirname "${file}")"
   base="$(basename "${file}")"
 
+  # Extension filter: skip non-image files unless --all-files is set
+  if (( _filter_ext )); then
+    local ext="${base##*.}"
+    if [[ "${ext}" != "${base}" ]]; then
+      ext="${ext,,}"  # lowercase
+    else
+      ext=""  # no extension
+    fi
+    if [[ -z "${ext}" || -z "${_IMAGE_EXT_MAP[${ext}]+_}" ]]; then
+      (( _verbose )) && cl::p_msg "SKIP (not an image extension): ${file}"
+      return 0
+    fi
+  fi
+
   # Handle already-prefixed files based on force mode
   if [[ "${base}" =~ ${_hash_regex} ]]; then
     case "${_force_mode}" in
@@ -224,6 +257,7 @@ parse_args() {
         _tag="$1"
         ;;
       --no-null-hash)   _null_hash=0 ;;
+      -a|--all-files)   _filter_ext=0 ;;
       -f|--force)       _force_mode="append" ;;
       --force-replace)  _force_mode="replace" ;;
       -n|--dry-run)  _dry_run=1 ;;
