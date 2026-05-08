@@ -92,14 +92,13 @@ _export_to_first_cmd() {
 # Default apps, if available
 _export_to_first_cmd MPLAYER mpv
 # In X11/Wayland? Then use GUI apps as default, otherwise terminal apps
+_export_to_first_cmd EDITOR 'emacs -nw' 'vim -N' vi nano
+
 if ${IS_X:-false}; then
-  _export_to_first_cmd VISUAL code 'emacs -nw' 'vim -N' vi nano
-  _export_to_first_cmd EDITOR code 'emacs -nw' 'vim -N' vi nano
+  _export_to_first_cmd VISUAL 'code --wait'
   _export_to_first_cmd BROWSER vivaldi google-chrome firefox edge links2 links
   _export_to_first_cmd IMGVIEWER xnview feh catimg
 else
-  _export_to_first_cmd VISUAL 'vim -N' 'emacs -nw' vi nano
-  _export_to_first_cmd EDITOR 'vim -N' 'emacs -nw' vi nano
   _export_to_first_cmd BROWSER links2 links lynx w3m
   _export_to_first_cmd IMGVIEWER catimg
 fi
@@ -125,6 +124,12 @@ alias e='emacs -nw'
 alias vim='vim -N'  # -N disable nvi compatibility mode, which causes various issues (e.g. with plugins), but note that some scripts may rely on defaults
 alias vi='vim -N'
 alias v='vim -N'
+
+# the alias can be used to ensure that sudoedit uses $EDITOR instead of $VISUAL (or $SUDO_EDITOR if set)
+# e.g. in case emacs/vim is preferrable to vs code, when in desktop environment
+# sudoedit priority: $SUDO_EDITOR -> $VISUAL -> $EDITOR
+# we intentionally use single quotes to ensur that $EDITOR is expanded at runtime (when alias is used) and not at definition time (here) since the value of EDITOR can be changed at a later stage
+alias sudoedit-editor='env SUDO_EDITOR="$EDITOR" sudoedit'
 # }}} - DEFAULT APPS ---------------------------------------------------------
 
 # {{{ - SYSTEM ---------------------------------------------------------------
