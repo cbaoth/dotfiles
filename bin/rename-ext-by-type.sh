@@ -17,6 +17,9 @@ declare -r C_GREEN='\033[0;32m'
 declare -r C_CYAN='\033[0;36m'
 declare -r C_NC='\033[0m'
 
+declare -r DEFAULT_HASH_LENGTH=12
+declare -r HASH_TAG="_cx_"
+
 # }}} = CONSTANTS =============================================================
 
 # {{{ = FUNCTIONS =============================================================
@@ -27,18 +30,33 @@ Usage: ${SCRIPT_FILE} [OPTIONS] <file>...
 
 Identify the actual file type of each given file and rename it to use the
 correct extension if the current extension doesn't match. Uses 'file' for
-MIME detection, with ImageMagick 'identify' as a fallback for image files.
+MIME detection, with ImageMagick 'identify' as a supplement for image files.
+
+Collision handling (when the target filename already exists):
+  Default: append a numeric suffix, e.g. photo-1.jpg, photo-2.jpg, ...
+  --skip-existing: warn and skip (old behavior)
+  --add-hash: for image files, append a content hash suffix instead,
+              e.g. photo${HASH_TAG}a3f8c12e4b7d.jpg — same hash means same
+              content, so a collision is silently skipped. Non-image files
+              that collide still fall back to numeric suffix.
 
 Options:
-  -n, --dry-run      Preview changes without renaming
-  -i, --interactive  Prompt for confirmation before each rename
-  -v, --verbose      Show skipped/unchanged files too
-  -h, --help         Show this help message and exit
+  -n, --dry-run        Preview changes without renaming
+  -i, --interactive    Prompt for confirmation before each rename
+  -v, --verbose        Show skipped/unchanged files too
+      --skip-existing  Warn and skip on filename collision (disables numeric suffix)
+  -H, --add-hash       Always append a pixel-content hash to image filenames
+                       (uses ImageMagick identify; requires ImageMagick)
+  -l, --hash-length N  Hash length in hex chars (default: ${DEFAULT_HASH_LENGTH}, range: 4-64)
+  -h, --help           Show this help message and exit
 
 Examples:
   ${SCRIPT_FILE} *.bin
   ${SCRIPT_FILE} -n ~/Downloads/*.dat
   ${SCRIPT_FILE} -i photo1 photo2 photo3
+  ${SCRIPT_FILE} -H *.bin                 # rename + append hash in one pass
+  ${SCRIPT_FILE} -H -l 8 ~/scans/*.bin   # shorter hash
+  ${SCRIPT_FILE} --skip-existing *.bin   # old behavior: skip on collision
 EOF
 }
 
@@ -113,7 +131,7 @@ mime_to_ext() {
 }
 
 # Map ImageMagick format string to canonical extension.
-# Used as a fallback/supplement for image/* MIME types.
+# Used as a supplement for image/* MIME types to catch raw/specialized formats.
 #
 # Arguments:
 #   $1 - ImageMagick format string (e.g. "JPEG", "PNG")
@@ -170,18 +188,106 @@ detect_ext() {
   echo "${new_ext}"
 }
 
+# Compute an ImageMagick pixel-data signature hash (SHA-256 of pixel values,
+# metadata-independent). Returns the first hash_length hex characters.
+# Uses the same method as image-hash-prefix.
+#
+# Arguments:
+#   $1 - image file path
+#   $2 - hash length (number of hex chars)
+# Outputs:
+#   Writes hash string to stdout
+# Returns:
+#   0 on success, 1 on failure (ImageMagick error or unreadable file)
+compute_image_hash() {
+  local -r filepath="$1"
+  local -r length="$2"
+  local full_hash
+  if command -v identify > /dev/null 2>&1; then
+    full_hash="$(identify -format "%#\n" "${filepath}" 2>/dev/null | head -1)"
+  else
+    full_hash="$(magick identify -format "%#\n" "${filepath}" 2>/dev/null | head -1)"
+  fi
+  [[ -z "${full_hash}" ]] && return 1
+  printf "%s" "${full_hash:0:${length}}"
+}
+
+# Find a safe target path that does not collide with an existing file.
+# Implements the configured collision strategy.
+#
+# Prints the resolved target path (guaranteed non-colliding), or prints nothing
+# and returns 1 if the file should be skipped (--skip-existing or hash collision).
+#
+# Arguments:
+#   $1 - source file path (original)
+#   $2 - target directory
+#   $3 - desired stem (basename without extension, possibly with hash suffix)
+#   $4 - target extension
+#   $5 - hash_applied ("true"/"false"): whether a hash suffix was embedded in stem
+# Globals read:
+#   skip_existing, verbose
+resolve_target_path() {
+  local -r src="$1"
+  local -r dir="$2"
+  local -r stem="$3"
+  local -r ext="$4"
+  local -r hash_applied="$5"
+  local target="${dir}/${stem}.${ext}"
+
+  # No collision (or same file being renamed in-place)
+  if [[ ! -e "${target}" || "${target}" == "${src}" ]]; then
+    printf '%s' "${target}"
+    return 0
+  fi
+
+  # Collision: stem contains a content hash → same content already at target; skip
+  if "${hash_applied}"; then
+    "${verbose}" && printf '%bSkip (hash match):%b %q -> %q already exists.\n' \
+      "${C_CYAN}" "${C_NC}" "${src}" "${target}"
+    return 1
+  fi
+
+  # Collision: --skip-existing
+  if "${skip_existing}"; then
+    printf '%bWarning:%b %q already exists, skipping %q.\n' \
+      "${C_YELLOW}" "${C_NC}" "${target}" "${src}" >&2
+    return 1
+  fi
+
+  # Default: numeric suffix (-1, -2, ...)
+  local -i i=1
+  while [[ -e "${dir}/${stem}-${i}.${ext}" ]]; do
+    (( i++ )) || true
+  done
+  printf '%s' "${dir}/${stem}-${i}.${ext}"
+}
+
 parse_args() {
   dry_run=false
   interactive=false
   verbose=false
+  skip_existing=false
+  add_hash=false
+  hash_length="${DEFAULT_HASH_LENGTH}"
 
   while (( $# > 0 )); do
     case "$1" in
-      -n|--dry-run)     dry_run=true ;;
-      -i|--interactive) interactive=true ;;
-      -v|--verbose)     verbose=true ;;
-      -h|--help)        usage; exit 0 ;;
-      --)               shift; break ;;
+      -n|--dry-run)      dry_run=true ;;
+      -i|--interactive)  interactive=true ;;
+      -v|--verbose)      verbose=true ;;
+      --skip-existing)   skip_existing=true ;;
+      -H|--add-hash)     add_hash=true ;;
+      -l|--hash-length)
+        shift
+        if ! [[ "$1" =~ ^[0-9]+$ ]] || (( $1 < 4 || $1 > 64 )); then
+          printf '%bError:%b --hash-length must be an integer between 4 and 64.\n' \
+            "${C_RED}" "${C_NC}" >&2
+          exit 1
+        fi
+        hash_length="$1"
+        ;;
+      -h|--help)  usage; exit 0 ;;
+      --)         shift; break ;;
       -*)
         printf "Unknown option: %s\n" "$1" >&2
         usage >&2
@@ -198,12 +304,19 @@ parse_args() {
     exit 1
   fi
 
+  if "${skip_existing}" && "${add_hash}"; then
+    printf '%bError:%b --skip-existing and --add-hash are mutually exclusive.\n' \
+      "${C_RED}" "${C_NC}" >&2
+    exit 1
+  fi
+
   files=("$@")
 }
 
 process_files() {
   local -i renamed=0 skipped=0 failed=0
-  local file mime new_ext dir base name_noext cur_ext new_name new_path confirm
+  local file new_ext mime mime_info dir base name_noext cur_ext
+  local stem new_path is_image hash hash_applied confirm
 
   for file in "${files[@]}"; do
     if [[ ! -f "${file}" ]]; then
@@ -219,7 +332,6 @@ process_files() {
     }
 
     if [[ -z "${new_ext}" ]]; then
-      local mime_info
       mime_info=$(file --mime-type -b "${file}" 2>/dev/null || echo "unknown")
       printf '%bUnknown:%b %q (mime: %s) — no extension mapping, skipping.\n' \
         "${C_YELLOW}" "${C_NC}" "${file}" "${mime_info}"
@@ -233,21 +345,44 @@ process_files() {
     cur_ext="${base#"${name_noext}"}"
     cur_ext="${cur_ext#.}"
 
-    if [[ "${cur_ext,,}" == "${new_ext}" ]]; then
+    if [[ "${cur_ext,,}" == "${new_ext}" ]] && ! "${add_hash}"; then
       "${verbose}" && printf '%bOK:%b      %q (already .%s)\n' "${C_CYAN}" "${C_NC}" "${file}" "${new_ext}"
       (( skipped++ )) || true
       continue
     fi
 
-    new_name="${name_noext}.${new_ext}"
-    new_path="${dir}/${new_name}"
+    # Determine if this is an image (for --add-hash logic)
+    mime=$(file --mime-type -b "${file}" 2>/dev/null || true)
+    is_image=false
+    [[ "${mime}" == image/* ]] && is_image=true
 
-    if [[ -e "${new_path}" && "${new_path}" != "${file}" ]]; then
-      printf '%bWarning:%b %q already exists, skipping %q.\n' \
-        "${C_YELLOW}" "${C_NC}" "${new_path}" "${file}" >&2
-      (( failed++ )) || true
+    # Build target stem: optionally append content hash for images
+    stem="${name_noext}"
+    hash_applied=false
+    if "${add_hash}" && "${is_image}"; then
+      if hash=$(compute_image_hash "${file}" "${hash_length}"); then
+        stem="${name_noext}${HASH_TAG}${hash}"
+        hash_applied=true
+      else
+        printf '%bWarning:%b Could not compute hash for %q, using plain name.\n' \
+          "${C_YELLOW}" "${C_NC}" "${file}" >&2
+      fi
+    fi
+
+    # Also skip if extension already matches AND stem is unchanged (add_hash case)
+    if [[ "${cur_ext,,}" == "${new_ext}" && "${stem}" == "${name_noext}" ]]; then
+      "${verbose}" && printf '%bOK:%b      %q (already .%s)\n' "${C_CYAN}" "${C_NC}" "${file}" "${new_ext}"
+      (( skipped++ )) || true
       continue
     fi
+
+    new_path=$(resolve_target_path "${file}" "${dir}" "${stem}" "${new_ext}" "${hash_applied}") || {
+      (( failed++ )) || true
+      continue
+    }
+
+    local new_name
+    new_name="$(basename "${new_path}")"
 
     if "${dry_run}"; then
       printf '%bWould rename:%b %q -> %q\n' "${C_CYAN}" "${C_NC}" "${file}" "${new_name}"
@@ -292,6 +427,7 @@ main() {
   fi
 
   declare -a files
+  declare dry_run interactive verbose skip_existing add_hash hash_length
   parse_args "$@"
   process_files
 }
