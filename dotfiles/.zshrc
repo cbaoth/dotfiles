@@ -1052,13 +1052,19 @@ fi
 #   source <(ng completion script)
 # fi
 
-# finally let's ensure that ~/bin and some other things are listed before everything else in PATH
-# e.g., ffmpeg in conda env should not override static ffmpeg binary in ~/bin
-# note: may result in duplicates but shouldn't be an issue, just a bit inefficient
-# TODO review this approach (including base PATH in .common_env) and see if there there are better alternatives
-export PATH="\
+# let's ensure that ~/bin and ~/.local/bin are always on top of the PATH
+# e.g. to ensure that local tool installations take precedence
+PATH="\
 ${HOME}/bin:\
+${HOME}/.local/bin:\
 $PATH"
+
+# Sanitize PATH: remove empty entries (e.g. double colons) and duplicates (first occurrence wins)
+PATH="$(printf '%s\n' "${PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
+export PATH
+
+LD_LIBRARY_PATH="$(printf '%s\n' "${LD_LIBRARY_PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
+export LD_LIBRARY_PATH
 # }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)

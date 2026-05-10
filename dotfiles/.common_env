@@ -12,13 +12,27 @@
 
 # {{{ = ENVIRONMENT (ALL SHELLS) =============================================
 # {{{ - PATHS ----------------------------------------------------------------
-# TODO review this approach (see .zshrc comment as well, and .bashrc for consistency)
-[[ -d "/usr/local/cuda" ]] && export CUDA_HOME="/usr/local/cuda"
+if [[ -d "/usr/local/cuda" ]]; then
+  CUDA_HOME="/usr/local/cuda"
+  export CUDA_HOME
+fi
+
+if [[ -d "/opt/oracle/instantclient_21_4" ]]; then
+  ORACLE_HOME="/opt/oracle/instantclient_21_4"
+  export ORACLE_HOME
+fi
+
+if command -v java >& /dev/null; then
+  JAVA_HOME="$(realpath "$(command -v java)" 2> /dev/null)"
+  JAVA_HOME="${JAVA_HOME%/bin/java}"
+  export JAVA_HOME
+fi
 
 PATH="\
 ${HOME}/bin:\
 ${HOME}/.local/bin:\
-$([[ -d "/usr/local/cuda/bin" ]] && echo "/usr/local/cuda/bin:")\
+$([[ -n "${CUDA_HOME}" && -d "${CUDA_HOME}/bin" ]] && echo "${CUDA_HOME}/bin:")\
+$([[ -n "${JAVA_HOME}" && -d "${JAVA_HOME}/bin" ]] && echo "${JAVA_HOME}/bin:")\
 /opt/bin:\
 /snap/bin:\
 $([[ -d "${HOME}/.local/share/flatpak/exports/bin" ]] && echo "${HOME}/.local/share/flatpak/exports/bin:")\
@@ -27,18 +41,26 @@ $([[ -d "${HOME}/node_modules/.bin" ]] && echo "${HOME}/node_modules/.bin:")\
 /usr/local/bin:/usr/bin:/bin:\
 /usr/local/sbin:/usr/sbin:/sbin:\
 /usr/bin/X11:/usr/X11R6/bin:/usr/games:\
-$([[ -d "/opt/oracle/instantclient_21_4" ]] && echo "/opt/oracle/instantclient_21_4:")\
+$([[ -n "${ORACLE_HOME}" && -d "${ORACLE_HOME}" ]] && echo "${ORACLE_HOME}:")\
 ${PATH:+:${PATH}}"
 export PATH
 
 LD_LIBRARY_PATH="\
-$([[ -d "/usr/local/cuda/lib64" ]] && echo "/usr/local/cuda/lib64:")\
-${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}\
 ${HOME}/lib:\
 ${HOME}/.local/lib:\
+$([[ -n "${CUDA_HOME}" && -d "${CUDA_HOME}/lib64" ]] && echo "${CUDA_HOME}/lib64:")\
+$([[ -n "${ORACLE_HOME}" && -d "${ORACLE_HOME}" ]] && echo "${ORACLE_HOME}:")\
+$(
+  [[ -n "${JAVA_HOME}" ]] && (
+    [[ -d "${JAVA_HOME}/lib/server" ]] && echo "${JAVA_HOME}/lib/server:" ||
+    [[ -d "${JAVA_HOME}/lib" ]] && echo "${JAVA_HOME}/lib:"
+  )
+)\
+${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}\
 /usr/local/lib:\
 /usr/lib"
 export LD_LIBRARY_PATH
+
 # }}} - PATHS ----------------------------------------------------------------
 
 # {{{ - LOCALE ---------------------------------------------------------------
@@ -275,3 +297,12 @@ UAGENT="Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:143.0) Gecko/20100101 Firefox
 export UAGENT
 # }}} - WEB BROWSER ----------------------------------------------------------
 # }}} = MISCELLANEOUS ========================================================
+
+# {{{ = FINALIZE ENVIRONMENT =================================================
+# Sanitize PATH: remove empty entries (e.g. double colons) and duplicates (first occurrence wins)
+PATH="$(printf '%s\n' "${PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
+export PATH
+
+LD_LIBRARY_PATH="$(printf '%s\n' "${LD_LIBRARY_PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
+export LD_LIBRARY_PATH
+# }}} = FINALIZE ENVIRONMENT =================================================
