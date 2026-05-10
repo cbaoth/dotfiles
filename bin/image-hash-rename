@@ -40,7 +40,7 @@ trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 
 # constants
 declare -r _DEFAULT_HASH_LENGTH=12
-declare -r _DEFAULT_TAG="ihash="
+declare -r _DEFAULT_TAG="ix."
 
 # Known image file extensions (lowercase). Used by the default extension filter.
 # Disable with --all-files.
@@ -60,7 +60,7 @@ declare _force_mode="none"  # none | append | replace
 declare -i _null_hash=1  # use zero-filled hash for unreadable files; disable with --no-null-hash
 declare -i _filter_ext=1  # skip non-image extensions by default; disable with --all-files
 declare _tag="${_DEFAULT_TAG}"
-declare -a _patterns=()  # sed -E expressions for pattern mode; %IHASH% = bare hash hex
+declare -a _patterns=()  # sed -E expressions for pattern mode; %ihash% = bare hash hex
 declare _hash_regex      # built after parse_args (mode-specific)
 declare _escaped_tag     # built after parse_args (used in strip and regex)
 declare _null_prefix     # built after parse_args
@@ -87,10 +87,10 @@ Options:
       --prefix         Prepend hash instead of appending it
                        Result: <TAG><HASH>_<original>
   -p, --pattern EXPR   sed -E substitution expression (repeatable).
-                       %IHASH% is replaced with the bare hex hash (no tag).
+                       %ihash% is replaced with the bare hex hash (no tag).
                        First matching expression wins; files with no match are
                        skipped. --tag and --prefix have no effect in pattern mode.
-                       Example: -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1%IHASH%_/'
+                       Example: -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1%ihash%_/'
       --no-null-hash   Fail instead of using a zero-filled hash for unreadable files
   -f, --force          Append a new hash to already-processed files
                        Suffix result:  <stem>_<TAG><OLD>_<TAG><NEW>.<ext>
@@ -106,10 +106,10 @@ Options:
 
 Output format:
   Suffix (default):  <stem>_<TAG><HASH>.<ext>
-    e.g.  holiday_scan_001_ihash=a3f8c12e4b7d.jpg   (default tag "ihash=")
+    e.g.  holiday_scan_001_ix.a3f8c12e4b7d.jpg   (default tag "ix.")
     e.g.  holiday_scan_001_a3f8c12e4b7d.jpg       (empty tag)
   Prefix (--prefix): <TAG><HASH>_<original>
-    e.g.  ihash=a3f8c12e4b7d_holiday_scan_001.jpg
+    e.g.  ix.a3f8c12e4b7d_holiday_scan_001.jpg
   Pattern (-p):      result determined by the sed expression
 
 Examples:
@@ -123,19 +123,19 @@ Examples:
                   file types as well (make sure to provide only appropriate files)
 
   # Insert hash after ISO timestamp prefix (custom positioning):
-  ${_SCRIPT_FILE} -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1ihash=%IHASH%_/' \\
+  ${_SCRIPT_FILE} -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1ix.%ihash%_/' \\
       2026-05-04T215107_1536x1024_photo.png
-  # result: 2026-05-04T215107_ihash=3cd8bdea6dd1_1536x1024_photo.png
+  # result: 2026-05-04T215107_ix.3cd8bdea6dd1_1536x1024_photo.png
 
   # Multiple patterns (first match wins):
   ${_SCRIPT_FILE} \\
-      -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1ihash=%IHASH%_/' \\
-      -p 's/(\.[^.]+)$/_ihash=%IHASH%\1/' \\
+      -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1ix.%ihash%_/' \\
+      -p 's/(\.[^.]+)$/_ix.%ihash%\1/' \\
       "2026-05-04T215107_photo.png" "other_file.jpg"
 
-  # Typical multi-generation workflow (suffix mode, default tag "ihash=", length 12):
-  #   original:         photo_ihash=e844bff34f51.jpg
-  #   edited variant:   photo_ihash=e844bff34f51_ihash=0e6e2a1c15ad.jpg  (-f)
+  # Typical multi-generation workflow (suffix mode, default tag "ix.", length 12):
+  #   original:         photo_ix.e844bff34f51.jpg
+  #   edited variant:   photo_ix.e844bff34f51_ix.0e6e2a1c15ad.jpg  (-f)
 
 Notes:
   - By default only files with a known image extension are processed
@@ -192,7 +192,7 @@ image_hash() {
   printf "%s" "${full_hash:0:${length}}"
 }
 
-# Try each pattern in _patterns against BASE with HASH substituted into %IHASH%.
+# Try each pattern in _patterns against BASE with HASH substituted into %ihash%.
 # Prints the new basename to stdout on first match; returns 1 if none match.
 #
 # Arguments:
@@ -207,7 +207,7 @@ apply_pattern() {
   local -r hash="$2"
   local expr substituted_expr new_base
   for expr in "${_patterns[@]}"; do
-    substituted_expr="${expr//%IHASH%/${hash}}"
+    substituted_expr="${expr//%ihash%/${hash}}"
     new_base="$(printf '%s' "${base}" | sed -E "${substituted_expr}")"
     if [[ "${new_base}" != "${base}" ]]; then
       printf '%s' "${new_base}"
@@ -344,8 +344,8 @@ parse_args() {
       --prefix)     _mode="prefix" ;;
       -p|--pattern)
         shift
-        if [[ "$1" != *'%IHASH%'* ]]; then
-          cl::p_err "--pattern expression must contain %IHASH% placeholder: $1"
+        if [[ "$1" != *'%ihash%'* ]]; then
+          cl::p_err "--pattern expression must contain %ihash% placeholder: $1"
           exit 1
         fi
         _patterns+=("$1")
