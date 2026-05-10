@@ -31,7 +31,8 @@ dotfiles-link() {
 # Resolves the dotfiles repo root via this file's real path (symlink-safe).
 dotfiles-update() {
   local _df_root="${${${(%):-%x}:A}:h:h:h}"
-  git -C "${_df_root}" pull "$@"
+  git -C "${_df_root}" pull "$@" \
+    && dotfiles-link
 }
 # }}} - GENERAL --------------------------------------------------------------
 
