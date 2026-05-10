@@ -4,10 +4,10 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# Rename image files with a short content-based hash prefix derived from pixel data only.
+# Rename image files with a short content-based hash derived from pixel data only.
 # The hash is metadata-independent (EXIF, ratings, etc. do not affect it).
 # Useful as a stable identifier to link source and edited/processed output files.
-# Usage: image-hash-prefix [OPTIONS] FILE...
+# Usage: image-hash-rename [OPTIONS] FILE...
 
 declare _SCRIPT_PATH; _SCRIPT_PATH="$(cd "$(dirname "$0")" || exit; pwd -P)"
 declare -r _SCRIPT_PATH
@@ -40,7 +40,7 @@ trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 
 # constants
 declare -r _DEFAULT_HASH_LENGTH=12
-declare -r _DEFAULT_TAG="cx_"
+declare -r _DEFAULT_TAG="ihash="
 
 # Known image file extensions (lowercase). Used by the default extension filter.
 # Disable with --all-files.
@@ -55,12 +55,15 @@ declare -rA _IMAGE_EXT_MAP=(
 declare -i _dry_run=0
 declare -i _verbose=0
 declare -i _hash_length="${_DEFAULT_HASH_LENGTH}"
+declare _mode="suffix"      # suffix | prefix | pattern
 declare _force_mode="none"  # none | append | replace
 declare -i _null_hash=1  # use zero-filled hash for unreadable files; disable with --no-null-hash
 declare -i _filter_ext=1  # skip non-image extensions by default; disable with --all-files
 declare _tag="${_DEFAULT_TAG}"
-declare _hash_regex   # built after parse_args
-declare _null_prefix  # built after parse_args
+declare -a _patterns=()  # sed -E expressions for pattern mode; %IHASH% = bare hash hex
+declare _hash_regex      # built after parse_args (mode-specific)
+declare _escaped_tag     # built after parse_args (used in strip and regex)
+declare _null_prefix     # built after parse_args
 declare -a _files
 
 # {{{ = FUNCTIONS =============================================================
@@ -69,44 +72,70 @@ usage() {
   cat <<EOF
 Usage: ${_SCRIPT_FILE} [OPTIONS] FILE...
 
-Rename image files by prepending a short content-based hash prefix.
+Rename image files by appending a short content-based hash before the extension
+(default), prepending it as a prefix, or inserting it via a custom sed pattern.
 The hash is derived from pixel data only via ImageMagick's image signature
 (SHA-256 of pixel values), making it independent of EXIF/metadata changes.
 
 This creates a stable link between source files and any processed outputs
-(e.g. ComfyUI edits) that record the prefix in their output filenames.
+(e.g. ComfyUI edits) that record the hash in their output filenames.
 
 Options:
   -l, --length N       Hash length in hex chars (default: ${_DEFAULT_HASH_LENGTH})
   -t, --tag TAG        Tag prepended before the hash (default: "${_DEFAULT_TAG}")
                        Set to "" to use bare hash with no tag
+      --prefix         Prepend hash instead of appending it
+                       Result: <TAG><HASH>_<original>
+  -p, --pattern EXPR   sed -E substitution expression (repeatable).
+                       %IHASH% is replaced with the bare hex hash (no tag).
+                       First matching expression wins; files with no match are
+                       skipped. --tag and --prefix have no effect in pattern mode.
+                       Example: -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1%IHASH%_/'
       --no-null-hash   Fail instead of using a zero-filled hash for unreadable files
-  -f, --force          Append a new hash prefix to already-prefixed files
-                       Result: <TAG><NEW>_<TAG><OLD>_original.jpg
-      --force-replace  Strip existing tag+hash prefix, then add new one
-                       Result: <TAG><NEW>_original.jpg
+  -f, --force          Append a new hash to already-processed files
+                       Suffix result:  <stem>_<TAG><OLD>_<TAG><NEW>.<ext>
+                       Prefix result:  <TAG><NEW>_<TAG><OLD>_original.jpg
+      --force-replace  Strip existing tag+hash, then add new one
+                       Suffix result:  <stem>_<TAG><NEW>.<ext>
+                       Prefix result:  <TAG><NEW>_original.jpg
   -a, --all-files      Process all files regardless of extension (disables the
                        default image extension filter)
   -n, --dry-run        Print what would be done without renaming
   -v, --verbose        Show skipped files and extra detail
   -h, --help           Show this help message and exit
 
+Output format:
+  Suffix (default):  <stem>_<TAG><HASH>.<ext>
+    e.g.  holiday_scan_001_ihash=a3f8c12e4b7d.jpg   (default tag "ihash=")
+    e.g.  holiday_scan_001_a3f8c12e4b7d.jpg       (empty tag)
+  Prefix (--prefix): <TAG><HASH>_<original>
+    e.g.  ihash=a3f8c12e4b7d_holiday_scan_001.jpg
+  Pattern (-p):      result determined by the sed expression
+
 Examples:
   ${_SCRIPT_FILE} photos/*.jpg
   ${_SCRIPT_FILE} --dry-run --length 8 scan_001.tiff scan_002.tiff
   ${_SCRIPT_FILE} -n ~/originals/**/*.{jpg,png,tif}
   ${_SCRIPT_FILE} --tag "" photos/*.jpg        # bare hash, no tag
+  ${_SCRIPT_FILE} --prefix photos/*.jpg        # prefix behaviour
   ${_SCRIPT_FILE} --all-files ~/media/**/*     # include non-image files too,
                   e.g. video files which take much longer to process, but all other
                   file types as well (make sure to provide only appropriate files)
 
-  # Typical multi-generation workflow (default tag "cx_", length 12):
-  #   original:         cx_e844bff34f51_photo.jpg
-  #   edited variant:   cx_0e6e2a1c15ad_cx_e844bff34f51_photo.jpg  (-f)
+  # Insert hash after ISO timestamp prefix (custom positioning):
+  ${_SCRIPT_FILE} -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1ihash=%IHASH%_/' \\
+      2026-05-04T215107_1536x1024_photo.png
+  # result: 2026-05-04T215107_ihash=3cd8bdea6dd1_1536x1024_photo.png
 
-Output format: <TAG><HASH>_<original_filename>
-  e.g. cx_a3f8c12e4b7d_holiday_scan_001.jpg   (default tag "cx_")
-  e.g. a3f8c12e4b7d_holiday_scan_001.jpg       (empty tag)
+  # Multiple patterns (first match wins):
+  ${_SCRIPT_FILE} \\
+      -p 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}[^_]*_)/\1ihash=%IHASH%_/' \\
+      -p 's/(\.[^.]+)$/_ihash=%IHASH%\1/' \\
+      "2026-05-04T215107_photo.png" "other_file.jpg"
+
+  # Typical multi-generation workflow (suffix mode, default tag "ihash=", length 12):
+  #   original:         photo_ihash=e844bff34f51.jpg
+  #   edited variant:   photo_ihash=e844bff34f51_ihash=0e6e2a1c15ad.jpg  (-f)
 
 Notes:
   - By default only files with a known image extension are processed
@@ -114,9 +143,11 @@ Notes:
     Use --all-files to disable this filter. Files that pass the filter but
     cannot be read by ImageMagick still receive a null hash (see --no-null-hash).
   - Skip detection matches only the currently configured tag+hash pattern.
-    Files prefixed with a different tag will not be recognised as already
+    Files processed with a different tag will not be recognised as already
     processed (use --force or retroactively rename with e.g. rename(1)).
-  - Use --force to re-prefix files, e.g. after changing --length or --tag.
+  - Use --force to re-hash files, e.g. after changing --length or --tag.
+  - Pattern mode (-p): --force and --force-replace have no effect; sed
+    idempotency determines whether a file is re-processed.
   - Requires: ImageMagick (identify / magick)
 EOF
 }
@@ -141,7 +172,7 @@ check_deps() {
 #   $1 - image file path
 #   $2 - hash length (number of hex chars to return)
 # Outputs:
-#   Writes hash prefix string to stdout
+#   Writes hash string to stdout
 # Returns:
 #   0 on success, non-zero on ImageMagick error
 image_hash() {
@@ -161,17 +192,43 @@ image_hash() {
   printf "%s" "${full_hash:0:${length}}"
 }
 
-# Rename a single file with a hash prefix.
+# Try each pattern in _patterns against BASE with HASH substituted into %IHASH%.
+# Prints the new basename to stdout on first match; returns 1 if none match.
+#
+# Arguments:
+#   $1 - original basename
+#   $2 - bare hex hash string
+# Outputs:
+#   Writes new basename to stdout on success
+# Returns:
+#   0 on success (a pattern matched and changed the name), 1 if no pattern matched
+apply_pattern() {
+  local -r base="$1"
+  local -r hash="$2"
+  local expr substituted_expr new_base
+  for expr in "${_patterns[@]}"; do
+    substituted_expr="${expr//%IHASH%/${hash}}"
+    new_base="$(printf '%s' "${base}" | sed -E "${substituted_expr}")"
+    if [[ "${new_base}" != "${base}" ]]; then
+      printf '%s' "${new_base}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Rename a single file with a hash suffix/prefix or via a custom pattern.
 #
 # Arguments:
 #   $1 - image file path
 # Globals:
-#   _dry_run, _verbose, _force_mode, _hash_length, _tag, _hash_regex - read
+#   _dry_run, _verbose, _force_mode, _mode, _hash_length, _tag, _escaped_tag,
+#   _hash_regex, _null_hash, _null_prefix, _patterns - read
 # Returns:
 #   0 on success or skip, 1 on error
 process_file() {
   local -r file="$1"
-  local dir base new_base new_path hash
+  local dir base new_base new_path hash stem ext
 
   if [[ ! -f "${file}" ]]; then
     cl::p_err "Not a file: ${file}"
@@ -183,29 +240,41 @@ process_file() {
 
   # Extension filter: skip non-image files unless --all-files is set
   if (( _filter_ext )); then
-    local ext="${base##*.}"
-    if [[ "${ext}" != "${base}" ]]; then
-      ext="${ext,,}"  # lowercase
+    local ext_check="${base##*.}"
+    if [[ "${ext_check}" != "${base}" ]]; then
+      ext_check="${ext_check,,}"  # lowercase
     else
-      ext=""  # no extension
+      ext_check=""  # no extension
     fi
-    if [[ -z "${ext}" || -z "${_IMAGE_EXT_MAP[${ext}]+_}" ]]; then
+    if [[ -z "${ext_check}" || -z "${_IMAGE_EXT_MAP[${ext_check}]+_}" ]]; then
       (( _verbose )) && cl::p_msg "SKIP (not an image extension): ${file}"
       return 0
     fi
   fi
 
-  # Handle already-prefixed files based on force mode
-  if [[ "${base}" =~ ${_hash_regex} ]]; then
+  # Handle already-processed files based on force mode.
+  # Pattern mode has no automatic skip detection; sed idempotency applies.
+  if [[ -n "${_hash_regex}" && "${base}" =~ ${_hash_regex} ]]; then
     case "${_force_mode}" in
       none)
-        (( _verbose )) && cl::p_msg "SKIP (already prefixed): ${file}"
+        (( _verbose )) && cl::p_msg "SKIP (already processed): ${file}"
         return 0
         ;;
       append)
-        ;;  # fall through: prepend new hash to the full basename as-is
+        ;;  # fall through: apply hash to current basename as-is
       replace)
-        base="${base:${#BASH_REMATCH[0]}}"  # strip matched prefix, keep remainder
+        case "${_mode}" in
+          prefix)
+            base="${base:${#BASH_REMATCH[0]}}"  # strip matched prefix, keep remainder
+            ;;
+          suffix)
+            stem="${base%.*}"
+            ext="${base#"${stem}"}"
+            # Strip _<TAG><HASH> from the end of the stem
+            stem="$(printf '%s' "${stem}" | sed -E "s/_${_escaped_tag}[0-9a-f]{${_hash_length}}$//")"
+            base="${stem}${ext}"
+            ;;
+        esac
         ;;
     esac
   fi
@@ -219,7 +288,23 @@ process_file() {
     hash="${_null_prefix}"
   fi
 
-  new_base="${_tag}${hash}_${base}"
+  case "${_mode}" in
+    prefix)
+      new_base="${_tag}${hash}_${base}"
+      ;;
+    suffix)
+      stem="${base%.*}"
+      ext="${base#"${stem}"}"  # includes leading dot, or empty if no extension
+      new_base="${stem}_${_tag}${hash}${ext}"
+      ;;
+    pattern)
+      if ! new_base="$(apply_pattern "${base}" "${hash}")"; then
+        cl::p_war "No pattern matched, skipping: ${file}"
+        return 0
+      fi
+      ;;
+  esac
+
   new_path="${dir}/${new_base}"
 
   if [[ "${file}" == "${new_path}" ]]; then
@@ -256,6 +341,16 @@ parse_args() {
         shift
         _tag="$1"
         ;;
+      --prefix)     _mode="prefix" ;;
+      -p|--pattern)
+        shift
+        if [[ "$1" != *'%IHASH%'* ]]; then
+          cl::p_err "--pattern expression must contain %IHASH% placeholder: $1"
+          exit 1
+        fi
+        _patterns+=("$1")
+        _mode="pattern"
+        ;;
       --no-null-hash)   _null_hash=0 ;;
       -a|--all-files)   _filter_ext=0 ;;
       -f|--force)       _force_mode="append" ;;
@@ -287,11 +382,27 @@ main() {
   parse_args "$@"
   check_deps || exit 1
 
-  # Build skip-detection regex and null-hash prefix from the configured tag and length.
+  # Warn if force flags are used with pattern mode (they have no effect)
+  if [[ "${_mode}" == "pattern" && "${_force_mode}" != "none" ]]; then
+    cl::p_war "--force/--force-replace have no effect in pattern mode; sed idempotency applies."
+  fi
+
+  # Build tag regex escape and mode-specific skip-detection regex.
   # Only files matching this exact pattern are considered already processed.
-  local escaped_tag
-  escaped_tag="$(printf '%s' "${_tag}" | sed 's/[.^$*+?()[\]{}|\\]/\\&/g')"
-  _hash_regex="^${escaped_tag}[0-9a-f]{${_hash_length}}_"
+  _escaped_tag="$(printf '%s' "${_tag}" | sed 's/[.^$*+?()[\]{}|\\]/\\&/g')"
+  case "${_mode}" in
+    prefix)
+      _hash_regex="^${_escaped_tag}[0-9a-f]{${_hash_length}}_"
+      ;;
+    suffix)
+      # Matches filenames where the stem ends with _<TAG><HASH>
+      _hash_regex="_${_escaped_tag}[0-9a-f]{${_hash_length}}(\.[^.]+)?$"
+      ;;
+    pattern)
+      _hash_regex=""  # no automatic skip detection; sed idempotency applies
+      ;;
+  esac
+
   printf -v _null_prefix '%0*d' "${_hash_length}" 0
 
   local -i errors=0
