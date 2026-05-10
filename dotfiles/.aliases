@@ -425,7 +425,7 @@ alias rename-reduce-periods-to-underscore="rename 's/\./_/g;s/_([^_]{1,5})$/.\$1
 alias rename-reduce-spaces-to-underscore="rename 's/ /_/g;s/_([^_]{1,5})$/.\$1/'"
 
 alias rename-strip-specials="rename \"s/[^ \w()\[\]~&%#@.,+'-]/_/g\""
-alias rename-strip-specials-rec="find . -type f -depth -execdir rename \"s/^\.\///g;
+alias rename-strip-specials-rec="find . -depth -type f -execdir rename \"s/^\.\///g;
   s/[^ \w()\[\]~&%#@.,+'-]/_/g; s/^/\.\//\" '{}' +"
 
 # TODO review these rename aliases; they may not even work correctly (a very limited approach)
