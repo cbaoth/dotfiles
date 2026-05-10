@@ -126,11 +126,19 @@ fi
 #   source <(ng completion script)
 # fi
 
-# finally let's ensure that ~/bin is listed before everything else in PATH (even if duplicated)
-# e.g., ffmpeg in conda env should not override static ffmpeg binary in ~/bin
-export PATH="\
+# finally let's ensure that ~/bin and ~/.local/bin are always on top of the PATH
+# e.g. to ensure that local tool installations take precedence
+PATH="\
 ${HOME}/bin:\
+${HOME}/.local/bin:\
 $PATH"
+
+# Sanitize PATH: remove empty entries (e.g. double colons) and duplicates (first occurrence wins)
+PATH="$(printf '%s\n' "${PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
+export PATH
+
+LD_LIBRARY_PATH="$(printf '%s\n' "${LD_LIBRARY_PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
+export LD_LIBRARY_PATH
 # }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
 
 # {{{ - MOTD -----------------------------------------------------------------
@@ -143,8 +151,4 @@ if (( SHLVL == 1 )); then
   printf "%s\n" "$(cl::fx b)$(cl::fx white)Time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), Uptime: $(cl::fx green)$(uptime -p)$(cl::fx white) since $(cl::fx green)$(uptime -s)$(cl::fx white)$(cl::fx reset)"
 fi
 # }}} - MOTD -----------------------------------------------------------------
-
-# even though ~/bin should already be in PATH, we add it here to ensure it is before other directories
-# e.g., static binaries in ~/bin should be preferred over executables in a conda environment
-export PATH="${HOME}/bin:$PATH"
 # }}} = FINAL EXECUTIONS =====================================================
