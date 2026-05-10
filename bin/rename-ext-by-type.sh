@@ -190,7 +190,7 @@ detect_ext() {
 
 # Compute an ImageMagick pixel-data signature hash (SHA-256 of pixel values,
 # metadata-independent). Returns the first hash_length hex characters.
-# Uses the same method as image-hash-prefix.
+# Uses the same method as image-hash-rename.
 #
 # Arguments:
 #   $1 - image file path
