@@ -122,69 +122,43 @@ if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
   alias dplg='dpl | grep -iE --color'
   alias dpli='dpkg --get-selections --no-pager'
   alias dplig='dpli --no-pager | grep -iE --color'
-
-  # common aliases with ap(t) prefix
-  alias apl=dpl
-  alias aplg=dplg
-  alias apli=dpli # list installed packages
-  alias aplig=dplg
-fi
-
-if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
-  alias aplo='sudo aptitude search \?obsolete' # list obsolete packages
-  alias appo='sudo aptitude purge \?obsolete' # purge obsolete packages
 fi
 
 if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
   alias ag="sudo apt-get"
+  alias agu!="sudo apt-get update" # apt update
+  # update cache, but no more than ones per hour (if sucessfull)
+  # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
+  alias agu='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
+                agu! && date +%s > /tmp/last_apt_update
+              else
+                echo "> last apt update less than an hour ago, skipping (use agu! to force) ..."
+              fi'
   alias agi="sudo apt-get -y install" # apt install
   alias agi!='sudo apt-get install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
   alias agiu='sudo apt-get install --only-upgrade' # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
-
   alias agr="sudo apt-get remove" # apt remove
   alias agr!="sudo apt-get purge" # apt purge
-  alias agar="sudo apt-get autoremove" # apt auto-remove
-  alias agu="sudo apt-get update" # apt update
-  alias agug="agu && sudo apt-get -y upgrade && agar" # apt-get update/upgrade/auto-remove
-  alias agdu="agu && sudo apt-get -y dist-upgrade && agar" # apt-get update/dist-upgrade/auto-remove
-  # https://askubuntu.com/questions/2389/generating-list-of-manually-installed-packages-and-querying-individual-packages/492343#492343
+  alias agra="sudo apt-get autoremove" # apt auto-remove
+  alias agug="agu && sudo apt-get -y upgrade && agra" # apt-get update/upgrade/auto-remove
+  alias agugf="agu && sudo apt-get full-upgrade && agra" # apt-get update/(full-|dist-)upgrade/auto-remove
+fi
 
-  # common aliases with ap(t) prefix
-  alias apud!=agu # force update
-  # update cache, but no more than ones per hour (if sucessfull)
-  # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
-  alias apud='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
-                agu && date +%s > /tmp/last_apt_update
-              else
-                echo "> last apt update less than an hour ago, skipping (use apud! to force) ..."
-              fi'
-  alias api='apud && sudo apt-get install'
-  #alias api='apud && agi' # alternative: less explicit but shorter
-  #alias apiB='apud && sudo apt-get -t buster-backports install'
-  alias api!=agi! # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
-  alias apio=agiu # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
-  alias apr=agr # apt-get remove
-  alias apr!=agr! # apt-get purge
-  alias apar=agar # apt-get auto-remove
-  alias apu='apud && sudo apt-get -y upgrade && agar'
-  alias apu!='agu && sudo apt-get -y upgrade && agar'
-  alias apug=agug # apt-get update/upgrade/auto-remove
-  alias apdu=agdu # apt-get update/dist-upgrade/auto-remove
-
-  #if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
-  #  alias apt-fix='dpca; apif'
-  #fi
+if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
+  alias atug='apu && sudo aptitude -o Aptitude::Delete-Unused=1 -y safe-upgrade'
+  alias atug!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 upgrade'
+  alias atug!!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 full-upgrade'
+  alias atso='sudo aptitude search \?obsolete' # list
+  alias atsog='sudo aptitude search \?obsolete | grep -iE --color'
+  alias atpo='sudo aptitude purge \?obsolete' # purge obsolete packages
 fi
 
 if [[ -n "$(command -v apt-mark 2>/dev/null)" ]]; then
-  alias agma="sudo apt-mark markauto"
-  alias aglim="comm -23 <(apt-mark showmanual | sort -u) \
+  alias ama="sudo apt-mark markauto"
+  alias amlim="comm -23 <(apt-mark showmanual | sort -u) \
                 <(gzip -dc /var/log/installer/initial-status.gz \
                     | sed -n 's/^Package: //p' | sort -u)"
-
-  # common aliases with ap(t) prefix
-  alias apma=agma # apt-mark markauto
-  alias aplim=agsm # list manually installed packages
+  alias amlimg="amlim | grep -iE --color"
 fi
 
 if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
@@ -195,17 +169,6 @@ if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
   alias acsf='apt-cache search --full' # search full text
   #alias acsB='apt-cache -t buster-backports search' # search backports
   alias aci="apt-cache show"
-
-  # common aliases with ap(t) prefix
-  alias aps=acs # apt-cache search
-  alias apsg=acsg # apt-cache search and grep
-  alias apsn=acsn # search package names only
-  alias apsf=acsf # search full text
-  alias apss=aci # apt-cache show
-fi
-
-if [[ -n "$(command -v apt-key 2>/dev/null)" ]]; then
-  alias apt-key-add="sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys"
 fi
 # {{{ - DEB ------------------------------------------------------------------
 
