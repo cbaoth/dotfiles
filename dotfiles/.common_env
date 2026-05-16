@@ -100,8 +100,8 @@ HOST=$(printf '%s' "${HOST}" | tr '[:upper:]' '[:lower:]')
 ARCH=$(printf '%s' "${ARCH}" | tr '[:upper:]' '[:lower:]')
 export OS HOST ARCH
 
-# Is X available? Unreliable for ssh x-forwading., suffices for local sessions
-if [[ ! -t 0 ]] && xset b off >& /dev/null; then
+# Is X available? Unreliable for ssh x-forwarding, suffices for local sessions
+if xset b off >& /dev/null; then
   IS_X=true
 fi
 export IS_X=${IS_X:-false}
