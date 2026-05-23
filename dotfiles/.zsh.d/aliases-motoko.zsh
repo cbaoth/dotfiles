@@ -6,12 +6,13 @@
 # ~/.zsh.d/aliases-motoko.zsh: Host-specific aliases for motoko.
 
 # {{{ - APPS -----------------------------------------------------------------
-alias comfyenv="source ~/comfy-env/bin/activate"
-alias comfy="command -v comfy-cli >& /dev/null || comfyenv && comfy-cli"
-alias comfyu="comfy update"
-alias comfyun="comfy node update all"
-alias comfyua="comfyu && comfyun"
-alias comfyui="comfy launch"
+#alias comfyenv="source ~/comfy-env/bin/activate"
+alias comfyenv="conda activate comfy"  # activate comfy env (assumes conda env "comfy" exists)
+alias comfy="command -v comfy-cli >& /dev/null || comfyenv && comfy-cli"  # run comfy-cli while ensuring that comfy env is activated
+alias comfyu="comfy update"  # update comfy itself, not the nodes
+alias comfyun="comfy node update all"  # update all comfy nodes
+alias comfyua="comfyu && comfyun"  # update all of comfy (incl. all nodes)
+alias comfyui="comfy launch"  # launch comfy UI
 # }}} - APPS -----------------------------------------------------------------
 
 # {{{ - MOUNT ----------------------------------------------------------------
