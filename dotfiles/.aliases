@@ -23,7 +23,7 @@ alias cp='cp -i'
 alias mv='mv -i'
 
 # find
-alias findre='find -regextype posix-extended'
+findre() { find "$@" -regextype posix-extended; }
 
 # add --color option to all grep commands and add -i aliases
 # shellcheck disable=SC2139  # ${c} intentionally expands at definition time to build alias names/values
@@ -415,6 +415,15 @@ alias id3-to-utf8-rec='find -type f -iname "*.mp3" -exec eyeD3 \
   --set-encoding=utf8 --force-update {} \;'
 alias id3-remove-v1-rec='find -type f -iname "*.mp3" -exec eyeD3 \
   --remove-v1 {} \;'
+
+ffmpeg-clip-extract() {
+  [[ $# -ne 3 ]] && echo "Usage: ffmpeg-clip-extract infile start_time duration" && return 1
+  local infile="$1"
+  local start_time="$2"
+  local duration="$3"
+  local outfile="${infile%.*}_${start_time//:/.}_${duration//:/.}.${infile##*.}"
+  ffmpeg -i "${infile}" -ss "${start_time}" -t "${duration}" -c copy "${outfile}"
+}
 # }}} - MULTIMEDIA -----------------------------------------------------------
 
 # {{{ - SUBSTITUTION ---------------------------------------------------------
