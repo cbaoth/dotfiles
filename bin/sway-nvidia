@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Start Sway with required environment for Nvidia proprietary drivers.
+
+# Nvidia: software cursor (no hardware cursor support with proprietary drivers)
+export WLR_NO_HARDWARE_CURSORS=1
+
+# Nvidia: required flag - remove once Nouveau or open kernel modules are used
+exec sway --unsupported-gpu "$@"
