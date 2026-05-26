@@ -110,12 +110,17 @@ alias winer='wine start /unix'  # run executable or location (file explorer) usi
 
 # {{{ = DISTRIBUTION SPECIFIC ================================================
 # {{{ - DEB ------------------------------------------------------------------
-
+# dpkg
 if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
+  # install / configure
   alias dpi='sudo dpkg -i' # install .deb package
   alias dpca='sudo dpkg --configure -a' # configure unpackde but on yet configured packages (e.g. continue interrupted upgrade)
+
+  # remove
   alias dpr='sudo dpkg -r' # remove package (keep config files)
   alias dpr!='sudo dpkg --force-all --purge' # purge package (remove including config files)
+
+  # list
   alias dpgs='dpkg --get-selections'
   alias dpgsg='dpkg --get-selections | grep -iE --color'
   alias dpl='dpkg -l --no-pager'
@@ -124,8 +129,35 @@ if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
   alias dplig='dpli --no-pager | grep -iE --color'
 fi
 
+# apt-cache
+if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
+  alias ac="apt-cache"
+
+  # search
+  alias acs="apt-cache search"
+  acsg() { apt-cache search "$@" | grep -iE --color "$@"; }
+  alias acsn='apt-cache search --names-only'
+  alias acsf='apt-cache search --full'
+  #alias acsB='apt-cache -t buster-backports search'
+
+  # details
+  alias aci="apt-cache show"
+fi
+
+# dpkg-query
+if [[ -n "$(command -v dpkg-query 2>/dev/null)" ]]; then
+  # list
+  alias dpq='dpkg-query -l'
+  alias dpqg='dpkg-query -l | grep -iE --color'
+  alias dpqv=$'dpkg-query -W -f=\'${Package}\t${Version}\n\''
+  alias dpqvg=$'dpkg-query -W -f=\'${Package}\t${Version}\n\' | grep -iE --color'
+fi
+
+# apt-get
 if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
   alias ag="sudo apt-get"
+
+  # update
   alias agu!="sudo apt-get update" # apt update
   # update cache, but no more than ones per hour (if sucessfull)
   # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
@@ -134,41 +166,89 @@ if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
               else
                 echo "> last apt update less than an hour ago, skipping (use agu! to force) ..."
               fi'
-  alias agi="sudo apt-get -y install" # apt install
+
+  # install
+  alias agi="sudo apt-get -y install"
   alias agi!='sudo apt-get install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
   alias agiu='sudo apt-get install --only-upgrade' # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
-  alias agr="sudo apt-get remove" # apt remove
-  alias agr!="sudo apt-get purge" # apt purge
-  alias agra="sudo apt-get autoremove" # apt auto-remove
-  alias agug="agu && sudo apt-get -y upgrade && agra" # apt-get update/upgrade/auto-remove
-  alias agugf="agu && sudo apt-get full-upgrade && agra" # apt-get update/(full-|dist-)upgrade/auto-remove
+
+  # remove
+  alias agr="sudo apt-get remove"
+  alias agra="sudo apt-get autoremove"
+  alias agr!="sudo apt-get purge"
+
+  # upgrade
+  alias agup="agu && sudo apt-get -y upgrade && agra" # apt-get update/upgrade/auto-remove
+  alias agupf="agu && sudo apt-get full-upgrade && agra" # apt-get update/(full-|dist-)upgrade/auto-remove
 fi
 
-if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
-  alias atug='apu && sudo aptitude -o Aptitude::Delete-Unused=1 -y safe-upgrade'
-  alias atug!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 upgrade'
-  alias atug!!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 full-upgrade'
-  alias atso='sudo aptitude search \?obsolete' # list
-  alias atsog='sudo aptitude search \?obsolete | grep -iE --color'
-  alias atpo='sudo aptitude purge \?obsolete' # purge obsolete packages
-fi
-
+# apt-mark
 if [[ -n "$(command -v apt-mark 2>/dev/null)" ]]; then
+  # change mark
   alias ama="sudo apt-mark markauto"
-  alias amlim="comm -23 <(apt-mark showmanual | sort -u) \
+
+  # list
+  alias amlim="LC_ALL=C comm -23 <(LC_ALL=C apt-mark showmanual | LC_ALL=C sort -u) \
                 <(gzip -dc /var/log/installer/initial-status.gz \
-                    | sed -n 's/^Package: //p' | sort -u)"
+                    | sed -n 's/^Package: //p' | LC_ALL=C sort -u)"
   alias amlimg="amlim | grep -iE --color"
 fi
 
-if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
-  alias ac="apt-cache"
-  alias acs="apt-cache search"
-  acsg() { apt-cache search "$@" | grep -iE --color "$@"; }
-  alias acsn='apt-cache search --names-only' # search package names only
-  alias acsf='apt-cache search --full' # search full text
-  #alias acsB='apt-cache -t buster-backports search' # search backports
-  alias aci="apt-cache show"
+# aptitude
+if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
+  alias at="sudo aptitude"
+
+  # install
+  alias ati="sudo aptitude -y install"
+  alias ati!='sudo aptitude install -f'
+
+  # remove
+  alias atr="sudo aptitude remove"
+  alias atra="sudo aptitude autoremove"
+  alias atr!="sudo aptitude purge"
+  alias atr!o='sudo aptitude purge \?obsolete'
+
+  # upgrade
+  alias atup='apu && sudo aptitude -o Aptitude::Delete-Unused=1 -y safe-upgrade'
+  alias atup!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 upgrade'
+  alias atup!!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 full-upgrade'
+
+  # search / list
+  alias atso='sudo aptitude search \?obsolete'
+  alias atsog='sudo aptitude search \?obsolete | grep -iE --color'
+fi
+
+# apt
+if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+  alias ap="sudo apt"
+
+  # update
+  alias apu!="sudo apt update"
+  alias apu='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
+                apu! && date +%s > /tmp/last_apt_update
+              else
+                echo "> last apt update less than an hour ago, skipping (use apu! to force) ..."
+              fi'
+
+  # install
+  alias api="sudo apt -y install"
+  alias api!='sudo apt install -f'
+  # update
+  alias apu="sudo apt update" # update package database
+
+  # upgrade
+  alias apug="sudo apt update && sudo apt -y upgrade && sudo apt autoremove" # update/upgrade/auto-remove
+
+  # search
+  alias aps="sudo apt search"
+  apsg() { sudo apt search "$@" | grep -iE --color "$@"; }
+  alias apsn='sudo apt search --names-only' # search package names only
+  alias apsf='sudo apt search --full' # search full text
+  #alias apsB='sudo apt -t buster-backports search' # search back
+
+  # list
+  alias apli="apt list --installed" # list installed packages
+  alias aplig="apli | grep -iE --color" # list installed packages and grep
 fi
 # {{{ - DEB ------------------------------------------------------------------
 
