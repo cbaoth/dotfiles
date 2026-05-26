@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://packages.openvpn.net/openvpn3/debian
+Suites: noble
+Components: main
+Signed-By: /etc/apt/keyrings/openvpn.asc
+Architectures: amd64
