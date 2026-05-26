@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Display comprehensive network configuration and status information.
+
+# Disable pager for all sub-commands
+export PAGER=
+
+
+# {{{ = CONSTANTS ============================================================
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
+
+# }}} = CONSTANTS ============================================================
+
+
+# {{{ = FUNCTIONS ============================================================
+
+# {{{ - Output ---------------------------------------------------------------
+
+p_warn() { printf '\033[33mWARNING\033[0m: %s\n' "$*" >&2; }
+
+_run_sep()    { printf '%.0s=' {1..79}; printf '\n'; }
+_run_footer() { printf -- '----\n\n'; }
+
+# Print header + run a regular command, merging stderr into stdout.
+# In --user mode, skips commands whose first argument is 'sudo'.
+run() {
+  _run_sep
+  printf '$ %s\n----\n' "$*"
+  if [[ "${USER_MODE}" == true ]] && [[ "$1" == "sudo" ]]; then
+    p_warn "Skipping (requires sudo): $*"
+    _run_footer
+    return
+  fi
+  "$@" 2>&1
+  _run_footer
+}
+
+# Run a shell pipeline or compound command passed as a single string.
+# In --user mode, skips if the command string contains 'sudo'.
+run_sh() {
+  local -r cmd="$1"
+  _run_sep
+  printf '$ %s\n----\n' "${cmd}"
+  if [[ "${USER_MODE}" == true ]] && [[ "${cmd}" == *sudo* ]]; then
+    p_warn "Skipping (requires sudo): ${cmd}"
+    _run_footer
+    return
+  fi
+  bash -c "${cmd}" 2>&1
+  _run_footer
+}
+
+# Like run(), but skipped unless --sensitive is set.
+# Use for commands whose output may contain sensitive data (active connections,
+# DNS cache, etc.).
+run_sensitive() {
+  if [[ "${SENSITIVE_MODE}" == true ]]; then
+    run "$@"
+  else
+    _run_sep
+    printf '$ %s\n----\n' "$*"
+    p_warn "Skipped (potentially sensitive output); use --sensitive to enable"
+    _run_footer
+  fi
+}
+
+# Like run_sh(), but skipped unless --sensitive is set.
+run_sh_sensitive() {
+  local -r cmd="$1"
+  if [[ "${SENSITIVE_MODE}" == true ]]; then
+    run_sh "${cmd}"
+  else
+    _run_sep
+    printf '$ %s\n----\n' "${cmd}"
+    p_warn "Skipped (potentially sensitive output); use --sensitive to enable"
+    _run_footer
+  fi
+}
+
+# Like run(), but skipped unless MODE is 'all'.
+# Use for commands that produce large amounts of output.
+run_extended() {
+  if [[ "${MODE}" == "all" ]]; then
+    run "$@"
+  else
+    _run_sep
+    printf '$ %s\n----\n' "$*"
+    p_warn "Skipped (verbose output); use 'all' mode to enable: ${SCRIPT_FILE} all"
+    _run_footer
+  fi
+}
+
+# Like run_sh(), but skipped unless MODE is 'all'.
+run_sh_extended() {
+  local -r cmd="$1"
+  if [[ "${MODE}" == "all" ]]; then
+    run_sh "${cmd}"
+  else
+    _run_sep
+    printf '$ %s\n----\n' "${cmd}"
+    p_warn "Skipped (verbose output); use 'all' mode to enable: ${SCRIPT_FILE} all"
+    _run_footer
+  fi
+}
+
+# Print active (non-comment, non-blank) lines from a config file.
+# Falls back to sudo if unreadable and not in --user mode.
+grep_active() {
+  local -r file="$1"
+  if [[ ! -f "${file}" ]]; then
+    p_warn "File not found: ${file}"
+    return 1
+  fi
+  if [[ -r "${file}" ]]; then
+    run grep -vE '^\s*#|^$' "${file}"
+  elif [[ "${USER_MODE}" == true ]]; then
+    p_warn "File not readable (requires sudo), skipping: ${file}"
+  else
+    run sudo grep -vE '^\s*#|^$' "${file}"
+  fi
+}
+
+# }}} - Output ---------------------------------------------------------------
+
+
+# {{{ - Arg Parsing ----------------------------------------------------------
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] [MODE]
+
+Display comprehensive network configuration and status information.
+Runs a series of diagnostic commands and prints their output with headers.
+
+Modes:
+  (default)   Standard output; verbose and sensitive commands are skipped
+  all         Include verbose commands (e.g. sysctl); combine with --sensitive
+              for complete output
+
+Options:
+  --sensitive   Include commands whose output may contain sensitive data
+                (active connections, DNS cache, DNS server state)
+  --user        Skip commands that require sudo privileges
+  -h, --help    Show this help message and exit
+EOF
+}
+
+declare USER_MODE=false
+declare SENSITIVE_MODE=false
+declare MODE="default"
+
+parse_args() {
+  while (( $# > 0 )); do
+    case "$1" in
+      --sensitive)
+        SENSITIVE_MODE=true
+        ;;
+      --user)
+        USER_MODE=true
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        printf 'Unknown option: %s\n' "$1" >&2
+        usage >&2
+        exit 1
+        ;;
+      all)
+        MODE="all"
+        ;;
+      *)
+        printf 'Unexpected argument: %s\n' "$1" >&2
+        usage >&2
+        exit 1
+        ;;
+    esac
+    shift
+  done
+}
+
+# }}} - Arg Parsing ----------------------------------------------------------
+
+# }}} = FUNCTIONS ============================================================
+
+
+# {{{ = MAIN =================================================================
+
+main() {
+  parse_args "$@"
+
+  # {{{ - System -------------------------------------------------------------
+  run uname -a
+  # }}} - System -------------------------------------------------------------
+
+  # {{{ - Config Files -------------------------------------------------------
+  grep_active "/etc/hosts"
+  grep_active "/etc/resolv.conf"
+  grep_active "/etc/gai.conf"
+  # }}} - Config Files -------------------------------------------------------
+
+  # {{{ - Kernel Network Parameters ------------------------------------------
+  run_sh_extended "sudo sysctl -a 2>/dev/null | grep -i ipv"
+  # }}} - Kernel Network Parameters ------------------------------------------
+
+  # {{{ - Interfaces ---------------------------------------------------------
+  run ip -d -s -h addr
+  run ip -d -s -h maddr
+  run ip route
+  run ip route show default
+  run sudo ip -d -s -h tuntap
+  # }}} - Interfaces ---------------------------------------------------------
+
+  # {{{ - NetworkManager -----------------------------------------------------
+  if command -v nmcli >/dev/null 2>&1 && nmcli >/dev/null 2>&1; then
+    run nmcli --no-pager device show
+    run nmcli --no-pager connection show
+  else
+    p_warn "nmcli not available or NetworkManager not running, skipping"
+  fi
+  # }}} - NetworkManager -----------------------------------------------------
+
+  # {{{ - systemd-networkd ---------------------------------------------------
+  if command -v networkctl >/dev/null 2>&1 && networkctl status >/dev/null 2>&1; then
+    run networkctl -a -l --no-pager list
+    run networkctl -a -l --no-pager status
+  else
+    p_warn "networkctl not available or systemd-networkd not running, skipping"
+  fi
+  # }}} - systemd-networkd ---------------------------------------------------
+
+  # {{{ - Open Connections ---------------------------------------------------
+  run_sensitive sudo lsof -i -n -P
+  # }}} - Open Connections ---------------------------------------------------
+
+  # {{{ - DNS / systemd-resolved ---------------------------------------------
+  run resolvectl status --no-pager
+  run_sensitive sudo resolvectl show-server-state
+  run sudo resolvectl --no-pager statistics
+  run_sensitive sudo resolvectl --no-pager show-cache
+  # }}} - DNS / systemd-resolved ---------------------------------------------
+}
+
+# }}} = MAIN =================================================================
+
+main "$@"
