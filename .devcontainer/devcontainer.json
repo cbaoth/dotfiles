@@ -1,0 +1,28 @@
+{
+  "name": "Dotfiles Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      // Set CACHE_BUST in your local env when you want to force a rebuild
+      "CACHE_BUST": "${localEnv:CACHE_BUST}"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      },
+      "extensions": [
+        "GitHub.copilot",
+        "anthropic.claude-code"
+      ]
+    }
+  },
+  // "mounts": [
+  //   "source=${localEnv:HOME}/dotfiles-dev-share,target=/home/vscode/share,type=bind"
+  // ],
+  "postCreateCommand": "node --version || echo \"Node.js not found\" && npm --version || echo \"npm not found\" && uv --version || echo \"uv not found\" && conda --version || echo \"conda not found\"",
+  "remoteUser": "vscode",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace"
+}
