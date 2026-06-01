@@ -27,17 +27,6 @@ CL_TIMESTAMP_FORMAT="%Y-%m-%dT%H:%M:%S%z"  # full timestamp
 declare -r CL_SCRIPT_PATH CL_SCRIPT_FILE CL_TIMESTAMP_FORMAT
 export CL_SCRIPT_PATH CL_SCRIPT_FILE CL_TIMESTAMP_FORMAT
 
-# FIXME it seems that this approach does not work anymore (tested before, either changed or wrong version commited)
-declare +r CL_PATTERN_SINGLE_QUOTE CL_PATTERN_NEED_QUOTES
-# #shellcheck disable=SC2089
-# reason: variable used for string pattern matching, arrays not supported in regex
-CL_PATTERN_SINGLE_QUOTE='['"'"']'
-# #shellcheck disable=SC2089
-CL_PATTERN_NEED_QUOTES='[ |&;()<>*?"\`$\\'"'"']'
-declare -r CL_PATTERN_SINGLE_QUOTE CL_PATTERN_NEED_QUOTES
-# #shellcheck disable=SC2090
-export CL_PATTERN_SINGLE_QUOTE CL_PATTERN_NEED_QUOTES
-
 # {{{ = LIBRARIES ============================================================
 # include shell script library SCRIPT_FILE searching in:
 # SCRIPT_PATH, SCRIPT_PATH/lib/, SCRIPT_PATH/../lib/, ~/lib/, /lib/, /usr/lib/
@@ -52,7 +41,7 @@ cl::include_lib() {
   local -r script_path="$1"
   local -r script_file="$2"
   shift 2
-  local -r error_message="${@:-}"
+  local -r error_message="${*:-}"
 
   if (( ${DEBUG_LVL:-0} >= 2 )) && [[ ! -d "${script_path}" ]]; then
     printf "DBG(2): SCRIPT_PATH [%s] not found" "${script_path}"
@@ -149,10 +138,10 @@ cl::fx() {
   # unsupported terminal, return
   [[ -z "${TERM:-}" || "${TERM}" == *dumb* ]] && return 1
   # help & usage
-  local -r _usage="cl::fx STYLE.."
-  local _help
-  ! IFS='' read -r -d '' _help <<EOF
-Usage: $_usage
+  local -r usage="cl::fx STYLE.."
+  local help
+  ! IFS='' read -r -d '' help <<EOF
+Usage: $usage
 
 Styles:
   Text Colors (0-7):
@@ -193,11 +182,11 @@ EOF
 
   # parse arguments
   if [[ -z "${1:-}" ]]; then
-    printf "Usage: %s\n" "${_usage}"
+    printf "Usage: %s\n" "${usage}"
     return 1
   fi
   if [[ "$1" =~ ^(-h|--help)$ ]]; then
-    printf "${_help}"
+    printf '%s' "${help}"
     return 0
   fi
 
@@ -263,8 +252,8 @@ cl::p_cmd() {
 
   for arg in "${cmd[@]}"; do
     # Check if the argument requires quoting
-    # FIXME it seems that this approach does not work anymore (tested before, either changed or wrong version commited)
-    if [[ $arg =~ $CL_PATTERN_NEED_QUOTES ]]; then
+    # shellcheck disable=SC1003
+    if [[ $arg =~ '[ |&;()<>*?"\`$\\'"'"']' ]]; then
       output+="\"$arg\" "  # Append the quoted argument and a space
     else
       output+="$arg "  # Append the non-quoted argument and a space
@@ -420,8 +409,8 @@ cl::_get_all_log_level_args() {
   local all_log_level_args=()
   local is_first=true
   for i in $(seq 1 "${#CL_LOG_LEVEL_NAMES[@]}"); do
-    ! $is_first && all_log_level_args+="," && is_first=false
-    all_log_level_args+="$i, ${CL_LOG_LEVEL_NAMES[i]}"
+    ! $is_first && all_log_level_args+=(",") && is_first=false
+    all_log_level_args+=("$i, ${CL_LOG_LEVEL_NAMES[i]}")
 
   done
   printf "%s" "${all_log_level_args[*]}"
@@ -470,16 +459,15 @@ EOF
   fi
   # parse arguments - convert debug level names to numbers
   local dbg_lvl="$1"
-  dbg_lvl=$(cl::_convert_debug_level "$dbg_lvl")
-  if [[ $? -ne 0 ]]; then
+  if ! dbg_lvl=$(cl::_convert_debug_level "$dbg_lvl"); then
     cl::p_err "Invalid DBG_LVL: $1 (valid values: 0, $(cl::_get_all_log_level_args))"
     return 1
   fi
   shift
 
   local show_at_lvl="$1"
-  show_at_lvl=$(cl::_convert_debug_level "$show_at_lvl")
-  if [[ $? -ne 0 ]] || [[ $show_at_lvl -eq 0 ]]; then
+  if ! show_at_lvl=$(cl::_convert_debug_level "$show_at_lvl") \
+      || [[ $show_at_lvl -eq 0 ]]; then
     cl::p_err "Invalid SHOW_AT_LVL: $1 (valid values: $(cl::_get_all_log_level_args))"
     return 1
   fi
@@ -732,7 +720,7 @@ cl::file_p() {
   fi
 
   # get the last argument (file name) and remove it from the argument list
-  local file="${@: -1}"
+  local file="${*: -1}"
   set -- "${@:1:$(($# - 1))}"
   while [[ -n "$1" ]]; do
     case $1 in
@@ -882,15 +870,14 @@ cl::q_yesno() {
     return 1
   fi
 
-  local -r sh="$(basename "$SHELL")"
-  local question="$@"
+  local question="$*"
   local key=""
   printf "%s (y/n) " "$question"
   while [[ "$key" != "y" ]] && [[ "$key" != "n" ]]; do
     if [[ "$(readlink /proc/$$/exe)" = *zsh ]]; then
-      read -s -k 1 key
+      read -r -s -k 1 key
     else
-      read -s -n 1 key
+      read -r -s -n 1 key
     fi
   done
   printf "\n"
