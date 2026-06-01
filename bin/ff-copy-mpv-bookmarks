@@ -6,21 +6,6 @@
 #
 # Copy mpv-bookmarked media sections into separate files via ffmpeg.
 
-declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
-declare -r _SCRIPT_FILE="$(basename "$0")"
-
-# include commons lib
-for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
-  if [[ -f "$f" ]]; then
-    source "$f"
-    break
-  fi
-done
-if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, exiting ..\n" >&2
-  exit 1
-fi
-
 # set options
 set -o errtrace
 #set -o errexit
@@ -30,14 +15,114 @@ set -o nounset
 IFS=$'\t\n\0'
 
 # traps
-#trap '_rc=$?; \
-#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
-#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-#             c"${BASH_COMMAND:-N/A}"; \
-#      exit $_rc' ERR
+# shellcheck disable=SC2154
+trap 'rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+             "${BASH_COMMAND:-N/A}"; \
+      exit $rc' ERR
 trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
-#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
 
+# Logging
+p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+# print file name of given file with an added suffix (considering file ext.)
+p_file_with_suffix() {
+  if [[ $# -ne 2 ]]; then
+    printf "Usage: p_file_with_suffix SUFFIX FILE\n"
+    return 1
+  fi
+  local suffix="$1"
+  shift
+  if [[ "$1" = *"."* ]]; then
+    printf "%s" "${1%.*}${suffix}.${1##*.}"
+  else
+    printf "%s" "$1${suffix}"
+  fi
+}
+
+# query (yes/no): ask any question (no: return 1)
+q_yesno() {
+  if [[ -z "${1:-}" ]]; then
+    printf "Usage: q_yesno QUESTION\n"
+    return 1
+  fi
+
+  local question="$*"
+  local key=""
+  printf "%s (y/n) " "$question"
+  while [[ "$key" != "y" ]] && [[ "$key" != "n" ]]; do
+    if [[ "$(readlink /proc/$$/exe)" = *zsh ]]; then
+      read -r -s -k 1 key
+    else
+      read -r -s -n 1 key
+    fi
+  done
+  printf "\n"
+  if [[ "$key" = "y" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# query (yes/no): overwrite given file? (no: return 1)
+# return 0, without asking a thing, if [file] doesn't exist
+q_overwrite() {
+  if [[ -z "$1" ]]; then
+    printf "Usage: q_overwrite FILE\n"
+    return 1
+  fi
+
+  local file="$1"
+  if [[ -e "$file" ]]; then
+    p_war "file [$file] exists!"
+    if q_yesno "overwrite?"; then
+      if ! rm -rf -- "$file"; then
+        p_err "unable to delete the file!"
+        return 1
+      fi
+      return 0
+    fi
+    return 1
+  fi
+  return 0
+}
+
+# Usage
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") [-s] [-y|-n] BOOKMARKS_FILE"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+Options:
+  -s     Sort bookmarks by time. By default all bookmarks are processed
+         in sequence, allowing overlapping begin-end intervals.
+  -y     Non-interactive mode, overwrite files without asking.
+  -n     Non-interactive mode, skip if file already exists.
+
+Example:
+  > cat video.webm.bookmarks
+  00:00:39|2%|6785372|end      - ignored due to following end
+  00:01:31|6%|13241991|end     - section 00:00:00 to 00:01:31 (since file start)
+  00:02:24|10%|19724523|begin
+  00:02:54|12%|23391325|end    - section 00:02:24 to 00:02:54 (since last begin)
+  00:03:18|14%|26524953|begin
+  00:04:21|19%|34150374|begin  - section 00:03:18 to 00:04:21 (since last begin)
+  00:04:57|21%|39280089|end    - section 00:04:21 to 00:04:57 (since last begin)
+                               - without the last 'end' it would be end-of-file
+
+  > $(basename "$0") video.webm.bookmarks
+    -> creates files based on video.webm (inferred from bookmarks file name)
+       video_00.00.39-00.01.31.webm
+       video_00.02.24-00.02.54.webm
+       video_00.03.18-00.04.21.webm
+       video_00.04.21-00.04.57.webm
+EOF
+}
 
 # copy (a) fragment(s) from a media file based on a mpv bookmarks file
 main() {
@@ -49,42 +134,15 @@ main() {
     [[ "$1" = "-n" ]] && file_override_mode="n"
     shift
   done
-
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) [-f] MPV_BOOMARKS_FILE"
-    cat <<EOF
-
-OPTIONS:
-  -s     sort bookmarks by time, per default all bookmarks will be processed
-         in sequence, allowing overlapping begin-end intervals
-  -y     non-interactive mode, overwrite files without asking
-  -n     non-interactive mode, skip if file does already exist
-
-EXAMPLE:
-> cat video.webm.bookmarks
-00:00:39|2%|6785372|end      - ignored due to following end
-00:01:31|6%|13241991|end     - section 00:00:00 to 00:01:31 (since file start)
-00:02:24|10%|19724523|begin
-00:02:54|12%|23391325|end    - section 00:02:24 to 00:02:54 (since last begin)
-00:03:18|14%|26524953|begin
-00:04:21|19%|34150374|begin  - section 00:03:18 to 00:04:21 (since last begin)
-00:04:57|21%|39280089|end    - section 00:04:21 to 00:04:57 (since last begin)
-                             - without the least 'end' it be end-of-file
-
-> $(cl::func_name) video.webm.bookmarks
-  -> creates files based on video.webm (inferred from bookmarks file name)
-     video_00.00.39-00.01.31.webm
-     video_00.02.24-00.02.54.webm
-     video_00.03.18-00.04.21.webm
-     video_00.04.21-00.04.57.webm
-EOF
+    p_hlp
     return 1
   fi
 
   local bookmarks="$1"
-  [[ ! -f "${bookmarks}" ]] && cl::p_err "bookmark file not found [${bookmarks}]" && return 1
+  [[ ! -f "${bookmarks}" ]] && p_err "bookmark file not found [${bookmarks}]" && return 1
   local infile="${bookmarks%.*}"
-  [[ ! -f "${infile}" ]] && cl::p_err "media file not found [${infile}]" && return 1
+  [[ ! -f "${infile}" ]] && p_err "media file not found [${infile}]" && return 1
 
   local pos_start="00:00:00"
   local pos_end
@@ -95,7 +153,7 @@ EOF
   # process bookmark file (lines)
   while IFS='|' read -r pos _ _ type; do
     [[ ! "${pos}" =~ ^[0-9:.]+$ ]] \
-      && cl::p_war "invalid position [${pos}], skipping .." \
+      && p_war "invalid position [${pos}], skipping .." \
       && continue
     case ${type} in
       begin)
@@ -116,13 +174,13 @@ EOF
         else
           # last one was end too? then replace previous end with this one
           unset 'pos_to_list[${#pos_to_list[@]}-1]'
-          cl::p_war "ignoring last end index [${pos_end}] in favor of new one [${pos}]"
+          p_war "ignoring last end index [${pos_end}] in favor of new one [${pos}]"
           pos_end="${pos}"
           pos_to_list+=("${pos_end}")
         fi
         ;;
       *)
-        cl::p_war "invalid bookmark type [${type}], skipping .."
+        p_war "invalid bookmark type [${type}], skipping .."
         ;;
     esac
     prev_type="${type}"
@@ -135,34 +193,33 @@ EOF
   fi
 
   local cnt=${#pos_from_list[@]}
-  if (( ${cnt} <= 0 )); then
+  if (( cnt <= 0 )); then
     p_war "no processable sections found in bookmark file, exiting .."
     exit 1
   fi
 
-  cl::p_msg "processing ${cnt} bookmarked sections .."
+  p_msg "processing ${cnt} bookmarked sections .."
   for ((i=0; i < ${#pos_from_list[@]}; i++)); do
-    local outfile="$(cl::p_file_with_suffix _${pos_from_list[i]//:/.}-${pos_to_list[i]//:/.} "${infile}")"
+    local outfile
+    outfile="$(p_file_with_suffix _"${pos_from_list[i]//:/.}"-"${pos_to_list[i]//:/.}" "${infile}")"
     local -a ffargs=()
     if [[ -z "${file_override_mode:-}" ]]; then
-      cl::q_overwrite "${outfile}" || continue
+      q_overwrite "${outfile}" || continue
     elif [[ "${file_override_mode:-}" = "y" ]]; then
       ffargs+=(-y)
     elif [[ "${file_override_mode:-}" = "n" && -f "${outfile}" ]]; then
-      cl::p_war "outfile [${outfile}] exists, skipping .."
+      p_war "outfile [${outfile}] exists, skipping .."
       continue
     fi
     if [[ "${pos_to_list[i]}" = "-1" ]]; then
-      ffargs+=(-ss ${pos_from_list[i]})
+      ffargs+=(-ss "${pos_from_list[i]}")
     else
-      ffargs+=(-ss ${pos_from_list[i]} -to ${pos_to_list[i]})
+      ffargs+=(-ss "${pos_from_list[i]}" -to "${pos_to_list[i]}")
     fi
-    cl::p_msg "outfile [${outfile}]"
+    p_msg "outfile [${outfile}]"
     ffmpeg "${ffargs[@]}" -i "${infile}" -c copy "${outfile}"
   done
-  cl::p_msg "done."
+  p_msg "done."
 }
 
 main "$@"
-
-exit 0
