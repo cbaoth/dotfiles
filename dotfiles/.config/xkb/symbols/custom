@@ -1,0 +1,25 @@
+// Custom XKB symbols: Colemak/US + ISO key as Mod3 (Hyper_L) modifier.
+// libxkbcommon searches ~/.config/xkb/symbols/ before system paths, so this
+// file is found automatically when sway specifies xkb_layout=custom, xkb_variant=basic.
+// https://lars.ingebrigtsen.no/2024/04/28/the-simplest-thing-in-the-world-modifing-keymaps-in-wayland/
+//
+// To revert to plain Colemak without this modifier, change sway input block to:
+//   xkb_layout us
+//   xkb_variant colemak
+
+xkb_symbols "basic" {
+    // Full Colemak layout (includes CapsLock → Backspace)
+    include "us(colemak)"
+    // Base US layout (for ISO key) - this is needed to ensure the ISO key is defined.
+    //include "us(basic)"
+
+    name[Group1] = "Hyper (US)";
+
+    // ISO key (<LSGT>): the key between Left Shift and Z on ISO keyboards.
+    // In us(colemak) this key is not defined, falling back to backslash/bar.
+    // Map to Hyper_L so sway can use it as $iso (Mod3) in bindsym directives.
+    // keyd passes <LSGT> through unchanged, so no keyd config change is needed.
+    key <LSGT> { [ Hyper_L, Hyper_L ] };
+    // modifier_map Mod3 { Hyper_L };
+    modifier_map Mod3 { <LSGT> };
+};
