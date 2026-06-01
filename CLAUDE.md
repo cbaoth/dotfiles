@@ -134,7 +134,8 @@ Namespace: functions `cl::name`, constants `CL_NAME`.
 
 - Errors/warnings to stderr (`>&2`)
 - With commons.sh: `cl::p_err`, `cl::p_war`, `cl::p_msg`, `cl::p_dbg`
-- Without: define `log_error()`, `log_warn()`, `log_info()` helpers
+- Without: use `p_err()`, `p_war()`, `p_msg()`, `p_nfo()`, `p_dbg()` helpers with raw ANSI codes
+  (or `log_error()`, `log_warn()`, `log_info()` for scripts with structured logging)
 
 ## Linting
 

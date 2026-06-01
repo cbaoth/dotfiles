@@ -8,11 +8,65 @@
 
 set -euo pipefail  # Fail if any command in a pipeline fails
 
-# cli arguments
-declare _CHECK_STATUS=true  # default action, currently the only action implemented
-declare -i _VERBOSE=0
+# Logging
+#p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+#p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+#p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
 
-_command_exists() {
+# Usage
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") [ACTION|OPTIONS]"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+Check for Ubuntu release updates and end-of-life status.
+
+Action:
+  check           Only check for updates without suggesting upgrade (default)
+
+Options:
+  -v, --verbose   Increase verbosity (can be used multiple times)
+  -h, --help      Show this help message and exit
+EOF
+}
+
+# Parse arguments
+declare CHECK_STATUS=true  # default action, currently the only action implemented
+declare -i VERBOSE=0
+parse_args() {
+  if [[ $# -gt 0 ]]; then
+    case "$1" in
+      # check)
+      #   CHECK_ONLY=true
+      #   shift
+      #   ;;
+      -v|--verbose)
+        VERBOSE=$((VERBOSE + 1))
+        shift
+        ;;
+      -h|--help)
+        p_hlp
+        exit 0
+        ;;
+      -*)
+        echo "ERROR: Unknown option: $1"
+        p_usg
+        exit 1
+        ;;
+      *)
+        echo "ERROR: Unknown action: $1"
+        p_usg
+        exit 1
+        ;;
+    esac
+  else
+    CHECK_STATUS=true  # Default action is to check only
+  fi
+}
+
+command_exists() {
   local -r cmd="${1:-}"
   local -r apt_package="${2:-}"  # optional parameter for the package that provides the command
   [[ -z "$cmd" ]] && { echo "ERROR: No command specified."; return 1; }
@@ -27,7 +81,7 @@ _command_exists() {
   fi
 }
 
-_check_precondition() {
+check_precondition() {
   # Check if the script is run with root privileges
   if [[ "$EUID" -ne 0 ]]; then
     echo "ERROR: This script must be run as root. Please use sudo."
@@ -41,19 +95,19 @@ _check_precondition() {
   fi
 
   # Check if required commands are available
-  _command_exists "do-release-upgrade" "ubuntu-release-upgrader-core"
-  _command_exists "lsb_release" "lsb-release"
-  #_command_exists "ubuntu-security-status" "update-manager-core"  # Replaced with `pro` command
-  _command_exists "pro" "ubuntu-pro-client"
-  _command_exists "jq" "jq"
+  command_exists "do-release-upgrade" "ubuntu-release-upgrader-core"
+  command_exists "lsb_release" "lsb-release"
+  #command_exists "ubuntu-security-status" "update-manager-core"  # Replaced with `pro` command
+  command_exists "pro" "ubuntu-pro-client"
+  command_exists "jq" "jq"
 }
 
-_get_release_status() {
+get_release_status() {
   # Check for new Ubuntu release
   local -r current_release=$(lsb_release -rs)
   local -r is_lts=$(lsb_release -a | grep "Description:.*LTS" > /dev/null && echo true || echo false)
   local -r current_date=$(date +%Y-%m-%d)
-  local -r _check_dist_upgrade_output=$(do-release-upgrade -c 2>&1)
+  local -r check_dist_upgrade_output=$(do-release-upgrade -c 2>&1)
   if ${is_lts}; then
     local -r lts_str="LTS"
     #local -r eol_date=$(ubuntu-security-status | grep "Support for base system" | awk '{print $6}')
@@ -63,8 +117,8 @@ _get_release_status() {
     local -r lts_str="non-LTS"
     local -r eol_date="n/a"
   fi
-  local -r new_release=$(grep "New release" <<<"${_check_dist_upgrade_output}" | awk '{print $3}' || echo "n/a")
-  [[ ${_VERBOSE} -gt 0 ]] && echo "DEBUG: Current release: ${current_release} ${lts_str}, New release: ${new_release}, EOL date: ${eol_date}, Current date: ${current_date}"
+  local -r new_release=$(grep "New release" <<<"${check_dist_upgrade_output}" | awk '{print $3}' || echo "n/a")
+  [[ ${VERBOSE} -gt 0 ]] && echo "DEBUG: Current release: ${current_release} ${lts_str}, New release: ${new_release}, EOL date: ${eol_date}, Current date: ${current_date}"
 
   # Check if the current release is nearing end of life
   if [[ -n "${current_date}" && "${eol_date}" != "n/a" && "${current_date}" > "${eol_date}" ]]; then
@@ -84,61 +138,13 @@ _get_release_status() {
   fi
 }
 
-_usage() {
-  cat <<EOF
-Usage: $(basename "$0") [ACTION|OPTIONS]
-
-Check for Ubuntu release updates and end-of-life status.
-
-Action:
-  check           Only check for updates without suggesting upgrade (default)
-
-Options:
-  -v, --verbose   Increase verbosity (can be used multiple times)
-  -h, --help      Show this help message and exit
-EOF
-}
-
-_parse_args() {
-  if [[ $# -gt 0 ]]; then
-    case "$1" in
-      check)
-        _CHECK_ONLY=true
-        shift
-        ;;
-      -v|--verbose)
-        _VERBOSE=$((_VERBOSE + 1))
-        shift
-        ;;
-      -h|--help)
-        _usage
-        exit 0
-        ;;
-      -*)
-        echo "ERROR: Unknown option: $1"
-        _usage
-        exit 1
-        ;;
-      *)
-        echo "ERROR: Unknown action: $1"
-        _usage
-        exit 1
-        ;;
-    esac
-  else
-    _CHECK_STATUS=true  # Default action is to check only
-  fi
-}
-
-_main() {
-  _parse_args "$@"
-  _check_precondition
-  if $_CHECK_STATUS; then
+main() {
+  parse_args "$@"
+  check_precondition
+  if $CHECK_STATUS; then
     echo "Checking for Ubuntu release updates..."
-    _get_release_status
+    get_release_status
   fi
 }
 
-_main "$@" || exit 1
-
-exit 0
+main "$@"

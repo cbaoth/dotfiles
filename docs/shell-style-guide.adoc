@@ -764,7 +764,20 @@ cl::p_dbg 1 "Debug detail (level 1)"
 
 === Without commons.sh
 
-Define minimal helpers for consistent formatting:
+Define minimal helpers for consistent formatting. The standard template used
+across most `bin/` scripts (comment out unused functions):
+
+[source,bash]
+----
+p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+#p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+----
+
+For scripts with structured logging (timestamps, log levels, file output),
+a `log_*` naming convention is also acceptable:
 
 [source,bash]
 ----

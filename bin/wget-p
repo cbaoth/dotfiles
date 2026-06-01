@@ -6,48 +6,73 @@
 #
 # Run wget downloads in parallel via GNU Parallel.
 
-declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
-declare -r _SCRIPT_FILE="$(basename "$0")"
-
-# include commons lib
-for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
-  if [[ -f "$f" ]]; then
-    source "$f"
-    break
-  fi
-done
-if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, exiting ..\n" >&2
-  exit 1
-fi
-
-# set options
+# {{{ = Options and Traps ====================================================
+# Set options
 set -o errtrace
 #set -o errexit
 set -o pipefail
 set -o nounset
 (( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# Set IFS to handle file names with spaces and special characters
 IFS=$'\t\n\0'
 
-# traps
-#trap '_rc=$?; \
-#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
-#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-#             c"${BASH_COMMAND:-N/A}"; \
-#      exit $_rc' ERR
-trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
-#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+# Trap errors and interrupts
+# shellcheck disable=SC2329
+trap_err() {
+  local rc="${1:-$?}"
+  local line="${2:-N/A}"
+  local cmd="${3:-N/A}"
+
+  printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
+    "${0:-N/A}" "${line}" "${FUNCNAME[@]:-N/A}" "${cmd}"
+  exit "$rc"
+}
+
+# shellcheck disable=SC2329
+trap_interrupt() {
+  printf "\nINTERRUPT\n"
+  exit 1
+}
+
+# shellcheck disable=SC2329
+trap_exit() {
+  local rc="${1:-$?}"
+  printf "EXIT(%s)\n" "$rc"
+  exit "$rc"
+}
+
+trap 'trap_err $? ${LINENO} "${BASH_COMMAND:-N/A}"' ERR
+trap 'trap_interrupt' SIGINT SIGTERM
+trap 'trap_exit $?' EXIT
+# }}} = Options and Traps ====================================================
 
 # constants
-declare -r _USAGE="${_SCRIPT_FILE} URL.."
-declare _HELP
-  ! IFS='' read -r -d '' _HELP <<EOF
-Usage: $_USAGE
+declare -r UAGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-$(cl::fx b)About:$(cl::fx r)
+# {{{ = Helper Functions =====================================================
+
+# check if argument is an integer
+is_int() { [[ "${1:-}" =~ ^-?[0-9]+$ ]]; }
+
+# Logging
+#p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+#p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+# }}} - Commons --------------------------------------------------------------
+
+# {{{ - Usage ----------------------------------------------------------------
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") URL..."; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+About:
   Simple wrapper for wget using GNU parallel.
 
-$(cl::fx b)Options:$(cl::fx r)
+Options:
     -j|--jobs X     Number of parallel wget worker jobs (default: 8)
     -ar|--auto-referer
                     Auto generate a referer URL based on the given URL's path.
@@ -77,8 +102,10 @@ $(cl::fx b)Options:$(cl::fx r)
                     Use with caution, consider that some arguments like -O or
                       --referer might already be set by this script.
 EOF
+}
 
-declare -r _HELP
+# }}} - Usage ----------------------------------------------------------------
+# }}} = Helper Functions =====================================================
 
 # arguments
 declare _dynamic_filename=false
@@ -94,7 +121,7 @@ declare _verbose=false
 # parse arguments
 _parse_args() {
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "${_USAGE}"
+    p_usg >&2
     exit 1
   fi
 
@@ -115,8 +142,8 @@ _parse_args() {
           shift
         ;;
       -j|--jobs)
-        if ! cl::is_int "${2:-}"; then
-          cl::p_err "error parsing args: -j argument $2 is not an integer"
+        if ! is_int "${2:-}"; then
+          p_err "error parsing args: -j argument $2 is not an integer"
           exit 1
         fi
         _jobs=$2
@@ -124,7 +151,7 @@ _parse_args() {
         ;;
       -d|--dynamic)
         if ${_dynamic_filename_full}; then
-          cl::p_err "error parsing args: -d mutually exclusive with -dp"
+          p_err "error parsing args: -d mutually exclusive with -dp"
           exit 1
         fi
         _dynamic_filename=true
@@ -132,7 +159,7 @@ _parse_args() {
         ;;
       -df|--dynamic-full)
         if ${_dynamic_filename}; then
-          cl::p_err "error parsing args: -d mutually exclusive with -dp"
+          p_err "error parsing args: -d mutually exclusive with -dp"
           exit 1
         fi
         _dynamic_filename_full=true
@@ -144,7 +171,7 @@ _parse_args() {
         ;;
       -fp|--file-prefix)
         if [[ -z "${2:-}" ]]; then
-          cl::p_err "error parsing args: missing file PREFIX"
+          p_err "error parsing args: missing file PREFIX"
           exit 1
         fi
         _file_prefix="$2"
@@ -155,11 +182,12 @@ _parse_args() {
         shift
         ;;
       -h|--help)
-        printf "%s" "${_HELP}"
-        exit 1
+        p_hlp
+        exit 0
         ;;
       -*)
-        cl::p_err "unknown argument: $1"
+        p_err "unknown argument: $1"
+        p_usg >&2
         exit 1
         ;;
       *)
@@ -169,17 +197,17 @@ _parse_args() {
     fi
   done
   if [[ -z "${1:-}" ]]; then
-    cl::p_err "missing url argument"
+    p_err "missing url argument"
     exit 1
   fi
-  if [[ -n "${_file_prefix}" && !(${_dynamic_filename} || ${_dynamic_filename_full}) ]]; then
-    cl::p_err "file prefix provided but neither -d nor -df enabled"
+  if [[ -n "${_file_prefix}" ]] && ! (${_dynamic_filename} || ${_dynamic_filename_full}); then
+    p_err "file prefix provided but neither -d nor -df enabled"
     exit 1
   fi
 
   _urls=("$@")
-  #cl::p_dbg -t 0 1 "> URLs: ${_urls[@]}"
-  cl::p_dbg -t 0 1 "> wget args: ${_wget_args[@]}"
+  #p_dbg -t 0 1 "> URLs: ${_urls[@]}"
+  p_dbg -t 0 1 "> wget args: ${_wget_args[*]}"
 }
 export _dynamic_filename
 export _dynamic_filename_full
@@ -190,6 +218,7 @@ export _urls
 export _verbose
 export _jobs
 
+# shellcheck disable=SC2329
 _wget() {
   if [[ -z "${1:-}" ]]; then
     printf "WARNING: missing url argument, skipping\n"
@@ -218,15 +247,15 @@ _wget() {
   fi
 
   if ${_verbose}; then
-    echo "\$ wget -U \"{$UAGENT}\" ${ref:+--referer \"${ref}\" }\"${url}\" ${outfile:+-O \"${outfile}\"} $@"
+    echo "\$ wget -U \"${UAGENT}\" ${ref:+--referer \"${ref}\" }\"${url}\" ${outfile:+-O \"${outfile}\"} $*"
   fi
   wget -U "${UAGENT}" ${ref:+--referer "${ref}"} "${url}" ${outfile:+-O "${outfile}"} "$@"
 }
 export -f _wget
 
 _wget_p() {
-  #cl::dbg 0 2 "\$ parallel -j ${_jobs} _wget {} ::: ${_urls[@]}"
-  parallel -j ${_jobs} _wget {} "${_wget_args[@]}" ::: "${_urls[@]}"
+  #dbg 0 2 "\$ parallel -j ${_jobs} _wget {} ::: ${_urls[@]}"
+  parallel -j "${_jobs}" _wget {} "${_wget_args[@]}" ::: "${_urls[@]}"
 }
 
 main() {
@@ -235,5 +264,3 @@ main() {
 }
 
 main "$@"
-
-exit 0

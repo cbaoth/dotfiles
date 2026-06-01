@@ -6,22 +6,6 @@
 #
 # Show per-frame timing and playback speed details for animated GIFs.
 
-
-declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
-declare -r _SCRIPT_FILE="$(basename "$0")"
-
-# include commons lib
-for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
-   if [[ -f "$f" ]]; then
-     source "$f"
-     break
-   fi
-done
-if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, exiting ..\n" >&2
-  exit 1
-fi
-
 # set options
 set -o errtrace
 #set -o errexit
@@ -31,72 +15,73 @@ set -o nounset
 IFS=$'\t\n\0'
 
 # traps
-#trap '_rc=$?; \
-#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#trap 'rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
 #             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-#             c"${BASH_COMMAND:-N/A}"; \
-#      exit $_rc' ERR
+#             "${BASH_COMMAND:-N/A}"; \
+#      exit $rc' ERR
 trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
-#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+#trap 'rc=$?; printf "EXIT(%s)\n" "$rc"; exit $rc' EXIT
 
-# constants
-declare -r _USAGE="${_SCRIPT_FILE} FILE.."
-declare _HELP
-  ! IFS='' read -r -d '' _HELP <<EOF
-Usage: $_USAGE
+# Logging
+#p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+#p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
 
-$(cl::fx b)About:$(cl::fx r)
-  This is a simple wrapper for 'identify' (imagemagic) that will return the
-  delay (speed) in 100th of a second of all frames in a given gif file.
+# Usage
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") FILE..."; }
+p_hlp() {
+  p_usg
+  cat <<EOF
 
-$(cl::fx b)Options:$(cl::fx r)
-    -d|--delay-only   print the delay ony (default: print frame index + delay)
-    -a|--average      print the average (rounded) delay of all frames
+About:
+  Simple wrapper for 'identify' (imagemagick) that returns the delay (speed)
+  in 100ths of a second of all frames in a given gif file.
 
-$(cl::fx b)Examples:$(cl::fx r)
+Options:
+  -d, --delay-only   Print the delay only (default: print frame index + delay)
+  -a, --average      Print the average (rounded) delay of all frames
+
+Examples:
   # print frame index + delay in 1/100 sec
-  $(cl::fx green)${_SCRIPT_FILE} infile.gif$(cl::fx r)
-$(cl::fx blue)#1 8
-#2 8
-#3 8
-#4 7
-#5 8
-...$(cl::fx r)
+  $(basename "$0") infile.gif
+  #1 8
+  #2 8
+  #3 8
+  #4 7
+  #5 8
 
   # print delay in 1/100 sec only (omit the "#x " frame index prefix)
-  $(cl::fx green)${_SCRIPT_FILE} -d infile.gif$(cl::fx r)
-$(cl::fx blue)8
-8
-8
-7
-8
-...$(cl::fx r)
+  $(basename "$0") -d infile.gif
+  8
+  8
+  8
 
   # the average delay in 1/100 for all frames
-  $(cl::fx green)${_SCRIPT_FILE} -a infile.gif$(cl::fx r)
-$(cl::fx blue)8$(cl::fx r)
+  $(basename "$0") -a infile.gif
+  8
 
-$(cl::fx b)Convert:$(cl::fx r)
-  One can change the speed of a given gif file using $(cl::fx green)convert$(cl::fx r) (imagemagick).
+Convert:
+  One can change the speed of a given gif file using convert (imagemagick).
 
   # Change the speed of the above mentioned infile.gif (8x100 average) ..
   # .. to 5/100 sec. delay (speed up)
-  $(cl::fx green)convert -delay 10x100 infile.gif outfile.gif$(cl::fx r)
+  convert -delay 10x100 infile.gif outfile.gif
 
   # .. to 15/100 sec. delay (slow down), the 'x100' can be omitted (default)
-  $(cl::fx green)convert -delay 15 infile.gif outfile.gif$(cl::fx r)
+  convert -delay 15 infile.gif outfile.gif
 EOF
-declare -r _HELP
+}
 
-# arguments
+# parse arguments
 declare format="#%s %T"
 declare average=false
 declare infile
-
-# parse arguments
-_parse_args() {
+parse_args() {
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "${_USAGE}"
+    p_usg
     exit 1
   fi
   while [[ -n "$1" ]]; do
@@ -110,11 +95,11 @@ _parse_args() {
         shift
         ;;
       -h|--help)
-        printf "%s" "${_HELP}"
-        exit 1
+        p_hlp
+        exit 0
         ;;
       -*)
-        cl::p_err "unknown argument: $1"
+        p_err "unknown argument: $1"
         exit 1
         ;;
       *)
@@ -124,30 +109,30 @@ _parse_args() {
   done
 
   if [[ -z "${1:-}" ]]; then
-    cl::p_err "missing file argument"
+    p_err "missing file argument"
     exit 1
   fi
   if (( $# > 1 )); then
-    cl::p_err "too many arguments, provide only a single file"
+    p_err "too many arguments, provide only a single file"
     exit 1
   fi
   if [[ ! -f "$1" ]]; then
-    cl::p_err "file not found: $1"
+    p_err "file not found: $1"
     exit 1
   fi
   infile="$1"
 }
 
-_gif_delay() {
+gif_delay() {
   # print delays or average
   if $average; then
-    delay_sum="$(identify -format "%T+" "${infile}")"
-    if [[ "$?" -ne 0 ]]; then
-      cl::p_err "error processing gif file"
+    local delay_sum
+    if ! delay_sum="$(identify -format "%T+" "${infile}")"; then
+      p_err "error processing gif file"
       exit 1
     fi
-    pluses="${delay_sum//[^+]}"
-    frame_count="${#pluses}"
+    local pluses="${delay_sum//[^+]}"
+    local -i frame_count="${#pluses}"
     printf "%s\n" "$(((${delay_sum}0)/frame_count))"
   else
     identify -format "${format}\n" "${infile}"
@@ -155,10 +140,8 @@ _gif_delay() {
 }
 
 main() {
-  _parse_args "$@"
-  _gif_delay
+  parse_args "$@"
+  gif_delay
 }
 
 main "$@"
-
-exit 0

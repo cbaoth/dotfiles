@@ -13,17 +13,30 @@ Ideas and future tasks for improving the shell scripts in this repository.
 ** Moved user utility scripts to `bin/`
 ** Archived outdated/deprecated scripts to `_archive/` (see <<archived-scripts-review>>)
 ** Merged `Useful-Scripts/README.adoc` into the main `README.adoc`
-* [ ] Audit `bin/` scripts against the style guide
-** Standardize shebangs (`#!/usr/bin/env bash`)
-** Add missing file headers
-** Update `set` options and error handling
-** Apply naming conventions
-** NOTE: Includes newly added scripts from Useful-Scripts integration (apt-update, exif-move-to-rating-dirs, smfetch)
+* [x] Audit `bin/` scripts against the style guide
+** Standardized shebangs, file headers, modelines across all scripts
+** Standardized `set` options, ERR/SIGINT/SIGTERM traps (fixed `c"${BASH_COMMAND}"` typo in multiple scripts)
+** Applied naming conventions: removed underscore prefixes on functions/variables in standalone scripts
+** Removed all `commons.sh` dependencies from `bin/` scripts (self-contained)
+** Fixed broken scripts: `ff-copy-mpv-bookmarks`, `while-read`, `mpv-find` (undefined `cl::` references)
+** Fixed `ffmpeg-install` (`p_msg()` commented out but called ~40 times — no output)
+** Fixed `netshare-bench` (`p_msg()` commented out but called)
+** Fixed `image-hash-rename` (undefined `${_SCRIPT_FILE}` in help)
+** Fixed `wget-p` (undefined `is_int`, `UAGENT`; removed unused `fx()`)
+** Removed `fx()` calls from help text (plain text only per convention)
+** Removed trailing `exit 0` after `main "$@"` from all scripts
+** Deleted obsolete scripts: `smfetch` (replaced by yt-dlp), `_rename-strip-specials` (broken beyond repair)
+** Renamed `net-info.sh` to `net-info` (no extension for executables per style guide)
+** 16 of 19 scripts pass shellcheck clean; remaining: `getbyext` (legacy 2001 script, needs full rewrite),
+   `ff-copy-mpv-bookmarks` and `mpv-find` (1 SC2015 info each, benign)
 * [ ] Review `.zsh.d/` files for consistency
 ** Include a review for shell-agnostic content that could be moved/shared so it
    can be reused from bash-only setups.
-* [ ] Consolidate duplicate logging/output implementations across scripts
-  (prefer `commons.sh` where appropriate)
+* [x] Consolidate duplicate logging/output implementations across scripts
+** All `bin/` scripts now use a standard set of logging functions (`p_msg`, `p_nfo`, `p_war`, `p_err`, `p_dbg`)
+   with raw ANSI codes; unused functions are commented out as a template
+** No `bin/` script depends on `commons.sh` anymore; `commons.sh` remains available for
+   scripts that need its full feature set
 * [ ] Review and resolve FIXME/TODO comments in `system-scripts/dbbackup`
 
 === Directory Structure
@@ -162,7 +175,49 @@ cl::require_commons || exit 1
 ** Verify `expandtab tabstop=2 shiftwidth=2` and `filetype=bash/bash/sh` align with `.vimrc` defaults
 ** (Modeline will override vimrc per-file; this is a post-hoc consistency check)
 
-== 4. General Improvements & Ideas
+== 4. Sway / Desktop Setup
+
+=== Replace GDM with lightweight session startup
+
+GDM is currently required only to get a graphical login. Since Sway is started
+manually from a TTY (`sudo systemctl stop gdm && sway-nvidia`), GDM adds
+overhead with no benefit.
+
+Prerequisite: Sway must be confirmed stable (waybar, keyring, key bindings all
+verified working) before making GDM removal permanent.
+
+Options to evaluate (in order of preference):
+
+* *No display manager* — TTY auto-login + auto-start sway from shell profile
+** Configure TTY auto-login for tty1 via systemd drop-in:
+   `/etc/systemd/system/getty@tty1.service.d/autologin.conf`
+** Add to `~/.zprofile`: start `sway-nvidia` automatically if on tty1 and no
+   Wayland session is running
+** Pros: minimal, no extra packages, full control
+** Cons: no graphical greeter (acceptable if YubiKey unlock happens inside sway)
+
+* *greetd + tuigreet* — modern minimal Wayland-native session manager
+** `sudo apt install greetd` (Ubuntu 24.04+)
+** TUI greeter (`tuigreet`) provides a simple terminal login prompt
+** Designed specifically for wlroots/Wayland compositors
+** Pros: proper PAM integration (unlocks login keyring), session selection
+** Cons: newer, fewer tutorials for Ubuntu
+
+* *LightDM* — familiar from previous use
+** Well-supported on Ubuntu, handles PAM/keyring correctly
+** Slick-greeter or gtk-greeter available
+** More overhead than greetd/no-DM; X11-centric but Wayland sessions work
+
+=== Tasks (implement when Sway is confirmed stable)
+
+* [ ] Decide on approach (no-DM vs greetd vs LightDM)
+* [ ] `sudo systemctl disable gdm` — stop GDM from starting at boot
+* [ ] Configure chosen session startup method
+* [ ] Update `sway-setup.adoc` with the chosen approach and steps
+* [ ] Verify YubiKey unlock still works (KeePassXC prompt visible at login)
+* [ ] Verify GNOME remains usable if needed (GDM can be re-enabled: `sudo systemctl enable gdm`)
+
+== 5. General Improvements & Ideas
 
 === Text formatting
 

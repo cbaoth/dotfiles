@@ -151,6 +151,7 @@ main() {
   local -a pos_to_list=()
 
   # process bookmark file (lines)
+  # shellcheck disable=SC2015
   while IFS='|' read -r pos _ _ type; do
     [[ ! "${pos}" =~ ^[0-9:.]+$ ]] \
       && p_war "invalid position [${pos}], skipping .." \
