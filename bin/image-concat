@@ -6,22 +6,6 @@
 #
 # Concatenate images to create a simple collage.
 
-
-declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
-declare -r _SCRIPT_FILE="$(basename "$0")"
-
-# include commons lib
-for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
-   if [[ -f "$f" ]]; then
-     source "$f"
-     break
-   fi
-done
-if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, exiting ..\n" >&2
-  exit 1
-fi
-
 # set options
 set -o errtrace
 #set -o errexit
@@ -31,16 +15,102 @@ set -o nounset
 IFS=$'\t\n\0'
 
 # traps
-trap '_rc=$?; \
-     printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+# shellcheck disable=SC2154
+trap 'rc=$?; \
+     printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-            c"${BASH_COMMAND:-N/A}"; \
-     _exit_clean $_rc' ERR
-trap 'printf "\nINTERRUPT\n"; _exit_clean 1' SIGINT SIGTERM
-#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; _exit_clean $_rc' EXIT
+            "${BASH_COMMAND:-N/A}"; \
+     exit_clean $rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit_clean 1' SIGINT SIGTERM
+
+# Logging
+#p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+# print file name of given file with an added suffix (considering file ext.)
+p_file_with_suffix() {
+  if [[ $# -ne 2 ]]; then
+    printf "Usage: p_file_with_suffix SUFFIX FILE\n"
+    return 1
+  fi
+  local suffix="$1"
+  shift
+  if [[ "$1" = *"."* ]]; then
+    printf "%s" "${1%.*}${suffix}.${1##*.}"
+  else
+    printf "%s" "$1${suffix}"
+  fi
+}
+
+# query (yes/no): ask any question (no: return 1)
+q_yesno() {
+  if [[ -z "${1:-}" ]]; then
+    printf "Usage: q_yesno QUESTION\n"
+    return 1
+  fi
+
+  local question="$*"
+  local key=""
+  printf "%s (y/n) " "$question"
+  while [[ "$key" != "y" ]] && [[ "$key" != "n" ]]; do
+    if [[ "$(readlink /proc/$$/exe)" = *zsh ]]; then
+      read -r -s -k 1 key
+    else
+      read -r -s -n 1 key
+    fi
+  done
+  printf "\n"
+  if [[ "$key" = "y" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# query (yes/no): overwrite given file? (no: return 1)
+# return 0, without asking a thing, if [file] doesn't exist
+q_overwrite() {
+  if [[ -z "$1" ]]; then
+    printf "Usage: q_overwrite FILE\n"
+    return 1
+  fi
+
+  local file="$1"
+  if [[ -e "$file" ]]; then
+    p_war "file [$file] exists!"
+    if q_yesno "overwrite?"; then
+      if ! rm -rf -- "$file"; then
+        p_err "unable to delete the file!"
+        return 1
+      fi
+      return 0
+    fi
+    return 1
+  fi
+  return 0
+}
+
+# Usage
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") [-w|-h|-n] [-x1] [-o OUTFILE] INFILE.."; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+Concatenate images to create a simple collage.
+
+Options:
+  -w         Resize all images to the width of the smallest image
+  -h         Resize all images to the height of the smallest image
+  -n         No resize, concatenate as-is
+  -x1        Tile vertically (one column) instead of horizontally
+  -o FILE    Output file name (default: auto-generated from first input file)
+EOF
+}
 
 # constants
-declare -r _MAX=3840
+declare -r MAX=3840
 
 # arguments
 declare mode=default
@@ -50,15 +120,15 @@ declare -a infiles
 declare -a tempfiles
 
 # clean exit (remove temp files)
-_exit_clean() {
+exit_clean() {
   for f in "${tempfiles[@]}"; do
     rm -f "${f}"
   done
-  exit ${1:-0}
+  exit "${1:-0}"
 }
 
 # parse arguments
-_parse_args() {
+parse_args() {
   while [[ -n "${1:-}" ]]; do
     case $1 in
       -[hwn])
@@ -70,9 +140,13 @@ _parse_args() {
         shift
         ;;
       -o)
-        [[ -z "$2" ]] && cl::p_err "missing file name after -o" && return 1
+        [[ -z "${2:-}" ]] && p_err "missing file name after -o" && return 1
         outfile="$2"
         shift 2
+        ;;
+      -h|--help)
+        p_hlp
+        exit 0
         ;;
       *)
         break
@@ -81,69 +155,61 @@ _parse_args() {
   done
   # at least two input files are required
   if [[ -z "${2:-}" ]]; then
-    cl::p_usg "${_SCRIPT_FILE} [-w|-h|-n] [-x1] [-o OUTFILE] INFILE.."
+    p_usg
     exit 1
   fi
   # if no outfile name is provided generate one
   if [[ -z "$outfile" ]]; then
-    outfile="$(cl::p_file_with_suffix "-concat$(date +%s)" "$1")"
+    outfile="$(p_file_with_suffix "-concat$(date +%s)" "$1")"
   fi
   # create infiles array from remaining arguments
   infiles=("$@")
 }
 
 # resize all infiles to temp file
-_resize_infiles() {
+resize_infiles() {
   local dim="$1"
   for infile in "${infiles[@]}"; do
-    local outfile="$HOME/._image-concat_$(basename "${infile}")"
-    #cl::q_overwrite "${outfile}" || _exit_clean 1
+    local outfile
+    outfile="$HOME/._image-concat_$(basename "${infile}")"
     tempfiles+=("${outfile}")
-    convert "${infile}" -resize ${dim}\> "${outfile}"
+    convert "${infile}" -resize "${dim}"\> "${outfile}"
   done
 }
 
 # concatenate images
-_concat() {
-  cl::q_overwrite "${outfile}" || _exit_clean 1
-  local min_height="$(identify -format '%h\n' "${infiles[@]}" | sort -n | head -n 1)"
-  #min_height="$(echo -e "$min_height\n$((_MAX/$#))" | sort -n | head -n 1)"
-  local min_width="$(identify -format '%w\n' "${infiles[@]}" | sort -n | head -n 1)"
-  #min_width="$(echo -e "$min_width\n$((_MAX/$#))" | sort -n | head -n 1)"
+concat() {
+  q_overwrite "${outfile}" || exit_clean 1
+  local min_height
+  min_height="$(identify -format '%h\n' "${infiles[@]}" | sort -n | head -n 1)"
+  local min_width
+  min_width="$(identify -format '%w\n' "${infiles[@]}" | sort -n | head -n 1)"
   local -a args=(-background black -mode Concatenate)
-  #args+=(-limit memory 100mb)
   [[ "${tile}" = "x1" ]] && args+=(-tile x1)
-  #args+=(-gravity center) # default
 
   case "${mode}" in
     -n)
-      #args+=(-geometry +0+0)
       convert -background black +append "${infiles[@]}" "${outfile}"
       ;;
     -w)
-      #args+=(-geometry "$(printf "%s\n%s" "${min_width}" "${_MAX}" | sort -n | head -n 1)x")
-      _resize_infiles "$(printf "%s\n%s" "${min_width}" "${_MAX}" | sort -n | head -n 1)x"
+      resize_infiles "$(printf "%s\n%s" "${min_width}" "${MAX}" | sort -n | head -n 1)x"
       convert -background black +append "${tempfiles[@]}" "${outfile}"
       ;;
     -h)
-      #args+=(-geometry "x${min_height}")
-      _resize_infiles "x${min_height}"
+      resize_infiles "x${min_height}"
       convert -background black +append "${tempfiles[@]}" "${outfile}"
       ;;
     *)
-      #args+=(-geometry "x${min_height}" -extent "${min_width}>x")
-      _resize_infiles "x${min_height}" -extent "${min_width}>x"
+      resize_infiles "x${min_height}" -extent "${min_width}>x"
       convert -background black +append "${tempfiles[@]}" "${outfile}"
       ;;
   esac
-  #montage "${args[@]}" "${infiles[@]}" "${outfile}"
 }
 
-_main() {
-  _parse_args "$@"
-  _concat
+main() {
+  parse_args "$@"
+  concat
+  exit_clean 0
 }
 
-_main "$@"
-
-_exit_clean 0
+main "$@"
