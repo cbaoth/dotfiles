@@ -6,21 +6,6 @@
 #
 # Recursively find media files and play them with mpv.
 
-declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
-declare -r _SCRIPT_FILE="$(basename "$0")"
-
-# include commons lib
-for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
-   if [[ -f "$f" ]]; then
-     source "$f"
-     break
-   fi
-done
-if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, exiting ..\n" >&2
-  exit 1
-fi
-
 # set options
 set -o errtrace
 #set -o errexit
@@ -30,47 +15,58 @@ set -o nounset
 IFS=$'\t\n\0'
 
 # traps
-trap '_rc=$?; \
-     printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+# shellcheck disable=SC2154
+trap 'rc=$?; \
+     printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
             "${BASH_COMMAND:-N/A}"; \
-     exit $_rc' ERR
+     exit $rc' ERR
 trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
-#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
 
-# constants
-declare -r _USAGE="${_SCRIPT_FILE} [OPTION..] COMMAND.."
-declare _HELP
-  ! IFS='' read -r -d '' _HELP <<EOF
-$(cl::fx b)Options:$(cl::fx r)
-  -m --match P    filter files by regex pattern (full file path)
-                  (default: ".*\.\(avi\|mkv\|mp4\|webm\)")
-  -s --sort A     sort arg, e.g. -R for random (default: -g, see: "man sort")
-  -r --recursive  find videos in subdirectories (default: off)
-  -i --index X    skip the first X search results (default: 0)
-  -n --noact      don't play the search result, send it to stdout instead
+# Logging
+#p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+#p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
 
-  -a --mpv-args   all arguments after this one are forwarded to mpv
-  -nr --no-resume equivalent to adding mpv argument --no-resume-playback
+# Usage
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") [OPTION]... DIR... [-a MPV_ARG]..."; }
+p_hlp() {
+  p_usg
+  cat <<EOF
 
-  -h --help       show this help
+Options:
+  -m, --match P    Filter files by regex pattern (full file path)
+                   (default: ".*\.\(avi\|mkv\|mp4\|webm\)")
+  -s, --sort A     Sort arg, e.g. -R for random (default: -g, see: "man sort")
+  -r, --recursive  Find videos in subdirectories (default: off)
+  -i, --index X    Skip the first X search results (default: 0)
+  -n, --noact      Don't play the search result, send it to stdout instead
 
-$(cl::fx b)Examples:$(cl::fx r)
+  -nr, --no-resume Equivalent to adding mpv argument --no-resume-playback
+
+  -h, --help       Show this help
+
+MPV Arguments:
+  -a, --mpv-args   All arguments after this one are forwarded to mpv
+
+Examples:
   # play all videos found in . and below in random order
-  $(cl::fx b)${_SCRIPT_FILE} -r -s -R$(cl::fx r)
+  $(basename "$0") -r -s -R
   # play all webm files found in /video skipping the first 10 files
   # deactivating mpv's resume-playback feature
-  $(cl::fx b)${_SCRIPT_FILE} /video -m ".*\.webm" -i 10 -a --no-resume-playback$(cl::fx r)
+  $(basename "$0") /video -m ".*\.webm" -i 10 -a --no-resume-playback
 EOF
-declare -r _HELP
+}
 
 # TODO find a way to stop the playback loop when exiting mpv but ignoring errors
-#$(cl::fx b)MPV Config:$(cl::fx r)
-#  # to stop playback after quitting mpv use the exit code 100 in mpv
-#  # if this is not done, quitting mpv will continue the loop (not desirable)
-#  # input.conf:
-#  ESC quit 100
-#  q quit-watch-later 100
+# MPV Config:
+#   # to stop playback after quitting mpv use the exit code 100 in mpv
+#   # if this is not done, quitting mpv will continue the loop (not desirable)
+#   # input.conf:
+#   ESC quit 100
+#   q quit-watch-later 100
 
 # arguments
 declare regex=".*\.\(avi\|mkv\|mp4\|webm\)"
@@ -83,12 +79,12 @@ declare -a dirs
 declare -a mpv_args
 
 # parse arguments
-_parse_args() {
+parse_args() {
   while [[ -n "${1:-}" ]]; do
     case "$1" in
       -i|--index)
         if [[ -z "${2:-}" ]]; then
-          cl::p_err "missing value for argument --index"
+          p_err "missing value for argument --index"
           exit 1
         fi
         tailn="$(($2+1))"
@@ -100,7 +96,7 @@ _parse_args() {
         ;;
       -m|--match)
         if [[ -z "${2:-}" ]]; then
-          cl::p_err "missing value for argument --match"
+          p_err "missing value for argument --match"
           exit 1
         fi
         regex="$2"
@@ -108,7 +104,7 @@ _parse_args() {
         ;;
       -s|--sort)
         if [[ -z "${2:-}" ]]; then
-          cl::p_err "missing value for argument --sort"
+          p_err "missing value for argument --sort"
           exit 1
         fi
         sort="$2"
@@ -127,21 +123,16 @@ _parse_args() {
         shift
         ;;
       -h|--help)
-        cl::p_usg "${_SCRIPT_FILE} [OPTION..] DIR.. [-a MPV_ARG..]"
-        printf "%s" "${_HELP}"
-        exit 1
+        p_hlp
+        exit 0
         ;;
       *)
-        if [[ -n "${dir:-}" ]]; then
-          cl::p_err "unknown argument: $1"
-          exit 1
-        fi
         if [[ -z "${1:-}" ]]; then
-          cl::p_usg "${_SCRIPT_FILE} [OPTION..] DIR.. [-a MPV_ARG..]"
+          p_usg
           exit 1
         fi
         if [[ ! -d "$1" ]]; then
-          cl::p_err "no such directory or unknown argument: $1"
+          p_err "no such directory or unknown argument: $1"
           exit 1
         fi
         dirs+=("$1"); shift
@@ -150,28 +141,26 @@ _parse_args() {
   done
   # default directory .
   [[ -z "${dirs:-}" ]] && dirs=(.)
-  # treate all remaining args as mpv args
+  # treat all remaining args as mpv args
   mpv_args=("$@")
   if ${noresume}; then
     mpv_args+=(--no-resume-playback)
   fi
 }
 
-_mpvfind() {
+mpvfind() {
   local -a maxdepth=()
   ${recursive} || maxdepth=(-maxdepth 1)
   find "${dirs[@]}" "${maxdepth[@]}" \
        -regex "$regex" \
-    | sort $sort \
-    | tail -n +${tailn} \
+    | sort "$sort" \
+    | tail -n +"${tailn}" \
     | (${noact} && cat || tr '\n' '\0' | xargs -0 -n 10000 mpv "${mpv_args[@]}")
 }
 
 main() {
-  _parse_args "$@"
-  _mpvfind
+  parse_args "$@"
+  mpvfind
 }
 
 main "$@"
-
-exit 0
