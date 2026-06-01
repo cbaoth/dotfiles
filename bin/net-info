@@ -22,7 +22,9 @@ declare -r SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 
 # {{{ - Output ---------------------------------------------------------------
 
-p_warn() { printf '\033[33mWARNING\033[0m: %s\n' "$*" >&2; }
+#p_nfo() { printf "  \033[32m*\033[0m %s\n" "$*"; }
+p_war() { printf "  \033[33m!\033[0m %s\n" "$*" >&2; }
+p_err()  { printf "\033[31mERROR\033[0m: %s\n" "$*" >&2; }
 
 _run_sep()    { printf '%.0s=' {1..79}; printf '\n'; }
 _run_footer() { printf -- '----\n\n'; }
@@ -33,7 +35,7 @@ run() {
   _run_sep
   printf '$ %s\n----\n' "$*"
   if [[ "${USER_MODE}" == true ]] && [[ "$1" == "sudo" ]]; then
-    p_warn "Skipping (requires sudo): $*"
+    p_war "Skipping (requires sudo): $*"
     _run_footer
     return
   fi
@@ -48,7 +50,7 @@ run_sh() {
   _run_sep
   printf '$ %s\n----\n' "${cmd}"
   if [[ "${USER_MODE}" == true ]] && [[ "${cmd}" == *sudo* ]]; then
-    p_warn "Skipping (requires sudo): ${cmd}"
+    p_war "Skipping (requires sudo): ${cmd}"
     _run_footer
     return
   fi
@@ -65,7 +67,7 @@ run_sensitive() {
   else
     _run_sep
     printf '$ %s\n----\n' "$*"
-    p_warn "Skipped (potentially sensitive output); use --sensitive to enable"
+    p_war "Skipped (potentially sensitive output); use --sensitive to enable"
     _run_footer
   fi
 }
@@ -78,7 +80,7 @@ run_sh_sensitive() {
   else
     _run_sep
     printf '$ %s\n----\n' "${cmd}"
-    p_warn "Skipped (potentially sensitive output); use --sensitive to enable"
+    p_war "Skipped (potentially sensitive output); use --sensitive to enable"
     _run_footer
   fi
 }
@@ -91,7 +93,7 @@ run_extended() {
   else
     _run_sep
     printf '$ %s\n----\n' "$*"
-    p_warn "Skipped (verbose output); use 'all' mode to enable: ${SCRIPT_FILE} all"
+    p_war "Skipped (verbose output); use 'all' mode to enable: ${SCRIPT_FILE} all"
     _run_footer
   fi
 }
@@ -104,7 +106,7 @@ run_sh_extended() {
   else
     _run_sep
     printf '$ %s\n----\n' "${cmd}"
-    p_warn "Skipped (verbose output); use 'all' mode to enable: ${SCRIPT_FILE} all"
+    p_war "Skipped (verbose output); use 'all' mode to enable: ${SCRIPT_FILE} all"
     _run_footer
   fi
 }
@@ -114,13 +116,13 @@ run_sh_extended() {
 grep_active() {
   local -r file="$1"
   if [[ ! -f "${file}" ]]; then
-    p_warn "File not found: ${file}"
+    p_war "File not found: ${file}"
     return 1
   fi
   if [[ -r "${file}" ]]; then
     run grep -vE '^\s*#|^$' "${file}"
   elif [[ "${USER_MODE}" == true ]]; then
-    p_warn "File not readable (requires sudo), skipping: ${file}"
+    p_war "File not readable (requires sudo), skipping: ${file}"
   else
     run sudo grep -vE '^\s*#|^$' "${file}"
   fi
@@ -227,7 +229,7 @@ main() {
     run nmcli --no-pager device show
     run nmcli --no-pager connection show
   else
-    p_warn "nmcli not available or NetworkManager not running, skipping"
+    p_war "nmcli not available or NetworkManager not running, skipping"
   fi
   # }}} - NetworkManager -----------------------------------------------------
 
@@ -236,7 +238,7 @@ main() {
     run networkctl -a -l --no-pager list
     run networkctl -a -l --no-pager status
   else
-    p_warn "networkctl not available or systemd-networkd not running, skipping"
+    p_war "networkctl not available or systemd-networkd not running, skipping"
   fi
   # }}} - systemd-networkd ---------------------------------------------------
 
