@@ -6,21 +6,6 @@
 #
 # Copy media fragments into new files using ffmpeg.
 
-declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
-declare -r _SCRIPT_FILE="$(basename "$0")"
-
-# include commons lib
-for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
-  if [[ -f "$f" ]]; then
-    source "$f"
-    break
-  fi
-done
-if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, exiting ..\n" >&2
-  exit 1
-fi
-
 # set options
 set -o errtrace
 #set -o errexit
@@ -30,49 +15,137 @@ set -o nounset
 IFS=$'\t\n\0'
 
 # traps
-#trap '_rc=$?; \
-#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#trap 'rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
 #             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-#             c"${BASH_COMMAND:-N/A}"; \
-#      exit $_rc' ERR
+#             "${BASH_COMMAND:-N/A}"; \
+#      exit $rc' ERR
 trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
-#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+#trap 'rc=$?; printf "EXIT(%s)\n" "$rc"; exit $rc' EXIT
+
+# Logging
+#p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+# Usage
+#p_usg() { printf 'Usage: %s\n' "$(basename "$0") ..."; }
+#p_hlp() {
+#  p_usg
+#  cat <<EOF
+#...
+#EOF
+#}
+
+# print file name of given file with an added suffix (considering file ext.)
+p_file_with_suffix() {
+  if [[ $# -ne 2 ]]; then
+    echo "Usage: $(basename "$0") SUFFIX FILE"
+    return 1
+  fi
+  local suffix="$1"
+  shift
+  if [[ "$1" = *"."* ]]; then
+    printf "%s" "${1%.*}${suffix}.${1##*.}"
+  else
+    printf "%s" "$1${suffix}"
+  fi
+}
+
+# query (yes/no): ask any question (no: return 1)
+q_yesno() {
+  if [[ -z "${1:-}" ]]; then
+    echo "Usage: $(basename "$0") QUESTION"
+    return 1
+  fi
+
+  local question="$*"
+  local key=""
+  printf "%s (y/n) " "$question"
+  while [[ "$key" != "y" ]] && [[ "$key" != "n" ]]; do
+    if [[ "$(readlink /proc/$$/exe)" = *zsh ]]; then
+      read -r -s -k 1 key
+    else
+      read -r -s -n 1 key
+    fi
+  done
+  printf "\n"
+  if [[ "$key" = "y" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# query (yes/no): overwrite given file? (no: return 1)
+# return 0, without asking a thing, if [file] doesn't exist
+q_overwrite() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: $(basename "$0") file"
+    return 1
+  fi
+
+  local file="$1"
+  if [[ -e "$file" ]]; then
+    p_war "file [$file] exists!"
+    if q_yesno "overwrite?"; then
+      if ! rm -rf -- "$file"; then
+        p_err "unable to delete the file!"
+        return 1
+      fi
+      return 0
+    fi
+    return 1
+  fi
+  return 0
+}
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") INFILE START DURATION [OUTFILE]
+Copy a fragment from a media file to a new file.
+Arguments:
+  INFILE    Path to the input media file.
+  START     Start time of the fragment (format: [[hh:]mm:]ss[.ms], e.g. 1:23, 01:23:45, 90.5).
+  DURATION  Duration of the fragment (same format as START).
+  OUTFILE   Optional path for the output file. If not provided, a name will be generated based on INFILE, START, and DURATION.
+EOF
+}
 
 # copy a fragment from a media file to a new file
 main() {
   if [[ -z "${3:-}" ]]; then
-    cl::p_usg "$(cl::func_name) INFILE START END [OUTFILE]"
+    usage
     cat <<EOF
 
 EXAMPLES:
-> $(cl::func_name) video.webm 0 2:00 video_first_2min.webm
+> $(basename "$0") video.webm 0 2:00 video_first_2min.webm
   -> 2min clip from the beginning
 
-> $(cl::func_name) video.webm 02:00 05:00
+> $(basename "$0") video.webm 02:00 05:00
   -> inferred outfile name: video_02.00+05.00.webm, 5min clip starting from minute 2
 
-> $(cl::func_name) video.webm 0 60
+> $(basename "$0") video.webm 0 60
   -> inferred outfile name: video_0+60.webm, 1min (60 sec) clip from the beginning
 EOF
     return 1
   fi
-  [[ ! -f "$1" ]] && cl::p_err "no such file: $1" && return 1
+  [[ ! -f "$1" ]] && p_err "no such file: $1" && return 1
   local infile="$1"
   [[ ! "$2" =~ ^[0-9:.]+$ ]] \
-    && cl::p_err "invalid start time, see man ffmpeg-utils(1) 'Time duration' for details: $2" \
+    && p_err "invalid start time, see man ffmpeg-utils(1) 'Time duration' for details: $2" \
     && return 1
   local pos_start="$2"
   [[ ! "$3" =~ ^[0-9:.]+$ ]] \
-    && cl::p_err "invalid duration, see man ffmpeg-utils(1) 'Time duration' for details: $3" \
+    && p_err "invalid duration, see man ffmpeg-utils(1) 'Time duration' for details: $3" \
     && return 1
   local duration="$3"
   shift 3
-  local outfile="${1:-$(cl::p_file_with_suffix _${pos_start//:/.}+${duration//:/.} "${infile}")}"
+  local outfile="${1:-$(p_file_with_suffix _"${pos_start//:/.}"+"${duration//:/.}" "${infile}")}"
   [ -n "${1:-}" ] && shift
-  cl::q_overwrite "${outfile}"
+  q_overwrite "${outfile}"
   ffmpeg -ss "${pos_start}" -t "${duration}" -i "${infile}" -c copy "${outfile}"
 }
 
 main "$@"
-
-exit 0

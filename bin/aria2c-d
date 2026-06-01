@@ -6,21 +6,6 @@
 #
 # Download to a dynamic filename using aria2c.
 
-declare -r _SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
-declare -r _SCRIPT_FILE="$(basename "$0")"
-
-# include commons lib
-for f in {$_SCRIPT_PATH/,$_SCRIPT_PATH/lib,$HOME/lib}/commons.sh; do
-  if [[ -f "$f" ]]; then
-    source "$f"
-    break
-  fi
-done
-if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, exiting ..\n" >&2
-  exit 1
-fi
-
 # set options
 set -o errtrace
 #set -o errexit
@@ -30,34 +15,37 @@ set -o nounset
 IFS=$'\t\n\0'
 
 # traps
-#trap '_rc=$?; \
-#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
+#trap 'rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
 #             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-#             c"${BASH_COMMAND:-N/A}"; \
-#      exit $_rc' ERR
+#             "${BASH_COMMAND:-N/A}"; \
+#      exit $rc' ERR
 trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
-#trap '_rc=$?; printf "EXIT(%s)\n" "$_rc"; exit $_rc' EXIT
+#trap 'rc=$?; printf "EXIT(%s)\n" "$rc"; exit $rc' EXIT
 
-# constants
-declare -r _USAGE="${_SCRIPT_FILE} [-r] URL.. ARIA2C_ARG.."
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-r] URL.. ARIA2C_ARG.."
+EOF
+}
 
 get_url_from_file() {
-    tr '+' '/' <<<"$1"
+  tr '+' '/' <<<"$1"
 }
 
 get_file_from_url() {
-    sed -E 's/^https?:\/\///g;s/\/+$//g;s/\//+/g' <<<"$1"
+  sed -E 's/^https?:\/\///g;s/\/+$//g;s/\//+/g' <<<"$1"
 }
 
 main() {
   local rev=false
   if [[ "${1:-}" = "-r" ]]; then
-     rev=true
-     shift
+    rev=true
+    shift
   fi
 
   if [[ -z "${1:-}" || "${1:-}" = -* ]]; then
-    cl::p_usg "${_USAGE}"
+    usage
     exit 1
   fi
   local -a urls outfiles
@@ -71,26 +59,23 @@ main() {
     fi
     shift
   done
-  if [[ -z "${urls}" ]]; then
-    cl::p_usg "${_USAGE}"
+  if [[ -z "${urls[*]}" ]]; then
+    usage
     exit 1
   fi
   for ((i=0; i<${#urls[@]}; i++)); do
     local url="${urls[$i]}"
     local outfile="${outfiles[$i]}"
     if ${rev}; then
-        cl::p_msg "Trying to re-download [$outfile] from presumed address [https://${url}]"
-        aria2c -o "${outfiles}" "https://${url}" "$@"
-        if [[ $? != 0 ]]; then
-          cl::p_war "Attempt to re-donwload via http failed, trying http [http://${url}]"
-          aria2c -o "${outfiles}" "http://${url}" "$@"
+        printf "Trying to re-download [%s] from presumed address [https://%s]\n" "$outfile" "$url"
+        if ! aria2c -o "${outfile}" "https://${url}" "$@"; then
+          printf "Attempt to re-download via https failed, trying http [http://%s]\n" "$url"
+          aria2c -o "${outfile}" "http://${url}" "$@"
         fi
     else
-      aria2c -o "${outfiles}" "${urls[$i]}" "$@"
+      aria2c -o "${outfile}" "${urls[$i]}" "$@"
     fi
   done
 }
 
 main "$@"
-
-exit 0

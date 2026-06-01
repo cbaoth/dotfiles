@@ -28,12 +28,12 @@ declare -a  ACTIVE_TEST_DIRS=()
 # -e: exit on error  -u: unset vars are errors  -o pipefail: pipe errors exit
 set -euo pipefail
 
-# shellcheck disable=SC2154  # _rc is assigned inside the trap string
-trap '_rc=$?
+# shellcheck disable=SC2154  # rc is assigned inside the trap string
+trap 'rc=$?
   printf "\n\033[31mERROR(%s)\033[0m in %s:%s\n  func: %s\n  cmd:  %s\n" \
-    "${_rc}" "${BASH_SOURCE[0]:-?}" "${LINENO:-?}" "${FUNCNAME[*]:-?}" \
+    "${rc}" "${BASH_SOURCE[0]:-?}" "${LINENO:-?}" "${FUNCNAME[*]:-?}" \
     "${BASH_COMMAND:-?}" >&2
-  exit "${_rc}"' ERR
+  exit "${rc}"' ERR
 
 trap 'printf "\nINTERRUPT\n" >&2; exit 130' SIGINT SIGTERM
 
@@ -63,14 +63,18 @@ p_section() {
   printf -- '-%.0s' {1..78}; printf "\033[0m\n\n"
 }
 
-p_info() { printf "  \033[32m*\033[0m %s\n" "$*"; }
-p_warn() { printf "  \033[33m!\033[0m %s\n" "$*" >&2; }
-p_err()  { printf "\033[31mERROR\033[0m: %s\n" "$*" >&2; }
-p_kv()   { printf "  %-30s %s\n" "${1}:" "${2:-}"; }
+# Logging
+p_msg() { printf '%s\n' "$*"; }
+p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+p_kv()   { printf '%-30s %s\n' "${1}:" "${2:-}"; }
 
 # Print a literal command string (for display only — caller runs it separately)
-p_cmd()  { printf "  \033[90m$ %s\033[0m\n\n" "$*"; }
+p_cmd()  { printf '\033[90m$ %s\033[0m\n\n' "$*"; }
 
+# TODO review, consider solution from commons
 # Print a command (one arg per line with \ continuation) then execute it
 p_run() {
   local -a _cmd=("$@")
@@ -114,9 +118,9 @@ drop_caches() {
   sync
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
     echo 3 > /proc/sys/vm/drop_caches
-    p_info "Page cache flushed."
+    p_nfo "Page cache flushed."
   else
-    p_warn "Not root — cannot drop page cache. Read results may include cached data."
+    p_war "Not root — cannot drop page cache. Read results may include cached data."
   fi
 }
 
@@ -148,14 +152,14 @@ run_network_latency() {
   server="$(get_mount_server "${mp}")"
 
   if [[ -z "${server}" ]]; then
-    p_warn "Could not detect server address from mount — skipping ping test."
+    p_war "Could not detect server address from mount — skipping ping test."
     return 0
   fi
 
   p_kv "Target" "${server}"
   printf "\n"
   p_cmd "ping -c 20 -q ${server}"
-  ping -c 20 -q "${server}" 2>&1 || p_warn "Ping failed (server may block ICMP)"
+  ping -c 20 -q "${server}" 2>&1 || p_war "Ping failed (server may block ICMP)"
 }
 
 
@@ -166,7 +170,7 @@ run_fio_sequential() {
 
   p_section "Sequential Throughput (fio)  |  file: ${file_size}  |  block: 1M"
 
-  p_info "Write pass (sequential, 1M blocks, end_fsync)..."
+  p_nfo "Write pass (sequential, 1M blocks, end_fsync)..."
   p_run fio \
     --name="seq-write" \
     --filename="${test_file}" \
@@ -184,7 +188,7 @@ run_fio_sequential() {
 
   drop_caches
 
-  p_info "Read pass (sequential, 1M blocks)..."
+  p_nfo "Read pass (sequential, 1M blocks)..."
   p_run fio \
     --name="seq-read" \
     --filename="${test_file}" \
@@ -207,10 +211,10 @@ run_fio_random() {
   local -r test_file="${test_dir}/fio-rand.dat"
 
   p_section "Random Read I/O (fio)  |  file: ${file_size}  |  ${runtime}s per sub-test"
-  p_info "Simulates photo app access patterns: thumbnail metadata, embedded previews, full RAW."
+  p_nfo "Simulates photo app access patterns: thumbnail metadata, embedded previews, full RAW."
   printf "\n"
 
-  p_info "Creating test file (write pass)..."
+  p_nfo "Creating test file (write pass)..."
   p_run fio \
     --name="rand-prep" \
     --filename="${test_file}" \
@@ -236,7 +240,7 @@ run_fio_random() {
 
     drop_caches
 
-    p_info "Rand read, ${bs} blocks  [${desc}]..."
+    p_nfo "Rand read, ${bs} blocks  [${desc}]..."
     p_run fio \
       --name="rand-read-${bs,,}" \
       --filename="${test_file}" \
@@ -262,10 +266,10 @@ run_fio_photo_parallel() {
   local -r test_file="${test_dir}/fio-photo.dat"
 
   p_section "Parallel Photo Read (fio)  |  file: ${file_size}  |  ${runtime}s per sub-test"
-  p_info "Simulates Lightroom / XnView MP reading multiple RAW files concurrently."
+  p_nfo "Simulates Lightroom / XnView MP reading multiple RAW files concurrently."
   printf "\n"
 
-  p_info "Creating test file (write pass)..."
+  p_nfo "Creating test file (write pass)..."
   p_run fio \
     --name="photo-prep" \
     --filename="${test_file}" \
@@ -283,7 +287,7 @@ run_fio_photo_parallel() {
 
   drop_caches
 
-  p_info "4 parallel readers, 256K blocks  [preview generation — Lightroom-like]..."
+  p_nfo "4 parallel readers, 256K blocks  [preview generation — Lightroom-like]..."
   p_run fio \
     --name="photo-preview-4j" \
     --filename="${test_file}" \
@@ -299,7 +303,7 @@ run_fio_photo_parallel() {
 
   drop_caches
 
-  p_info "1 sequential reader, 1M blocks  [full-resolution RAW load]..."
+  p_nfo "1 sequential reader, 1M blocks  [full-resolution RAW load]..."
   p_run fio \
     --name="photo-fullres-1j" \
     --filename="${test_file}" \
@@ -324,11 +328,11 @@ run_dir_traversal() {
   local -ri total_files=$(( num_dirs * files_per_dir ))
 
   p_section "Directory Traversal  |  ${num_dirs} dirs × ${files_per_dir} files = ${total_files} total"
-  p_info "Simulates photo library scan: readdir RPCs, getattr RPCs, EXIF header reads."
-  p_info "NFS and SMB differ significantly here due to metadata caching and RPC overhead."
+  p_nfo "Simulates photo library scan: readdir RPCs, getattr RPCs, EXIF header reads."
+  p_nfo "NFS and SMB differ significantly here due to metadata caching and RPC overhead."
   printf "\n"
 
-  p_info "Creating directory tree with ${total_files} stub files on share..."
+  p_nfo "Creating directory tree with ${total_files} stub files on share..."
   mkdir -p "${sim_dir}"
   local -i d
   local f
@@ -338,14 +342,14 @@ run_dir_traversal() {
       printf 'x' > "${sim_dir}/$(printf 'dir%03d' "${d}")/$(printf 'photo%04d' "${f}").RAF"
     done
   done
-  p_info "Done."
+  p_nfo "Done."
   printf "\n"
 
   local -i t_start t_elapsed
   local found_count
 
   # Test 1: directory listing — readdir RPCs
-  p_info "--- Traversal 1: find -type f | wc -l  [readdir RPCs, dentry count] ---"
+  p_nfo "--- Traversal 1: find -type f | wc -l  [readdir RPCs, dentry count] ---"
   p_cmd "find \"${sim_dir}\" -type f | wc -l"
   t_start="${SECONDS}"
   found_count="$(find "${sim_dir}" -type f | wc -l)"
@@ -355,7 +359,7 @@ run_dir_traversal() {
   printf "\n"
 
   # Test 2: stat each file — getattr RPCs (Lightroom import scan)
-  p_info "--- Traversal 2: find + stat per file  [getattr RPCs — library import scan] ---"
+  p_nfo "--- Traversal 2: find + stat per file  [getattr RPCs — library import scan] ---"
   p_cmd "find \"${sim_dir}\" -type f -exec stat --printf '%n %s %Y\\n' {} \\;"
   t_start="${SECONDS}"
   find "${sim_dir}" -type f -exec stat --printf '%n %s %Y\n' {} \; > /dev/null
@@ -365,7 +369,7 @@ run_dir_traversal() {
   printf "\n"
 
   # Test 3: read first 4K of each file — EXIF header read simulation
-  p_info "--- Traversal 3: read first 4K per file  [EXIF header / sidecar read] ---"
+  p_nfo "--- Traversal 3: read first 4K per file  [EXIF header / sidecar read] ---"
   p_cmd "find \"${sim_dir}\" -type f -print0 | while IFS= read -r -d '' f; do dd if=\"\$f\" bs=4K count=1 > /dev/null; done"
   t_start="${SECONDS}"
   while IFS= read -r -d '' f; do
@@ -386,8 +390,8 @@ run_iozone() {
   local -r test_file="${test_dir}/iozone-test.dat"
 
   p_section "iozone I/O Matrix  |  file: ${file_size}  |  records: 4K, 64K, 256K, 1M"
-  p_info "Tests: write/rewrite (-i 0), read/reread (-i 1), random read/write (-i 2)"
-  p_info "XLS output: ${xls_file}"
+  p_nfo "Tests: write/rewrite (-i 0), read/reread (-i 1), random read/write (-i 2)"
+  p_nfo "XLS output: ${xls_file}"
   printf "\n"
 
   # -i 0: write/rewrite  -i 1: read/reread  -i 2: random read/write
@@ -402,7 +406,7 @@ run_iozone() {
     -i 2 \
     -f "${test_file}" \
     -b "${xls_file}" \
-    || p_warn "iozone exited non-zero (results may be partial)"
+    || p_war "iozone exited non-zero (results may be partial)"
 
   rm -f "${test_file}"
 }
@@ -451,9 +455,10 @@ run_tests_for_mount() {
 
 # {{{ - Arg Parsing / Main ---------------------------------------------------
 
-usage() {
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") [OPTIONS] MOUNTPAINT..."; }
+p_hlp() {
+  p_usg
   cat <<EOF
-Usage: ${SCRIPT_FILE} [OPTIONS] MOUNTPOINT...
 
 Benchmark mounted network shares (NFS/CIFS/SMB) using fio and iozone.
 Tests sequential/random I/O, parallel photo reads, directory traversal,
@@ -512,11 +517,11 @@ parse_args() {
       -f|--sim-files)   shift; sim_files_per_dir="$1" ;;
       --skip-iozone)    skip_iozone=true ;;
       -n|--dry-run)     dry_run=true ;;
-      -h|--help)        usage; exit 0 ;;
+      -h|--help)        p_hlp; exit 0 ;;
       --)               shift; break ;;
       -*)
         p_err "Unknown option: $1"
-        usage >&2
+        p_usg >&2
         exit 1
         ;;
       *)
@@ -534,8 +539,8 @@ main() {
 
   if (( ${#mountpoints[@]} == 0 )); then
     p_err "No mount points specified."
-    printf "Usage: %s [OPTIONS] MOUNTPOINT...\nRun '%s --help' for more information.\n" \
-      "${SCRIPT_FILE}" "${SCRIPT_FILE}" >&2
+    p_usg >&2
+    p_msg "Run '$(basename "$0") --help' for more information." >&2
     exit 1
   fi
 

@@ -6,19 +6,6 @@
 #
 # ffmpeg-install: Download, install, and update static FFmpeg builds from BtbN/FFmpeg-Builds.
 
-declare _SCRIPT_PATH; _SCRIPT_PATH="$(cd "$(dirname "$0")" || exit; pwd -P)"
-declare -r _SCRIPT_PATH
-declare _SCRIPT_FILE; _SCRIPT_FILE="$(basename "$0")"
-declare -r _SCRIPT_FILE
-
-# include commons lib (optional -- script works standalone with fallback log functions)
-# shellcheck source=/dev/null
-for f in {"${_SCRIPT_PATH}"/,"${_SCRIPT_PATH}"/lib/,"${HOME}"/lib/}commons.sh; do
-  if [[ -f "$f" ]]; then source "$f"; break; fi
-done
-declare -i _HAS_COMMONS=0
-command -v "cl::cmd_p" > /dev/null 2>&1 && _HAS_COMMONS=1
-
 # set options
 # -e omitted intentionally: some subcommands (find, readlink) may return non-zero legitimately
 set -o pipefail
@@ -30,55 +17,48 @@ trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 
 # {{{ = CONSTANTS =============================================================
 
-declare -r _BASE_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/latest"
-declare -r _DEFAULT_INSTALL_BASE="${HOME}/.local/share/ffmpeg-builds"
-declare -r _DEFAULT_LINK_DIR="${HOME}/.local/bin"
-declare -r _DEFAULT_VARIANT="gpl"
-declare -r _DEFAULT_VERSION="master"
+declare -r BASE_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/latest"
+declare -r DEFAULT_INSTALL_BASE="${HOME}/.local/share/ffmpeg-builds"
+declare -r DEFAULT_LINK_DIR="${HOME}/.local/bin"
+declare -r DEFAULT_VARIANT="gpl"
+declare -r DEFAULT_VERSION="master"
 
-# Binaries expected inside the build's bin/ directory
-declare -ra _FFMPEG_BINS=(ffmpeg ffprobe ffplay)
+# Binaries expected inside the build's bin/ directory (currently unused,
+# install_symlinks discovers them dynamically)
+#declare -ra FFMPEG_BINS=(ffmpeg ffprobe ffplay)
 
 # }}} = CONSTANTS =============================================================
 
 # {{{ = ARGUMENTS =============================================================
 
-declare -i _dry_run=0
-declare -i _verbose=0
-declare -i _yes=0
-declare _arch=""        # auto-detected from uname -m if not set
-declare _variant="${_DEFAULT_VARIANT}"
-declare _version="${_DEFAULT_VERSION}"
-declare _install_base="${_DEFAULT_INSTALL_BASE}"
-declare _link_dir="${_DEFAULT_LINK_DIR}"
-declare _cmd=""         # set by parse_args
+declare -i dry_run=0
+declare -i verbose=0
+declare -i yes_mode=0
+declare arch=""        # auto-detected from uname -m if not set
+declare variant="${DEFAULT_VARIANT}"
+declare version="${DEFAULT_VERSION}"
+declare install_base="${DEFAULT_INSTALL_BASE}"
+declare link_dir="${DEFAULT_LINK_DIR}"
+declare cmd=""         # set by parse_args
 
 # }}} = ARGUMENTS =============================================================
 
 # {{{ = FUNCTIONS =============================================================
 
 # {{{ - Logging ---------------------------------------------------------------
-
-# Fallback log functions used when commons.sh is not sourced.
-if (( _HAS_COMMONS == 0 )); then
-  p_err() { printf "\033[31mERROR\033[0m: %s\n" "$*" >&2; }
-  p_war() { printf "\033[33mWARN\033[0m: %s\n" "$*" >&2; }
-  p_msg() { printf "%s\n" "$*"; }
-  p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf "\033[36mDEBUG\033[0m: %s\n" "${*:2}" >&2 || true; }
-else
-  p_err() { cl::p_err "$@"; }
-  p_war() { cl::p_war "$@"; }
-  p_msg() { [[ $# -gt 0 && -n "$*" ]] && cl::p_msg "$@" || printf "\n"; }
-  p_dbg() { cl::p_dbg "$@"; }
-fi
-
+# Logging
+p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
 # }}} - Logging ---------------------------------------------------------------
 
 # {{{ - Usage -----------------------------------------------------------------
-
-usage() {
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") [OPTIONS] [install|update|status|remove]"; }
+p_hlp() {
+  p_usg
   cat <<EOF
-Usage: ${_SCRIPT_FILE} [OPTIONS] [install|update|status|remove]
 
 Download, install, and update static FFmpeg builds from BtbN/FFmpeg-Builds.
 Without a command, defaults to 'install' if not yet installed, 'status' if it is.
@@ -93,20 +73,20 @@ Commands:
 Build Options:
   -a, --arch ARCH         Target architecture: linux64, linuxarm64
                           (default: auto-detected from uname -m)
-  -V, --variant VARIANT   Build variant (default: ${_DEFAULT_VARIANT}):
+  -V, --variant VARIANT   Build variant (default: ${DEFAULT_VARIANT}):
                             gpl          Full GPL build -- includes libx264, libx265, etc.
                             lgpl         LGPL-only -- no GPL-only codecs
                             gpl-shared   GPL build with shared libav* libraries
                             lgpl-shared  LGPL with shared libav* libraries
-      --version VER       Build version (default: ${_DEFAULT_VERSION}):
+      --version VER       Build version (default: ${DEFAULT_VERSION}):
                             master       Nightly auto-build (floats, always latest)
                             7.1, 8.1     Specific release branch
 
 Install Options:
   -d, --install-dir DIR   Base directory for extracted builds
-                          (default: ${_DEFAULT_INSTALL_BASE})
+                          (default: ${DEFAULT_INSTALL_BASE})
   -l, --link-dir DIR      Directory where binary symlinks are created
-                          (default: ${_DEFAULT_LINK_DIR})
+                          (default: ${DEFAULT_LINK_DIR})
 
 General Options:
   -y, --yes               Skip confirmation prompts (use with care on update/remove)
@@ -115,16 +95,16 @@ General Options:
   -h, --help              Show this help message and exit
 
 Examples:
-  ${_SCRIPT_FILE}                        Install default build (linux64 gpl master/nightly)
-  ${_SCRIPT_FILE} update                 Update existing install
-  ${_SCRIPT_FILE} status                 Show installed version info
-  ${_SCRIPT_FILE} -V lgpl install        Install the LGPL variant instead
-  ${_SCRIPT_FILE} --version 7.1 install  Install from the FFmpeg 7.1 release branch
-  ${_SCRIPT_FILE} -a linuxarm64 install  Install arm64 build (e.g. on Raspberry Pi)
-  ${_SCRIPT_FILE} -y update              Update without confirmation prompt
-  ${_SCRIPT_FILE} remove                 Remove install and symlinks
+  $(basename "$0")                        Install default build (linux64 gpl master/nightly)
+  $(basename "$0") update                 Update existing install
+  $(basename "$0") status                 Show installed version info
+  $(basename "$0") -V lgpl install        Install the LGPL variant instead
+  $(basename "$0") --version 7.1 install  Install from the FFmpeg 7.1 release branch
+  $(basename "$0") -a linuxarm64 install  Install arm64 build (e.g. on Raspberry Pi)
+  $(basename "$0") -y update              Update without confirmation prompt
+  $(basename "$0") remove                 Remove install and symlinks
 
-Note: '${_DEFAULT_LINK_DIR}' is already included in PATH via ~/.common_env.
+Note: '${DEFAULT_LINK_DIR}' is already included in PATH via ~/.common_env.
       On a fresh system without dotfiles, add to your shell profile:
         export PATH="\${HOME}/.local/bin:\${PATH}"
 EOF
@@ -188,7 +168,7 @@ get_install_dir() {
 #   Writes "curl" or "wget" to stdout
 # Returns:
 #   1 if neither is available
-get_download_cmd() {
+get_downloadcmd() {
   if command -v curl > /dev/null 2>&1; then
     echo "curl"
   elif command -v wget > /dev/null 2>&1; then
@@ -226,12 +206,12 @@ confirm() {
 # Show status and version info for the currently configured build.
 show_status() {
   local filename install_dir
-  filename="$(build_filename "${_arch}" "${_variant}" "${_version}")"
-  install_dir="$(get_install_dir "${_install_base}" "${filename}")"
+  filename="$(build_filename "${arch}" "${variant}" "${version}")"
+  install_dir="$(get_install_dir "${install_base}" "${filename}")"
 
   p_msg "Build:       ${filename%.tar.xz}"
   p_msg "Install dir: ${install_dir}"
-  p_msg "Link dir:    ${_link_dir}"
+  p_msg "Link dir:    ${link_dir}"
 
   if [[ ! -d "${install_dir}" ]]; then
     p_msg "Status:      NOT INSTALLED"
@@ -259,7 +239,7 @@ show_status() {
   fi
 
   p_msg ""
-  p_msg "Symlinks in ${_link_dir}:"
+  p_msg "Symlinks in ${link_dir}:"
   local link target found_any=0
   while IFS= read -r -d '' link; do
     target="$(readlink "${link}" 2>/dev/null || true)"
@@ -267,7 +247,7 @@ show_status() {
       p_msg "  $(basename "${link}") -> ${target}"
       found_any=1
     fi
-  done < <(find "${_link_dir}" -maxdepth 1 -type l -print0 2>/dev/null)
+  done < <(find "${link_dir}" -maxdepth 1 -type l -print0 2>/dev/null)
   (( found_any == 0 )) && p_msg "  (none found)"
 }
 
@@ -280,18 +260,18 @@ show_status() {
 #   0 on success, non-zero on failure
 download_file() {
   local url="$1" dest="$2"
-  local dl_cmd
-  dl_cmd="$(get_download_cmd)" || return 1
+  local dlcmd
+  dlcmd="$(get_downloadcmd)" || return 1
 
   p_msg "Downloading: ${url}"
   p_msg "         to: ${dest}"
 
-  if (( _dry_run )); then
+  if (( dry_run )); then
     p_msg "[dry-run] skipping download"
     return 0
   fi
 
-  case "${dl_cmd}" in
+  case "${dlcmd}" in
     curl) curl -L --progress-bar --fail -o "${dest}" "${url}" ;;
     wget) wget --progress=bar -O "${dest}" "${url}" ;;
   esac
@@ -307,7 +287,7 @@ extract_archive() {
 
   p_msg "Extracting to: ${dest_dir}"
 
-  if (( _dry_run )); then
+  if (( dry_run )); then
     p_msg "[dry-run] skipping extraction"
     return 0
   fi
@@ -324,7 +304,7 @@ extract_archive() {
 #   $3 - download URL
 write_build_info() {
   local install_dir="$1" filename="$2" url="$3"
-  (( _dry_run )) && return 0
+  (( dry_run )) && return 0
   {
     printf "Filename:    %s\n" "${filename}"
     printf "URL:         %s\n" "${url}"
@@ -342,7 +322,7 @@ install_symlinks() {
   local bin_dir="${install_dir}/bin"
 
   if [[ ! -d "${bin_dir}" ]]; then
-    (( _dry_run )) || p_war "No bin/ directory found in ${install_dir} -- no symlinks created"
+    (( dry_run )) || p_war "No bin/ directory found in ${install_dir} -- no symlinks created"
     return 0
   fi
 
@@ -352,12 +332,12 @@ install_symlinks() {
   for binary in "${bin_dir}"/*; do
     [[ -x "${binary}" ]] || continue
     link_name="${link_dir}/$(basename "${binary}")"
-    if (( _dry_run )); then
+    if (( dry_run )); then
       p_msg "[dry-run] would symlink: ${link_name} -> ${binary}"
       continue
     fi
     if [[ -e "${link_name}" || -L "${link_name}" ]]; then
-      (( _verbose )) && p_msg "  replacing: ${link_name}"
+      (( verbose )) && p_msg "  replacing: ${link_name}"
       rm -f "${link_name}"
     fi
     ln -s "${binary}" "${link_name}"
@@ -379,11 +359,11 @@ remove_symlinks() {
   while IFS= read -r -d '' link; do
     target="$(readlink "${link}" 2>/dev/null || true)"
     if [[ "${target}" == "${install_dir}/bin/"* ]]; then
-      if (( _dry_run )); then
+      if (( dry_run )); then
         p_msg "[dry-run] would remove symlink: ${link}"
       else
         rm -f "${link}"
-        (( _verbose )) && p_msg "  removed symlink: ${link}"
+        (( verbose )) && p_msg "  removed symlink: ${link}"
       fi
     fi
   done < <(find "${link_dir}" -maxdepth 1 -type l -print0 2>/dev/null)
@@ -413,14 +393,14 @@ do_download_and_place() {
   download_file "${url}" "${tmp_archive}" || return 1
   extract_archive "${tmp_archive}" "${tmp_dir}" || return 1
 
-  if (( ! _dry_run )) && [[ ! -d "${extracted_dir}" ]]; then
+  if (( ! dry_run )) && [[ ! -d "${extracted_dir}" ]]; then
     p_err "Extracted directory not found: ${extracted_dir}"
     p_err "The tarball may use a different inner directory name than expected."
     return 1
   fi
 
   p_msg "Installing to: ${install_dir}"
-  if (( _dry_run )); then
+  if (( dry_run )); then
     p_msg "[dry-run] would move ${extracted_dir} -> ${install_dir}"
   else
     mkdir -p "$(dirname "${install_dir}")"
@@ -437,21 +417,21 @@ do_download_and_place() {
 # Install a fresh build. Fails if already installed.
 do_install() {
   local filename url install_dir
-  filename="$(build_filename "${_arch}" "${_variant}" "${_version}")"
-  url="${_BASE_URL}/${filename}"
-  install_dir="$(get_install_dir "${_install_base}" "${filename}")"
+  filename="$(build_filename "${arch}" "${variant}" "${version}")"
+  url="${BASE_URL}/${filename}"
+  install_dir="$(get_install_dir "${install_base}" "${filename}")"
 
   if [[ -d "${install_dir}" ]]; then
     p_err "Already installed at: ${install_dir}"
-    p_err "Use '${_SCRIPT_FILE} update' to update, or '${_SCRIPT_FILE} remove' first."
+    p_err "Use '$(basename "$0") update' to update, or '$(basename "$0") remove' first."
     return 1
   fi
 
   p_msg "Installing: ${filename%.tar.xz}"
   do_download_and_place "${filename}" "${url}" "${install_dir}" || return 1
 
-  p_msg "Creating symlinks in ${_link_dir}:"
-  install_symlinks "${install_dir}" "${_link_dir}"
+  p_msg "Creating symlinks in ${link_dir}:"
+  install_symlinks "${install_dir}" "${link_dir}"
 
   p_msg ""
   p_msg "Done. Installed to: ${install_dir}"
@@ -461,9 +441,9 @@ do_install() {
 # Falls back to a fresh install if nothing is currently installed.
 do_update() {
   local filename url install_dir
-  filename="$(build_filename "${_arch}" "${_variant}" "${_version}")"
-  url="${_BASE_URL}/${filename}"
-  install_dir="$(get_install_dir "${_install_base}" "${filename}")"
+  filename="$(build_filename "${arch}" "${variant}" "${version}")"
+  url="${BASE_URL}/${filename}"
+  install_dir="$(get_install_dir "${install_base}" "${filename}")"
 
   if [[ ! -d "${install_dir}" ]]; then
     p_war "No existing installation found. Performing a fresh install instead."
@@ -485,16 +465,16 @@ do_update() {
   download_file "${url}" "${tmp_archive}" || return 1
   extract_archive "${tmp_archive}" "${tmp_dir}" || return 1
 
-  if (( ! _dry_run )) && [[ ! -d "${extracted_dir}" ]]; then
+  if (( ! dry_run )) && [[ ! -d "${extracted_dir}" ]]; then
     p_err "Extracted directory not found: ${extracted_dir}"
     p_err "Existing installation has NOT been modified."
     return 1
   fi
 
   # Confirm before deleting the existing install
-  if (( ! _dry_run )); then
-    if (( _yes )); then
-      (( _verbose )) && p_msg "Replacing existing install: ${install_dir}"
+  if (( ! dry_run )); then
+    if (( yes_mode )); then
+      (( verbose )) && p_msg "Replacing existing install: ${install_dir}"
     else
       if ! confirm "Replace existing install at '${install_dir}'?"; then
         p_msg "Aborted. Existing installation unchanged."
@@ -504,15 +484,15 @@ do_update() {
   fi
 
   p_msg "Removing existing install..."
-  remove_symlinks "${install_dir}" "${_link_dir}"
-  if (( _dry_run )); then
+  remove_symlinks "${install_dir}" "${link_dir}"
+  if (( dry_run )); then
     p_msg "[dry-run] would remove: ${install_dir}"
   else
     rm -rf "${install_dir}"
   fi
 
   p_msg "Installing updated build to: ${install_dir}"
-  if (( _dry_run )); then
+  if (( dry_run )); then
     p_msg "[dry-run] would move ${extracted_dir} -> ${install_dir}"
   else
     mkdir -p "$(dirname "${install_dir}")"
@@ -521,8 +501,8 @@ do_update() {
 
   write_build_info "${install_dir}" "${filename}" "${url}"
 
-  p_msg "Creating symlinks in ${_link_dir}:"
-  install_symlinks "${install_dir}" "${_link_dir}"
+  p_msg "Creating symlinks in ${link_dir}:"
+  install_symlinks "${install_dir}" "${link_dir}"
 
   trap - EXIT
   rm -rf "${tmp_dir}"
@@ -534,17 +514,17 @@ do_update() {
 # Remove an existing installation and its managed symlinks.
 do_remove() {
   local filename install_dir
-  filename="$(build_filename "${_arch}" "${_variant}" "${_version}")"
-  install_dir="$(get_install_dir "${_install_base}" "${filename}")"
+  filename="$(build_filename "${arch}" "${variant}" "${version}")"
+  install_dir="$(get_install_dir "${install_base}" "${filename}")"
 
   if [[ ! -d "${install_dir}" ]]; then
     p_war "No installation found at: ${install_dir}"
     return 0
   fi
 
-  if (( ! _dry_run )); then
-    if (( _yes )); then
-      (( _verbose )) && p_msg "Removing: ${install_dir}"
+  if (( ! dry_run )); then
+    if (( yes_mode )); then
+      (( verbose )) && p_msg "Removing: ${install_dir}"
     else
       if ! confirm "Remove installation at '${install_dir}' and its symlinks?"; then
         p_msg "Aborted."
@@ -553,10 +533,10 @@ do_remove() {
     fi
   fi
 
-  p_msg "Removing symlinks from ${_link_dir}..."
-  remove_symlinks "${install_dir}" "${_link_dir}"
+  p_msg "Removing symlinks from ${link_dir}..."
+  remove_symlinks "${install_dir}" "${link_dir}"
 
-  if (( _dry_run )); then
+  if (( dry_run )); then
     p_msg "[dry-run] would remove: ${install_dir}"
   else
     rm -rf "${install_dir}"
@@ -569,7 +549,7 @@ do_remove() {
 # {{{ - Argument Parsing ------------------------------------------------------
 
 parse_args() {
-  local cmd=""
+  cmd=""
 
   while (( $# > 0 )); do
     case "$1" in
@@ -577,64 +557,64 @@ parse_args() {
         cmd="$1"
         ;;
       -a|--arch)
-        shift; _arch="$1"
+        shift; arch="$1"
         ;;
       -V|--variant)
-        shift; _variant="$1"
+        shift; variant="$1"
         ;;
       --version)
-        shift; _version="$1"
+        shift; version="$1"
         ;;
       -d|--install-dir)
-        shift; _install_base="$1"
+        shift; install_base="$1"
         ;;
       -l|--link-dir)
-        shift; _link_dir="$1"
+        shift; link_dir="$1"
         ;;
       -y|--yes)
-        _yes=1
+        yes_mode=1
         ;;
       -n|--dry-run)
-        _dry_run=1
+        dry_run=1
         ;;
       -v|--verbose)
-        _verbose=1
+        verbose=1
         ;;
       -h|--help)
-        usage; exit 0
+        p_hlp; exit 0
         ;;
       --)
         shift; break
         ;;
       -*)
         printf "Unknown option: %s\n" "$1" >&2
-        usage >&2; exit 1
+        p_hlp >&2; exit 1
         ;;
       *)
         printf "Unknown argument: %s\n" "$1" >&2
-        usage >&2; exit 1
+        p_hlp >&2; exit 1
         ;;
     esac
     shift
   done
 
   # Validate variant
-  case "${_variant}" in
+  case "${variant}" in
     gpl|lgpl|gpl-shared|lgpl-shared) ;;
     *)
-      p_err "Invalid variant '${_variant}'. Use: gpl, lgpl, gpl-shared, lgpl-shared"
+      p_err "Invalid variant '${variant}'. Use: gpl, lgpl, gpl-shared, lgpl-shared"
       exit 1
       ;;
   esac
 
   # Auto-detect arch if not provided
-  if [[ -z "${_arch}" ]]; then
-    _arch="$(detect_arch)" || exit 1
+  if [[ -z "${arch}" ]]; then
+    arch="$(detect_arch)" || exit 1
   else
-    case "${_arch}" in
+    case "${arch}" in
       linux64|linuxarm64) ;;
       *)
-        p_err "Invalid arch '${_arch}'. Use: linux64, linuxarm64"
+        p_err "Invalid arch '${arch}'. Use: linux64, linuxarm64"
         exit 1
         ;;
     esac
@@ -643,8 +623,8 @@ parse_args() {
   # Default command: 'install' if not installed, 'status' if already installed
   if [[ -z "${cmd}" ]]; then
     local filename install_dir
-    filename="$(build_filename "${_arch}" "${_variant}" "${_version}")"
-    install_dir="$(get_install_dir "${_install_base}" "${filename}")"
+    filename="$(build_filename "${arch}" "${variant}" "${version}")"
+    install_dir="$(get_install_dir "${install_base}" "${filename}")"
     if [[ -d "${install_dir}" ]]; then
       cmd="status"
     else
@@ -652,7 +632,6 @@ parse_args() {
     fi
   fi
 
-  _cmd="${cmd}"
 }
 
 # }}} - Argument Parsing ------------------------------------------------------
@@ -662,7 +641,7 @@ parse_args() {
 main() {
   parse_args "$@"
 
-  case "${_cmd}" in
+  case "${cmd}" in
     install) do_install ;;
     update)  do_update ;;
     status)  show_status ;;

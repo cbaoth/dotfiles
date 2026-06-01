@@ -27,7 +27,7 @@ set -euo pipefail
 set -euo pipefail  # Fail if any command in a pipeline fails
 
 # Logging function with timestamp and colored levels
-__log() {
+_log() {
   local -r level="$1"; shift
   local -r msg="$*"
   local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S")
@@ -59,20 +59,20 @@ __log() {
   esac
 }
 # Convenience wrappers
-_log()       { __log "" "$*"; }      # Always shown (no level)
-_log_error() { __log "ERROR" "$*"; } # Always shown
-_log_warn()  { __log "WARN"  "$*"; } # Always shown
-_log_info()  { __log "INFO"  "$*"; } # Shown if VERBOSITY >= 1
-_log_debug() { __log "DEBUG" "$*"; } # Shown if VERBOSITY >= 2
+log()       { _log "" "$*"; }      # Always shown (no level)
+log_error() { _log "ERROR" "$*"; } # Always shown
+log_warn()  { _log "WARN"  "$*"; } # Always shown
+log_info()  { _log "INFO"  "$*"; } # Shown if VERBOSITY >= 1
+log_debug() { _log "DEBUG" "$*"; } # Shown if VERBOSITY >= 2
 
 # Usage
-_usage() {
+usage() {
   echo "Usage: $(basename "$0") [options] <source-path> [<source-path> ...]"
 }
 
 # Help
-_help() {
-  _usage
+help() {
+  usage
   cat <<EOF
 
 Organizes image files in the specified source directory/directories into
@@ -148,7 +148,7 @@ EOF
 
 # {{{ = ARGUMENT PARSING =====================================================
 # Ensure at least one argument is provided
-[[ -n "${1:-}" ]] || { _usage; exit 1; }
+[[ -n "${1:-}" ]] || { usage; exit 1; }
 
 # Global variables with default values
 declare -i VERBOSITY=0
@@ -204,7 +204,7 @@ while [[ $# -ge 1 ]]; do
   case $1 in
     -o|--output)
       [[ -n "${2:-}" ]] || {
-        _log_error "--output requires a directory path"
+        log_error "--output requires a directory path"
         exit 1
       }
       TARGET_DIR="$2"
@@ -222,7 +222,7 @@ while [[ $# -ge 1 ]]; do
       ;;
     --cache-file)
       [[ -n "${2:-}" ]] || {
-        _log_error "--cache-file requires a file path"
+        log_error "--cache-file requires a file path"
         exit 1
       }
       CACHE_FILE="$2"
@@ -230,7 +230,7 @@ while [[ $# -ge 1 ]]; do
       ;;
     --cache-strategy)
       [[ -n "${2:-}" ]] || {
-        _log_error "--cache-strategy requires a strategy (path, hash, relpath, or multi)"
+        log_error "--cache-strategy requires a strategy (path, hash, relpath, or multi)"
         exit 1
       }
       case "${2,,}" in
@@ -238,7 +238,7 @@ while [[ $# -ge 1 ]]; do
           CACHE_STRATEGY="${2,,}"
           ;;
         *)
-          _log_error "Invalid cache strategy: $2. Valid options: path, hash, relpath, multi"
+          log_error "Invalid cache strategy: $2. Valid options: path, hash, relpath, multi"
           exit 1
           ;;
       esac
@@ -246,15 +246,15 @@ while [[ $# -ge 1 ]]; do
       ;;
     --cache-relpath-levels)
       [[ -n "${2:-}" ]] || {
-        _log_error "--cache-relpath-levels requires a numeric value"
+        log_error "--cache-relpath-levels requires a numeric value"
         exit 1
       }
       if ! [[ "${2:-}" =~ ^[0-9]+$ ]]; then
-        _log_error "--cache-relpath-levels value must be a positive integer"
+        log_error "--cache-relpath-levels value must be a positive integer"
         exit 1
       fi
       if [[ "$2" -lt 1 || "$2" -gt 10 ]]; then
-        _log_error "--cache-relpath-levels must be between 1 and 10"
+        log_error "--cache-relpath-levels must be between 1 and 10"
         exit 1
       fi
       CACHE_RELPATH_LEVELS="$2"
@@ -271,11 +271,11 @@ while [[ $# -ge 1 ]]; do
       ;;
     --min-rating)
       [[ -n "${2:-}" ]] || {
-        _log_error "--min-rating requires a numeric value"
+        log_error "--min-rating requires a numeric value"
         exit 1
       }
       if ! [[ "${2:-}" =~ ^[0-9]+$ ]]; then
-        _log_error "--min-rating value must be a non-negative integer"
+        log_error "--min-rating value must be a non-negative integer"
         exit 1
       fi
       MIN_RATING="$2"
@@ -283,7 +283,7 @@ while [[ $# -ge 1 ]]; do
       ;;
     --mapping-file)
       [[ -n "${2:-}" ]] || {
-        _log_error "--mapping-file requires a file path"
+        log_error "--mapping-file requires a file path"
         exit 1
       }
       MAPPING_FILE="$2"
@@ -294,14 +294,14 @@ while [[ $# -ge 1 ]]; do
       ;;
     -t|--types)
       [[ -n "${2:-}" ]] || {
-        _log_error "--types requires a comma-separated list of file extensions"
+        log_error "--types requires a comma-separated list of file extensions"
         exit 1
       }
       IFS=',' read -r -a FILE_TYPES <<< "$2"
       shift
       ;;
     -l|--logfile)
-      [[ -z "$2" ]] && _log_error "--logfile requires a file path" && exit 1
+      [[ -z "$2" ]] && log_error "--logfile requires a file path" && exit 1
       LOGFILE="$2"; shift
     ;;
     -n|--no-act|--dry-run)
@@ -311,11 +311,11 @@ while [[ $# -ge 1 ]]; do
       VERBOSITY=$((VERBOSITY + ${#1} - 1))
       ;;
     -h|--help)
-      _help
+      help
       exit 0
       ;;
     -*)
-      _log_error "Unknown option: $1"
+      log_error "Unknown option: $1"
       exit 1
       ;;
     *)
@@ -324,11 +324,11 @@ while [[ $# -ge 1 ]]; do
   shift
 done
 
-[[ ${#SOURCE_PATHS[@]} -gt 0 ]] || { _log_error "At least one source path is required"; exit 1; }
+[[ ${#SOURCE_PATHS[@]} -gt 0 ]] || { log_error "At least one source path is required"; exit 1; }
 
 # Validate all source paths
 for source_path in "${SOURCE_PATHS[@]}"; do
-  [[ -d "$source_path" ]] || { _log_error "Source path \"$source_path\" is not a directory"; exit 1; }
+  [[ -d "$source_path" ]] || { log_error "Source path \"$source_path\" is not a directory"; exit 1; }
 done
 
 # Validate target directory if provided
@@ -337,7 +337,7 @@ if [[ -n "$TARGET_DIR" ]]; then
   if [[ "$NO_ACT" != "true" ]]; then
     mkdir -p "$TARGET_DIR"
   fi
-  [[ -d "$TARGET_DIR" ]] || { _log_error "Target directory \"$TARGET_DIR\" is not a directory"; exit 1; }
+  [[ -d "$TARGET_DIR" ]] || { log_error "Target directory \"$TARGET_DIR\" is not a directory"; exit 1; }
 fi
 [[ $VERBOSITY -ge 3 ]] && set -v
 [[ $VERBOSITY -ge 4 ]] && set -x
@@ -345,18 +345,19 @@ fi
 
 # {{{ = FUNCTION DEFINITIONS =================================================
 # Signal handler for clean interruption (Ctrl-C)
-_handle_sigint() {
+# shellcheck disable=SC2329
+handle_sigint() {
   INTERRUPTED="true"
-  _log_warn "Interrupted by user. Saving cache before exit..."
-  _save_cache || _log_warn "Unable to write cache file to \"$CACHE_FILE\""
-  _log "Cache saved. Exiting."
+  log_warn "Interrupted by user. Saving cache before exit..."
+  save_cache || log_warn "Unable to write cache file to \"$CACHE_FILE\""
+  log "Cache saved. Exiting."
   exit 130
 }
-trap _handle_sigint SIGINT
+trap handle_sigint SIGINT
 
 # Read a single EXIF tag, falling back to a default value on error/empty.
 # Sets LAST_EXIF_TAG_STATUS to the exiftool exit code (0 = success, non-zero = failure)
-_get_exif_tag() {
+get_exif_tag() {
   local -r tag=$1
   local -r default_value=$2
   local -r file=$3
@@ -368,13 +369,14 @@ _get_exif_tag() {
   fi
   LAST_EXIF_TAG_STATUS=$status
   if [[ $VERBOSITY -ge 1 ]] && [[ -s "$tmp_err" ]]; then
-    local __exiftool_err_line
-    while IFS= read -r __exiftool_err_line; do
-      echo -e "\033[90mexiftool (stderr)\033[0m: ${__exiftool_err_line}" >&2
+    local exiftool_err_line
+    while IFS= read -r exiftool_err_line; do
+      echo -e "\033[90mexiftool (stderr)\033[0m: ${exiftool_err_line}" >&2
     done <"$tmp_err"
   fi
   rm -f "$tmp_err"
-  local value=$(awk -F': ' '{print $2}' <<<"$raw" 2>/dev/null || echo "")
+  local value
+  value=$(awk -F': ' '{print $2}' <<<"$raw" 2>/dev/null || echo "")
   if [[ $status -ne 0 ]] || [[ -z "$value" ]]; then
     value="$default_value"
   fi
@@ -383,19 +385,19 @@ _get_exif_tag() {
 
 # Stable hash for cache identity.
 # Caches the hash for the current file to avoid redundant computations.
-_compute_file_hash() {
+compute_file_hash() {
   local -r file=$1
   local -r canonical=$(realpath "$file")
 
   # Check if we already computed hash for this file
   if [[ "$canonical" == "$CURRENT_FILE_PATH" ]] && [[ -n "$CURRENT_FILE_HASH" ]]; then
-    _log_debug "Reusing cached hash for \"$canonical\""
+    log_debug "Reusing cached hash for \"$canonical\""
     echo "$CURRENT_FILE_HASH"
     return 0
   fi
 
   # Compute hash and cache it
-  _log_debug "Computing hash for \"$canonical\""
+  log_debug "Computing hash for \"$canonical\""
   local hash
   hash=$(sha256sum "$file" | awk '{print $1}')
   CURRENT_FILE_PATH="$canonical"
@@ -404,14 +406,14 @@ _compute_file_hash() {
 }
 
 # mtime in epoch seconds for quick comparisons.
-_get_file_mtime() {
+get_file_mtime() {
   local -r file=$1
   stat -c %Y "$file"
 }
 
 # Compute relative path for cache lookup (last N directory levels + filename)
-# Example: _compute_relpath "/path/to/2024/Summer/IMG_1234.jpg" 2 -> "Summer/IMG_1234.jpg"
-_compute_relpath() {
+# Example: compute_relpath "/path/to/2024/Summer/IMG_1234.jpg" 2 -> "Summer/IMG_1234.jpg"
+compute_relpath() {
   local -r file=$1
   local -r levels=${2:-$CACHE_RELPATH_LEVELS}
   local -r canonical=$(realpath "$file")
@@ -459,7 +461,7 @@ _compute_relpath() {
 # Lookup cache entry using configured strategy with fallback chain
 # Returns cache value (hash|mtime|rating|label|relpath) or empty string
 # Sets global variable LAST_CACHE_LOOKUP_STRATEGY to indicate which strategy succeeded
-_lookup_cache_entry() {
+lookup_cache_entry() {
   local -r file=$1
   local -r canonical=$(realpath "$file")
 
@@ -483,7 +485,7 @@ _lookup_cache_entry() {
     hash|multi)
       # Hash-based lookup (expensive: requires hash computation)
       local hash
-      hash=$(_compute_file_hash "$canonical")
+      hash=$(compute_file_hash "$canonical")
       if [[ -n "${CACHE_MAP_HASH[$hash]:-}" ]]; then
         LAST_CACHE_LOOKUP_STRATEGY="hash"
         STATS_CACHE_HIT_HASH=$((STATS_CACHE_HIT_HASH + 1))
@@ -502,7 +504,7 @@ _lookup_cache_entry() {
     relpath|multi)
       # Relpath-based lookup
       local relpath
-      relpath=$(_compute_relpath "$canonical" "$CACHE_RELPATH_LEVELS")
+      relpath=$(compute_relpath "$canonical" "$CACHE_RELPATH_LEVELS")
       if [[ -n "${CACHE_MAP_RELPATH[$relpath]:-}" ]]; then
         LAST_CACHE_LOOKUP_STRATEGY="relpath"
         STATS_CACHE_HIT_RELPATH=$((STATS_CACHE_HIT_RELPATH + 1))
@@ -520,7 +522,7 @@ _lookup_cache_entry() {
 
 # Size in bytes (0 when cache file is absent).
 # Always checks for compressed .gz version.
-_get_cache_size_bytes() {
+get_cache_size_bytes() {
   if [[ -f "${CACHE_FILE}.gz" ]]; then
     stat -c %s "${CACHE_FILE}.gz"
   else
@@ -530,7 +532,7 @@ _get_cache_size_bytes() {
 }
 
 # Human readable size; falls back to raw bytes.
-_human_size() {
+human_size() {
   local -r bytes=$1
   if command -v numfmt >/dev/null 2>&1; then
     numfmt --to=iec --format "%.1f" "$bytes"
@@ -540,33 +542,33 @@ _human_size() {
 }
 
 # Capture baseline cache stats after loading.
-_record_cache_baseline() {
+record_cache_baseline() {
   CACHE_INITIAL_RECORDS=${#CACHE_MAP[@]}
-  CACHE_INITIAL_SIZE=$(_get_cache_size_bytes)
+  CACHE_INITIAL_SIZE=$(get_cache_size_bytes)
 }
 
 # Capture final cache stats for summary output.
-_record_cache_final() {
+record_cache_final() {
   CACHE_FINAL_RECORDS=${#CACHE_MAP[@]}
-  CACHE_FINAL_SIZE=$(_get_cache_size_bytes)
+  CACHE_FINAL_SIZE=$(get_cache_size_bytes)
 }
 
 # Load persisted cache into memory.
 # Always expects compressed .gz format. Builds secondary indices based on cache strategy.
-_load_cache() {
+load_cache() {
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
 
   local -r cache_to_read="${CACHE_FILE}.gz"
 
   # Check if cache file exists
   if [[ ! -f "$cache_to_read" ]]; then
-    _log_debug "No cache file found at \"$cache_to_read\""
+    log_debug "No cache file found at \"$cache_to_read\""
     return 0
   fi
 
   # Check if gzip is available
   if ! command -v gunzip >/dev/null 2>&1; then
-    _log_warn "gunzip not found, cannot read cache. Cache disabled for this run."
+    log_warn "gunzip not found, cannot read cache. Cache disabled for this run."
     CACHE_ENABLED="false"
     return 0
   fi
@@ -576,10 +578,10 @@ _load_cache() {
   local -r -i size_threshold=$((50 * 1024 * 1024))  # 50MB
 
   if [[ $cache_size -gt $size_threshold ]]; then
-    _log_warn "Cache file is very large ($(_human_size $cache_size) compressed). Loading may take some time."
+    log_warn "Cache file is very large ($(human_size "$cache_size") compressed). Loading may take some time."
   fi
 
-  _log_debug "Loading cache from \"$cache_to_read\" ..."
+  log_debug "Loading cache from \"$cache_to_read\" ..."
 
   # Read cache file and build indices
   local -i line_count=0
@@ -591,17 +593,17 @@ _load_cache() {
 
     # Validate mandatory fields
     if [[ -z "$hash" || -z "$mtime" ]]; then
-      _log_warn "Corrupt cache entry at line $line_count for path \"$path\" (hash and/or mtime missing), skipping ..."
+      log_warn "Corrupt cache entry at line $line_count for path \"$path\" (hash and/or mtime missing), skipping ..."
       continue
     fi
 
     # Old cache format (5 fields) - missing relpath, compute it
     if [[ -z "$relpath" ]]; then
       if [[ -f "$path" ]]; then
-        relpath=$(_compute_relpath "$path" "$CACHE_RELPATH_LEVELS")
-        _log_debug "Old cache format detected, computed relpath for \"$path\": \"$relpath\""
+        relpath=$(compute_relpath "$path" "$CACHE_RELPATH_LEVELS")
+        log_debug "Old cache format detected, computed relpath for \"$path\": \"$relpath\""
       else
-        _log_debug "Old cache format detected, but file \"$path\" not found, skipping relpath index"
+        log_debug "Old cache format detected, but file \"$path\" not found, skipping relpath index"
         relpath=""
       fi
     fi
@@ -618,7 +620,7 @@ _load_cache() {
         # Hash index
         if [[ -n "${CACHE_MAP_HASH[$hash]:-}" ]]; then
           STATS_COLLISIONS_HASH=$((STATS_COLLISIONS_HASH + 1))
-          _log_debug "Hash collision detected: $hash (keeping first entry)"
+          log_debug "Hash collision detected: $hash (keeping first entry)"
         else
           CACHE_MAP_HASH["$hash"]="$cache_value"
         fi
@@ -629,7 +631,7 @@ _load_cache() {
         if [[ -n "$relpath" ]]; then
           if [[ -n "${CACHE_MAP_RELPATH[$relpath]:-}" ]]; then
             STATS_COLLISIONS_RELPATH=$((STATS_COLLISIONS_RELPATH + 1))
-            _log_debug "Relpath collision detected: $relpath (keeping first entry)"
+            log_debug "Relpath collision detected: $relpath (keeping first entry)"
           else
             CACHE_MAP_RELPATH["$relpath"]="$cache_value"
           fi
@@ -638,24 +640,24 @@ _load_cache() {
     esac
   done < <(gunzip -c "$cache_to_read")
 
-  _log_debug "Loaded ${#CACHE_MAP[@]} cache entries"
-  [[ "$CACHE_STRATEGY" =~ hash|multi ]] && _log_debug "Hash index: ${#CACHE_MAP_HASH[@]} entries"
-  [[ "$CACHE_STRATEGY" =~ relpath|multi ]] && _log_debug "Relpath index: ${#CACHE_MAP_RELPATH[@]} entries"
-  [[ $STATS_COLLISIONS_HASH -gt 0 ]] && _log_debug "Hash collisions: $STATS_COLLISIONS_HASH"
-  [[ $STATS_COLLISIONS_RELPATH -gt 0 ]] && _log_debug "Relpath collisions: $STATS_COLLISIONS_RELPATH"
+  log_debug "Loaded ${#CACHE_MAP[@]} cache entries"
+  [[ "$CACHE_STRATEGY" =~ hash|multi ]] && log_debug "Hash index: ${#CACHE_MAP_HASH[@]} entries"
+  [[ "$CACHE_STRATEGY" =~ relpath|multi ]] && log_debug "Relpath index: ${#CACHE_MAP_RELPATH[@]} entries"
+  [[ $STATS_COLLISIONS_HASH -gt 0 ]] && log_debug "Hash collisions: $STATS_COLLISIONS_HASH"
+  [[ $STATS_COLLISIONS_RELPATH -gt 0 ]] && log_debug "Relpath collisions: $STATS_COLLISIONS_RELPATH"
 
   return 0
 }
 
 # Write cache back to disk (sorted for stability) unless dry-run.
 # Always compresses with gzip.
-_save_cache() {
+save_cache() {
   [[ "$CACHE_ENABLED" == "true" ]] || return 0
   [[ "$NO_ACT" == "true" ]] && return 0
 
   # Check if gzip is available
   if ! command -v gzip >/dev/null 2>&1; then
-    _log_warn "gzip not found, cannot save cache."
+    log_warn "gzip not found, cannot save cache."
     return 1
   fi
 
@@ -688,7 +690,7 @@ _save_cache() {
 
   local -r compressed_size=$(stat -c %s "${CACHE_FILE}.gz")
 
-  _log_debug "Cache saved: $(_human_size $tmp_size) -> $(_human_size $compressed_size) (compressed)"
+  log_debug "Cache saved: $(human_size "$tmp_size") -> $(human_size "$compressed_size") (compressed)"
 
   rm -f "$tmp"
   return 0
@@ -696,15 +698,15 @@ _save_cache() {
 
 # Decide whether a file can be skipped based on cache.
 # Returns 0 (true) if the file should be skipped, 1 (false) otherwise.
-_should_skip_cached() {
+should_skip_cached() {
   [[ "$CACHE_ENABLED" == "true" ]] || return 1
 
   local -r file=$1
   local cache_value
 
   # Try to find cache entry using configured strategy
-  if ! cache_value=$(_lookup_cache_entry "$file"); then
-    _log_debug "No cache entry found for \"$file\""
+  if ! cache_value=$(lookup_cache_entry "$file"); then
+    log_debug "No cache entry found for \"$file\""
     return 1
   fi
 
@@ -714,7 +716,7 @@ _should_skip_cached() {
 
   # If --skip-cached is enabled, skip immediately without verification
   if [[ "$SKIP_CACHED_COMPLETELY" == "true" ]]; then
-    _log_debug "Skipping \"$file\" based on cache (--skip-cached enabled, strategy: $LAST_CACHE_LOOKUP_STRATEGY, no verification)"
+    log_debug "Skipping \"$file\" based on cache (--skip-cached enabled, strategy: $LAST_CACHE_LOOKUP_STRATEGY, no verification)"
     return 0
   fi
 
@@ -722,34 +724,34 @@ _should_skip_cached() {
   local -r canonical=$(realpath "$file")
 
   # Check mtime first (fast)
-  local -r current_mtime=$(_get_file_mtime "$canonical")
+  local -r current_mtime=$(get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
-    _log_debug "No cache match for \"$file\" (mtime changed: cached=$cached_mtime, current=$current_mtime)"
+    log_debug "No cache match for \"$file\" (mtime changed: cached=$cached_mtime, current=$current_mtime)"
     return 1
   fi
 
   # Check hash (slow)
-  local -r current_hash=$(_compute_file_hash "$canonical")
+  local -r current_hash=$(compute_file_hash "$canonical")
   if [[ "$current_hash" != "$cached_hash" ]]; then
-    _log_debug "No cache match for \"$file\" (hash changed: cached=$cached_hash, current=$current_hash)"
+    log_debug "No cache match for \"$file\" (hash changed: cached=$cached_hash, current=$current_hash)"
     return 1
   fi
 
   # Skip: file is unchanged
-  _log_debug "Skipping \"$file\" based on cache (strategy: $LAST_CACHE_LOOKUP_STRATEGY, mtime and hash match)"
+  log_debug "Skipping \"$file\" based on cache (strategy: $LAST_CACHE_LOOKUP_STRATEGY, mtime and hash match)"
   return 0
 }
 
 # Get cached EXIF data (rating and label) for an unchanged file.
 # Outputs "rating|label" if file is cached and unchanged, empty string otherwise.
-_get_cached_exif() {
+get_cached_exif() {
   local -r file=$1
   [[ "$CACHE_ENABLED" == "true" ]] || return 1
 
   local cache_value
 
   # Try to find cache entry using configured strategy
-  if ! cache_value=$(_lookup_cache_entry "$file"); then
+  if ! cache_value=$(lookup_cache_entry "$file"); then
     return 1
   fi
 
@@ -763,26 +765,26 @@ _get_cached_exif() {
   # Optimization: check mtime first (fast), only compute hash (slow) if mtime matches
   local -r canonical=$(realpath "$file")
 
-  local -r current_mtime=$(_get_file_mtime "$canonical")
+  local -r current_mtime=$(get_file_mtime "$canonical")
   if [[ "$current_mtime" != "$cached_mtime" ]]; then
-    _log_debug "Cache mtime mismatch for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY)"
+    log_debug "Cache mtime mismatch for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY)"
     return 1
   fi
 
   # Mtime matches, now verify hash
-  local -r current_hash=$(_compute_file_hash "$canonical")
+  local -r current_hash=$(compute_file_hash "$canonical")
   if [[ "$current_hash" == "$cached_hash" ]]; then
-    _log_debug "Cache hit for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY, rating=$cached_rating, label=$cached_label)"
+    log_debug "Cache hit for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY, rating=$cached_rating, label=$cached_label)"
     echo "${cached_rating}|${cached_label}"
     return 0
   fi
 
-  _log_debug "Cache hash mismatch for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY)"
+  log_debug "Cache hash mismatch for \"$file\" (strategy: $LAST_CACHE_LOOKUP_STRATEGY)"
   return 1
 }
 
 # Remember a successfully processed file in the cache.
-_remember_processed_file() {
+remember_processed_file() {
   local -r file=$1
   local -r rating=${2:-}
   local -r label=${3:-}
@@ -791,9 +793,9 @@ _remember_processed_file() {
 
   local -r canonical=$(realpath "$file")
 
-  local -r mtime=$(_get_file_mtime "$canonical")
-  local -r hash=$(_compute_file_hash "$canonical")
-  local -r relpath=$(_compute_relpath "$canonical" "$CACHE_RELPATH_LEVELS")
+  local -r mtime=$(get_file_mtime "$canonical")
+  local -r hash=$(compute_file_hash "$canonical")
+  local -r relpath=$(compute_relpath "$canonical" "$CACHE_RELPATH_LEVELS")
 
   if [[ -n "$hash" ]]; then
     CACHE_MAP["$canonical"]="$hash|$mtime|${rating:-}|${label:-}|${relpath:-}"
@@ -804,16 +806,16 @@ _remember_processed_file() {
 
 # Load and parse the mapping file (space-separated format with optional quotes)
 # Populates MAPPING_PATTERNS and MAPPING_TARGETS arrays
-_load_mapping_file() {
+load_mapping_file() {
   local -r mapping_file="$1"
 
   # Check if file exists
   if [[ ! -f "$mapping_file" ]]; then
-    _log_warn "Mapping file not found: \"$mapping_file\""
+    log_warn "Mapping file not found: \"$mapping_file\""
     return 1
   fi
 
-  _log_info "Loading mapping file: \"$mapping_file\""
+  log_info "Loading mapping file: \"$mapping_file\""
 
   local -i line_no=0
 
@@ -859,29 +861,29 @@ _load_mapping_file() {
 
     # Validate we have both pattern and target
     if [[ -z "$pattern" ]] || [[ -z "$target" ]]; then
-      _log_warn "Mapping file line $line_no: expected pattern and target (skipped)"
+      log_warn "Mapping file line $line_no: expected pattern and target (skipped)"
       continue
     fi
 
     MAPPING_PATTERNS+=("$pattern")
     MAPPING_TARGETS+=("$target")
 
-    _log_debug "Loaded mapping: \"$pattern\" -> \"$target\""
+    log_debug "Loaded mapping: \"$pattern\" -> \"$target\""
   done <"$mapping_file"
 
   if [[ ${#MAPPING_PATTERNS[@]} -eq 0 ]]; then
-    _log_warn "No valid mappings found in file: \"$mapping_file\""
+    log_warn "No valid mappings found in file: \"$mapping_file\""
     return 1
   fi
 
-  _log_info "Loaded ${#MAPPING_PATTERNS[@]} mapping rule(s)"
+  log_info "Loaded ${#MAPPING_PATTERNS[@]} mapping rule(s)"
   return 0
 }
 
 # Apply directory mapping: find first matching pattern and return mapped target
 # Supports regex group substitution ($1, $2, etc.)
 # Returns the mapped target on match, or the original source_pattern on no match
-_apply_mapping() {
+apply_mapping() {
   local -r source_pattern="$1"  # e.g., "5/Purple"
   local -i i
 
@@ -907,7 +909,7 @@ _apply_mapping() {
           target="${target//\$$j/${captured_groups[$j]}}"
         done
       fi
-      _log_debug "Mapping \"$source_pattern\" -> \"$target\" (rule: ${MAPPING_PATTERNS[$i]})"
+      log_debug "Mapping \"$source_pattern\" -> \"$target\" (rule: ${MAPPING_PATTERNS[$i]})"
       echo "$target"
       return 0
     fi
@@ -919,7 +921,7 @@ _apply_mapping() {
 }
 
 # Process each source path
-_process_source_paths() {
+process_source_paths() {
   local -i IS_FIRST_SOURCE
   [[ ${IS_FIRST_SOURCE:-1} -eq 1 ]] && IS_FIRST_SOURCE=0
   local source_path base_target_dir
@@ -927,8 +929,8 @@ _process_source_paths() {
     # Strip trailing slashes from source path
     source_path="${source_path%/}"
 
-    [[ ${IS_FIRST_SOURCE:-1} -eq 0 ]] && _log "----"
-    _log "Processing source directory: \"$source_path\" ..."
+    [[ ${IS_FIRST_SOURCE:-1} -eq 0 ]] && log "----"
+    log "Processing source directory: \"$source_path\" ..."
 
     # Determine base target directory for this source
     if [[ -n "$TARGET_DIR" ]]; then
@@ -943,7 +945,7 @@ _process_source_paths() {
     # TODO remove this? this seems inappropriate, especially with mapping files
     # # Skip already-processed rating directories unless --include-processed is set
     # if [[ "$INCLUDE_PROCESSED" == "false" ]]; then
-    #   _log_debug "Excluding already-processed rating directories from search ..."
+    #   log_debug "Excluding already-processed rating directories from search ..."
     #   # Exclude paths matching: [0-5]/[A-Za-z0-9].../* (rating folders with typical labels)
     #   find_args+=("!" "-regex" ".*/[0-5]/[a-zA-Z0-9].*/[^/]*")
     # fi
@@ -963,7 +965,7 @@ _process_source_paths() {
       fi
       found_any="true"
       ((++dir_files_scanned))
-      if _should_skip_cached "$f"; then
+      if should_skip_cached "$f"; then
         ((++STATS_SKIPPED_CACHED))
         continue
       fi
@@ -974,31 +976,31 @@ _process_source_paths() {
       rating_status=0
       label_status=0
       cached_exif=""
-      if cached_exif=$(_get_cached_exif "$f"); then
-        _log_debug "Using cached EXIF data for \"$f\" (cache hit)"
+      if cached_exif=$(get_cached_exif "$f"); then
+        log_debug "Using cached EXIF data for \"$f\" (cache hit)"
         IFS='|' read -r rating label <<<"$cached_exif"
         rating_status=0
         label_status=0
         ((++STATS_SKIPPED_CACHED))
       else
         # Get EXIF rating and label from file
-        _log_debug "Reading EXIF data for \"$f\" ..."
-        rating=$(_get_exif_tag Rating 0 "$f")
+        log_debug "Reading EXIF data for \"$f\" ..."
+        rating=$(get_exif_tag Rating 0 "$f")
         rating_status=$LAST_EXIF_TAG_STATUS
-        label=$(_get_exif_tag Label None "$f")
+        label=$(get_exif_tag Label None "$f")
         label_status=$LAST_EXIF_TAG_STATUS
       fi
 
       # Check if both exiftool calls failed for this file
       if [[ $rating_status -ne 0 ]] && [[ $label_status -ne 0 ]]; then
-        _log_warn "Unable to read EXIF data for \"$f\" (exiftool failed for both Rating and Label)"
+        log_warn "Unable to read EXIF data for \"$f\" (exiftool failed for both Rating and Label)"
         ((++STATS_FILES_UNREADABLE))
         continue
       fi
 
       # Check if rating is below minimum threshold
       if [[ $rating -lt $MIN_RATING ]]; then
-        _log_info "Skipping \"$f\": rating ($rating) is below minimum threshold ($MIN_RATING)"
+        log_info "Skipping \"$f\": rating ($rating) is below minimum threshold ($MIN_RATING)"
         ((++STATS_SKIPPED_MIN_RATING))
         continue
       fi
@@ -1006,22 +1008,22 @@ _process_source_paths() {
       # Construct rating/label path and apply mapping if available
       rating_label_path="$rating/$label"
       if [[ ${#MAPPING_PATTERNS[@]} -gt 0 ]]; then
-        rating_label_path=$(_apply_mapping "$rating_label_path")
+        rating_label_path=$(apply_mapping "$rating_label_path")
       fi
       target_dir="$base_target_dir/$rating_label_path"
       target_dir="${target_dir%/}"
       target_file="$target_dir/$(basename "$f")"
       # Check if source and target file are the same, skip if so (no need to move/copy file)
       if [[ "$(realpath "$f")" == "$(realpath -m "$target_file")" ]]; then
-        _log_info "Skipping \"$f\": already in target location \"$target_dir\" (nothing to do)"
+        log_info "Skipping \"$f\": already in target location \"$target_dir\" (nothing to do)"
         ((++STATS_SKIPPED_LOCATION))
         # Even though we are skipping, we should still remember it in the cache in case it is processed again later
-        _remember_processed_file "$f" "$rating" "$label"   # target_file and f are the same here
+        remember_processed_file "$f" "$rating" "$label"   # target_file and f are the same here
         continue
       fi
       # Check if another file with same name exists in target directory, skip if so (unless --force)
       if [[ "$FORCE_OVERWRITE" == "false" ]] && [[ -e "$target_file" ]]; then
-        _log_warn "Skipping \"$f\": target file \"$target_file\" already exists (use --force to overwrite)"
+        log_warn "Skipping \"$f\": target file \"$target_file\" already exists (use --force to overwrite)"
         ((++STATS_SKIPPED_EXISTS))
         continue
       fi
@@ -1033,16 +1035,17 @@ _process_source_paths() {
         action="Copying"
       fi
       # Create target directory and move/copy file
-      _log "$action \"$f\" to \"$target_dir/\" ..."
+      log "$action \"$f\" to \"$target_dir/\" ..."
       if [[ "$NO_ACT" == "true" ]]; then
-        _log "[DRY RUN] mkdir -p \"$target_dir\""
-        _log "[DRY RUN] $command \"$f\" \"$target_dir/\""
+        log "[DRY RUN] mkdir -p \"$target_dir\""
+        log "[DRY RUN] $command \"$f\" \"$target_dir/\""
         # Optionally indicate removal of empty source directory (single level) after move
         if [[ "$REMOVE_EMPTY_SOURCE_DIR" == "true" ]] && [[ "$OPERATION" == "move" ]]; then
-          local src_dir=$(dirname "$f")
+          local src_dir
+          src_dir="$(dirname "$f")"
           # check if dir is empty, if so then log
-          if [[ -d "$src_dir" && -z "$(ls -A "$src_dir" | head -n 1)" ]]; then
-            _log "[DRY RUN] Would remove empty source directory: \"$src_dir\" (single level)"
+          if [[ -d "$src_dir" && -z "$(find "$src_dir" -mindepth 1 -maxdepth 1 -print -quit | head -n 1)" ]]; then
+            log "[DRY RUN] Would remove empty source directory: \"$src_dir\" (single level)"
           fi
         fi
         if [[ "$OPERATION" == "copy" ]]; then
@@ -1051,22 +1054,23 @@ _process_source_paths() {
           ((++STATS_MOVED))
         fi
       else
-        _log_debug "> mkdir -p \"$target_dir\""
+        log_debug "> mkdir -p \"$target_dir\""
         mkdir -p "$target_dir"
-        _log_debug "> $command \"$f\" \"$target_dir/\""
+        log_debug "> $command \"$f\" \"$target_dir/\""
         $command "$f" "$target_dir/"
         # Optionally remove empty source directory (single level) after move
         if [[ "$REMOVE_EMPTY_SOURCE_DIR" == "true" ]] && [[ "$OPERATION" == "move" ]]; then
-          local src_dir=$(dirname "$f")
+          local src_dir
+          src_dir="$(dirname "$f")"
           if [[ -d "$src_dir" ]]; then
             # Only attempt removal when directory is empty
-            if [[ -z "$(ls -A "$src_dir" )" ]]; then
-              _log_info "Removing empty source directory \"$src_dir\" ..."
-              rmdir "$src_dir" || _log_warn "Failed to remove empty source directory \"$src_dir\""
+            if [[ -z "$(find "$src_dir" -mindepth 1 -maxdepth 1 -print -quit | head -n 1)" ]]; then
+              log_info "Removing empty source directory \"$src_dir\" ..."
+              rmdir "$src_dir" || log_warn "Failed to remove empty source directory \"$src_dir\""
             fi
           fi
         fi
-        _remember_processed_file "$target_file" "$rating" "$label"
+        remember_processed_file "$target_file" "$rating" "$label"
         if [[ "$OPERATION" == "copy" ]]; then
           ((++STATS_COPIED))
         else
@@ -1077,46 +1081,47 @@ _process_source_paths() {
 
     # If interrupted, stop processing further source directories
     if [[ "$INTERRUPTED" == "true" ]]; then
-      _log "Interrupted; stopping further directories."
+      log "Interrupted; stopping further directories."
       break
     fi
 
     if [[ "$found_any" == "false" ]]; then
-      local FILE_TYPES_PRETTY=$(IFS=,; echo "${FILE_TYPES_LIST[*]}")
-      _log_warn "no matching files found in \"$source_path\" for extensions: ${FILE_TYPES_PRETTY}" >&2
+      local file_type_pretty
+      file_type_pretty=$(IFS=,; echo "${FILE_TYPES_LIST[*]}")
+      log_warn "no matching files found in \"$source_path\" for extensions: ${file_type_pretty}" >&2
     fi
 
     # Print per-directory scan summary only when multiple source paths are provided
     if [[ ${#SOURCE_PATHS[@]} -gt 1 ]]; then
-      _log "Scanned ${dir_files_scanned} file(s) in \"$source_path\" (count only; no action implied)"
+      log "Scanned ${dir_files_scanned} file(s) in \"$source_path\" (count only; no action implied)"
     fi
 
     # Persist cache after each directory to avoid losing progress if interrupted
-    _save_cache || _log_warn "Unable to write cache file to \"$CACHE_FILE\" after processing \"$source_path\""
+    save_cache || log_warn "Unable to write cache file to \"$CACHE_FILE\" after processing \"$source_path\""
   done
 }
 
 # Show summary statistics
-_show_summary() {
-  _log ""
-  _log "=== Summary ==="
-  _log "Files moved:                       $STATS_MOVED"
-  _log "Files copied:                      $STATS_COPIED"
-  _log "Files skipped / cache hit:         $STATS_SKIPPED_CACHED"
-  _log "Files skipped / already at target: $STATS_SKIPPED_LOCATION"
-  _log "Files skipped / below min rating:  $STATS_SKIPPED_MIN_RATING"
-  _log "Files skipped / target exists:     $STATS_SKIPPED_EXISTS $([[ $STATS_SKIPPED_EXISTS -gt 0 ]] && echo -e "\033[33mWARNING(S)\033[0m")"
-  [[ $STATS_FILES_UNREADABLE -gt 0 ]] && _log "Files skipped / unable to read EXIF:    $STATS_FILES_UNREADABLE $([[ $STATS_FILES_UNREADABLE -gt 0 ]] && echo -e "\033[33mWARNING(S)\033[0m")"
+show_summary() {
+  log ""
+  log "=== Summary ==="
+  log "Files moved:                       $STATS_MOVED"
+  log "Files copied:                      $STATS_COPIED"
+  log "Files skipped / cache hit:         $STATS_SKIPPED_CACHED"
+  log "Files skipped / already at target: $STATS_SKIPPED_LOCATION"
+  log "Files skipped / below min rating:  $STATS_SKIPPED_MIN_RATING"
+  log "Files skipped / target exists:     $STATS_SKIPPED_EXISTS $([[ $STATS_SKIPPED_EXISTS -gt 0 ]] && echo -e "\033[33mWARNING(S)\033[0m")"
+  [[ $STATS_FILES_UNREADABLE -gt 0 ]] && log "Files skipped / unable to read EXIF:    $STATS_FILES_UNREADABLE $([[ $STATS_FILES_UNREADABLE -gt 0 ]] && echo -e "\033[33mWARNING(S)\033[0m")"
 
   if [[ "$CACHE_ENABLED" == "true" ]]; then
-    _log ""
-    _log "=== Cache Statistics ==="
+    log ""
+    log "=== Cache Statistics ==="
 
     # Cache file info
     local actual_cache_file="${CACHE_FILE}.gz"
-    _log "Cache file:     $actual_cache_file"
-    _log "Cache strategy: $CACHE_STRATEGY"
-    [[ "$CACHE_STRATEGY" =~ relpath|multi ]] && _log "Relpath levels: $CACHE_RELPATH_LEVELS"
+    log "Cache file:     $actual_cache_file"
+    log "Cache strategy: $CACHE_STRATEGY"
+    [[ "$CACHE_STRATEGY" =~ relpath|multi ]] && log "Relpath levels: $CACHE_RELPATH_LEVELS"
 
     # Record counts
     local -i size_delta=$((CACHE_FINAL_SIZE - CACHE_INITIAL_SIZE))
@@ -1126,49 +1131,52 @@ _show_summary() {
     local records_delta_str size_delta_str
     [[ $records_delta -ge 0 ]] && records_delta_str="+${records_delta}" || records_delta_str="-${records_delta_abs}"
     [[ $size_delta -ge 0 ]] && size_delta_str="+" || size_delta_str="-"
-    local human_initial_size=$(_human_size "$CACHE_INITIAL_SIZE")
-    local human_final_size=$(_human_size "$CACHE_FINAL_SIZE")
-    local human_delta_size=$(_human_size "$size_delta_abs")
+    local human_initial_size
+    human_initial_size=$(human_size "$CACHE_INITIAL_SIZE")
+    local human_final_size
+    human_final_size=$(human_size "$CACHE_FINAL_SIZE")
+    local human_delta_size
+    human_delta_size=$(human_size "$size_delta_abs")
 
-    _log "Records:        ${CACHE_INITIAL_RECORDS} -> ${CACHE_FINAL_RECORDS} (${records_delta_str})"
-    _log "Size:           ${human_initial_size} -> ${human_final_size} (${size_delta_str}${human_delta_size})"
+    log "Records:        ${CACHE_INITIAL_RECORDS} -> ${CACHE_FINAL_RECORDS} (${records_delta_str})"
+    log "Size:           ${human_initial_size} -> ${human_final_size} (${size_delta_str}${human_delta_size})"
 
     # Cache hit breakdown
     local -i total_lookups=$((STATS_CACHE_HIT_PATH + STATS_CACHE_HIT_HASH + STATS_CACHE_HIT_RELPATH + STATS_CACHE_MISS))
     if [[ $total_lookups -gt 0 ]]; then
-      _log ""
-      _log "Cache lookups:  $total_lookups total"
-      [[ $STATS_CACHE_HIT_PATH -gt 0 ]] && _log "  - Path hits:    $STATS_CACHE_HIT_PATH"
-      [[ $STATS_CACHE_HIT_HASH -gt 0 ]] && _log "  - Hash hits:    $STATS_CACHE_HIT_HASH"
-      [[ $STATS_CACHE_HIT_RELPATH -gt 0 ]] && _log "  - Relpath hits: $STATS_CACHE_HIT_RELPATH"
-      [[ $STATS_CACHE_MISS -gt 0 ]] && _log "  - Misses:       $STATS_CACHE_MISS"
+      log ""
+      log "Cache lookups:  $total_lookups total"
+      [[ $STATS_CACHE_HIT_PATH -gt 0 ]] && log "  - Path hits:    $STATS_CACHE_HIT_PATH"
+      [[ $STATS_CACHE_HIT_HASH -gt 0 ]] && log "  - Hash hits:    $STATS_CACHE_HIT_HASH"
+      [[ $STATS_CACHE_HIT_RELPATH -gt 0 ]] && log "  - Relpath hits: $STATS_CACHE_HIT_RELPATH"
+      [[ $STATS_CACHE_MISS -gt 0 ]] && log "  - Misses:       $STATS_CACHE_MISS"
     fi
 
     # Collision info (debug only)
     if [[ $VERBOSITY -ge 2 ]] && [[ $((STATS_COLLISIONS_HASH + STATS_COLLISIONS_RELPATH)) -gt 0 ]]; then
-      _log ""
-      _log "Cache collisions (debug):"
-      [[ $STATS_COLLISIONS_HASH -gt 0 ]] && _log "  - Hash:    $STATS_COLLISIONS_HASH"
-      [[ $STATS_COLLISIONS_RELPATH -gt 0 ]] && _log "  - Relpath: $STATS_COLLISIONS_RELPATH"
+      log ""
+      log "Cache collisions (debug):"
+      [[ $STATS_COLLISIONS_HASH -gt 0 ]] && log "  - Hash:    $STATS_COLLISIONS_HASH"
+      [[ $STATS_COLLISIONS_RELPATH -gt 0 ]] && log "  - Relpath: $STATS_COLLISIONS_RELPATH"
     fi
   fi
 }
 
 #
-_main() {
-  _load_cache
-  _record_cache_baseline
+main() {
+  load_cache
+  record_cache_baseline
 
   # Load mapping file if provided
   if [[ -n "$MAPPING_FILE" ]]; then
-    if ! _load_mapping_file "$MAPPING_FILE"; then
-      _log_error "Failed to load mapping file: \"$MAPPING_FILE\""
+    if ! load_mapping_file "$MAPPING_FILE"; then
+      log_error "Failed to load mapping file: \"$MAPPING_FILE\""
       exit 1
     fi
   fi
 
   # Prepare file type find arguments
-  local -a FILE_TYPES_LIST=(${FILE_TYPES[@]})
+  local -a FILE_TYPES_LIST=("${FILE_TYPES[@]}")
   local -a FILE_TYPES_ARGS=()
   local ext
   for ext in "${FILE_TYPES_LIST[@]}"; do
@@ -1179,19 +1187,17 @@ _main() {
   unset 'FILE_TYPES_ARGS[${#FILE_TYPES_ARGS[@]}-1]'
 
   # Process source paths
-  _process_source_paths
+  process_source_paths
 
   # Save cache back to disk
-  _save_cache || _log_warn "Unable to write cache file to \"$CACHE_FILE\""
-  _record_cache_final
+  save_cache || log_warn "Unable to write cache file to \"$CACHE_FILE\""
+  record_cache_final
 
   # Show summary
-  [[ "$SHOW_SUMMARY" == "true" ]] && _show_summary
+  [[ "$SHOW_SUMMARY" == "true" ]] && show_summary
 }
 
 # }}} = FUNCTION DEFINITIONS =================================================
 
 # Run main logic
-_main
-
-exit 0
+main

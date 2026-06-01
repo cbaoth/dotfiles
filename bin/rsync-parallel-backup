@@ -28,17 +28,18 @@ declare -ra RSYNCLT_ARGS=(-b -d)  # -vv, use -- --rsynclt-args -v if needed
 declare -ri JOBS_DEFAULT=3
 declare -ra PARALLEL_ARGS=(--line-buffer --tagstring '{1}')  # --eta
 
-_echo_error() {
-  echo -e "\033[31mERROR\033[0m: $*"
-}
+# Logging
+#p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
 
-_echo_warn() {
-  echo -e "\033[33mWARN\033[0m: $*"
-}
-
-_usage() {
+# Usage
+p_usg() { printf 'Usage: %s\n' "$(basename "$0") BASE_SRC_DIR BASE_TAR_DIR [OPTIONS] DIR..."; }
+p_hlp() {
+  p_usg
   cat <<EOF
-Usage: $(basename "$0") BASE_SRC_DIR BASE_TAR_DIR [OPTIONS] DIR...
 
 Sync one or more directories from:
   ${BASE_SRC_DIR:-<src_base>}/DIR -> ${BASE_TAR_DIR:-<tar_base>}/DIR
@@ -54,26 +55,19 @@ EOF
 }
 
 # print command array adding quotes as needed
-_p_cmd() {
-  local -r pattern='[ |&;()<>*?"`$\\'"'"']'
-  local cmd=("$@"); shift || true
-  local output=""
-
+p_cmd() {
+  local cmd=("$@") output=""
   for arg in "${cmd[@]}"; do
-    if [[ $arg =~ $pattern ]]; then
-      output+="\"$arg\" "
-    else
-      output+="$arg "
-    fi
+    # shellcheck disable=SC1003
+    [[ $arg =~ '[ |&;()<>*?"\`$\\'"'"']' ]] && output+="\"$arg\" " || output+="$arg "
   done
-
   echo "${output% }"
 }
 # }}} = COMMONS ==============================================================
 
 # {{{ = ARGUMENT PARSING =====================================================
 if [[ $# -lt 2 ]]; then
-  _usage
+  p_hlp
   exit 1
 fi
 
@@ -84,18 +78,18 @@ declare -r BASE_SRC_DIR BASE_TAR_DIR
 # }}} = ARGUMENT PARSING =====================================================
 
 # {{{ = MAIN LOGIC ===========================================================
-_process_parallel() {
+process_parallel() {
   local -a dirs valid_dirs extra_rsynclt_args extra_parallel_args
   local parse_mode="dirs"
   local dry_run=false
   local jobs=$JOBS_DEFAULT
 
   [[ ! -d "${BASE_SRC_DIR}" ]] \
-    && { _echo_error "Source directory '${BASE_SRC_DIR}/' does not exist. Aborting."; exit 1; }
+    && { p_err "Source directory '${BASE_SRC_DIR}/' does not exist. Aborting."; exit 1; }
   if ! mountpoint -q "$BASE_TAR_DIR"; then
     [[ ! -d "${BASE_TAR_DIR}" ]] \
-      && { _echo_error "Target directory '${BASE_TAR_DIR}/' does not exist. Aborting."; exit 1; }
-    _echo_warn "Target base is not a mountpoint: ${BASE_TAR_DIR}"
+      && { p_err "Target directory '${BASE_TAR_DIR}/' does not exist. Aborting."; exit 1; }
+    p_war "Target base is not a mountpoint: ${BASE_TAR_DIR}"
   fi
 
   while [[ $# -gt 0 ]]; do
@@ -105,12 +99,12 @@ _process_parallel() {
         shift
         ;;
       -j|--jobs)
-        [[ -z "${2:-}" ]] && { _echo_error "Missing value for $1"; exit 1; }
+        [[ -z "${2:-}" ]] && { p_err "Missing value for $1"; exit 1; }
         jobs="$2"
         shift 2
         ;;
       --help|-h)
-        _usage
+        p_hlp
         exit 0
         ;;
       --rsynclt-args)
@@ -137,27 +131,27 @@ _process_parallel() {
   done
 
   if [[ ${#dirs[@]} -eq 0 ]]; then
-    _usage
+    p_usg
     exit 1
   fi
 
   for d in "${dirs[@]}"; do
     local src="${BASE_SRC_DIR}/$d/"
     if [[ ! -d "$src" ]]; then
-      _echo_warn "No such directory $src (skipping)"
+      p_war "No such directory $src (skipping)"
       continue
     fi
     local tar="${BASE_TAR_DIR}/$d/"
     # Normalize both source and target paths by replacing double slashes with single slashes, just in case
     src="${src//\/\//\/}"
     tar="${tar//\/\//\/}"
-    mkdir -p "$tar" || { _echo_error "Failed to create target directory $tar"; continue; }
+    mkdir -p "$tar" || { p_err "Failed to create target directory $tar"; continue; }
     echo "Validated source \"$src\" and target \"$tar\" for directory \"$d\""
     valid_dirs+=("$d")
   done
 
   if [[ ${#valid_dirs[@]} -eq 0 ]]; then
-    _echo_error "No valid directories to process. Aborting."
+    p_err "No valid directories to process. Aborting."
     exit 1
   fi
 
@@ -169,7 +163,7 @@ _process_parallel() {
     ::: "${valid_dirs[@]}"
   )
 
-  echo "> $(_p_cmd "${cmd[@]}")"
+  p_cmd "${cmd[@]}"
   ${dry_run} && return 0
 
   parallel "${parallel_args[@]}" \
@@ -178,6 +172,4 @@ _process_parallel() {
 }
 # }}} = MAIN LOGIC ===========================================================
 
-_process_parallel "$@"
-
-exit 0
+process_parallel "$@"

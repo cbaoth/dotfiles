@@ -151,6 +151,7 @@ parse_args() {
 mpvfind() {
   local -a maxdepth=()
   ${recursive} || maxdepth=(-maxdepth 1)
+  # shellcheck disable=SC2015
   find "${dirs[@]}" "${maxdepth[@]}" \
        -regex "$regex" \
     | sort "$sort" \
