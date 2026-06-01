@@ -3,7 +3,8 @@
 #
 # Install:
 #   sudo apt install sway swaylock swaynag swayidle foot brightnessctl \
-#     waybar network-manager-applet grim slurp ulauncher
+#     waybar rofi mako-notifier grim slurp flameshot playerctl \
+#     network-manager-applet xdg-desktop-portal-wlr fonts-font-awesome
 
 # {{{ = Nvidia Workarounds ====================================================
 # Proprietary Nvidia drivers require --unsupported-gpu to start sway.
@@ -37,11 +38,13 @@ output * bg #000000 solid_color
 # Run: swaymsg -t get_inputs   (to list input identifiers)
 
 input "type:keyboard" {
-    # Colemak (classic, us base layout)
-    # CapsLock → Backspace is built into the Colemak layout definition
+    # Custom XKB layout: us(colemak) + ISO key (<LSGT>) mapped to Hyper_L on Mod3.
+    # CapsLock → Backspace is built into us(colemak).
     # AltGr layer provides umlauts: AltGr+q=ä  AltGr+s=ß  AltGr+a=á  etc.
-    xkb_layout  us
-    xkb_variant colemak
+    # Symbols file: ~/.config/xkb/symbols/custom (dotfiles symlink)
+    # libxkbcommon searches ~/.config/xkb/ before system paths automatically.
+    xkb_layout  custom
+    xkb_variant basic
 
     # xkb_options lv3:ralt_switch  # uncomment if AltGr stops working
 
@@ -115,8 +118,34 @@ bar {
 # }}} = Styles ===============================================================
 
 # {{{ = Variables ============================================================
-# default mod key
+# default mod key (Super_L/Super_R keys, usually the Windows key)
 set $mod Mod4
+
+# alternative mod key (Hyper_L, ISO key between Left Shift and Z on ISO keyboards)
+# Requires ~/.config/xkb/symbols/custom to map <LSGT> to Hyper_L on Mod3, e.g.:
+# ----
+# xkb_symbols "basic" {
+#   include "us(colemak)"
+#   name[Group1] = "English (Colemak + ISO mod)";
+#   key <LSGT> { [ Hyper_L, Hyper_L ] };
+#   modifier_map Mod3 { Hyper_L };
+# }
+# ----
+# https://wiki.archlinux.org/title/Sway#Change_modifier_to_CapsLock_and_keep_Super
+set $hyper Mod3
+
+# default $mod+x chord mapping mod keys, e.g. via /etc/keyd/default.conf:
+# ----
+# [meta_chord]
+# a = M-C-A-S-a
+# b = M-C-A-S-b
+# c = M-C-A-S-c
+# ...
+# [meta]
+# x = timeout(oneshot(meta_chord), 1000, M-x)
+# ----
+# FIXE dosen't work this way
+#set $cmods Mod4+Ctrl+Mod1+Shift
 
 # SWAY: preferred Wayland-native terminal (foot is lightweight and native)
 # Alternatives: alacritty, kitty, wezterm, gnome-terminal
@@ -161,6 +190,12 @@ bindsym $mod+Up    focus up
 bindsym $mod+Down  focus down
 
 # mod+Shift-left/right/up/down: move focused window
+bindsym $mod+Shift+q  move left
+bindsym $mod+Shift+w move right
+bindsym $mod+Shift+f    move up
+bindsym $mod+Shift+p  move down
+
+# mod+Shift-left/right/up/down: move focused window (alt. keys)
 bindsym $mod+Shift+Left  move left
 bindsym $mod+Shift+Right move right
 bindsym $mod+Shift+Up    move up
@@ -175,22 +210,22 @@ bindsym $mod+v layout splitv
 bindsym $mod+Shift+v split v
 
 # enter fullscreen mode for the focused container
-bindsym $mod+t fullscreen toggle
+bindsym $mod+Alt+z fullscreen toggle
 
 # toggle sticky state (visible on current / all workspaces)
-bindsym $mod+Shift+s sticky toggle
+bindsym $mod+Alt+s sticky toggle
 
 # mod-q/w/W: change container layout (toggle-split/tabbed/stacked)
-bindsym $mod+q layout toggle split
-bindsym $mod+w layout tabbed
-bindsym $mod+Shift+w layout stacking
+bindsym $mod+s layout toggle split
+bindsym $mod+Shift+s layout stacking
+bindsym $mod+t layout tabbed
 # mod-f/mod-F: float/un-float
-bindsym $mod+f $FLOAT
-bindsym $mod+Shift+f $UNFLOAT
+bindsym $mod+d $FLOAT
+bindsym $mod+Shift+d $UNFLOAT
 # mod-p: focus between tiling / floating windows
 bindsym $mod+p focus mode_toggle
 # mod-P: switch border style
-bindsym $mod+Shift+p border toggle
+bindsym $mod+Shift+b border toggle
 
 # mod-a/A: focus parent/child container
 bindsym $mod+a focus parent
@@ -337,6 +372,9 @@ bindsym XF86HomePage exec firefox
 # SWAY: flameshot works on Wayland; grimshot (sway-contrib) is a native alternative:
 #   exec grimshot copy area
 bindsym Print exec --no-startup-id flameshot gui
+
+# mod-l: lock screen (mirrors Windows/GNOME Mod4+L)
+bindsym $mod+l exec swaylock -f -c 000000
 # }}} - Special Keys ---------------------------------------------------------
 
 # {{{ - Run Apps -------------------------------------------------------------
@@ -344,16 +382,15 @@ bindsym Print exec --no-startup-id flameshot gui
 # SWAY: i3-sensible-terminal → $term (set to 'foot' above)
 bindsym $mod+Return exec $term
 
-# mod-r: rofi run launcher (consistent with GNOME setup)
+# mod-space: rofi run launcher (consistent with GNOME setup)
 # Under Sway/Wayland, rofi works natively — no -normal-window needed
-bindsym $mod+r exec rofi -show combi
+bindsym $mod+space exec rofi -show combi
 
-# mod-space: ulauncher (toggle — requires ulauncher daemon running, see Launch Apps)
-bindsym $mod+space exec ulauncher-toggle
-
-# mod-d: file manager
-#bindsym $mod+d exec nautilus
-bindsym $mod+d exec doublecmd
+# chord-mods-d (mod-x, d): double-commander file manager
+#$cmods+d exec doublecmd
+#$hyper+d exec doublecmd
+# chord-mods-n (mod-x, n): nautilus file manager
+#$cmods+n exec nautilus
 
 # mod-ESC: run htop in floating terminal
 # SWAY: -r i3float (WM_WINDOW_ROLE) not supported for Wayland apps;
@@ -394,10 +431,14 @@ for_window [app_id="spotify"]        move container to workspace $ws9
 for_window [title="JDownloader"]     move container to workspace $ws9
 
 # WS 10 - Music
-for_window [class="pavucontrol"]                          move container to workspace $ws10
-for_window [app_id="pavucontrol"]                         move container to workspace $ws10
-for_window [class="(?i)keepassxc.*" window_type="normal"] move to workspace $ws10
-for_window [app_id="(?i)keepassxc.*"]                     move to workspace $ws10
+for_window [class="pavucontrol"]  move container to workspace $ws10
+for_window [app_id="pavucontrol"] move container to workspace $ws10
+
+# KeePassXC: floating + sticky so unlock/auth prompts are visible on any workspace.
+# Flatpak app_id is "org.keepassxc.KeePassXC" (starts with "org."), so use .*keepassxc.*
+# to match both native and flatpak. Sway anchors regex, so keepassxc.* alone won't match.
+for_window [app_id="(?i).*keepassxc.*"] floating enable, sticky enable
+for_window [class="(?i)keepassxc.*"]    floating enable, sticky enable
 for_window [class="nextcloud"]  move to workspace $ws10
 for_window [app_id="nextcloud"] move to workspace $ws10
 # }}} - Default Workspaces ---------------------------------------------------
@@ -421,13 +462,44 @@ for_window [class="streaming_client"] fullscreen enable
 # }}} = Window Rules =========================================================
 
 # {{{ = Launch Apps ==========================================================
-# ulauncher daemon (must run in background so ulauncher-toggle works)
-exec --no-startup-id ulauncher --hide-window
+# Propagate key env vars to systemd user session and D-Bus.
+# Required so xdg-desktop-portal, pipewire, and other socket-activated services
+# inherit WAYLAND_DISPLAY and XDG_CURRENT_DESKTOP (set in sway-nvidia).
+exec --no-startup-id dbus-update-activation-environment --systemd \
+    WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DISPLAY
 
-# KeePassXC (installed via Flatpak)
-exec --no-startup-id flatpak run org.keepassxc.KeePassXC
+# xdg-desktop-portal backend is configured via ~/.config/xdg-desktop-portal/portals.conf.
+# No manual restart needed — the portal starts via socket activation and reads portals.conf.
 
-# Network Manager applet — tray icon for network/VPN status
+# Idle management and screen locking (swayidle + swaylock)
+# Install: sudo apt install swayidle swaylock
+# -w: wait for lock command to finish before sleeping (critical for before-sleep)
+# PAM auth (incl. U2F): sudo install -m 644 /dev/null /etc/pam.d/swaylock
+#   echo 'auth include common-auth' | sudo tee /etc/pam.d/swaylock
+exec --no-startup-id swayidle -w \
+    timeout 300  'swaylock -f -c 000000' \
+    timeout 600  'swaymsg "output * dpms off"' \
+    resume       'swaymsg "output * dpms on"' \
+    before-sleep 'swaylock -f -c 000000'
+
+# Notification daemon (mako — lightweight Wayland-native)
+# Install: sudo apt install mako-notifier
+# https://github.com/emersion/mako
+# Configurable: `man 5 mako` - https://github.com/emersion/mako/blob/master/doc/mako.5.scd
+# Control: `man makoctl` - https://github.com/emersion/mako/blob/master/doc/makoctl.1.scd
+exec --no-startup-id mako
+
+# {{{ - Launch Apps after waybar ---------------------------------------------
+# KeePassXC (flatpak, auto-updates to latest stable).
+# The XDG autostart entry (~/.config/autostart/keepassxc.desktop) points to an
+# outdated AppImage path and is skipped by systemd, so we launch it explicitly here.
+# Wait until waybar is running, then add 2s for the tray module to initialize,
+# before starting KeePassXC so it can register its tray icon.
+exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; flatpak run org.keepassxc.KeePassXC'
+
+# Network Manager applet — tray icon for network/VPN status.
+# Also started via systemd XDG autostart (app-nm-applet@autostart.service);
+# nm-applet deduplicates itself via D-Bus so only one instance runs.
 exec --no-startup-id nm-applet --indicator
 
 # conky system monitor (runs via XWayland)
@@ -436,4 +508,9 @@ exec --no-startup-id nm-applet --indicator
 
 # nextcloud client (1min delay so KeePassXC can unlock first)
 #exec --no-startup-id sh -c 'sleep 60; nextcloud'
+exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nextcloud'
+
+# NordVPN client UI
+exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nordvpn-ui'
+# }}} - Launch Apps after waybar ---------------------------------------------
 # }}} = Launch Apps ==========================================================

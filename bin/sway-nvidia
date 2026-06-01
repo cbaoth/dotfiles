@@ -9,5 +9,8 @@
 # Nvidia: software cursor (no hardware cursor support with proprietary drivers)
 export WLR_NO_HARDWARE_CURSORS=1
 
+# Required for XDG desktop portal backend selection (portals, file pickers, etc.)
+export XDG_CURRENT_DESKTOP=sway
+
 # Nvidia: required flag - remove once Nouveau or open kernel modules are used
 exec sway --unsupported-gpu "$@"
