@@ -1624,6 +1624,78 @@ git_truncate () {
     && git branch -D temp
 }
 #
+
+# Syntax-check and lint shell script(s) using bash -n and shellcheck.
+# Skips files that are unlikely to be shell scripts with a warning:
+#   - binary files
+#   - files with a non-shell file extension
+#   - extensionless files whose first line is not a shell interpreter shebang
+check_script() {
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "$(cl::func_name) FILE..
+
+Syntax-check and lint shell script(s) using bash -n and shellcheck.
+
+Skips files unlikely to be shell scripts with a warning:
+  binary files, files with non-shell extensions (.py, .rb, ...), or
+  extensionless files without a shell interpreter shebang (sh/bash/zsh/ksh)."
+    return 1
+  fi
+
+  local f is_script fname shebang
+  local -i ret=0
+
+  for f in "$@"; do
+    if [[ ! -e "$f" ]]; then
+      cl::p_err "not found: $f"
+      ret=1
+      continue
+    fi
+
+    # skip binary files (detected via mime encoding)
+    if file --mime-encoding -- "$f" 2>/dev/null | grep -q 'binary'; then
+      cl::p_war "skipping binary file: $f"
+      continue
+    fi
+
+    is_script=false
+    fname="${f##*/}"
+    case "$fname" in
+      *.sh|*.bash|*.zsh|*.ksh)
+        is_script=true ;;
+      *.*)
+        cl::p_war "skipping file with non-shell extension: $f"
+        continue ;;
+      *)
+        # extensionless: accept only if shebang names a shell interpreter
+        shebang=$(head -1 -- "$f" 2>/dev/null)
+        [[ "$shebang" =~ '^#!.*/env[[:space:]]+(ba|z|k)?sh([[:space:]]|$)' \
+        || "$shebang" =~ '^#!.*/(ba|z|k)?sh([[:space:]]|$)' ]] \
+          && is_script=true ;;
+    esac
+
+    if ! $is_script; then
+      cl::p_war "skipping extensionless file without shell shebang: $f"
+      continue
+    fi
+
+    echo "--- ${f} ---"
+    bash -n -- "$f" \
+      && cl::p_msg "  bash -n: ok" \
+      || { cl::p_err "  bash -n: FAILED"; ret=1; }
+    shellcheck "$f" || ret=1
+  done
+
+  return $ret
+}
+
+# completion: *.sh/*.bash/*.zsh/*.ksh files plus extensionless regular files
+_check_script() {
+  _alternative \
+    'scripts:shell script:_files -g "*.sh *.bash *.zsh *.ksh"' \
+    'plain:extensionless file:_files -g "*~*.*(.)"'
+}
+compdef _check_script check_script
 # }}} = DEVELOPMENT ==========================================================
 
 # {{{ = MULTIMEDIA ===========================================================
