@@ -185,7 +185,7 @@ runbg keepassxc
 #aterm -display :0.1 -fade 65 -sh 50 -tr -tint rgb:60/60/c0 -fn 6x10 -fb 6x10 -g 100x10+0-21 -T syslog -e sudo tail -f /var/log/syslog &
 #runbg xmms2tray
 
-#runbg conky -p 30 -o -c ~/.conky/conkyrc-syslog
+#runbg conky -p 30 -o -c ~/.conky/saito/conkyrc-syslog
 #runbg conky -p 32 -o -c ~/.conky/conkyrc-xlog &
 #runbg conky -p 34 -o -c ~/.conky/conkyrc-sysmon1 &
 

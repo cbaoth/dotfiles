@@ -13,13 +13,6 @@
 # Consider using ~/bin/sway-nvidia
 # }}} = Nvidia Workarounds ====================================================
 
-# {{{ = TODOs ================================================================
-# This file is based on my original i3 config, with some ad hoc modifications.
-# Nest steps include:
-# * Re-evaluate key bindings
-# * Consider newj
-# }}} = TODOs ================================================================
-
 # {{{ = Output / Input =======================================================
 # Configure your outputs (monitors) here.
 # Run: swaymsg -t get_outputs   (to list available outputs)
@@ -147,6 +140,18 @@ set $hyper Mod3
 # FIXE dosen't work this way
 #set $cmods Mod4+Ctrl+Mod1+Shift
 
+# Directional navigation keys
+set $left q
+set $right w
+set $up f
+set $down p
+
+# Directional navigation keys (vim-like hjkl)
+#set $left h
+#set $down j
+#set $up k
+#set $right l
+
 # SWAY: preferred Wayland-native terminal (foot is lightweight and native)
 # Alternatives: alacritty, kitty, wezterm, gnome-terminal
 set $term foot
@@ -155,13 +160,13 @@ set $term foot
 set $ws1  "1:Main"
 set $ws2  "2:Web"
 set $ws3  "3:Dev"
-set $ws4  "4:Media"
-set $ws5  "5:Misc"
-set $ws6  "6:Misc"
-set $ws7  "7:Misc"
-set $ws8  "8:Misc"
-set $ws9  "9:Tray"
-set $ws10 "10:Music"
+set $ws4  "4:Graphics"
+set $ws5  "5:Games"
+set $ws6  "6:Tray"
+#set $ws7  "7:Misc"
+#set $ws8  "8:Misc"
+#set $ws9  "9:Tray"
+#set $ws10 "10:Music"
 
 # (un-)floating command, floating borderless
 set $FLOAT floating enable, border normal 0
@@ -190,10 +195,10 @@ bindsym $mod+Up    focus up
 bindsym $mod+Down  focus down
 
 # mod+Shift-left/right/up/down: move focused window
-bindsym $mod+Shift+q  move left
-bindsym $mod+Shift+w move right
-bindsym $mod+Shift+f    move up
-bindsym $mod+Shift+p  move down
+bindsym $mod+Shift+$left  move left
+bindsym $mod+Shift+$right move right
+bindsym $mod+Shift+$up    move up
+bindsym $mod+Shift+$down  move down
 
 # mod+Shift-left/right/up/down: move focused window (alt. keys)
 bindsym $mod+Shift+Left  move left
@@ -245,10 +250,10 @@ bindsym $mod+3 workspace number $ws3
 bindsym $mod+4 workspace number $ws4
 bindsym $mod+5 workspace number $ws5
 bindsym $mod+6 workspace number $ws6
-bindsym $mod+7 workspace number $ws7
-bindsym $mod+8 workspace number $ws8
-bindsym $mod+9 workspace number $ws9
-bindsym $mod+0 workspace number $ws10
+#bindsym $mod+7 workspace number $ws7
+#bindsym $mod+8 workspace number $ws8
+#bindsym $mod+9 workspace number $ws9
+#bindsym $mod+0 workspace number $ws10
 
 # switch workspace previous/next
 bindsym $mod+Ctrl+Right workspace next
@@ -261,10 +266,10 @@ bindsym $mod+Shift+3 sticky disable; move container to workspace $ws3
 bindsym $mod+Shift+4 sticky disable; move container to workspace $ws4
 bindsym $mod+Shift+5 sticky disable; move container to workspace $ws5
 bindsym $mod+Shift+6 sticky disable; move container to workspace $ws6
-bindsym $mod+Shift+7 sticky disable; move container to workspace $ws7
-bindsym $mod+Shift+8 sticky disable; move container to workspace $ws8
-bindsym $mod+Shift+9 sticky disable; move container to workspace $ws9
-bindsym $mod+Shift+0 sticky disable; move container to workspace $ws10
+#bindsym $mod+Shift+7 sticky disable; move container to workspace $ws7
+#bindsym $mod+Shift+8 sticky disable; move container to workspace $ws8
+#bindsym $mod+Shift+9 sticky disable; move container to workspace $ws9
+#bindsym $mod+Shift+0 sticky disable; move container to workspace $ws10
 
 # mod-b: toggle bar mode (dock↔hide)
 bindsym $mod+b bar mode toggle
@@ -283,18 +288,26 @@ mode "$mode_meta" {
 }
 
 # mod-g: resize window mode
-set $mode_resize Resize: n/e/i/o or arrow keys
+set $mode_resize Resize container: $left/$right/$down/$up or Left/Right/Down/Up arrow keys
 bindsym $mod+g mode "$mode_resize"
 mode "$mode_resize" {
-    bindsym n resize shrink width  10 px or 10 ppt
-    bindsym e resize grow   height 10 px or 10 ppt
-    bindsym i resize shrink height 10 px or 10 ppt
-    bindsym o resize grow   width  10 px or 10 ppt
+    bindsym $left        resize shrink width  100 px
+    bindsym $right       resize grow   width  100 px
+    bindsym $up          resize grow   height 100 px
+    bindsym $down        resize shrink height 100 px
+    bindsym Shift+$left  resize shrink width   10 px
+    bindsym Shift+$right resize grow   width   10 px
+    bindsym Shift+$up    resize grow   height  10 px
+    bindsym Shift+$down  resize shrink height  10 px
 
-    bindsym Left  resize shrink width  10 px or 10 ppt
-    bindsym Down  resize grow   height 10 px or 10 ppt
-    bindsym Up    resize shrink height 10 px or 10 ppt
-    bindsym Right resize grow   width  10 px or 10 ppt
+    bindsym Left         resize shrink width  100 px
+    bindsym Right        resize grow   width  100 px
+    bindsym Up           resize grow   height 100 px
+    bindsym Down         resize shrink height 100 px
+    bindsym Shift+Left   resize shrink width   10 px
+    bindsym Shift+Right  resize grow   width   10 px
+    bindsym Shift+Up     resize grow   height  10 px
+    bindsym Shift+Down   resize shrink height  10 px
 
     bindsym Return mode "default"
     bindsym Escape mode "default"
@@ -304,8 +317,9 @@ mode "$mode_resize" {
 # SWAY: i3-nagbar → swaynag, i3-msg → swaymsg, dm-tool lock → swaylock
 #       xsuspend → swaylock -f && systemctl suspend
 #       restart  → reload  (sway has no in-place restart equivalent)
-set $mode_system Sway: (l)ock, re-(c)onfigure/reload, (e)xit -- System: (S)uspend, (H)ibernate, re(B)oot, Shut(D)own, restart (P)ipeWire
-bindsym $mod+BackSpace mode "$mode_system"
+set $mode_system Sway: [l]ock, relad [c]onfigure, [e]xit - System: [S]uspend, [H]ibernate, [R]eboot, [S]hutdown
+# - PulseAudio: switch card [p]rofile, restart [P]ipeWire
+bindsym $mod+F12 mode "$mode_system"
 mode "$mode_system" {
     # l: lock screen
     bindsym l exec swaylock -c 000000, mode "default"
@@ -319,21 +333,21 @@ mode "$mode_system" {
     bindsym Shift+s mode "default"; exec swaylock -f -c 000000 && systemctl suspend
     # H: lock screen + hibernate
     bindsym Shift+h mode "default"; exec swaylock -f -c 000000 && systemctl hibernate
-    # B: reboot
+    # R: reboot
     bindsym Shift+b exec swaynag -t warning \
         -m 'Do you really want to reboot the system?' \
         -b 'Reboot' 'systemctl reboot'
-    # D: shut down
+    # S: shut down
     bindsym Shift+d exec swaynag -t warning \
         -m 'Do you really want to shut down the system?' \
         -b 'Shutdown' 'systemctl poweroff'
 
-    # P: restart PipeWire/WirePlumber (replaces pkill pulseaudio)
-    bindsym Shift+p mode "default"; exec systemctl --user restart wireplumber
-    # p: switch audio profile off/on (same pactl commands work via PipeWire compat)
-    bindsym p mode "default"; \
-        exec pactl set-card-profile 0 off; \
-        exec sh -c 'sleep 1; pactl set-card-profile 0 output:hdmi-stereo-extra1'
+    ## p: switch audio profile off/on (same pactl commands work via PipeWire compat)
+    #bindsym p mode "default"; \
+    #    exec pactl set-card-profile 0 off; \
+    #    exec sh -c 'sleep 1; pactl set-card-profile 0 output:hdmi-stereo-extra1'
+    ## P: restart PipeWire/WirePlumber (replaces pkill pulseaudio)
+    #bindsym Shift+p mode "default"; exec systemctl --user restart wireplumber
 
     bindsym Return mode "default"
     bindsym Escape mode "default"
@@ -379,11 +393,11 @@ bindsym $mod+l exec swaylock -f -c 000000
 
 # {{{ - Run Apps -------------------------------------------------------------
 # mod-return: run terminal
-# SWAY: i3-sensible-terminal → $term (set to 'foot' above)
 bindsym $mod+Return exec $term
+# mod-alt-return: run floating terminal
+bindsym $mod+mod1+Return exec $term --app-id=swayfloat
 
 # mod-space: rofi run launcher (consistent with GNOME setup)
-# Under Sway/Wayland, rofi works natively — no -normal-window needed
 bindsym $mod+space exec rofi -show combi
 
 # chord-mods-d (mod-x, d): double-commander file manager
@@ -393,8 +407,6 @@ bindsym $mod+space exec rofi -show combi
 #$cmods+n exec nautilus
 
 # mod-ESC: run htop in floating terminal
-# SWAY: -r i3float (WM_WINDOW_ROLE) not supported for Wayland apps;
-#       use --app-id instead, matched by for_window rule below
 bindsym $mod+Escape exec $term --app-id=swayfloat -e htop
 
 # mod-F1: open ssh session
@@ -409,55 +421,61 @@ bindsym $mod+F1 exec $term -e ssh -p 8090 -A 11001001.org
 # SWAY: [class=...] matches XWayland apps; [app_id=...] matches Wayland-native apps.
 #       Both are kept here for broad compatibility.
 
+# WS 1 - Main
+# - Spotify (XWayland and native)
+for_window [class="spotify"]                        move container to workspace $ws6
+for_window [app_id="spotify"]                       move container to workspace $ws6
+
 # WS 2 - Web
-for_window [class="(?i)(.*chrome|firefox)"]         move container to workspace $ws2
-for_window [app_id="firefox"]                        move container to workspace $ws2
-for_window [app_id="(?i)(google-chrome|chromium)"]  move container to workspace $ws2
+# - Web Browsers
+#for_window [class="(?i)(.*chrome|firefox)"]         move container to workspace $ws2
+#for_window [app_id="firefox"]                       move container to workspace $ws2
+#for_window [app_id="(?i)(google-chrome|chromium)"]  move container to workspace $ws2
 
 # WS 3 - Dev
-for_window [class="(?i)code$"]                    move container to workspace $ws3
-for_window [app_id="code"]                        move container to workspace $ws3
-for_window [app_id="com.visualstudio.code"]       move container to workspace $ws3  # Flatpak VSCode
+# - VS Code
+#for_window [class="(?i)code$"]                      move container to workspace $ws3
+#for_window [app_id="code"]                          move container to workspace $ws3
+#for_window [app_id="com.visualstudio.code"]         move container to workspace $ws3
 
-# WS 4 - Media
-for_window [class="TeamViewer"]  move container to workspace $ws4
+# WS 4 - Graphics & Media
+#for_window [class="(?i)XnView(MP)?"]                 move container to workspace $ws5
 
-# WS 5 - Misc
-for_window [class="(?i)XnView(MP)?"] move container to workspace $ws5
+# WS 5 - Games
 
-# WS 9 - Tray
-for_window [class="spotify"]         move container to workspace $ws9
-for_window [app_id="spotify"]        move container to workspace $ws9
-for_window [title="JDownloader"]     move container to workspace $ws9
+# WS 6 - System & Tray
+# - JDownloader main window (Java app with no class/app_id)
+for_window [title="JDownloader"]                    move container to workspace $ws6, floating enable, sticky enable
+# - PulseAudio volume control
+for_window [class="pavucontrol"]                    move container to workspace $ws6, floating enable, sticky enable
+for_window [app_id="pavucontrol"]                   move container to workspace $ws6, floating enable, sticky enable
+# - Nextcloud client (tray)
+for_window [class="nextcloud"]                      move container to workspace $ws6, floating enable, sticky enable
+for_window [app_id="nextcloud"]                     move container to workspace $ws6, floating enable, sticky enable
+# - NordVPN client UI (tray)
+for_window [class="nordvpn-gui"]                    move container to workspace $ws6, floating enable, sticky enable
+for_window [app_id="nordvpn-gui"]                   move container to workspace $ws6, floating enable, sticky enable
 
-# WS 10 - Music
-for_window [class="pavucontrol"]  move container to workspace $ws10
-for_window [app_id="pavucontrol"] move container to workspace $ws10
-
+# WS * - Sticky & Floating
 # KeePassXC: floating + sticky so unlock/auth prompts are visible on any workspace.
 # Flatpak app_id is "org.keepassxc.KeePassXC" (starts with "org."), so use .*keepassxc.*
 # to match both native and flatpak. Sway anchors regex, so keepassxc.* alone won't match.
 for_window [app_id="(?i).*keepassxc.*"] floating enable, sticky enable
 for_window [class="(?i)keepassxc.*"]    floating enable, sticky enable
-for_window [class="nextcloud"]  move to workspace $ws10
-for_window [app_id="nextcloud"] move to workspace $ws10
 # }}} - Default Workspaces ---------------------------------------------------
 
 # {{{ - Window Modes ---------------------------------------------------------
 # float by role (XWayland apps only — Wayland apps use app_id)
-for_window [window_role="i3float"]  $FLOAT
-
-# SWAY: app_id="swayfloat" is used for Wayland terminal windows that should float
-#       (replaces i3-sensible-terminal -r i3float pattern)
-for_window [app_id="swayfloat"]     $FLOAT
+for_window [window_role="i3float"]                  $FLOAT
+for_window [app_id="swayfloat"]                     $FLOAT
 
 # float by class / title / app_id
-for_window [class="^(?i)(mpv|galculator)$"]    $FLOAT
-for_window [app_id="^(?i)(mpv|galculator)$"]   $FLOAT
+for_window [class="^(?i)(mpv|galculator)$"]         $FLOAT
+for_window [app_id="^(?i)(mpv|galculator)$"]        $FLOAT
 for_window [title="^Task Manager - Google Chrome$"] $FLOAT
 
 # full screen by class
-for_window [class="streaming_client"] fullscreen enable
+for_window [class="streaming_client"]               fullscreen enable
 # }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
 
@@ -489,6 +507,12 @@ exec --no-startup-id swayidle -w \
 # Control: `man makoctl` - https://github.com/emersion/mako/blob/master/doc/makoctl.1.scd
 exec --no-startup-id mako
 
+# conky system monitor (native Wayland -- conky 1.22.2+ with BUILD_WAYLAND=ON)
+exec --no-startup-id conky -p 5 -c ~/.conky/motoko/conky-left-1.conf
+exec --no-startup-id conky -p 5 -c ~/.conky/motoko/conky-left-2.conf
+exec --no-startup-id conky -p 5 -c ~/.conky/motoko/conky-left-3.conf
+exec --no-startup-id conky -p 5 -c ~/.conky/motoko/conky-right-1.conf
+
 # {{{ - Launch Apps after waybar ---------------------------------------------
 # KeePassXC (flatpak, auto-updates to latest stable).
 # The XDG autostart entry (~/.config/autostart/keepassxc.desktop) points to an
@@ -502,15 +526,12 @@ exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done;
 # nm-applet deduplicates itself via D-Bus so only one instance runs.
 exec --no-startup-id nm-applet --indicator
 
-# conky system monitor (runs via XWayland)
-#exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-syslog
-#exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-sysmon2
+# NordVPN client UI
+exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nordvpn-gui'
 
 # nextcloud client (1min delay so KeePassXC can unlock first)
 #exec --no-startup-id sh -c 'sleep 60; nextcloud'
 exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nextcloud'
 
-# NordVPN client UI
-exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nordvpn-ui'
 # }}} - Launch Apps after waybar ---------------------------------------------
 # }}} = Launch Apps ==========================================================
