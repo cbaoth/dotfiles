@@ -194,6 +194,17 @@ if [[ -n "$(command -v apt-mark 2>/dev/null)" ]]; then
   alias amlimg="amlim | grep -iE --color"
 fi
 
+# apt-file
+if [[ -n "$(command -v apt-file 2>/dev/null)" ]]; then
+  alias af="apt-file"
+
+  # search
+  alias afs="apt-file search -i"
+  afsg() { apt-file search -i "$@" | grep -iE --color "$@"; }
+  alias afsr='apt-file search -i --regexp'
+  afsn() { apt-file search -i --regexp "/$@\$"; }
+fi
+
 # aptitude
 if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
   alias at="sudo aptitude"
@@ -214,8 +225,8 @@ if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
   alias atup!!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 full-upgrade'
 
   # search / list
-  alias atso='sudo aptitude search \?obsolete'
-  alias atsog='sudo aptitude search \?obsolete | grep -iE --color'
+  alias atso='aptitude search \?obsolete'
+  alias atsog='aptitude search \?obsolete | grep -iE --color'
 fi
 
 # apt
@@ -240,11 +251,11 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
   alias apug="sudo apt update && sudo apt -y upgrade && sudo apt autoremove" # update/upgrade/auto-remove
 
   # search
-  alias aps="sudo apt search"
-  apsg() { sudo apt search "$@" | grep -iE --color "$@"; }
-  alias apsn='sudo apt search --names-only' # search package names only
-  alias apsf='sudo apt search --full' # search full text
-  #alias apsB='sudo apt -t buster-backports search' # search back
+  alias aps="apt search"
+  apsg() { apt search "$@" | grep -iE --color "$@"; }
+  alias apsn='apt search --names-only' # search package names only
+  alias apsf='apt search --full' # search full text
+  #alias apsB='apt -t buster-backports search' # search back
 
   # list
   alias apli="apt list --installed" # list installed packages
