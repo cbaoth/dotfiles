@@ -4,6 +4,6 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# .conky/hddtemp.sh: Conky script to get hddtemp output.
+# .conky/saito/hddtemp.sh: Conky script to get hddtemp output.
 
 sudo hddtemp "$@" 2>/dev/null || echo -1

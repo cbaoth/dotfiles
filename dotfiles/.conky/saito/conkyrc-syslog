@@ -1,4 +1,4 @@
--- ~/.conky/conkyrc-syslog: syslog monitor
+-- ~/.conky/saito/conkyrc-syslog: syslog monitor (saito / i3 / X11)
 conky.config={
     -- ====================================================================
     -- Core settings
@@ -117,5 +117,5 @@ conky.config={
 }
 
 conky.text=[[
-${execp $HOME/.conky/log1.sh}
+${execp $HOME/.conky/saito/log1.sh}
 ]]

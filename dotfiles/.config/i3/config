@@ -377,8 +377,8 @@ exec --no-startup-id xsetroot -solid black
 #exec --no-startup-id feh --bg-scale ~/.wallpaper.jpg
 
 # conky system monitor
-exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-syslog
-exec --no-startup-id conky -p 3 -o -c ~/.conky/conkyrc-sysmon2
+exec --no-startup-id conky -p 3 -o -c ~/.conky/saito/conkyrc-syslog
+exec --no-startup-id conky -p 3 -o -c ~/.conky/saito/conkyrc-sysmon
 
 # ALL FROM HERE ALREADY PART OF XSESSION
 # keepassxc
