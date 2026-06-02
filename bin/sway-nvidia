@@ -6,6 +6,16 @@
 #
 # Start Sway with required environment for Nvidia proprietary drivers.
 
+# Log to file for debugging and monitoring (e.g. conky)
+#LOG_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/sway/sway.log"
+#mkdir -p "$(dirname "$LOG_FILE")"
+
+# Use ~/.xsession.log for backward compatibility, e.g. with conky configs
+LOG_FILE="$HOME/.xsession.log"
+
+# Overwrite instead of append to avoid huge log files (no need for log rotation)
+exec > >(tee "$LOG_FILE") 2>&1
+
 # Nvidia: software cursor (no hardware cursor support with proprietary drivers)
 export WLR_NO_HARDWARE_CURSORS=1
 
