@@ -17,23 +17,32 @@ p_help() {
 About:
   Query nvidia-smi for GPU information for conky display.
   Outputs the queried value or ? if nvidia-smi is unavailable or fails.
+  Unit suffixes from nvidia-smi (e.g. " %", " MiB") are stripped so conky
+  config can append its own units cleanly.
+  When WARN and CRIT thresholds are provided, wraps the value in conky color
+  tags so the caller can use \${execpi} to apply them.
+
+Arguments:
+  QUERY [WARN] [CRIT]
 
 Queries:
   name        - GPU model name
-  temp        - GPU temperature (value only, no unit)
-  load        - GPU utilization (value only, no unit)
-  vram-used   - VRAM used in MiB (value only, no unit)
-  vram-total  - VRAM total in MiB (value only, no unit)
+  temp        - GPU temperature (integer, no unit)
+  load        - GPU utilization (integer, no unit)
+  vram-used   - VRAM used (MiB value only, no unit)
+  vram-total  - VRAM total (MiB value only, no unit)
 
-Example usage in conky config:
+Example usage in conky config (with thresholds, use execpi to parse color tags):
   \${execi 3600 \$HOME/.local/conky/bin/conky-nvidia name}
-  \${execi 5 \$HOME/.local/conky/bin/conky-nvidia temp}°C
-  \${execi 5 \$HOME/.local/conky/bin/conky-nvidia load}%
+  \${execpi 5 \$HOME/.local/conky/bin/conky-nvidia temp 80 90}°C
+  \${execpi 5 \$HOME/.local/conky/bin/conky-nvidia load 80 95}%
   \${execi 5 \$HOME/.local/conky/bin/conky-nvidia vram-used}MiB / \${execi 5 \$HOME/.local/conky/bin/conky-nvidia vram-total}MiB
 EOF
 }
 
 QUERY="${1:-}"
+WARN="${2:-}"
+CRIT="${3:-}"
 
 if [[ -z "$QUERY" || "$QUERY" == -h || "$QUERY" == --help ]]; then
   p_help
@@ -53,6 +62,29 @@ case "$QUERY" in
     ;;
 esac
 
-nvidia-smi --query-gpu="$field" --format=csv,noheader 2>&1 \
-  | grep -v 'Failed to initialize\|version mismatch\|library version' \
-  || echo '?'
+raw=$(nvidia-smi --query-gpu="$field" --format=csv,noheader 2>&1 \
+  | grep -v 'Failed to initialize\|version mismatch\|library version')
+
+if [[ -z "$raw" ]]; then
+  echo '?'
+  exit 0
+fi
+
+# Strip trailing unit suffixes that nvidia-smi appends (" %", " MiB") so conky
+# config can append its own units without doubling up.
+val="${raw%% *}"
+
+# Apply color thresholds when set and value is a plain integer.
+if [[ -n "$WARN" || -n "$CRIT" ]] && [[ "$val" =~ ^[0-9]+$ ]]; then
+  if [[ -n "$CRIT" ]] && (( val >= CRIT )); then
+    # shellcheck disable=SC2016 # allow printf format string for conky color tags
+    printf '${color red}%s${color}' "$val"
+  elif [[ -n "$WARN" ]] && (( val >= WARN )); then
+    # shellcheck disable=SC2016 # allow printf format string for conky color tags
+    printf '${color orange}%s${color}' "$val"
+  else
+    printf '%s' "$val"
+  fi
+else
+  printf '%s' "$val"
+fi
