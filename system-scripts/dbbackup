@@ -8,7 +8,6 @@
 
 # FIXME mysql auth only possible via --config (default file not used)
 # TODO add default variables for config files and expire days (optional system wide default config)
-# TODO introduce an interactive mode or skip-if-exists
 
 # cron example
 #@daily root cronic dbbackup --expire 30 --backup-dir /backup/postgres --user postgres pgsql postgres
@@ -89,6 +88,8 @@ Options:
   --full               perform full dump (all databases, including users etc.)
                          requiring no specific db name list (ignored)
                          admin user required e.g. -u root or -u postgres
+  -f | --force         overwrite existing backup files (default: skip)
+  -i | --interactive   prompt before overwriting existing backup files
 
 Authentication:
   Passwords must be stored in a secure, DBMS specific config file (see above).
@@ -104,6 +105,8 @@ typeset _db_user
 typeset _config_file
 typeset _expire_days
 typeset _backup_full=false
+typeset _force=false
+typeset _interactive=false
 typeset _partial_file=""
 
 # print error and exit with given code
@@ -163,6 +166,14 @@ _parse_args() {
         _backup_full=true
         shift
         ;;
+      -f|--force)
+        _force=true
+        shift
+        ;;
+      -i|--interactive)
+        _interactive=true
+        shift
+        ;;
       -h|--help)
         printf "%s" "${_HELP}"
         exit 0
@@ -215,6 +226,31 @@ _set_backup_dir() {
   return 0
 }
 
+# Check whether the output file already exists and handle according to mode.
+# Returns 0 to proceed (overwrite), 1 to skip.
+# shellcheck disable=SC2329  # called from each _backup_* function
+_check_existing() {
+  local _path="$1"
+  [[ ! -f "${_path}" ]] && return 0
+
+  if ${_interactive}; then
+    local _answer=""
+    printf "File exists [%s], overwrite? [y/N] " "${_path}" > /dev/tty
+    read -r _answer < /dev/tty
+    if [[ "${_answer}" =~ ^[Yy]$ ]]; then
+      return 0
+    fi
+    printf ">> Skipping [%s]\n" "${_path}"
+    return 1
+  elif ${_force}; then
+    printf "WARNING: File exists [%s], will be overridden ..\n" "${_path}" >&2
+    return 0
+  else
+    printf ">> Skipping [%s], file already exists\n" "${_path}"
+    return 1
+  fi
+}
+
 # delete old backups
 # shellcheck disable=SC2329  # called indirectly via _delete_old
 _delete_old() {
@@ -237,9 +273,7 @@ _backup_pgsql() {
   local _outfile="${_dbms}_${_db}_${_DATE}.gz"
   local _outfilepath="${_dir}/${_outfile}"
 
-  [[ -f "${_outfilepath}" ]] \
-    && printf "WARNING: File exists [%s], will be owerridden .."\
-              "${_outfilepath}" >&2
+  _check_existing "${_outfilepath}" || return 0
 
   # detele old db backups (if expire days provided)
   _delete_old ".*\/${_dbms}_${_db}_[^/]*.gz"
@@ -261,8 +295,7 @@ _backup_pgsql_full() {
   local _outfile="${_dbms}_full_${_DATE}.gz"
   local _outfilepath="${_dir}/${_outfile}"
 
-  [[ -f "${_outfilepath}" ]] \
-    && printf "WARNING: File exists [%s], will be overridden ..\n" "${_outfilepath}" >&2
+  _check_existing "${_outfilepath}" || return 0
 
   # detele old db backups (if expire days provided)
   _delete_old ".*\/${_dbms}_full_[^/]*.gz"
@@ -285,9 +318,7 @@ _backup_mysql() {
   local _outfile="${_dbms}_${_db}_${_DATE}.gz"
   local _outfilepath="${_dir}/${_outfile}"
 
-  [[ -f "${_outfilepath}" ]] \
-    && printf "WARNING: File exists [%s], will be overridden .." \
-              "${_outfilepath}" >&2
+  _check_existing "${_outfilepath}" || return 0
 
   # detele old db backups (if expire days provided)
   _delete_old ".*\/${_dbms}_${_db}_[^/]*.gz"
@@ -310,8 +341,7 @@ _backup_mysql_full() {
   local _outfile="${_dbms}_full_${_DATE}.gz"
   local _outfilepath="${_dir}/${_outfile}"
 
-  [[ -f "${_outfilepath}" ]] \
-    && echo "WARNING: File exists [${_outfilepath}], will be overridden .." >&2
+  _check_existing "${_outfilepath}" || return 0
 
   # detele old db backups (if expire days provided)
   _delete_old ".*\/${_dbms}_full_[^/]*.gz"
