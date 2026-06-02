@@ -299,6 +299,8 @@ export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 
 # {{{ - XDG Base Directory ---------------------------------------------------
 # https://specifications.freedesktop.org/basedir/latest/
+export XDG_DATA_HOME="${HOME}/.local/share"
+export XDG_STATE_HOME="${HOME}/.local/state"
 export XDG_CONFIG_HOME="${HOME}/.config"
 export XDG_CACHE_HOME="${HOME}/.cache"
 
