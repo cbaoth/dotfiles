@@ -252,6 +252,9 @@ source_ifex_custom () {
   return 0
 }
 
+# auto-rehash hook — must be sourced before alias files so they can register entries
+source_ifex $HOME/.zsh.d/auto-rehash.zsh
+
 # include common and zsh specific aliases
 source_ifex $HOME/.aliases
 source_ifex $HOME/.zsh.d/aliases.zsh

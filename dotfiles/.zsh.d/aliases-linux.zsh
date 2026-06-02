@@ -113,8 +113,9 @@ alias winer='wine start /unix'  # run executable or location (file explorer) usi
 # dpkg
 if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
   # install / configure
-  alias dpi='sudo dpkg -i' # install .deb package
+  alias dpi='sudo dpkg -i'
   alias dpca='sudo dpkg --configure -a' # configure unpackde but on yet configured packages (e.g. continue interrupted upgrade)
+  _AUTO_REHASH_CMDS+=(dpi)
 
   # remove
   alias dpr='sudo dpkg -r' # remove package (keep config files)
@@ -168,9 +169,10 @@ if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
               fi'
 
   # install
-  alias agi="sudo apt-get -y install"
-  alias agi!='sudo apt-get install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
+  alias agi='sudo apt-get -y install'
+  alias 'agi!'='sudo apt-get install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
   alias agiu='sudo apt-get install --only-upgrade' # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
+  _AUTO_REHASH_CMDS+=(agi 'agi!' agiu)
 
   # remove
   alias agr="sudo apt-get remove"
@@ -178,8 +180,9 @@ if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
   alias agr!="sudo apt-get purge"
 
   # upgrade
-  alias agup="agu && sudo apt-get -y upgrade && agra" # apt-get update/upgrade/auto-remove
-  alias agupf="agu && sudo apt-get full-upgrade && agra" # apt-get update/(full-|dist-)upgrade/auto-remove
+  alias agup='agu && sudo apt-get -y upgrade && agra' # apt-get update/upgrade/auto-remove
+  alias agupf='agu && sudo apt-get full-upgrade && agra' # apt-get update/(full-|dist-)upgrade/auto-remove
+  _AUTO_REHASH_CMDS+=(agup agupf)
 fi
 
 # apt-mark
@@ -210,8 +213,9 @@ if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
   alias at="sudo aptitude"
 
   # install
-  alias ati="sudo aptitude -y install"
-  alias ati!='sudo aptitude install -f'
+  alias ati='sudo aptitude -y install'
+  alias 'ati!'='sudo aptitude install -f'
+  _AUTO_REHASH_CMDS+=(ati 'ati!')
 
   # remove
   alias atr="sudo aptitude remove"
@@ -221,8 +225,9 @@ if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
 
   # upgrade
   alias atup='apu && sudo aptitude -o Aptitude::Delete-Unused=1 -y safe-upgrade'
-  alias atup!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 upgrade'
-  alias atup!!='apu && sudo aptitude -o Aptitude::Delete-Unused=1 full-upgrade'
+  alias 'atup!'='apu && sudo aptitude -o Aptitude::Delete-Unused=1 upgrade'
+  alias 'atup!!'='apu && sudo aptitude -o Aptitude::Delete-Unused=1 full-upgrade'
+  _AUTO_REHASH_CMDS+=(atup 'atup!' 'atup!!')
 
   # search / list
   alias atso='aptitude search \?obsolete'
@@ -242,13 +247,15 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
               fi'
 
   # install
-  alias api="sudo apt -y install"
-  alias api!='sudo apt install -f'
+  alias api='sudo apt -y install'
+  alias 'api!'='sudo apt install -f'
+  _AUTO_REHASH_CMDS+=(api 'api!')
   # update
   alias apu="sudo apt update" # update package database
 
   # upgrade
-  alias apug="sudo apt update && sudo apt -y upgrade && sudo apt autoremove" # update/upgrade/auto-remove
+  alias apug='sudo apt update && sudo apt -y upgrade && sudo apt autoremove' # update/upgrade/auto-remove
+  _AUTO_REHASH_CMDS+=(apug)
 
   # search
   alias aps="apt search"
@@ -271,6 +278,7 @@ if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
   alias sni='sudo snap install'
   alias snu='sudo snap refresh'
   alias snr='sudo snap remove'
+  _AUTO_REHASH_CMDS+=(sni snu)
   alias snl='snap list'
   alias snlg='snap list | grep -iE --color'
   alias snd='snap info'
@@ -286,8 +294,8 @@ if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
   alias fpi='flatpak install'
   alias fpu='flatpak update'
   alias fpr='flatpak uninstall'
-  alias fpi='flatpak info'
   alias fpil='flatpak info --show-location'
+  _AUTO_REHASH_CMDS+=(fpi fpu)
   alias fpl='flatpak list'
   alias fplg='flatpak list | grep -i --color'
   alias fpd='flatpak info'
@@ -345,17 +353,18 @@ unfunction __add_flatpak_app_functions 2>/dev/null
 
 # {{{ - PACMAN ---------------------------------------------------------------
 if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
-  alias pmi="sudo pacman -S"
+  alias pmi='sudo pacman -S'
   alias pms="sudo pacman -Ss"
   pmsg() { sudo pacman -Ss "$@" | grep -iE --color "$@"; }
   alias pmr="sudo pacman -Rs"
   alias pml="pacman -Q"
   alias pmlg="pacman -Q | grep -iE --color"
   alias pmy="sudo pacman -Sy"
-  alias pmu="sudo pacman -Syu"
+  alias pmu='sudo pacman -Syu'
   alias aurb="makepkg"
-  alias auri="sudo pacman -U"
-  alias aurbui="makepkg && sudo pacman -U *.pkg.tar.xz"
+  alias auri='sudo pacman -U'
+  aurbui() { makepkg && sudo pacman -U *.pkg.tar.xz; }
+  _AUTO_REHASH_CMDS+=(pmi pmu auri aurbui)
 fi
 # }}} - PACMAN ---------------------------------------------------------------
 
@@ -386,6 +395,7 @@ pkgu() {
     echo
   fi
 }
+_AUTO_REHASH_CMDS+=(pkgu)
 
 # pkgl - list installed packages from all package managers
 pkgl() {
