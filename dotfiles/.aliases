@@ -442,6 +442,7 @@ alias dupes-find-unique-rec='jdupes -Or -u'
 # NOTE: also see dupes-byname-find and dupes-mv in functions.zsh (zsh only)
 
 alias mysqlr='mysql -u root -p'
+alias postgres-list="sudo -u postgres psql -c '\l'"
 alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'
 alias sleep-usb='sudo ~/bin/scsi-idle 900&'
 rpm-extract() { rpm2cpio "$1" | cpio -ivd; }
@@ -456,4 +457,3 @@ alias wallabag-console='sudo -u www-data php /var/www/wallabag.11001001.org/bin/
 [[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"
 
 return 0
-
