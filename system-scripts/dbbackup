@@ -24,16 +24,20 @@ IFS=$'\t\n\0'
 
 # default values
 typeset -r _BACKUP_DIR="/backup/db"
-typeset -r _DATE=$(date -I)
+typeset _DATE
+_DATE=$(date -I)
+typeset -r _DATE
 typeset -r _USER
 typeset -r _DB_USER_PGSQL="postgres"
 typeset -r _DB_USER_MYSQL
 
 # constats and variables
-typeset -r _SCRIPT_FILE="$(basename "$0")"
+typeset _SCRIPT_FILE
+_SCRIPT_FILE="$(basename "$0")"
+typeset -r _SCRIPT_FILE
 typeset -r _USAGE="Usage: ${_SCRIPT_FILE} [OPTION..] DBMS DB.."
 typeset _HELP
-  ! IFS='' read -r -d '' _HELP <<EOF
+  IFS='' read -r -d '' _HELP <<EOF || true
 $_USAGE
 
 DBMS: pgsql
@@ -95,7 +99,7 @@ _exit() {
   local _code="$1"
   shift
   printf "ERROR: %s\n" "$@" >&2
-  exit ${_code}
+  exit "${_code}"
 }
 
 # parse args
@@ -156,10 +160,15 @@ _parse_args() {
         ;;
       *)
         [[ -z "${_dbms:-}" ]] && _exit 1 "Not a valid DBMS [$1]."
-        if [[ "${_dbs[@]}" =~ $1 ]]; then
+        local _found=false
+        local _d
+        for _d in "${_dbs[@]}"; do
+          [[ "${_d}" == "$1" ]] && { _found=true; break; }
+        done
+        if ${_found}; then
           printf "WARNING: DB [%s] already added, ignoring.\n" "$1"
         else
-          _dbs+=($1)
+          _dbs+=("$1")
         fi
         shift
         ;;
@@ -171,7 +180,7 @@ _parse_args() {
   if [[ -z "${_dbs:-}" ]]; then
     ${_backup_full} || _exit 1 "No DB provided."
   else
-    ${_backup_full} && echo "WARNING: Ignoring specifically provided DB name(s) [${_dbs[@]}], full backup will be performed instead." >&2
+    ${_backup_full} && echo "WARNING: Ignoring specifically provided DB name(s) [${_dbs[*]}], full backup will be performed instead." >&2
   fi
 
   # set defaults where needed
@@ -195,6 +204,7 @@ _set_backup_dir() {
 }
 
 # delete old backups
+# shellcheck disable=SC2329  # called indirectly via _delete_old
 _delete_old() {
   # no expire days set? then don't delete anything.
   [[ -z "${_expire_days:-}" ]] && return 0
@@ -203,13 +213,15 @@ _delete_old() {
   printf ">> Deleting backups older than [%s] days in [%s] matching [%s]\n" \
     "${_expire_days}" "${_backup_dir}" "${_filename_pattern}"
   find "${_backup_dir}" -maxdepth 1 -regextype posix-extended -type f \
-    -ctime +${_expire_days} -regex "${_filename_pattern}" \
+    -ctime +"${_expire_days}" -regex "${_filename_pattern}" \
     -exec rm -f {} \; -print
 }
 
 # backup a single postgresql db deleting old ones first
+# shellcheck disable=SC2329  # called indirectly via _backup_${_dbms}
 _backup_pgsql() {
   local _db="$1"
+  local _dir="${_backup_dir}"
   local _outfile="${_dbms}_${_db}_${_DATE}.gz"
   local _outfilepath="${_dir}/${_outfile}"
 
@@ -223,18 +235,20 @@ _backup_pgsql() {
   # backup db
   sudo ${_user:+-u${_user}} \
     ${_config_file:+env PGPASSFILE="${_config_file}"} \
-    pg_dump ${_db_user:+-U${_db_user}} -w -Fc ${_db} \
+    pg_dump ${_db_user:+-U${_db_user}} -w -Fc "${_db}" \
       | gzip > "${_outfilepath}"
   return 0
 }
 
 # backup all postgresql dbs
+# shellcheck disable=SC2329  # called indirectly via _backup_${_dbms}_full
 _backup_pgsql_full() {
+  local _dir="${_backup_dir}"
   local _outfile="${_dbms}_full_${_DATE}.gz"
   local _outfilepath="${_dir}/${_outfile}"
 
   [[ -f "${_outfilepath}" ]] \
-    && printf "WARNING: File exists [${_outfilepath}], will be owerridden ..\n" >&2
+    && printf "WARNING: File exists [%s], will be overridden ..\n" "${_outfilepath}" >&2
 
   # detele old db backups (if expire days provided)
   _delete_old ".*\/${_dbms}_full_[^/]*.gz"
@@ -248,8 +262,10 @@ _backup_pgsql_full() {
 }
 
 # backup a single mysql db deleting old ones first
+# shellcheck disable=SC2329  # called indirectly via _backup_${_dbms}
 _backup_mysql() {
   local _db="$1"
+  local _dir="${_backup_dir}"
   local _outfile="${_dbms}_${_db}_${_DATE}.gz"
   local _outfilepath="${_dir}/${_outfile}"
 
@@ -265,12 +281,14 @@ _backup_mysql() {
     mysqldump ${_config_file:+--defaults-file="${_config_file}"} \
       ${_db_user:+-u${_db_user}} \
       --extended-insert --disable-keys --quick \
-      ${_db} | gzip > "${_outfilepath}"
+      "${_db}" | gzip > "${_outfilepath}"
   return 0
 }
 
 # backup all mysql dbs
+# shellcheck disable=SC2329  # called indirectly via _backup_${_dbms}_full
 _backup_mysql_full() {
+  local _dir="${_backup_dir}"
   local _outfile="${_dbms}_full_${_DATE}.gz"
   local _outfilepath="${_dir}/${_outfile}"
 
@@ -292,21 +310,20 @@ _backup_mysql_full() {
 }
 
 _backup() {
-  local _dir="${_backup_dir}"
-
   printf "> Sarting [%s] backup%s%s\n" \
     "${_dbms}" "${_user:+ as [${_user}]}" \
     "${_db_user:+ connecting as [${_db_user}]}"
 
   if ${_backup_full}; then
     printf ">> Creating full DB backup ..\n"
-    _backup_${_dbms}_full
+    local _fn_full="_backup_${_dbms}_full"
+    "${_fn_full}"
     printf ">> .. done\n"
   else
+    local _fn="_backup_${_dbms}"
     for _db in "${_dbs[@]}"; do
-      local _outfile="${_dbms}_${_DATE}_${_db}.gz"
       printf ">> Creating backup for DB [%s] ..\n" "${_db}"
-      _backup_${_dbms} "${_db}"
+      "${_fn}" "${_db}"
       printf ">> .. done\n"
     done
   fi
