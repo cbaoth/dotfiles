@@ -55,7 +55,7 @@ p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: 
 # }}} - Logging ---------------------------------------------------------------
 
 # {{{ - Usage -----------------------------------------------------------------
-p_usg() { printf 'Usage: %s\n' "$(basename "$0") [OPTIONS] [install|update|status|remove]"; }
+p_usg() { printf 'Usage: %s  [OPTIONS] [install|update|status|remove]\n' "$(basename "$0")"; }
 p_hlp() {
   p_usg
   cat <<EOF

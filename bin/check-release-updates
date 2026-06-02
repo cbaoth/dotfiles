@@ -16,7 +16,7 @@ set -euo pipefail  # Fail if any command in a pipeline fails
 #p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
 
 # Usage
-p_usg() { printf 'Usage: %s\n' "$(basename "$0") [ACTION|OPTIONS]"; }
+p_usg() { printf 'Usage: %s  [ACTION|OPTIONS]\n' "$(basename "$0")"; }
 p_hlp() {
   p_usg
   cat <<EOF

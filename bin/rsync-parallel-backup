@@ -36,7 +36,7 @@ p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 #p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
 
 # Usage
-p_usg() { printf 'Usage: %s\n' "$(basename "$0") BASE_SRC_DIR BASE_TAR_DIR [OPTIONS] DIR..."; }
+p_usg() { printf 'Usage: %s  BASE_SRC_DIR BASE_TAR_DIR [OPTIONS] DIR...\n' "$(basename "$0")"; }
 p_hlp() {
   p_usg
   cat <<EOF
