@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Output VRAM usage as an integer percentage for conky execgraph.
+# Returns 0 when nvidia-smi is unavailable so the graph stays flat.
+
+result=$("$HOME/.local/conky/bin/conky-nvidia" vram-perc 2>/dev/null)
+
+if [[ "$result" == '?' || -z "$result" ]]; then
+  echo '0'
+  exit 0
+fi
+
+echo "$result"
