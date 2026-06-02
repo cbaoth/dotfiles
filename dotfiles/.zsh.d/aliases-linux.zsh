@@ -30,6 +30,11 @@ alias llg="ls -al | grep -Ei --color"
 alias fontcache-refresh="xset fp rehash; sudo fc-cache -f -v"
 alias remount-exec="sudo mount -o remount,exec"
 alias fsck-ntfs-clear-dirty="sudo ntfsfix --clear-dirty"
+# lm-sensors
+alias sensors-all='sensors'
+alias sensors-drives='sensors drivetemp-scsi-* nvme-pci-* 2>/dev/null'
+# list hwmon chip names with index numbers — useful for conky ${hwmon N type index} config
+alias sensors-hwmon='grep . /sys/class/hwmon/hwmon*/name | sed "s|/sys/class/hwmon/hwmon||;s|/name:|\t|" | sort -n'
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - POWER MANAGEMENT -----------------------------------------------------
