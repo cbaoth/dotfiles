@@ -121,27 +121,52 @@ ${hr 2}
     --${color #0077FF}${cpugauge cpu1 20 25} ${color #0077FF}${cpugauge cpu2 20 25} ${color #0077FF}${cpugauge cpu3 20 25} ${color #0077FF}${cpugauge cpu4 20 25}
 
     -- == HD STATUS =======================================================
-    -- The hddtemp demon must be installed and running.
-    -- Add to sudoers to a) allow access w/o pw and b) don't log every event:
-    --  Cmnd_Alias HDDTEMP_NOLOG=/usr/sbin/hddtemp
-    --  Defaults!HDDTEMP_NOLOG !syslog, !pam_session
-    --  %sudo saito = NOPASSWD: HDDTEMP_NOLOG
+    -- Drive temps via drivetemp kernel module (replaces hddtemp).
+    -- * drivetemp persistence (if not already saved):
+    --     echo drivetemp | sudo tee /etc/modules-load.d/drivetemp.conf
+    -- * No root required — temps via /sys/class/block/*/hwmon
 
-    -- -- SSD1 ------------------------------------------------------------
+    -- -- OS (sda) ---------------------------------------------------------
     template3 = [[
-${font :bold:size=11}${color #0077FF}HD Status:${voffset 5}${font}
+${font :bold:size=11}${color #0077FF}HD Status - OS:${voffset 5}${font}
 ${voffset 0}${goto 14}${color lightgrey}${font :size=8}/ ${alignr}${fs_used_perc /}% ${color #FFD000}${fs_bar 6,55 /}
 ${voffset 0}${goto 14}${color lightgrey}${font :size=8}/boot ${alignr}${fs_used_perc /boot}% ${color #FFD000}${fs_bar 6,55 /boot}
 ${voffset 2}${color #0077FF}${diskiograph sda 16,270 000000 FFD000}
-${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sda ${goto 80}${color lightgrey}${diskio sda}/s ${alignr}${execi 10 $HOME/.conky/saito/hddtemp.sh -q /dev/sda 2>&1 | sed -r 's/.*:\s*//'}
+${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sda ${goto 80}${color lightgrey}${diskio sda}/s ${alignr}${execi 60 $HOME/.local/conky/bin/conky-sensors sata sda}°C
 ${stippled_hr}
 ]],
 
-    -- -- SSD2 ------------------------------------------------------------
+    -- -- RAID5 DATA md0 (sdb + sdc + sdd) ---------------------------------
     template4 = [[
-${voffset 0}${goto 14}${color lightgrey}${font :size=8}/home ${alignr}${fs_used_perc /home}% ${color #61BEFF}${fs_bar 6,55 /home}
-${voffset 2}${color #0077FF}${diskiograph sdb 16,270 000000 FFD000}
-${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sdb ${goto 80}${color lightgrey}${diskio sdb}/s ${alignr}${execi 10 $HOME/.conky/saito/hddtemp.sh -q /dev/sdb 2>&1 | sed -r 's/.*:\s*//'}
+${font :bold:size=11}${color #0077FF}HD Status - md0 (RAID5 data):${voffset 5}${font}
+${goto 14}${font :size=8}${color #61BEFF}State: ${color lightgrey}${execi 30 $HOME/.local/conky/bin/conky-mdstat md0}
+${voffset 0}${goto 14}${color lightgrey}${font :size=8}/media/data ${alignr}${fs_used_perc /media/data}% ${color #FFD000}${fs_bar 6,55 /media/data}
+${voffset 2}${color #0077FF}${diskiograph md0 16,270 000000 FFD000}
+${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/md0 ${goto 80}${color lightgrey}${diskio md0}/s
+${goto 14}${font :size=6}${color #61BEFF}sdb: ${color lightgrey}${execi 60 $HOME/.local/conky/bin/conky-sensors sata sdb}°C  sdc: ${execi 60 $HOME/.local/conky/bin/conky-sensors sata sdc}°C  sdd: ${execi 60 $HOME/.local/conky/bin/conky-sensors sata sdd}°C
+${stippled_hr}
+]],
+
+    -- -- RAID5 STASH md1 (sde + sdf + sdg, dm-crypt encrypted) -----------
+    template5 = [[
+${font :bold:size=11}${color #0077FF}HD Status - md1 (RAID5 stash):${voffset 5}${font}
+${goto 14}${font :size=8}${color #61BEFF}State: ${color lightgrey}${execi 30 $HOME/.local/conky/bin/conky-mdstat md1}
+${voffset 0}${goto 14}${color lightgrey}${font :size=8}/media/stash ${alignr}${fs_used_perc /media/stash}% ${color #61BEFF}${fs_bar 6,55 /media/stash}
+${voffset 2}${color #0077FF}${diskiograph md1 16,270 000000 FFD000}
+${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/md1 ${goto 80}${color lightgrey}${diskio md1}/s
+${goto 14}${font :size=6}${color #61BEFF}sde: ${color lightgrey}${execi 60 $HOME/.local/conky/bin/conky-sensors sata sde}°C  sdf: ${execi 60 $HOME/.local/conky/bin/conky-sensors sata sdf}°C  sdg: ${execi 60 $HOME/.local/conky/bin/conky-sensors sata sdg}°C
+${stippled_hr}
+]],
+
+    -- -- Standalone (sdh /media/backup-old, sdi /media/backup) -----------
+    template6 = [[
+${font :bold:size=11}${color #0077FF}HD Status - Standalone:${voffset 5}${font}
+${voffset 0}${goto 14}${color lightgrey}${font :size=8}/media/backup-old ${alignr}${fs_used_perc /media/backup-old}% ${color #61BEFF}${fs_bar 6,55 /media/backup-old}
+${voffset 2}${color #0077FF}${diskiograph sdh 16,270 000000 FFD000}
+${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sdh ${goto 80}${color lightgrey}${diskio sdh}/s ${alignr}${execi 60 $HOME/.local/conky/bin/conky-sensors sata sdh}°C
+${voffset 4}${goto 14}${color lightgrey}${font :size=8}/media/backup ${alignr}${fs_used_perc /media/backup}% ${color #61BEFF}${fs_bar 6,55 /media/backup}
+${voffset 2}${color #0077FF}${diskiograph sdi 16,270 000000 FFD000}
+${voffset -2}${goto 14}${font :size=6}${color #FFD000}/dev/sdi ${goto 80}${color lightgrey}${diskio sdi}/s ${alignr}${execi 60 $HOME/.local/conky/bin/conky-sensors sata sdi}°C
 ${stippled_hr}
 ]],
 
@@ -168,9 +193,10 @@ ${goto 14}${color #61BEFF}${top_io name 3} ${color lightgrey}${goto 140}${top_io
 
 conky.text=[[
 ${template 0 CPU}
-${template 3 SSD}
+${template 3 OS}
 ${template 4 RAID5\ DATA}
-${template 5 RAID5\ OLD}
+${template 5 RAID5\ STASH}
+${template 6 STANDALONE}
 ${template 9 TOP}
 ]]
 --${template 1 GPU}

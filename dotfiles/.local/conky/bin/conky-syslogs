@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+
+p_usage() {
+  printf 'Usage: %s FOLD_WIDTH TAIL_LINES_JOURNAL TAIL_LINES_LOGS...\n' "$(basename "$0")"
+}
+
+p_help() {
+  p_usage
+  cat <<EOF
+
+About:
+  Print system logs for conky display, including mdstat, journalctl, and sway/i3 logs.
+  Output is colorized and folded to fit the given width.
+
+Arguments:
+  FOLD_WIDTH: Column width to fold log lines to (e.g. 140)
+  TAIL_LINES_JOURNAL: Number of lines to show from journalctl output (e.g. 50)
+  TAIL_LINES_LOGS: Number of lines to show from sway/i3 log output (e.g. 10)
+
+Example usage in conky config:
+  \${execp \$HOME/.local/conky/bin/conky-syslogs 140 50 10 "$HOME/.xsession.log"}
+EOF
+}
+
+# cli arg values (defaults not used, argments mandatory for now)
+declare -i FOLD_WIDTH
+declare -i TAIL_LINES_JOURNAL
+declare -i TAIL_LINES_LOGS
+declare -a LOG_FILES=()
+parse_args() {
+  if [[ $# -lt 3 ]]; then
+    p_usage >&2
+    exit 1
+  fi
+  FOLD_WIDTH="$1"
+  TAIL_LINES_JOURNAL="$2"
+  TAIL_LINES_LOGS="$3"
+  for log_file in "${@:4}"; do
+    if [[ ! -r "$log_file" ]]; then
+      printf "Error: Log file '%s' not found or not readable!\n" "$log_file" >&2
+      exit 1
+    fi
+    LOG_FILES+=("$log_file")
+  done
+}
+
+print_mdstats() {
+  grep -Ev '^(Personal|unused devices: <none>)' /proc/mdstat
+}
+
+print_journal() {
+  # to run journalctl without sudo and still get all logs, add the user to the 'systemd-journal' group:
+  # sudo usermod -aG systemd-journal $USER
+  journalctl -l -n "$TAIL_LINES_JOURNAL" --output=short-iso --no-pager | sed -E 's/^([0-9T:-]{19})(\+[0-9:]{5}) /\1 /' | fold -w"$FOLD_WIDTH" | tail -n "$TAIL_LINES_JOURNAL"
+}
+
+print_log() {
+  tail -n "$TAIL_LINES_LOGS" "$1" | fold -w"$FOLD_WIDTH" | tail -n "$TAIL_LINES_LOGS"
+}
+
+print_separator() {
+  local section_title="${1:-}"
+  if [[ -n "$section_title" ]]; then
+    local -i title_length=${#section_title}
+    local -i dash_length=$((FOLD_WIDTH - title_length - 5))
+    if (( dash_length < 0 )); then
+      dash_length=0
+    fi
+    printf "\n--- %s " "$section_title"
+    printf '%*s\n' "$dash_length" '' | tr ' ' '-'
+  else
+    printf '\n%*s\n' "$FOLD_WIDTH" '' | tr ' ' '-'
+  fi
+}
+
+print_syslogs() {
+  # shellcheck disable=SC2016
+  {
+    local -i has_prev=0
+
+    # Optional: mdstats (only on systems with software RAID)
+    if [[ -f /proc/mdstat ]]; then
+      local mdstats
+      mdstats="$(print_mdstats)"
+      if [[ -n "$mdstats" ]]; then
+        print_separator "MDSTAT"
+        printf "%s" "$mdstats"
+      fi
+    fi
+
+    # Journal
+    print_separator "JOURNAL"
+    printf "%s" "$(print_journal)"
+
+    # Log files
+    for log_file in "${LOG_FILES[@]}"; do
+      print_separator "LOG FILE: $log_file"
+      printf "%s" "$(print_log "$log_file")"
+    done
+  } | sed -r 's/\$/$$/g;
+              s/(errors?|exceptions?|fail(ures?|ing|ed)?|refuse(s|ing|ed)?|reject(s|ing|ed|ion)?)/${color #ff6666}\0${color}/gi;
+              s/(warn(ing)?)/${color #ff9933}\0${color}/gi;
+              s/(\[[^]]*\]\s*\w+\s*=\s*[0-9,.]*\s*%)(.*)(finish\s*=.*)/${color #ff6666}\1${color}\2${color #ff9933}\3${color}/gi;
+              s/\[[0-9]+\/[0-9]+\]\s*\[[_U]*_[_U]*\]/${color #ff6666}\0${color}/gi'
+}
+
+parse_args "$@"
+print_syslogs

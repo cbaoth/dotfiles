@@ -1,10 +1,15 @@
-#!/usr/bin/env sh
-# -*- mode: sh; sh-shell: sh; indent-tabs-mode: nil; tab-width: 2 -*-
-# vim: ft=sh:et:ts=2:sts=2:sw=2
-# code: language=sh insertSpaces=true tabSize=2
-# shellcheck shell=sh
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
 #
 # ~/.xsession.d/saito: host-specific xsession commands for saito.
+
+# Log to file for debugging and monitoring (e.g. conky)
+XSESSION_LOG_FILE="$HOME/.xsession.log"
+# Overwrite instead of append to avoid huge log files (no need for log rotation)
+exec > >(tee "$XSESSION_LOG_FILE") 2>&1
 
 # turn off screen blacking
 # since tv will switches to cable mode (bad) and has its own energy save timer
@@ -24,9 +29,7 @@ runbg /bin/teamviewer
 runbg ~/jd2/JDownloader2
 runbg x11vnc -auth guess -forever -loop -noxdamage -repeat -rfbauth /home/cbaoth/.vnc/passwd -rfbport 5900 -shared
 
-# delete previous log file
-rm -f ~/i3.log 2>&1 >/dev/null
 # run i3 windowmanager
-#exec i3 -V >> ~/i3.log 2>&1
+exec i3 -V
 # run gnome
-exec gnome-session
+#exec gnome-session

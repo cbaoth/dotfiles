@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Query nvidia-smi for GPU information for conky display.
+
+p_usage() {
+  printf 'Usage: %s QUERY\n' "$(basename "$0")"
+}
+
+p_help() {
+  p_usage
+  cat <<EOF
+
+About:
+  Query nvidia-smi for GPU information for conky display.
+  Outputs the queried value or ? if nvidia-smi is unavailable or fails.
+
+Queries:
+  name        - GPU model name
+  temp        - GPU temperature (value only, no unit)
+  load        - GPU utilization (value only, no unit)
+  vram-used   - VRAM used in MiB (value only, no unit)
+  vram-total  - VRAM total in MiB (value only, no unit)
+
+Example usage in conky config:
+  \${execi 3600 \$HOME/.local/conky/bin/conky-nvidia name}
+  \${execi 5 \$HOME/.local/conky/bin/conky-nvidia temp}°C
+  \${execi 5 \$HOME/.local/conky/bin/conky-nvidia load}%
+  \${execi 5 \$HOME/.local/conky/bin/conky-nvidia vram-used}MiB / \${execi 5 \$HOME/.local/conky/bin/conky-nvidia vram-total}MiB
+EOF
+}
+
+QUERY="${1:-}"
+
+if [[ -z "$QUERY" || "$QUERY" == -h || "$QUERY" == --help ]]; then
+  p_help
+  exit 0
+fi
+
+case "$QUERY" in
+  name)       field="name" ;;
+  temp)       field="temperature.gpu" ;;
+  load)       field="utilization.gpu" ;;
+  vram-used)  field="memory.used" ;;
+  vram-total) field="memory.total" ;;
+  *)
+    printf 'Error: Unknown query: %s\n' "$QUERY" >&2
+    p_usage >&2
+    exit 1
+    ;;
+esac
+
+nvidia-smi --query-gpu="$field" --format=csv,noheader 2>&1 \
+  | grep -v 'Failed to initialize\|version mismatch\|library version' \
+  || echo '?'

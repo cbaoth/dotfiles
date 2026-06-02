@@ -507,10 +507,7 @@ exec --no-startup-id swayidle -w \
 exec --no-startup-id mako
 
 # conky system monitor (native Wayland -- conky 1.22.2+ with BUILD_WAYLAND=ON)
-exec --no-startup-id conky -p 5 -c ~/.conky/motoko/conky-left-1.conf
-exec --no-startup-id conky -p 5 -c ~/.conky/motoko/conky-left-2.conf
-exec --no-startup-id conky -p 5 -c ~/.conky/motoko/conky-left-3.conf
-exec --no-startup-id conky -p 5 -c ~/.conky/motoko/conky-right-1.conf
+exec --no-startup-id conky ~/bin/conky-restart
 
 # {{{ - Launch Apps after waybar ---------------------------------------------
 # KeePassXC (flatpak, auto-updates to latest stable).
