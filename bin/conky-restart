@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Restart conky with the config files for a given (or the current) host.
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+#trap 'rc=$?; \
+#      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
+#             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
+#             "${BASH_COMMAND:-N/A}"; \
+#      exit $rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+#trap 'rc=$?; printf "EXIT(%s)\n" "$rc"; exit $rc' EXIT
+
+# Logging
+#p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+#p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+p_usg() { printf 'Usage: %s [HOST_NAME] [OPTION...]\n' "$(basename "$0")"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+About:
+  Simple wrapper for restarting conky with the config files for a given host.
+  Defaults to the current hostname if HOST_NAME is not provided.
+
+Options:
+  -A, --conky-args ARGS   Custom args to pass to conky (default: -p 5)
+  -h, --help              Show this help message and exit
+EOF
+}
+
+# Per-host conky config file lists
+# shellcheck disable=SC2034 # unused variable: deferred use with declare -n
+declare -ra CONKY_CONFIGS_saito=(
+  "$HOME/.config/conky/saito/conky/conkyrc-syslog"
+  "$HOME/.config/conky/saito/conky/conkyrc-syslog"
+)
+# shellcheck disable=SC2034 # unused variable: deferred use with declare -n
+declare -ra CONKY_CONFIGS_motoko=(
+  "$HOME/.config/conky/motoko/conky-left-1.conf"
+  "$HOME/.config/conky/motoko/conky-left-2.conf"
+  "$HOME/.config/conky/motoko/conky-left-3.conf"
+  "$HOME/.config/conky/motoko/conky-left-4.conf"
+)
+
+# Map hostname -> config array name; used to resolve configs and check known hosts
+declare -rA HOST_CONFIGS=(
+  ["saito"]="CONKY_CONFIGS_saito"
+  ["motoko"]="CONKY_CONFIGS_motoko"
+)
+
+declare -a CONKY_ARGS=(-p 5)
+HOST_NAME=""
+
+parse_args() {
+  HOST_NAME="$(hostname -s)"
+  local host_provided=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|-help|--help)
+        p_hlp
+        exit 0
+        ;;
+      -A|--conky-args)
+        shift
+        CONKY_ARGS=("$@")
+        break
+        ;;
+      -*)
+        p_err "Unknown option '$1', exiting..."
+        p_usg >&2
+        exit 1
+        ;;
+      *)
+        if ! "${host_provided}"; then
+          HOST_NAME="$1"
+          host_provided=true
+        else
+          p_err "Unexpected argument '$1', exiting..."
+          p_usg >&2
+          exit 1
+        fi
+        ;;
+    esac
+    shift
+  done
+
+  if ! [[ -v HOST_CONFIGS["$HOST_NAME"] ]]; then
+    if "${host_provided}"; then
+      p_err "No known config for hostname '${HOST_NAME}', exiting..."
+    else
+      p_err "No hostname provided and no known config for default hostname '${HOST_NAME}', exiting..."
+    fi
+    exit 1
+  fi
+}
+
+main() {
+  parse_args "$@"
+
+  declare -n configs="${HOST_CONFIGS[$HOST_NAME]}"
+  local LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/conky"
+  mkdir -p "$LOG_DIR"
+  # Remove all existing logs upfront to avoid orphaned files from renamed/removed configs
+  rm -f "${LOG_DIR}"/*.log
+
+  # Kill direct conky processes.
+  pkill -x conky 2>/dev/null || true
+
+  # Also kill wrapper shells like: sh -c conky ... -c <config>
+  # Match only shell commands that explicitly execute conky with a config flag.
+  while IFS= read -r pid; do
+    kill "$pid" 2>/dev/null || true
+  done < <(pgrep -f '^(conky|(sh|bash) -c conky) ')
+
+  local log_file
+  for config in "${configs[@]}"; do
+    log_file="${LOG_DIR}/$(basename "$config").log"
+    conky "${CONKY_ARGS[@]}" -c "$config" >> "$log_file" 2>&1 &
+  done
+}
+
+main "$@"

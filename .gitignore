@@ -24,7 +24,6 @@ _local/
 
 # Local config overrides — may contain sensitive data (e.g., credentials, API keys)
 # Convention: foo.local or foo.local.conf overrides the tracked foo config (not committed)
-*.local
 *.local.*
 
 # Claude Code — machine-specific / auto-generated

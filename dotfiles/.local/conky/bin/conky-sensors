@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Read hardware temperatures for conky display.
+
+p_usage() {
+  printf 'Usage: %s TYPE DEVICE\n' "$(basename "$0")"
+}
+
+p_help() {
+  p_usage
+  cat <<EOF
+
+About:
+  Read hardware temperatures for conky display output.
+  Outputs the temperature as an integer or ? if unavailable.
+
+Types and devices:
+  dimm CHIP    - DDR DIMM temperature via lm-sensors (e.g. spd5118-i2c-7-51)
+  nvme DEV     - NVMe drive temperature via sysfs (e.g. nvme0, nvme1)
+  sata DEV     - SATA/HDD temperature via drivetemp sysfs (e.g. sda, sdb)
+  nic  IFACE   - Network interface temperature via sysfs (e.g. enp7s0)
+               Works for both dedicated and onboard NICs (searches MDIO sub-devices)
+
+Prerequisites:
+  - lm-sensors installed: sudo apt install lm-sensors
+  - drivetemp module for SATA temps:
+      echo drivetemp | sudo tee /etc/modules-load.d/drivetemp.conf
+  - No root required at runtime
+
+Example usage in conky config:
+  \${execi 30 \$HOME/.local/conky/bin/conky-sensors dimm spd5118-i2c-7-51}°C
+  \${execi 60 \$HOME/.local/conky/bin/conky-sensors nvme nvme1}°C
+  \${execi 60 \$HOME/.local/conky/bin/conky-sensors sata sda}°C
+  \${execi 30 \$HOME/.local/conky/bin/conky-sensors nic enp7s0}°C
+EOF
+}
+
+# Read temperature from a sysfs hwmon file matching the given glob pattern.
+# Outputs the temperature in Celsius (integer) or ? if not found/readable.
+read_sysfs_temp() {
+  local f
+  # Intentionally unquoted to allow glob expansion
+  for f in $1; do
+    [[ -r "$f" ]] && echo $(( $(< "$f") / 1000 )) && return 0
+  done
+  echo '?'
+}
+
+TYPE="${1:-}"
+DEVICE="${2:-}"
+
+if [[ -z "$TYPE" || "$TYPE" == -h || "$TYPE" == --help ]]; then
+  p_help
+  exit 0
+fi
+
+if [[ -z "$DEVICE" ]]; then
+  p_usage >&2
+  exit 1
+fi
+
+case "$TYPE" in
+  dimm)
+    # Read DDR DIMM temp via lm-sensors (stable i2c chip address)
+    sensors -u "$DEVICE" 2>/dev/null \
+      | awk '/temp1_input/ { printf "%.0f", $2; exit }'
+    ;;
+  nvme)
+    # Read NVMe temp directly from sysfs hwmon
+    read_sysfs_temp "/sys/class/nvme/${DEVICE}/hwmon*/temp1_input"
+    ;;
+  sata)
+    # Read SATA/HDD temp via drivetemp kernel module (sysfs)
+    read_sysfs_temp "/sys/class/block/${DEVICE}/device/hwmon/hwmon*/temp1_input"
+    ;;
+  nic)
+    # Onboard NICs expose temp via MDIO sub-device hwmon (no direct hwmon link).
+    # Use find to locate temp1_input anywhere under the PCI device tree.
+    pci_dev=$(readlink -f "/sys/class/net/${DEVICE}/device" 2>/dev/null)
+    if [[ -z "$pci_dev" ]]; then echo '?'; exit 0; fi
+    nic_f=$(find "$pci_dev" -name temp1_input -readable 2>/dev/null | head -1)
+    [[ -n "$nic_f" ]] && echo $(( $(< "$nic_f") / 1000 )) || echo '?'
+    ;;
+  *)
+    printf 'Error: Unknown sensor type: %s\n' "$TYPE" >&2
+    p_usage >&2
+    exit 1
+    ;;
+esac

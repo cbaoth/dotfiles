@@ -117,5 +117,5 @@ conky.config={
 }
 
 conky.text=[[
-${execp $HOME/.conky/saito/log1.sh}
+${color}${execp $HOME/.local/conky/bin/conky-syslogs 140 50 10 "$HOME/.xsession.log"}
 ]]

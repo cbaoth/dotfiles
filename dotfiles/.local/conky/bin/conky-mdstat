@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Read software RAID status from /proc/mdstat for conky display.
+
+p_usage() {
+  printf 'Usage: %s MD_DEVICE\n' "$(basename "$0")"
+}
+
+p_help() {
+  p_usage
+  cat <<EOF
+
+About:
+  Read MD RAID status from /proc/mdstat for conky display.
+  Outputs the state string (e.g. "3/3 [UUU]") or ? if unavailable.
+  A degraded array shows entries like "2/3 [UU_]" or "2/3 [UUF]".
+
+Arguments:
+  MD_DEVICE  - RAID device name (e.g. md0, md1)
+
+Example usage in conky config:
+  \${execi 30 \$HOME/.local/conky/bin/conky-mdstat md0}
+  \${execi 30 \$HOME/.local/conky/bin/conky-mdstat md1}
+EOF
+}
+
+DEV="${1:-}"
+
+if [[ -z "$DEV" || "$DEV" == -h || "$DEV" == --help ]]; then
+  p_help
+  exit 0
+fi
+
+if [[ ! -f /proc/mdstat ]]; then
+  echo '?'
+  exit 0
+fi
+
+# Extract the status line for the given device from /proc/mdstat.
+# The line after "mdX :" contains e.g.: "[3/3] [UUU]"
+state_line=$(grep -A2 "^${DEV} :" /proc/mdstat 2>/dev/null | grep -m1 '\[[0-9]*/[0-9]*\]')
+
+ratio=''
+status=''
+
+if [[ "$state_line" =~ \[([0-9]+/[0-9]+)\] ]]; then
+  ratio="${BASH_REMATCH[1]}"
+fi
+
+if [[ "$state_line" =~ (\[[UF_]+\]) ]]; then
+  status="${BASH_REMATCH[1]}"
+fi
+
+if [[ -n "$ratio" && -n "$status" ]]; then
+  echo "${ratio} ${status}"
+else
+  echo '?'
+fi
