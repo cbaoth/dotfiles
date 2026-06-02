@@ -7,7 +7,6 @@
 # Backup PostgreSQL and MySQL databases.
 
 # FIXME mysql auth only possible via --config (default file not used)
-# TODO error handling, delete partial backups on interrupt / error
 # TODO add default variables for config files and expire days (optional system wide default config)
 # TODO introduce an interactive mode or skip-if-exists
 
@@ -21,6 +20,18 @@ set -o pipefail
 set -o nounset
 (( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
 IFS=$'\t\n\0'
+
+# cleanup partial backup file (if any) on exit/interrupt
+# shellcheck disable=SC2329  # called from EXIT/SIGINT/SIGTERM traps
+_cleanup_partial() {
+  if [[ -n "${_partial_file:-}" && -f "${_partial_file}" ]]; then
+    printf "Removing partial backup [%s]\n" "${_partial_file}" >&2
+    rm -f "${_partial_file}"
+  fi
+  _partial_file=""
+}
+trap '_cleanup_partial' EXIT
+trap 'printf "\nINTERRUPT\n" >&2; exit 1' SIGINT SIGTERM
 
 # default values
 typeset -r _BACKUP_DIR="/backup/db"
@@ -93,6 +104,7 @@ typeset _db_user
 typeset _config_file
 typeset _expire_days
 typeset _backup_full=false
+typeset _partial_file=""
 
 # print error and exit with given code
 _exit() {
@@ -233,10 +245,12 @@ _backup_pgsql() {
   _delete_old ".*\/${_dbms}_${_db}_[^/]*.gz"
 
   # backup db
+  _partial_file="${_outfilepath}"
   sudo ${_user:+-u${_user}} \
     ${_config_file:+env PGPASSFILE="${_config_file}"} \
     pg_dump ${_db_user:+-U${_db_user}} -w -Fc "${_db}" \
       | gzip > "${_outfilepath}"
+  _partial_file=""
   return 0
 }
 
@@ -254,10 +268,12 @@ _backup_pgsql_full() {
   _delete_old ".*\/${_dbms}_full_[^/]*.gz"
 
   # backup dbs
+  _partial_file="${_outfilepath}"
   sudo ${_user:+-u${_user}} \
     ${_config_file:+env PGPASSFILE="${_config_file}"} \
     pg_dumpall ${_db_user:+-U${_db_user}} -w -c \
       | gzip > "${_outfilepath}"
+  _partial_file=""
   return 0
 }
 
@@ -277,11 +293,13 @@ _backup_mysql() {
   _delete_old ".*\/${_dbms}_${_db}_[^/]*.gz"
 
   # backup db
+  _partial_file="${_outfilepath}"
   sudo ${_user:+-u${_user}} \
     mysqldump ${_config_file:+--defaults-file="${_config_file}"} \
       ${_db_user:+-u${_db_user}} \
       --extended-insert --disable-keys --quick \
       "${_db}" | gzip > "${_outfilepath}"
+  _partial_file=""
   return 0
 }
 
@@ -299,6 +317,7 @@ _backup_mysql_full() {
   _delete_old ".*\/${_dbms}_full_[^/]*.gz"
 
   # backup dbs
+  _partial_file="${_outfilepath}"
   sudo ${_user:+-u${_user}} \
     mysqldump ${_config_file:+--defaults-file="${_config_file}"} \
       ${_db_user:+-u${_db_user}} \
@@ -306,6 +325,7 @@ _backup_mysql_full() {
       --all-databases --add-drop-database --flush-privileges \
       --events --ignore-table=mysql.event \
       | gzip > "${_outfilepath}"
+  _partial_file=""
   return 0
 }
 
