@@ -6,7 +6,6 @@
 #
 # Backup PostgreSQL and MySQL databases.
 
-# FIXME mysql auth only possible via --config (default file not used)
 # TODO add default variables for config files and expire days (optional system wide default config)
 
 # cron example
@@ -67,8 +66,10 @@ DBMS: mysql
 
   Default db user: ${_DB_USER_MYSQL:--}
 
-  The --config option must point to a valid 'mysqldump --defaults-file' file
-    If not set mysql will use ~/.mylogin.cnf, example (only pass mandatory):
+  The --config option is required for mysql authentication.
+    ~/.mylogin.cnf is not used automatically because sudo does not preserve HOME.
+    The config file must be readable by the user running the backup (default: root).
+    It must be a valid 'mysqldump --defaults-file' file, example (only pass mandatory):
 
       [client]
       user = myuser
@@ -205,6 +206,10 @@ _parse_args() {
   else
     ${_backup_full} && echo "WARNING: Ignoring specifically provided DB name(s) [${_dbs[*]}], full backup will be performed instead." >&2
   fi
+
+  # mysql requires explicit --config (sudo does not preserve HOME, so ~/.mylogin.cnf is not found)
+  [[ "${_dbms}" == "mysql" && -z "${_config_file:-}" ]] \
+    && _exit 1 "MySQL requires --config (default ~/.mylogin.cnf not usable under sudo)"
 
   # set defaults where needed
   [[ -z "${_backup_dir}" ]] && _set_backup_dir "${_BACKUP_DIR}"
