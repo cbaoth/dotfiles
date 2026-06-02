@@ -17,6 +17,8 @@ p_help() {
 About:
   Read hardware temperatures for conky display output.
   Outputs the temperature as an integer or ? if unavailable.
+  When WARN and CRIT thresholds are provided, wraps the value in conky color tags
+  (\${color orange} or \${color red}) so the caller can use \${execpi} to apply them.
 
 Types and devices:
   dimm CHIP    - DDR DIMM temperature via lm-sensors (e.g. spd5118-i2c-7-51)
@@ -25,17 +27,22 @@ Types and devices:
   nic  IFACE   - Network interface temperature via sysfs (e.g. enp7s0)
                Works for both dedicated and onboard NICs (searches MDIO sub-devices)
 
+Arguments:
+  TYPE DEVICE [WARN] [CRIT]
+    WARN  - temperature (°C) at which output turns orange (optional)
+    CRIT  - temperature (°C) at which output turns red (optional)
+
 Prerequisites:
   - lm-sensors installed: sudo apt install lm-sensors
   - drivetemp module for SATA temps:
       echo drivetemp | sudo tee /etc/modules-load.d/drivetemp.conf
   - No root required at runtime
 
-Example usage in conky config:
-  \${execi 30 \$HOME/.local/conky/bin/conky-sensors dimm spd5118-i2c-7-51}°C
-  \${execi 60 \$HOME/.local/conky/bin/conky-sensors nvme nvme1}°C
-  \${execi 60 \$HOME/.local/conky/bin/conky-sensors sata sda}°C
-  \${execi 30 \$HOME/.local/conky/bin/conky-sensors nic enp7s0}°C
+Example usage in conky config (with thresholds, use execpi to parse color tags):
+  \${execpi 30 \$HOME/.local/conky/bin/conky-sensors dimm spd5118-i2c-7-51 55 70}°C
+  \${execpi 60 \$HOME/.local/conky/bin/conky-sensors nvme nvme1 55 70}°C
+  \${execpi 60 \$HOME/.local/conky/bin/conky-sensors sata sda 45 55}°C
+  \${execpi 30 \$HOME/.local/conky/bin/conky-sensors nic enp7s0 65 80}°C
 EOF
 }
 
@@ -52,6 +59,27 @@ read_sysfs_temp() {
 
 TYPE="${1:-}"
 DEVICE="${2:-}"
+WARN="${3:-}"
+CRIT="${4:-}"
+
+# Wrap a numeric temperature value in conky color tags when thresholds are set.
+# Non-numeric values (e.g. ?) and missing thresholds pass through unchanged.
+colorize_output() {
+  local val="$1"
+  if [[ -z "$WARN" && -z "$CRIT" ]] || [[ ! "$val" =~ ^[0-9]+$ ]]; then
+    printf '%s' "$val"
+    return
+  fi
+  if [[ -n "$CRIT" ]] && (( val >= CRIT )); then
+    # shellcheck disable=SC2016 # allow printf format string for conky color tags
+    printf '${color red}%s${color}' "$val"
+  elif [[ -n "$WARN" ]] && (( val >= WARN )); then
+    # shellcheck disable=SC2016 # allow printf format string for conky color tags
+    printf '${color orange}%s${color}' "$val"
+  else
+    printf '%s' "$val"
+  fi
+}
 
 if [[ -z "$TYPE" || "$TYPE" == -h || "$TYPE" == --help ]]; then
   p_help
@@ -66,24 +94,29 @@ fi
 case "$TYPE" in
   dimm)
     # Read DDR DIMM temp via lm-sensors (stable i2c chip address)
-    sensors -u "$DEVICE" 2>/dev/null \
-      | awk '/temp1_input/ { printf "%.0f", $2; exit }'
+    result=$(sensors -u "$DEVICE" 2>/dev/null \
+      | awk '/temp1_input/ { printf "%.0f", $2; exit }')
+    colorize_output "${result:-?}"
     ;;
   nvme)
     # Read NVMe temp directly from sysfs hwmon
-    read_sysfs_temp "/sys/class/nvme/${DEVICE}/hwmon*/temp1_input"
+    colorize_output "$(read_sysfs_temp "/sys/class/nvme/${DEVICE}/hwmon*/temp1_input")"
     ;;
   sata)
     # Read SATA/HDD temp via drivetemp kernel module (sysfs)
-    read_sysfs_temp "/sys/class/block/${DEVICE}/device/hwmon/hwmon*/temp1_input"
+    colorize_output "$(read_sysfs_temp "/sys/class/block/${DEVICE}/device/hwmon/hwmon*/temp1_input")"
     ;;
   nic)
     # Onboard NICs expose temp via MDIO sub-device hwmon (no direct hwmon link).
     # Use find to locate temp1_input anywhere under the PCI device tree.
     pci_dev=$(readlink -f "/sys/class/net/${DEVICE}/device" 2>/dev/null)
-    if [[ -z "$pci_dev" ]]; then echo '?'; exit 0; fi
+    if [[ -z "$pci_dev" ]]; then colorize_output '?'; exit 0; fi
     nic_f=$(find "$pci_dev" -name temp1_input -readable 2>/dev/null | head -1)
-    [[ -n "$nic_f" ]] && echo $(( $(< "$nic_f") / 1000 )) || echo '?'
+    if [[ -n "$nic_f" ]]; then
+      colorize_output "$(( $(< "$nic_f") / 1000 ))"
+    else
+      colorize_output '?'
+    fi
     ;;
   *)
     printf 'Error: Unknown sensor type: %s\n' "$TYPE" >&2
