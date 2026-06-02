@@ -157,12 +157,12 @@ set $down p
 set $term foot
 
 # workspace numbers and names
-set $ws1  "1:Main"
-set $ws2  "2:Web"
-set $ws3  "3:Dev"
-set $ws4  "4:Graphics"
-set $ws5  "5:Games"
-set $ws6  "6:Tray"
+set $ws1  "1:#1 Pri"
+set $ws2  "2:#2 Web"
+set $ws3  "3:#3 Dev"
+set $ws4  "4:#4 Des"
+set $ws5  "5:#5 Ent"
+set $ws6  "6:#6 Sys" floating enable
 #set $ws7  "7:Misc"
 #set $ws8  "8:Misc"
 #set $ws9  "9:Tray"
@@ -409,10 +409,9 @@ bindsym $mod+space exec rofi -show combi
 # mod-ESC: run htop in floating terminal
 bindsym $mod+Escape exec $term --app-id=swayfloat -e htop
 
-# mod-F1: open ssh session
-# Note: gnome-keyring-daemon may not start cleanly outside GNOME;
-#       consider using KeePassXC as SSH agent instead (Settings → SSH Agent)
-bindsym $mod+F1 exec $term -e ssh -p 8090 -A 11001001.org
+# mod-F1 to F2: open ssh session in floating terminal
+bindsym $mod+F1 exec $term --app-id=swayfloat -e ssh -A 11001001.org -p 8090
+bindsym $mod+F2 exec $term --app-id=swayfloat -e ssh -A saito-lan
 # }}} - Run Apps -------------------------------------------------------------
 # }}} = Key Bindings =========================================================
 
@@ -495,8 +494,8 @@ exec --no-startup-id dbus-update-activation-environment --systemd \
 # PAM auth (incl. U2F): sudo install -m 644 /dev/null /etc/pam.d/swaylock
 #   echo 'auth include common-auth' | sudo tee /etc/pam.d/swaylock
 exec --no-startup-id swayidle -w \
-    timeout 300  'swaylock -f -c 000000' \
-    timeout 600  'swaymsg "output * dpms off"' \
+    timeout 900  'swaylock -f -c 000000' \
+    timeout 3600  'swaymsg "output * dpms off"' \
     resume       'swaymsg "output * dpms on"' \
     before-sleep 'swaylock -f -c 000000'
 
