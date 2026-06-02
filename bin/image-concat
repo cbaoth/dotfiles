@@ -93,7 +93,7 @@ q_overwrite() {
 }
 
 # Usage
-p_usg() { printf 'Usage: %s\n' "$(basename "$0") [-w|-h|-n] [-x1] [-o OUTFILE] INFILE.."; }
+p_usg() { printf 'Usage: %s  [-w|-h|-n] [-x1] [-o OUTFILE] INFILE..\n' "$(basename "$0")"; }
 p_hlp() {
   p_usg
   cat <<EOF

@@ -455,7 +455,7 @@ run_tests_for_mount() {
 
 # {{{ - Arg Parsing / Main ---------------------------------------------------
 
-p_usg() { printf 'Usage: %s\n' "$(basename "$0") [OPTIONS] MOUNTPAINT..."; }
+p_usg() { printf 'Usage: %s  [OPTIONS] MOUNTPAINT...\n' "$(basename "$0")"; }
 p_hlp() {
   p_usg
   cat <<EOF
