@@ -61,6 +61,7 @@ TYPE="${1:-}"
 DEVICE="${2:-}"
 WARN="${3:-}"
 CRIT="${4:-}"
+OK="${5:-}"
 
 # Wrap a numeric temperature value in conky color tags when thresholds are set.
 # Non-numeric values (e.g. ?) and missing thresholds pass through unchanged.
@@ -76,6 +77,9 @@ colorize_output() {
   elif [[ -n "$WARN" ]] && (( val >= WARN )); then
     # shellcheck disable=SC2016 # allow printf format string for conky color tags
     printf '${color orange}%s${color}' "$val"
+  elif [[ -n "$OK" ]]; then
+    # shellcheck disable=SC2016 # allow printf format string for conky color tags
+    printf '${color %s}%s${color}' "$OK" "$val"
   else
     printf '%s' "$val"
   fi

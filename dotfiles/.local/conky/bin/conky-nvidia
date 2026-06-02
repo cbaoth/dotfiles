@@ -23,7 +23,10 @@ About:
   tags so the caller can use \${execpi} to apply them.
 
 Arguments:
-  QUERY [WARN] [CRIT]
+  QUERY [WARN] [CRIT] [OK] [--color-only]
+
+  --color-only  Output only the color tag (no value); useful as graph border
+                color prefix on a conky execgraph line.
 
 Queries:
   name        - GPU model name
@@ -31,18 +34,23 @@ Queries:
   load        - GPU utilization (integer, no unit)
   vram-used   - VRAM used (MiB value only, no unit)
   vram-total  - VRAM total (MiB value only, no unit)
+  vram-perc   - VRAM used as integer percentage (supports WARN/CRIT/OK)
 
 Example usage in conky config (with thresholds, use execpi to parse color tags):
   \${execi 3600 \$HOME/.local/conky/bin/conky-nvidia name}
   \${execpi 5 \$HOME/.local/conky/bin/conky-nvidia temp 80 90}°C
   \${execpi 5 \$HOME/.local/conky/bin/conky-nvidia load 80 95}%
+  \${execpi 5 \$HOME/.local/conky/bin/conky-nvidia vram-perc 80 95 green}%
   \${execi 5 \$HOME/.local/conky/bin/conky-nvidia vram-used}MiB / \${execi 5 \$HOME/.local/conky/bin/conky-nvidia vram-total}MiB
+  \${execpi 5 \$HOME/.local/conky/bin/conky-nvidia vram-perc 80 95 FFFFFF --color-only}\${execgraph \$HOME/.local/conky/bin/conky-vram-perc 60,470 07CC0D FF0000 -t}\${color}
 EOF
 }
 
 QUERY="${1:-}"
 WARN="${2:-}"
 CRIT="${3:-}"
+OK="${4:-}"
+COLOR_ONLY="${5:-}"  # set to any non-empty value to output only the color tag (no value)
 
 if [[ -z "$QUERY" || "$QUERY" == -h || "$QUERY" == --help ]]; then
   p_help
@@ -55,6 +63,7 @@ case "$QUERY" in
   load)       field="utilization.gpu" ;;
   vram-used)  field="memory.used" ;;
   vram-total) field="memory.total" ;;
+  vram-perc)  field="memory.used,memory.total" ;;
   *)
     printf 'Error: Unknown query: %s\n' "$QUERY" >&2
     p_usage >&2
@@ -74,17 +83,28 @@ fi
 # config can append its own units without doubling up.
 val="${raw%% *}"
 
+# For vram-perc, calculate integer percentage from "X MiB, Y MiB" output.
+if [[ "$QUERY" == "vram-perc" ]]; then
+  vram_used="${raw%%,*}"; vram_used="${vram_used%% *}"
+  vram_total="${raw##*, }"; vram_total="${vram_total%% *}"
+  if [[ -z "$vram_total" || "$vram_total" -eq 0 ]]; then echo '?'; exit 0; fi
+  val=$(( vram_used * 100 / vram_total ))
+fi
+
 # Apply color thresholds when set and value is a plain integer.
 if [[ -n "$WARN" || -n "$CRIT" ]] && [[ "$val" =~ ^[0-9]+$ ]]; then
   if [[ -n "$CRIT" ]] && (( val >= CRIT )); then
     # shellcheck disable=SC2016 # allow printf format string for conky color tags
-    printf '${color red}%s${color}' "$val"
+    [[ -n "$COLOR_ONLY" ]] && printf '${color red}' || printf '${color red}%s${color}' "$val"
   elif [[ -n "$WARN" ]] && (( val >= WARN )); then
     # shellcheck disable=SC2016 # allow printf format string for conky color tags
-    printf '${color orange}%s${color}' "$val"
+    [[ -n "$COLOR_ONLY" ]] && printf '${color orange}' || printf '${color orange}%s${color}' "$val"
+  elif [[ -n "$OK" ]]; then
+    # shellcheck disable=SC2016 # allow printf format string for conky color tags
+    [[ -n "$COLOR_ONLY" ]] && printf '${color %s}' "$OK" || printf '${color %s}%s${color}' "$OK" "$val"
   else
-    printf '%s' "$val"
+    [[ -z "$COLOR_ONLY" ]] && printf '%s' "$val"
   fi
 else
-  printf '%s' "$val"
+  [[ -z "$COLOR_ONLY" ]] && printf '%s' "$val"
 fi
