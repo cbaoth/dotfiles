@@ -141,6 +141,68 @@ Namespace: functions `cl::name`, constants `CL_NAME`.
 
 Use [ShellCheck](https://www.shellcheck.net/) for static analysis.
 
+## Dotfiles Linking & Deployment
+
+This repository uses symlink-based configuration management. **After any changes to files in `bin/`, `lib/`, or `dotfiles/`, you must run the linking script.**
+
+### Understanding the System
+
+Two-part linking approach:
+
+1. **Nested dotfiles** (`dotfiles/` → `$HOME/`): Preserves directory structure
+   - Example: `dotfiles/.zshrc` → `~/.zshrc`
+   - Example: `dotfiles/.config/sway/config` → `~/.config/sway/config`
+
+2. **Flat directory sync** (`bin/` → `$HOME/bin`, `lib/` → `$HOME/lib`): Files only, stale symlink cleanup
+   - Example: `bin/my-script` → `~/bin/my-script`
+   - Automatically removes broken symlinks when source files are deleted
+
+### When to Run
+
+**Always run after:**
+- Creating new scripts in `bin/` or executable files in `lib/`
+- Creating/modifying dotfiles in `dotfiles/`
+- Renaming, moving, or deleting files in above directories
+- Fresh checkout or after `git pull`
+
+### How to Run
+
+**User/testing (shell-agnostic, works in both bash and zsh):**
+```bash
+dotfiles-link              # Run linking (function in .aliases, includes command cache refresh)
+dotfiles-link --dry-run    # Preview changes before applying
+dotfiles-link -vv          # Verbose output (debug)
+```
+
+**Direct script invocation (if function not available):**
+```bash
+./tools/link.sh --help     # See all options
+```
+
+**Configuration:** Synced directories are defined in `tools/link-config.conf`; patterns to exclude are in `tools/.linkignore`.
+
+### Safety & Backups
+
+- Conflicting files are automatically backed up to `~/.local/state/dotfiles-link/backups/run-TIMESTAMP/`
+- Last 10 backup directories are kept; older ones auto-deleted
+- Symlinks already pointing to the correct target are skipped (idempotent)
+- External/custom symlinks in `$HOME/bin` and `$HOME/lib` are preserved
+
+### Common Issues
+
+**File doesn't appear in `$HOME` after creation:**
+→ Run `dotfiles-link` after creating the file
+
+**Testing new script/config but changes don't take effect:**
+→ Verify the symlink exists: `ls -l ~/bin/script` or `ls -l ~/.zshrc`
+→ If not linked, run `dotfiles-link`
+
+**I manually copied/linked a file for testing:**
+→ Clean up by running `dotfiles-link` (it handles orphaned links)
+→ Never rely on manual linking; always use the script for consistency
+
+**See also:** `docs/linking-system.adoc` for detailed architecture and troubleshooting.
+
 ## AI Agent Mode
 
 When working in interactive shell you can expect the following to be setup for you:
