@@ -25,7 +25,15 @@ screenshot-format=png
 screenshot-png-compression=8
 screenshot-template='~/%F @%P %#n'
 
-ytdl-format=bestvideo[vcodec=vp9]+bestaudio[acodec=opus]/bestvideo[vcodec=vp9]+bestaudio[acodec=vorbis]/bestvideo[vcodec=vp8]+bestaudio[acodec=opus]/bestvideo[vcodec=vp8]+bestaudio[acodec=vorbis]/bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=webm]+bestaudio[ext=ogg]/best[ext=webm]/bestvideo+bestaudio/best
+# =======
+#  Video
+# =======
+# mpv --vo=help for a list of supported outputs
+vo=gpu                                # video output driver (use old api, gpu-next/libplacebo fails on NVIDIA+Wayland)
+gpu-context=wayland                   # force Wayland/EGL context (prevents X11 fallback crash on Wayland/Sway)
+gpu-api=opengl                        # use OpenGL (Vulkan fails with NVIDIA proprietary on Wayland)
+#vo=gpu-next                          # newer libplacebo API (default in recent mpv) - requires Vulkan or working EGL
+#vo=sdl
 
 # a profile that can be enabled with --profile=big-cache
 [big-cache]
@@ -78,7 +86,7 @@ sub-file-paths-append=subtitles
 demuxer-mkv-subtitle-preroll            # try to correctly show embedded subs when seeking
 embeddedfonts=yes                       # use embedded fonts for SSA/ASS subs
 #sub-fix-timing=no                       # do not try to fix gaps (which might make it worse in some cases)
-sub-ass-force-style=Kerning=yes         # allows you to override style parameters of ASS scripts
+sub-ass-style-overrides=Kerning=yes     # allows you to override style parameters of ASS scripts
 sub-use-margins
 sub-ass-force-margins
 
@@ -119,15 +127,6 @@ audio-file-auto=fuzzy                   # external audio doesn't has to match th
 audio-pitch-correction=yes              # automatically insert scaletempo when playing with higher speed
 
 
-# =======
-#  Video
-# =======
-
-# Defaults for all profiles
-# mpv vo=help for a list of supported oucl::tputs
-vo=gpu                                # video output driver (default: gpu)
-#vo=sdl
-#vo=wayland
 #tscale=oversample                        # [sharp] oversample <-> linear (triangle) <-> catmull_rom <-> mitchell (default) <-> gaussian <-> bicubic [smooth]
 #opengl-early-flush=no
 #opengl-pbo=yes
