@@ -4,7 +4,8 @@
 # Install:
 #   sudo apt install sway swaylock swaynag swayidle foot brightnessctl \
 #     waybar rofi mako-notifier grim slurp flameshot playerctl \
-#     network-manager-applet xdg-desktop-portal-wlr fonts-font-awesome
+#     network-manager-applet xdg-desktop-portal-wlr fonts-font-awesome \
+#     jq wl-clipboard libnotify-bin
 
 # {{{ = Nvidia Workarounds ====================================================
 # Proprietary Nvidia drivers require --unsupported-gpu to start sway.
@@ -392,10 +393,14 @@ bindsym $mod+l exec swaylock -f -c 000000
 # }}} - Special Keys ---------------------------------------------------------
 
 # {{{ - Run Apps -------------------------------------------------------------
-# mod-return: run terminal
+# mod-return: run terminal (+shift for floating)
 bindsym $mod+Return exec $term
-# mod-alt-return: run floating terminal
 bindsym $mod+mod1+Return exec $term --app-id=swayfloat
+
+# mod-F8: toggle window info monitor (sway-winfo, hover to inspect any window)
+# mod-Shift-F8: toggle focused window in/out of the auto-managed blocklist zone
+bindsym $mod+F8       exec ~/bin/sway-winfo --toggle
+bindsym $mod+Shift+F8 exec ~/bin/sway-winfo --blocklist-toggle
 
 # mod-space: rofi run launcher (consistent with GNOME setup)
 bindsym $mod+space exec rofi -show combi
@@ -467,6 +472,13 @@ for_window [class="(?i)keepassxc.*"]    floating enable, sticky enable
 # float by role (XWayland apps only — Wayland apps use app_id)
 for_window [window_role="i3float"]                  $FLOAT
 for_window [app_id="swayfloat"]                     $FLOAT
+
+# sway-winfo: floating window info monitor (top-left corner, sticky)
+# no_focus: prevent the monitor window from stealing focus when it opens,
+# which would otherwise fight focus_follows_mouse and cause erratic behavior.
+no_focus   [app_id="sway-winfo"]
+for_window [app_id="sway-winfo"] \
+    floating enable, sticky enable, resize set 560 340, move position 10 10
 
 # float by class / title / app_id
 for_window [class="^(?i)(mpv|galculator)$"]         $FLOAT

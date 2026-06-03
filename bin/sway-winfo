@@ -1,0 +1,394 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# sway-winfo: Floating window info monitor for Sway WM. Hover over any window
+# to display its properties and copy them to the clipboard for use in sway
+# config criteria rules. Toggle on/off with a keybinding.
+
+# shellcheck disable=SC2155,SC2164
+declare -r SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="$(basename "$0")"
+
+# -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
+set -o errtrace
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = CONFIG ================================================================
+
+# app_id used for the floating foot terminal (also auto-excluded from monitoring)
+declare -r WINFO_APP_ID="sway-winfo"
+declare -r WINFO_TITLE="Sway Window Info"
+
+# Blocklist: one 'property=regex' per line (see usage for format/location)
+declare -r BLOCKLIST_FILE="${XDG_CONFIG_HOME:-${HOME}/.config}/sway/winfo-blocklist"
+
+# Log file (in XDG_RUNTIME_DIR if available, else /tmp)
+declare -r LOG_FILE="${XDG_RUNTIME_DIR:-/tmp}/sway-winfo.log"
+
+# }}} = CONFIG ================================================================
+
+# {{{ = HELPERS ===============================================================
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+log() { printf '[%s] %s\n' "$(date '+%T')" "$*" >> "${LOG_FILE}"; }
+
+# Send a desktop notification (requires notify-send / mako). Non-fatal.
+notify() {
+  local -r summary="${1:-sway-winfo}"
+  local -r body="${2:-}"
+  notify-send -a "sway-winfo" -t 4000 "${summary}" "${body}" 2>/dev/null || true
+}
+
+# }}} = HELPERS ===============================================================
+
+# {{{ = TRAPS =================================================================
+
+# shellcheck disable=SC2154
+trap '_rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" \
+             "${_rc}" "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[*]:-N/A}" \
+             "${BASH_COMMAND:-N/A}" >&2; \
+      log "ERROR(${_rc}): ${BASH_COMMAND:-N/A} (${FUNCNAME[*]:-N/A}:${LINENO:-N/A})"; \
+      notify "sway-winfo error" "${BASH_COMMAND:-} (exit ${_rc})"; \
+      exit "${_rc}"' ERR
+trap 'printf "\nINTERRUPT\n"; log "Interrupted"; exit 1' SIGINT SIGTERM
+
+# }}} = TRAPS =================================================================
+
+# {{{ = CORE ==================================================================
+
+# Check that required commands are available
+check_deps() {
+  local missing=()
+  for cmd in swaymsg jq wl-copy foot; do
+    command -v "$cmd" > /dev/null 2>&1 || missing+=("$cmd")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    p_err "Missing required commands: ${missing[*]}"
+    p_err "Install (Debian/Ubuntu): sudo apt install ${missing[*]/wl-copy/wl-clipboard}"
+    return 1
+  fi
+  # Optional: notify-send for desktop notifications (libnotify-bin)
+  if ! command -v notify-send > /dev/null 2>&1; then
+    p_err "Optional command not found: notify-send (install: sudo apt install libnotify-bin)"
+    p_err "Notifications will be disabled"
+  fi
+}
+
+# Return 0 if the winfo floating terminal is currently open
+is_running() {
+  swaymsg -t get_tree \
+    | jq -e ".. | objects | select(.app_id? == \"${WINFO_APP_ID}\")" \
+    > /dev/null 2>&1
+}
+
+# Kill the winfo floating terminal
+kill_winfo() {
+  swaymsg "[app_id=\"${WINFO_APP_ID}\"] kill" > /dev/null 2>&1
+}
+
+# Launch winfo monitor in a new floating foot terminal.
+# setsid: detach from the toggle script's process group so that the foot
+# terminal is not affected by signals sent to or from the parent process.
+launch_winfo() {
+  setsid foot \
+    --app-id="${WINFO_APP_ID}" \
+    --title="${WINFO_TITLE}" \
+    -- "${SCRIPT_PATH}/${SCRIPT_FILE}" --monitor \
+    >> "${LOG_FILE}" 2>&1 &
+}
+
+# Return 0 (blocked) if the window matches any blocklist rule.
+# Arguments: app_id, title, wm_class
+is_blocked() {
+  local -r app_id="${1:-}"
+  local -r title="${2:-}"
+  local -r wm_class="${3:-}"
+  local key pattern
+
+  # Always exclude the info terminal itself
+  [[ "$app_id" == "${WINFO_APP_ID}" ]] && return 0
+
+  [[ -f "$BLOCKLIST_FILE" ]] || return 1
+
+  while IFS= read -r line; do
+    [[ "$line" =~ ^[[:space:]]*# || -z "${line// }" ]] && continue
+    key="${line%%=*}"
+    pattern="${line#*=}"
+    case "$key" in
+      app_id)   [[ "$app_id"   =~ $pattern ]] && return 0 ;;
+      title)    [[ "$title"    =~ $pattern ]] && return 0 ;;
+      wm_class) [[ "$wm_class" =~ $pattern ]] && return 0 ;;
+    esac
+  done < "$BLOCKLIST_FILE"
+
+  return 1
+}
+
+# Format a sway container JSON object as human-readable text
+format_info() {
+  local -r json="${1}"
+  local workspace
+
+  workspace=$(swaymsg -t get_workspaces \
+    | jq -r '.[] | select(.focused == true) | .name' 2>/dev/null) \
+    || workspace="(unknown)"
+
+  printf '=== Sway Window Info  %s ===\n\n' "$(date '+%T')"
+  jq -r --arg ws "$workspace" '
+    "  Workspace:   " + $ws,
+    "  App ID:      " + (.app_id    // "(none — XWayland)"),
+    "  WM Class:    " + (if .window_properties
+                         then (.window_properties.class    // "(none)")
+                         else "(Wayland native)" end),
+    "  WM Instance: " + (if .window_properties
+                         then (.window_properties.instance // "(none)")
+                         else "(Wayland native)" end),
+    "  Title:       " + (.name      // "(none)"),
+    "  PID:         " + (.pid       | tostring),
+    "  Sway ID:     " + (.id        | tostring),
+    "  Type:        " + (.type      // "unknown"),
+    "  Border:      " + (.border    // "unknown"),
+    "  Floating:    " + (if .type == "floating_con" then "yes" else "no" end)
+  ' <<< "$json"
+
+  # Extract fields for the criteria and blocklist sections
+  local app_id wm_class wm_instance title
+  app_id=$(jq -r      '.app_id // empty'                        <<< "$json")
+  wm_class=$(jq -r    '.window_properties.class // empty'       <<< "$json")
+  wm_instance=$(jq -r '.window_properties.instance // empty'    <<< "$json")
+  title=$(jq -r       '.name // empty'                          <<< "$json")
+
+  printf '\n--- Sway criteria ---\n'
+  [[ -n "$app_id"      ]] && printf '  [app_id="%s"]\n'   "$app_id"
+  [[ -n "$wm_class"    ]] && printf '  [class="%s"]\n'    "$wm_class"
+  [[ -n "$wm_instance" ]] && printf '  [instance="%s"]\n' "$wm_instance"
+  [[ -n "$title"       ]] && printf '  [title="%s"]\n'    "$title"
+
+  printf '\n--- Blocklist entry ---\n'
+  if [[ -n "$app_id" ]]; then
+    printf '  app_id=%s\n' "$app_id"
+  elif [[ -n "$wm_class" ]]; then
+    printf '  wm_class=%s\n' "$wm_class"
+  fi
+
+  printf '\n--- Log: %s ---\n' "${LOG_FILE}"
+}
+
+# Subscribe to window focus events; display and clipboard-copy info on each.
+# Uses set +e for resilience: individual event-processing failures are logged
+# but do not terminate the monitor.
+monitor() {
+  # Disable errexit for the event loop — individual failures must not kill the
+  # monitor. All errors are caught explicitly and logged.
+  set +o errexit
+  set +o nounset
+
+  log "Monitor started (PID=$$)"
+  printf 'Monitoring window focus events  [log: %s]\n' "${LOG_FILE}"
+  printf 'hover to inspect · Ctrl+C to exit\n\n'
+
+  local line change container app_id title wm_class output rc
+
+  while IFS= read -r line; do
+    # Skip the initial {"success":true} handshake
+    jq -e '.success' <<< "$line" > /dev/null 2>&1 && continue
+
+    change=$(jq -r '.change // empty' <<< "$line" 2>/dev/null) || continue
+    [[ "$change" == "focus" ]] || continue
+
+    container=$(jq -c '.container' <<< "$line" 2>/dev/null) || continue
+    [[ -n "$container" ]] || continue
+
+    app_id=$(jq -r    '.app_id // empty'                   <<< "$container" 2>/dev/null) || true
+    title=$(jq -r     '.name // empty'                     <<< "$container" 2>/dev/null) || true
+    wm_class=$(jq -r  '.window_properties.class // empty'  <<< "$container" 2>/dev/null) || true
+
+    is_blocked "$app_id" "$title" "$wm_class" && continue
+
+    log "Focus: app_id=${app_id:-?}  class=${wm_class:-?}  title=${title:0:60}"
+
+    output=$(format_info "$container" 2>/dev/null)
+    rc=$?
+    if (( rc != 0 )); then
+      log "format_info failed (rc=${rc}), skipping event"
+      continue
+    fi
+
+    clear
+    printf '%s\n' "$output"
+    printf '%s' "$output" | wl-copy 2>/dev/null || log "wl-copy failed"
+
+  done < <(swaymsg -t subscribe --monitor '["window"]' 2>> "${LOG_FILE}")
+
+  log "Monitor loop ended — swaymsg subscribe exited"
+}
+
+# Toggle the currently focused window in/out of the auto-managed blocklist section.
+#
+# The blocklist file is divided by a fixed separator line into two zones:
+#   - Above separator: manually managed — the script never modifies these lines.
+#   - Below separator: auto-managed — the script adds and removes entries here.
+#
+# If the entry already exists above the separator it is considered protected and
+# the script does nothing (but notifies the user). If the separator is missing it
+# is appended to the file before adding the new entry.
+blocklist_toggle() {
+  local container app_id wm_class entry
+  local -r separator="# --- auto-managed (sway-winfo) ---"
+
+  container=$(swaymsg -t get_tree \
+    | jq -c 'limit(1; .. | objects | select(.focused? == true
+             and (.type? == "con" or .type? == "floating_con")))') || true
+
+  if [[ -z "$container" ]]; then
+    notify "sway-winfo" "No focused window found"
+    p_err "No focused window found"
+    return 1
+  fi
+
+  app_id=$(jq -r    '.app_id // empty'                   <<< "$container")
+  wm_class=$(jq -r  '.window_properties.class // empty'  <<< "$container")
+
+  if [[ -n "$app_id" ]]; then
+    entry="app_id=${app_id}"
+  elif [[ -n "$wm_class" ]]; then
+    entry="wm_class=${wm_class}"
+  else
+    notify "sway-winfo" "Cannot determine blocklist key for this window"
+    p_err "Cannot determine a blocklist key for this window"
+    return 1
+  fi
+
+  mkdir -p "$(dirname "$BLOCKLIST_FILE")"
+  touch "$BLOCKLIST_FILE"
+
+  # Locate separator line number (0 = not found)
+  local sep_line
+  sep_line=$(grep -nxF "$separator" "$BLOCKLIST_FILE" 2>/dev/null \
+             | head -1 | cut -d: -f1) || true
+  sep_line="${sep_line:-0}"
+
+  if (( sep_line == 0 )); then
+    # No separator found — append it and fall through to add the entry
+    log "Blocklist: separator missing, appending"
+    printf '\n%s\n' "$separator" >> "$BLOCKLIST_FILE"
+    sep_line=$(grep -nxF "$separator" "$BLOCKLIST_FILE" | head -1 | cut -d: -f1)
+  fi
+
+  # Check if entry is above the separator (protected zone).
+  # grep returns empty (not "0") when not found, so test -n before comparing.
+  local protected_line
+  protected_line=$(grep -nxF "$entry" "$BLOCKLIST_FILE" 2>/dev/null \
+                   | head -1 | cut -d: -f1 || true)
+  if [[ -n "$protected_line" ]] && (( protected_line < sep_line )); then
+    notify "sway-winfo: Entry is protected" \
+      "${entry} is above the separator — move it below to allow auto-removal"
+    log "Blocklist: protected (above separator): ${entry}"
+    return 0
+  fi
+
+  # Check if entry exists in the auto-managed zone (below separator)
+  local entry_line
+  entry_line=$(awk -v sep="$sep_line" -v e="$entry" \
+    'NR > sep && $0 == e { print NR; exit }' "$BLOCKLIST_FILE") || true
+
+  if [[ -n "$entry_line" ]]; then
+    # Remove it
+    sed -i --follow-symlinks "${entry_line}d" "$BLOCKLIST_FILE"
+    notify "sway-winfo: Removed from blocklist" "${entry}"
+    log "Blocklist: removed ${entry} (was line ${entry_line})"
+  else
+    # Add it below the separator
+    printf '%s\n' "$entry" >> "$BLOCKLIST_FILE"
+    notify "sway-winfo: Added to blocklist" "${entry}"
+    log "Blocklist: added ${entry}"
+  fi
+}
+
+# }}} = CORE ==================================================================
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [--toggle|--monitor|--blocklist-add] [-h|--help]
+
+Floating window info monitor for Sway WM.
+Hover over windows (requires: focus_follows_mouse yes) to see their properties
+in a floating foot terminal and automatically copy them to the clipboard.
+Useful for writing sway config criteria rules.
+
+Requires: sway, foot, jq, wl-clipboard
+Optional: libnotify (notify-send) for desktop notifications
+
+Modes (default: --toggle):
+  --toggle            Toggle the floating monitor window on/off
+  --monitor           Run monitor in current terminal (used internally by --toggle)
+  --blocklist-toggle  Toggle focused window in/out of the auto-managed blocklist zone
+
+Options:
+  -h, --help        Show this help and exit
+
+Log file: ${LOG_FILE}
+
+Blocklist file: ${BLOCKLIST_FILE}
+  One rule per line: property=regex_pattern
+  Properties: app_id, title, wm_class
+  Example rules:
+    # ignore waybar
+    app_id=waybar
+    # ignore conky (regex)
+    wm_class=^[Cc]onky\$
+    # ignore floating terminals
+    app_id=swayfloat
+
+Suggested sway config additions (see also: swaymsg -t get_tree | jq '.'):
+  # sway-winfo: floating window info monitor
+  no_focus [app_id="${WINFO_APP_ID}"]
+  for_window [app_id="${WINFO_APP_ID}"] \\
+      floating enable, sticky enable, resize set 560 340, move position 10 10
+  bindsym \$mod+F8       exec ~/bin/${SCRIPT_FILE} --toggle
+  bindsym \$mod+Shift+F8 exec ~/bin/${SCRIPT_FILE} --blocklist-toggle
+EOF
+}
+
+main() {
+  local mode="toggle"
+
+  while (( $# > 0 )); do
+    case "$1" in
+      --toggle)        mode="toggle" ;;
+      --monitor)       mode="monitor" ;;
+      --blocklist-toggle) mode="blocklist-toggle" ;;
+      --blocklist-add)    mode="blocklist-toggle" ;; # kept for backwards compat
+      -h|--help)       usage; return 0 ;;
+      -*) p_err "Unknown option: $1"; usage >&2; return 1 ;;
+    esac
+    shift
+  done
+
+  check_deps || return 1
+
+  case "$mode" in
+    toggle)
+      if is_running; then
+        log "Toggle: killing winfo"
+        kill_winfo
+      else
+        log "Toggle: launching winfo"
+        launch_winfo
+      fi
+      ;;
+    monitor)          monitor ;;
+    blocklist-toggle) blocklist_toggle ;;
+  esac
+}
+
+main "$@"
