@@ -59,6 +59,8 @@ export PS1="\[\e[0;37m\](\w)\[\\033[0;39m\]
 # {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 # shellcheck source=/dev/null
 source "$HOME/.aliases"
+# shellcheck source=/dev/null
+[[ -f "$HOME/lib/functions.sh" ]] && source "$HOME/lib/functions.sh"
 # }}} = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 
 # {{{ = FINAL EXECUTIONS =====================================================

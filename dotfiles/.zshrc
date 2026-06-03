@@ -231,7 +231,9 @@ source_ifex $HOME/.zsh.d/auto-rehash.zsh
 source_ifex $HOME/.aliases
 source_ifex $HOME/.zsh.d/aliases.zsh
 
-# include common and zsh specific aliases
+# shell-agnostic functions (bash + zsh)
+source_ifex $HOME/lib/functions.sh
+# zsh-specific functions (zsudo, completions)
 source_ifex $HOME/.zsh.d/functions/functions.zsh
 
 # hash some common directories for easy access existing (if they exist)
