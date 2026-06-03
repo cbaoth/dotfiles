@@ -940,7 +940,9 @@ fi
 
 # {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 fpath=($HOME/.zsh.d/functions $HOME/.zfunc $fpath)
-# zsh-specific os/host alias and rc files (.zsh extension, zsh only)
+# shell-agnostic os/host alias files (bash + zsh)
+source_ifex_custom $HOME/lib/aliases
+# zsh-specific os/host alias and rc files
 source_ifex_custom -e .zsh $HOME/.zsh.d/aliases
 source_ifex_custom -e .zsh $HOME/.zsh.d/zshrc
 # }}} = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================

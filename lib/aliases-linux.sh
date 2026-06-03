@@ -1,0 +1,389 @@
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash disable=SC2148,SC2139
+#
+# ~/lib/aliases-linux.sh: Linux-specific aliases.
+
+# {{{ = COMMON ===============================================================
+# {{{ - GENERAL --------------------------------------------------------------
+# LC_COLLATE=C will sort all uppercase before all lowercase
+LS_CMD="LC_COLLATE=C ls --color=auto --group-directories-first --time-style=long-iso"
+# list all files, long version with human readable file size
+alias ls="$LS_CMD -aF"
+alias ll="$LS_CMD -aFlh"
+# list by modification time (oldest first)
+alias lst="$LS_CMD -aFtr"
+alias llt="$LS_CMD -aFtrlh"
+# list by size (smallest first), long version with allocated space
+alias lss="$LS_CMD -aFSr"
+alias lls="$LS_CMD -aFSrslh"
+# list . files and directories only
+alias ls.="$LS_CMD -aFd .*"
+alias ll.="$LS_CMD -aFdlh .*"
+# list files and grep
+alias lsg="ls -a | grep -Ei --color"
+alias llg="ls -al | grep -Ei --color"
+# }}} - GENERAL --------------------------------------------------------------
+
+# {{{ - SYSTEM ---------------------------------------------------------------
+alias fontcache-refresh="xset fp rehash; sudo fc-cache -f -v"
+alias remount-exec="sudo mount -o remount,exec"
+alias fsck-ntfs-clear-dirty="sudo ntfsfix --clear-dirty"
+# lm-sensors
+alias sensors-all='sensors'
+alias sensors-drives='sensors drivetemp-scsi-* nvme-pci-* 2>/dev/null'
+# list hwmon chip names with index numbers — useful for conky ${hwmon N type index} config
+alias sensors-hwmon='grep . /sys/class/hwmon/hwmon*/name | sed "s|/sys/class/hwmon/hwmon||;s|/name:|\t|" | sort -n'
+# }}} - SYSTEM ---------------------------------------------------------------
+
+# {{{ - POWER MANAGEMENT -----------------------------------------------------
+# See systemctl(1)
+# Avoid SysV compatibility poweroff(8), reboot, and halt
+alias pm-enable-all="sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target"
+alias pm-disable-all="sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target"
+# Sleep: suspend-then-hibernate > suspend > hibernate (deault sequence)
+alias pm-sleep="systemctl sleep"
+# Suspend: to ram, power consumed
+alias pm-suspend="systemctl suspend"
+alias suspend="pm-suspend"
+# Hibernate: to disk/swap, power off
+alias pm-hibernate="systemctl hibernate"
+alias hibernate="pm-hibernate"
+# Suspend then Hibernate: suspend and hibernate e.g. battery low
+alias pm-suspend-then-hibernate="systemctl suspend-then-hibernate"
+alias suspend-then-hibernate="pm-suspend-then-hibernate"
+# Hibernate and Suspend: suspend to ram and disk/swap like hibernate but power consumed
+alias pm-suspend-hybrid="systemctl hybrid-sleep"
+alias suspend-hybrid="pm-suspend-hybrid"
+
+# reboot: shut kernel and reboot system
+alias reboot="systemctl reboot"
+# Halt: shut down kernel but power stays on
+# Opposed to many SysV halt implementations that also power off
+alias halt="systemctl halt"
+# poweroff: shut down kernel and power off
+alias poweroff="systemctl poweroff"
+
+# List inhibitors (e.g. processes that block suspend/shutdown)
+alias pm-inhibitors-list="systemd-inhibit --list"
+# }}} - POWER MANAGEMENT -----------------------------------------------------
+
+# {{{ - NETWORK --------------------------------------------------------------
+alias route-newdefault='sudo route delete default; sudo route add default gw'
+# shellcheck disable=SC2142  # \$2 is awk field ref, not shell positional param
+alias wifi-status='nmcli d wifi list; echo; iw dev $(iw dev | awk "/Interface/{print \$2; exit}") link'
+# }}} - NETWORK --------------------------------------------------------------
+
+# {{{ - MULTIMEDIA -----------------------------------------------------------
+#alias tvrec-kill='pkill -f "cat /dev/video0"'
+#alias burndvd='growisofs -Z /dev/dvd -R -J'
+alias midi-keyboard-output="aconnect \$(aconnect -i \
+  | grep -E 'client.*Keystation Mini 32' \
+  | sed -E 's/^client ([0-9]+).*/\1/') \$(aconnect -o \
+  | grep -E 'client.*FLUID Synth' \
+  | sed -E 's/^client ([0-9]+).*/\1/') >/dev/null \
+  || printf 'Unable to connect Keystation Midi 32 to FLUYID Synth\n' >&2"
+# }}} - MULTIMEDIA -----------------------------------------------------------
+
+# {{{ - MISC -----------------------------------------------------------------
+#alias incoming="xterm -fn edges -fb edges -T isdn-incoming -g 100x8+0-63 -e socket bateau 9444 &"
+# }}} - MISC -----------------------------------------------------------------
+# }}} = COMMON ===============================================================
+
+# ...
+# }}} = NON-NATIVE & CONTAINERIZATION ========================================
+
+# {{{ - V12N & CONTAINERIZATION ----------------------------------------------
+# https://en.wikipedia.org/wiki/Virtualization
+# https://en.wikipedia.org/wiki/Containerization_(computing)
+# ...
+# }}} - V12N & CONTAINERIZATION ----------------------------------------------
+
+# {{{ - WINDOWS COMPATIBILITY LAYER ------------------------------------------
+# https://en.wikipedia.org/wiki/Compatibility_layer
+# http://www.winehq.com
+# https://github.com/ValveSoftware/Proton
+
+alias winer='wine start /unix'  # run executable or location (file explorer) using unix path
+# }}} - WINDOWS COMPATIBILITY LAYER ------------------------------------------
+
+# {{{ - BINARY TRANSLATION / EMULATION ---------------------------------------
+# https://en.wikipedia.org/wiki/Binary_translation
+# ...
+# }}} - BINARY TRANSLATION / EMULATION ---------------------------------------
+# }}} = NON-NATIVE & CONTAINERIZATION ========================================
+
+# {{{ = DISTRIBUTION SPECIFIC ================================================
+# {{{ - DEB ------------------------------------------------------------------
+# dpkg
+if [[ -n "$(command -v dpkg 2>/dev/null)" ]]; then
+  # install / configure
+  alias dpi='sudo dpkg -i'
+  alias dpca='sudo dpkg --configure -a' # configure unpackde but on yet configured packages (e.g. continue interrupted upgrade)
+  ZSH_AUTO_REHASH_CMDS+=(dpi)
+
+  # remove
+  alias dpr='sudo dpkg -r' # remove package (keep config files)
+  alias dpr!='sudo dpkg --force-all --purge' # purge package (remove including config files)
+
+  # list
+  alias dpgs='dpkg --get-selections'
+  alias dpgsg='dpkg --get-selections | grep -iE --color'
+  alias dpl='dpkg -l --no-pager'
+  alias dplg='dpl | grep -iE --color'
+  alias dpli='dpkg --get-selections --no-pager'
+  alias dplig='dpli --no-pager | grep -iE --color'
+fi
+
+# apt-cache
+if [[ -n "$(command -v apt-cache 2>/dev/null)" ]]; then
+  alias ac="apt-cache"
+
+  # search
+  alias acs="apt-cache search"
+  acsg() { apt-cache search "$@" | grep -iE --color "$@"; }
+  alias acsn='apt-cache search --names-only'
+  alias acsf='apt-cache search --full'
+  #alias acsB='apt-cache -t buster-backports search'
+
+  # details
+  alias aci="apt-cache show"
+fi
+
+# dpkg-query
+if [[ -n "$(command -v dpkg-query 2>/dev/null)" ]]; then
+  # list
+  alias dpq='dpkg-query -l'
+  alias dpqg='dpkg-query -l | grep -iE --color'
+  # shellcheck disable=SC2154  # ${Package}/${Version} are dpkg format specifiers, not shell vars
+  alias dpqv=$'dpkg-query -W -f=\'${Package}\t${Version}\n\''
+  alias dpqvg=$'dpkg-query -W -f=\'${Package}\t${Version}\n\' | grep -iE --color'
+fi
+
+# apt-get
+if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
+  alias ag="sudo apt-get"
+
+  # update
+  alias agu!="sudo apt-get update" # apt update
+  # update cache, but no more than ones per hour (if sucessfull)
+  # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
+  alias agu='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
+                agu! && date +%s > /tmp/last_apt_update
+              else
+                echo "> last apt update less than an hour ago, skipping (use agu! to force) ..."
+              fi'
+
+  # install
+  alias agi='sudo apt-get -y install'
+  alias 'agi!'='sudo apt-get install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
+  alias agiu='sudo apt-get install --only-upgrade' # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
+  ZSH_AUTO_REHASH_CMDS+=(agi 'agi!' agiu)
+
+  # remove
+  alias agr="sudo apt-get remove"
+  alias agra="sudo apt-get autoremove"
+  alias agr!="sudo apt-get purge"
+
+  # upgrade
+  alias agup='agu && sudo apt-get -y upgrade && agra' # apt-get update/upgrade/auto-remove
+  alias agupf='agu && sudo apt-get full-upgrade && agra' # apt-get update/(full-|dist-)upgrade/auto-remove
+  ZSH_AUTO_REHASH_CMDS+=(agup agupf)
+fi
+
+# apt-mark
+if [[ -n "$(command -v apt-mark 2>/dev/null)" ]]; then
+  # change mark
+  alias ama="sudo apt-mark markauto"
+
+  # list
+  alias amlim="LC_ALL=C comm -23 <(LC_ALL=C apt-mark showmanual | LC_ALL=C sort -u) \
+                <(gzip -dc /var/log/installer/initial-status.gz \
+                    | sed -n 's/^Package: //p' | LC_ALL=C sort -u)"
+  alias amlimg="amlim | grep -iE --color"
+fi
+
+# apt-file
+if [[ -n "$(command -v apt-file 2>/dev/null)" ]]; then
+  alias af="apt-file"
+
+  # search
+  alias afs="apt-file search -i"
+  afsg() { apt-file search -i "$@" | grep -iE --color "$@"; }
+  alias afsr='apt-file search -i --regexp'
+  afsn() { apt-file search -i --regexp "/$1\$"; }
+fi
+
+# aptitude
+if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
+  alias at="sudo aptitude"
+
+  # install
+  alias ati='sudo aptitude -y install'
+  alias 'ati!'='sudo aptitude install -f'
+  ZSH_AUTO_REHASH_CMDS+=(ati 'ati!')
+
+  # remove
+  alias atr="sudo aptitude remove"
+  alias atra="sudo aptitude autoremove"
+  alias atr!="sudo aptitude purge"
+  alias atr!o='sudo aptitude purge \?obsolete'
+
+  # upgrade
+  alias atup='apu && sudo aptitude -o Aptitude::Delete-Unused=1 -y safe-upgrade'
+  alias 'atup!'='apu && sudo aptitude -o Aptitude::Delete-Unused=1 upgrade'
+  alias 'atup!!'='apu && sudo aptitude -o Aptitude::Delete-Unused=1 full-upgrade'
+  ZSH_AUTO_REHASH_CMDS+=(atup 'atup!' 'atup!!')
+
+  # search / list
+  alias atso='aptitude search \?obsolete'
+  alias atsog='aptitude search \?obsolete | grep -iE --color'
+fi
+
+# apt
+if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+  alias ap="sudo apt"
+
+  # update
+  alias apu!="sudo apt update"
+  alias apu='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
+                apu! && date +%s > /tmp/last_apt_update
+              else
+                echo "> last apt update less than an hour ago, skipping (use apu! to force) ..."
+              fi'
+
+  # install
+  alias api='sudo apt -y install'
+  alias 'api!'='sudo apt install -f'
+  ZSH_AUTO_REHASH_CMDS+=(api 'api!')
+  # update
+  alias apu="sudo apt update" # update package database
+
+  # upgrade
+  alias apug='sudo apt update && sudo apt -y upgrade && sudo apt autoremove' # update/upgrade/auto-remove
+  ZSH_AUTO_REHASH_CMDS+=(apug)
+
+  # search
+  alias aps="apt search"
+  apsg() { apt search "$@" | grep -iE --color "$@"; }
+  alias apsn='apt search --names-only' # search package names only
+  alias apsf='apt search --full' # search full text
+  #alias apsB='apt -t buster-backports search' # search back
+
+  # list
+  alias apli="apt list --installed" # list installed packages
+  alias aplig="apli | grep -iE --color" # list installed packages and grep
+fi
+# {{{ - DEB ------------------------------------------------------------------
+
+# {{{ - SNAP -----------------------------------------------------------------
+if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
+  alias sn='sudo snap'
+  alias sns='snap search'
+  snsg() { snap search "$@" | grep -iE --color "$@"; }
+  alias sni='sudo snap install'
+  alias snu='sudo snap refresh'
+  alias snr='sudo snap remove'
+  ZSH_AUTO_REHASH_CMDS+=(sni snu)
+  alias snl='snap list'
+  alias snlg='snap list | grep -iE --color'
+  alias snd='snap info'
+  alias snh='snap changes'
+fi
+# }}} - SNAP -----------------------------------------------------------------
+
+# {{{ - Flatpak --------------------------------------------------------------
+if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
+  alias fp='flatpak'
+  alias fps='flatpak search'
+  fpsg() { flatpak search "$@" | grep -iE --color "$@"; }
+  alias fpi='flatpak install'
+  alias fpu='flatpak update'
+  alias fpr='flatpak uninstall'
+  alias fpil='flatpak info --show-location'
+  ZSH_AUTO_REHASH_CMDS+=(fpi fpu)
+  alias fpl='flatpak list'
+  alias fplg='flatpak list | grep -i --color'
+  alias fpd='flatpak info'
+  alias fph='flatpak history'
+fi
+
+# flatpak app functions: zsh-specific (compdef, whence, ${(q)}) — see aliases-linux.zsh
+# }}} - Flatpak --------------------------------------------------------------
+
+# {{{ - PACMAN ---------------------------------------------------------------
+if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
+  alias pmi='sudo pacman -S'
+  alias pms="sudo pacman -Ss"
+  pmsg() { sudo pacman -Ss "$@" | grep -iE --color "$@"; }
+  alias pmr="sudo pacman -Rs"
+  alias pml="pacman -Q"
+  alias pmlg="pacman -Q | grep -iE --color"
+  alias pmy="sudo pacman -Sy"
+  alias pmu='sudo pacman -Syu'
+  alias aurb="makepkg"
+  alias auri='sudo pacman -U'
+  aurbui() { makepkg && sudo pacman -U ./*.pkg.tar.xz; }
+  ZSH_AUTO_REHASH_CMDS+=(pmi pmu auri aurbui)
+fi
+# }}} - PACMAN ---------------------------------------------------------------
+
+# {{{ - PKG (*) --------------------------------------------------------------
+# Aliases that combine multiple package managers
+# Note: Similarly named aliases may exist for FreeBSD (pkg), this is Linux specific
+
+# pkgu - update package database and upgrade all packages
+pkgu() {
+  if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+    echo "> Updating and upgrading apt packages (incl. auto-remove) ..."
+    apu || echo -e "[\e[33mWARNING:\e[0m Apt update/upgrade failed]"
+    echo
+  fi
+  if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
+    echo "> Updating snap packages ..."
+    snu || echo -e "[\e[33mWARNING:\e[0m Snap update failed]"
+    echo
+  fi
+  if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
+    echo "> Updating flatpak packages ..."
+    fpu || echo -e "[\e[33mWARNING:\e[0m Flatpak update failed]"
+    echo
+  fi
+  if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
+    echo "> Updating and upgrading pacman packages ..."
+    pmu || echo -e "[\e[33mWARNING:\e[0m Pacman update/upgrade failed]"
+    echo
+  fi
+}
+ZSH_AUTO_REHASH_CMDS+=(pkgu)
+
+# pkgl - list installed packages from all package managers
+pkgl() {
+  if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
+    { dpli || echo -e "[\e[33mWARNING:\e[0m Apt list failed]"; } \
+      |& sed -r 's/^/apt: /'
+    echo
+  fi
+  if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
+    { snl || echo -e "[\e[33mWARNING:\e[0m Snap list failed]"; } \
+      |& sed -r 's/^/snap: /'
+    echo
+  fi
+  if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
+    { fpl || echo -e "[\e[33mWARNING:\e[0m Flatpak list failed]"; } \
+      |& sed -r 's/^/flatpak: /'
+    echo
+  fi
+  if [[ -n "$(command -v pacman 2>/dev/null)" ]]; then
+    { pml || echo -e "[\e[33mWARNING:\e[0m Pacman list failed]"; } \
+      |& sed -r 's/^/pacman: /'
+    echo
+  fi
+}
+
+alias pkglg='pkgl | grep -iE --color' # list installed packages from all package managers and grep
+# }}} - PKG (*) --------------------------------------------------------------
+# }}} = DISTRIBUTION SPECIFIC ================================================
+
+return 0

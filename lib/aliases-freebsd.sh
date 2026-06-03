@@ -1,9 +1,9 @@
-# -*- mode: sh; sh-shell: zsh; indent-tabs-mode: nil; tab-width: 2 -*-
-# vim: ft=zsh:et:ts=2:sts=2:sw=2
-# code: language=zsh insertSpaces=true tabSize=2
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash disable=SC2148
 #
-# ~/.zsh.d/aliases-freebsd.zsh: FreeBSD-specific aliases.
+# ~/lib/aliases-freebsd.sh: FreeBSD-specific aliases.
 
 # {{{ - GENERAL --------------------------------------------------------------
 alias ls='ls -aFG'
@@ -17,6 +17,7 @@ alias freebsd-term='TERM="cons25"'
 alias ports-list='find /usr/ports -type d -d 2|sed "s/\/usr\/ports\///g"'
 alias ports-search='whereis -sa'
 alias ports-search-regex='find /usr/ports -type d -d 2|sed "s/\/usr\/ports\///g"|grep -iE'
+# shellcheck disable=SC2154  # p is assigned by 'read p' inside alias body
 alias ports-list-descr='find /usr/ports -name pkg-descr|while read p; do echo ---; echo $p|sed "s/\/usr\/ports\///g;s/\/pkg-descr$//g;s/^/* /g"; cat $p; done'
 alias ports-update='sudo portsnap fetch update'
 alias ports-upgrade='sudo portmaster --no-confirm -a'
