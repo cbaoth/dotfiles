@@ -30,6 +30,15 @@ else
   echo "Warning: ~/lib/commons.sh not found, some potentially crucial environment settings or functionality may be missing!" >&2
 fi
 # }}} - COMMON OPTIONS & COMMONS ---------------------------------------------
+
+# {{{ - COMMON RC ------------------------------------------------------------
+if [[ -f ~/.common_rc ]]; then
+  # shellcheck source=/dev/null
+  source ~/.common_rc
+else
+  echo "Warning: ~/.common_rc not found, sourcing helpers unavailable!" >&2
+fi
+# }}} - COMMON RC ------------------------------------------------------------
 # }}} = ENVIRONMENT (ALL SHELLS) =============================================
 # {{{ - SECURITY & PRIVACY RELATED -------------------------------------------
 # private session
