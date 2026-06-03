@@ -453,6 +453,43 @@ alias occd='cd /var/www/nextcloud; sudo -u www-data php --define apc.enable_cli=
 alias wallabag-console='sudo -u www-data php /var/www/wallabag.11001001.org/bin/console -e prod'
 # }}} - MISC -----------------------------------------------------------------
 
+# {{{ - DOTFILES MANAGEMENT --------------------------------------------------
+# Run dotfiles link.sh and refresh shell command cache.
+# Shell-agnostic: resolves repo root by following .aliases symlink.
+# shellcheck disable=SC2120  # arguments optional, function for cli use only
+dotfiles-link() {
+  local _aliases_path _df_root
+
+  # Resolve repo root by following the .aliases symlink
+  # (.aliases is at dotfiles/dotfiles/.aliases, so go up 2 levels)
+  if _aliases_path=$(readlink -f "${HOME}/.aliases" 2>/dev/null); then
+    _df_root="$(dirname "$(dirname "${_aliases_path}")")"
+  else
+    # Fallback if readlink fails (e.g., not symlinked yet)
+    _df_root="${HOME}/dotfiles"
+  fi
+
+  # Run linking and refresh command cache (works in both bash and zsh)
+  "${_df_root}/tools/link.sh" "$@" && {
+    hash -r 2>/dev/null || rehash 2>/dev/null
+  }
+}
+
+# Pull latest dotfiles from remote repository and apply linking.
+# Shell-agnostic: uses same path resolution as dotfiles-link.
+dotfiles-update() {
+  local _aliases_path _df_root
+
+  if _aliases_path=$(readlink -f "${HOME}/.aliases" 2>/dev/null); then
+    _df_root="$(dirname "$(dirname "${_aliases_path}")")"
+  else
+    _df_root="${HOME}/dotfiles"
+  fi
+
+  git -C "${_df_root}" pull "$@" && dotfiles-link
+}
+# }}} - DOTFILES MANAGEMENT --------------------------------------------------
+
 # shellcheck disable=SC1091  # optional local override; path is dynamic
 [[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"
 

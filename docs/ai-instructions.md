@@ -174,6 +174,97 @@ Use `while` / `case` / `shift` pattern with a `usage()` function (heredoc) and `
 
 Use [ShellCheck](https://www.shellcheck.net/) for static analysis.
 
+### Dotfiles Linking & Deployment
+
+**This repository uses symlink-based configuration management.** All shell configurations, scripts, and dotfiles are symlinked from the repo into `$HOME` via a single linking script.
+
+**IMPORTANT FOR AI AGENTS:** After creating, renaming, moving, or deleting files in `bin/`, `lib/`, or `dotfiles/`, **you must run the linking script** or the changes will not be visible in the user's environment. Failing to do this is a common source of mysterious failures during testing.
+
+==== Understanding the System
+
+- **Nested dotfiles** (`dotfiles/` → `$HOME/`): Mirrors directory structure
+  - Example: `dotfiles/.zshrc` → `~/.zshrc`
+- **Flat syncing** (`bin/` → `$HOME/bin`, `lib/` → `$HOME/lib`): Scripts and libraries, stale link cleanup
+
+==== The Workflow
+
+1. **Create/modify file** in the repo (`bin/script`, `dotfiles/.config/app/config`, etc.)
+2. **Run linking:** `dotfiles-link` (or `./tools/link.sh`)
+3. **Verify symlink exists:** `ls -l ~/bin/script` (should show symlink to repo)
+4. **Then test** your changes
+
+**Why this order matters:** It prevents false debugging sessions where a failure is actually due to a missing symlink, not your code.
+
+==== Commands
+
+**Shell-agnostic (works in both bash and zsh):**
+```bash
+dotfiles-link              # Apply linking (function in .aliases, available in all shells)
+dotfiles-link --dry-run    # Preview changes before applying
+dotfiles-link -vv          # Verbose output
+```
+
+**Direct script invocation:**
+```bash
+./tools/link.sh --help     # See all options (use if function not available)
+```
+
+The `dotfiles-link` function (defined in `~/.aliases`) automatically:
+- Resolves repo root by following the `.aliases` symlink
+- Calls `tools/link.sh` with your arguments
+- Refreshes the shell's command cache (`hash -r` in bash, `rehash` in zsh)
+
+==== Common Mistakes to Avoid
+
+❌ **Don't manually symlink or copy files**, even for testing:
+```bash
+# WRONG - creates orphans, inconsistency
+ln -s /path/to/repo/bin/script ~/bin/script
+cp /path/to/repo/dotfiles/.zshrc ~/.zshrc
+```
+
+✅ **Do delegate to the linking script:**
+```bash
+# RIGHT - managed, backed up, cleaned up
+dotfiles-link
+```
+
+❌ **Don't assume a file is available without verifying:**
+```bash
+# BAD - assumes linking happened, test may fail mysteriously
+# (create file, then immediately test without linking)
+```
+
+✅ **Do verify the symlink exists:**
+```bash
+# GOOD - check before testing
+ls -l ~/bin/my-script || dotfiles-link
+```
+
+==== When to Run Linking
+
+**You must run after:**
+- Creating new scripts in `bin/`
+- Creating/modifying dotfiles in `dotfiles/`
+- Renaming, moving, or deleting any of the above
+- Any file system changes in these directories
+
+**Use dry-run to preview:**
+```bash
+dotfiles-link --dry-run -vv  # See what would change
+```
+
+==== Cleaning Up Manual Edits
+
+If you manually linked something while debugging (e.g., for testing edge cases):
+1. Remove the manual link: `rm ~/manual-link`
+2. Run the linking script: `dotfiles-link`
+3. Document what you learned (prevent future manual workarounds)
+
+==== For More Details
+
+See `docs/linking-system.adoc` for architecture, configuration, troubleshooting, and design rationale.
+
 ### Zsh-Specific (`.zsh.d/`)
 
 - `.zsh` extension, no shebang

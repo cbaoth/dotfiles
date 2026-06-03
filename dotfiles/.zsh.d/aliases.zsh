@@ -20,20 +20,6 @@ alias reload-aliases='. $HOME/.zsh.d/auto-rehash.zsh; . $HOME/.zsh.d/aliases.zsh
 
 alias zsh-history-fix='mv $HOME/.zsh_history $HOME/.zsh_history_corrupt && strings $HOME/.zsh_history_corrupt > $HOME/.zsh_history && fc -R $HOME/.zsh_history && rm $HOME/.zsh_history_corrupt'
 
-# Run dotfiles link.sh and rehash so newly linked scripts are immediately available.
-# Resolves the dotfiles repo root via this file's real path (symlink-safe).
-dotfiles-link() {
-  local _df_root="${${${(%):-%x}:A}:h:h:h}"
-  "${_df_root}/tools/link.sh" "$@" && rehash
-}
-
-# Pull the latest dotfiles from the remote repository.
-# Resolves the dotfiles repo root via this file's real path (symlink-safe).
-dotfiles-update() {
-  local _df_root="${${${(%):-%x}:A}:h:h:h}"
-  git -C "${_df_root}" pull "$@" \
-    && dotfiles-link
-}
 # }}} - GENERAL --------------------------------------------------------------
 
 # {{{ - SUFFIX ALIASES -------------------------------------------------------
