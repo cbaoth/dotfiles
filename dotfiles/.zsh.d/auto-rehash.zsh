@@ -5,11 +5,11 @@
 #
 # ~/.zsh.d/auto-rehash.zsh: Auto-rehash after commands that install new executables.
 #
-# Commands are registered in _AUTO_REHASH_CMDS. This file owns the defaults
+# Commands are registered in ZSH_AUTO_REHASH_CMDS. This file owns the defaults
 # (well-known package managers and build tools). Alias files register their own
 # names close to where they are defined via:
 #
-#   _AUTO_REHASH_CMDS+=(myalias 'myalias!')
+#   ZSH_AUTO_REHASH_CMDS+=(myalias 'myalias!')
 #
 # Matching is on the first word of the typed command (after stripping a leading
 # 'sudo'), so broad names like 'apt' match any apt invocation (including search,
@@ -22,7 +22,7 @@
 # {{{ = AUTO REHASH ==========================================================
 
 # Reset to defaults. Alias files append their own entries after this file is sourced.
-_AUTO_REHASH_CMDS=(
+ZSH_AUTO_REHASH_CMDS=(
   # --- Debian / Ubuntu ---
   apt apt-get aptitude dpkg dpkg-deb gdebi
 
@@ -75,7 +75,7 @@ _AUTO_REHASH_CMDS=(
 _auto_rehash_preexec() {
   local cmd="${1%% *}"
   [[ "$cmd" == "sudo" ]] && cmd="${${1#sudo }%% *}"
-  (( ${_AUTO_REHASH_CMDS[(Ie)$cmd]} )) && _auto_rehash_pending=1
+  (( ${ZSH_AUTO_REHASH_CMDS[(Ie)$cmd]} )) && _auto_rehash_pending=1
 }
 
 _auto_rehash_precmd() {

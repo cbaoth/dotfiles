@@ -61,6 +61,8 @@ export PS1="\[\e[0;37m\](\w)\[\\033[0;39m\]
 source "$HOME/.aliases"
 # shellcheck source=/dev/null
 [[ -f "$HOME/lib/functions.sh" ]] && source "$HOME/lib/functions.sh"
+# shell-agnostic os/host alias files
+source_ifex_custom "$HOME/lib/aliases"
 # }}} = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 
 # {{{ = FINAL EXECUTIONS =====================================================
