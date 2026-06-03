@@ -1,0 +1,96 @@
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash disable=SC2148,SC2153
+#
+# ~/.common_rc: shared interactive shell setup sourced by .bashrc and .zshrc.
+#
+# Unlike .common_env (safe for all shell invocations), this file is intended
+# only for interactive shells. It provides shell-agnostic sourcing helpers
+# used to conditionally load aliases and functions.
+#
+# Load order in .bashrc / .zshrc:
+#   1. .common_env  (env vars, PATH, detection booleans — already loaded)
+#   2. commons.sh   (cl:: utility functions — already loaded)
+#   3. .common_rc   (this file — sourcing helpers)
+#   4. .aliases, lib/functions.sh, lib/aliases-*.sh, ...
+
+# {{{ = SOURCING HELPERS =====================================================
+
+# Source the given file(s) if they exist and are readable.
+#
+# Arguments:
+#   FILE..  One or more paths to source; non-existing paths are silently skipped.
+source_ifex() {
+  [[ -z "${1-}" ]] && cl::p_usg "$0 source-file.." && return 1
+  while [[ -n "$1" ]]; do
+    cl::p_dbg -t 0 2 "Checking for optional source file '$1' ..."
+    if [[ -r "$1" ]]; then
+      cl::p_dbg -t 0 1 "Loading optional source file '$1' (file found) ..."
+      # shellcheck source=/dev/null
+      if source "$1"; then
+        cl::p_dbg -t 0 1 "... done (file successfully loaded)."
+      else
+        cl::p_err "Command 'source $1' returned non-OK exit code!"
+      fi
+    else
+      cl::p_dbg -t 0 2 "... not found, skipped (OK since optional)."
+    fi
+    shift
+  done
+  return 0
+}
+
+# Source OS/host/environment-specific files matching the given base prefix(es).
+#
+# Requires: $OS, $HOST (normalized lowercase by .common_env), $IS_WSL,
+#           $IS_ANDROID, $DESKTOP_SESSION.
+#
+# Options:
+#   -e EXT   File extension to append (default: .sh; pass -e .zsh for zsh-specific files)
+#
+# Arguments:
+#   PREFIX..  Base path prefix(es). The following suffixes are appended and the
+#             resulting paths are passed to source_ifex (missing files silently skipped):
+#               PREFIX-{os}{EXT}
+#               PREFIX-{os}_wsl{EXT}     (only when IS_WSL=true)
+#               PREFIX-{os}_android{EXT} (only when IS_ANDROID=true)
+#               PREFIX-{host}{EXT}
+#               PREFIX-{host}-{os}{EXT}
+#               PREFIX-{host}-{os}_wsl{EXT}     (only when IS_WSL=true)
+#               PREFIX-{host}-{os}_android{EXT} (only when IS_ANDROID=true)
+#               PREFIX-{os}_desktop{EXT} (only when DESKTOP_SESSION is set)
+source_ifex_custom() {
+  local ext=".sh"
+  if [[ "${1-}" == "-e" ]]; then
+    [[ -z "${2-}" ]] && { cl::p_usg "source_ifex_custom [-e EXT] PREFIX.."; return 1; }
+    ext="$2"; shift 2
+  fi
+  [[ -z "${1-}" ]] && { cl::p_usg "source_ifex_custom [-e EXT] PREFIX.."; return 1; }
+
+  # HOST and OS are already normalized to lowercase by .common_env; just replace dots.
+  local host="${HOST//./_}"
+  local os="${OS:-}"
+
+  while [[ -n "${1-}" ]]; do
+    local base_file="$1"
+    local -a candidates=()
+
+    [[ -n "$os" ]]                                       && candidates+=("${base_file}-${os}${ext}")
+    ${IS_WSL:-false}     && [[ -n "$os" ]]               && candidates+=("${base_file}-${os}_wsl${ext}")
+    ${IS_ANDROID:-false} && [[ -n "$os" ]]               && candidates+=("${base_file}-${os}_android${ext}")
+    [[ -n "$host" ]]                                     && candidates+=("${base_file}-${host}${ext}")
+    [[ -n "$os" && -n "$host" ]]                         && candidates+=("${base_file}-${host}-${os}${ext}")
+    ${IS_WSL:-false}     && [[ -n "$os" && -n "$host" ]] && candidates+=("${base_file}-${host}-${os}_wsl${ext}")
+    ${IS_ANDROID:-false} && [[ -n "$os" && -n "$host" ]] && candidates+=("${base_file}-${host}-${os}_android${ext}")
+    [[ -n "${DESKTOP_SESSION:-}" && -n "$os" ]]          && candidates+=("${base_file}-${os}_desktop${ext}")
+
+    (( ${#candidates[@]} > 0 )) && source_ifex "${candidates[@]}"
+    shift
+  done
+  return 0
+}
+
+# }}} = SOURCING HELPERS =====================================================
+
+return 0

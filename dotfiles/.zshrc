@@ -122,6 +122,15 @@ else
 fi
 # }}} - COMMON OPTIONS & COMMONS ---------------------------------------------
 
+# {{{ - COMMON RC ------------------------------------------------------------
+if [[ -f ~/.common_rc ]]; then
+  # shellcheck source=/dev/null
+  source ~/.common_rc
+else
+  echo "Warning: ~/.common_rc not found, sourcing helpers unavailable!" >&2
+fi
+# }}} - COMMON RC ------------------------------------------------------------
+
 # {{{ - SECURITY & PRIVACY RELATED -------------------------------------------
 # private session
 #export HISTFILE="" # don't create shell history file
@@ -213,44 +222,7 @@ export UAGENT
 # }}} = ENVIRONMENT (INTERACTIVE SHELL) ======================================
 
 # {{{ = CORE FUNCTIONS, SOURCING, ALIASES ====================================
-# include given source file(s) if they exist,
-source_ifex () {
-  [[ -z "${1-}" ]] && cl::p_usg "$0 source-file.." && return 1
-  while [[ -n "$1" ]]; do
-    cl::p_dbg -t 0 2 "Checking for optional source file '$1' ..."
-    if [[ -r "$1" ]]; then
-      cl::p_dbg -t 0 1 "Loading optional source file '$1' (file found) ..."
-      source "$1" && cl::p_dbg -t 0 1 "... done (file successfully loaded)." \
-        || cl::p_err "Command 'source $1' returned non-OK exit code!"
-    else
-      cl::p_dbg -t 0 2 "... not found, skipped (OK since optional)."
-    fi
-    shift
-  done
-  return 0
-}
-
-# include all matching os/host specific source files having the given
-# [source-file-prefix] file name prefix(s)
-source_ifex_custom () {
-  [[ -z "${1-}" ]] && printf "usage: %s" "$0 source-file-prefix.." && return 1
-  local host="${${HOST:l}//./_}"
-  local os="${OS:l}"
-  while [[ -n "${1-}" ]]; do
-    local base_file="$1"
-    source_ifex \
-      "${base_file}-${os}.zsh" \
-      $($IS_WSL && print "${base_file}-${os}_wsl.zsh") \
-      $($IS_ANDROID && print "${base_file}-${os}_android.zsh") \
-      "${base_file}-${host}.zsh" \
-      "${base_file}-${host}-${os}.zsh" \
-      $($IS_WSL && print "${base_file}-${host}-${os}_wsl.zsh") \
-      $($IS_ANDROID && print "${base_file}-${host}-${os}_android.zsh") \
-      $([[ -n "${DESKTOP_SESSION:-}" ]] && print "${base_file}-${os}_desktop.zsh")
-    shift
-  done
-  return 0
-}
+# source_ifex and source_ifex_custom are defined in ~/.common_rc (sourced above)
 
 # auto-rehash hook — must be sourced before alias files so they can register entries
 source_ifex $HOME/.zsh.d/auto-rehash.zsh
@@ -965,13 +937,10 @@ fi
 # }}} = ZSH KEYBINDINGS ======================================================
 
 # {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
-# include os/host specific functon files
-#source_ifex_custom $HOME/.zsh.d/functions
 fpath=($HOME/.zsh.d/functions $HOME/.zfunc $fpath)
-# include os/host specific aliase files
-source_ifex_custom $HOME/.zsh.d/aliases
-# include os/host specific zshrc files
-source_ifex_custom $HOME/.zsh.d/zshrc
+# zsh-specific os/host alias and rc files (.zsh extension, zsh only)
+source_ifex_custom -e .zsh $HOME/.zsh.d/aliases
+source_ifex_custom -e .zsh $HOME/.zsh.d/zshrc
 # }}} = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 
 # {{{ = FINAL EXECUTIONS =====================================================
