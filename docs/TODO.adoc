@@ -50,26 +50,24 @@ Ideas and future tasks for improving the shell scripts in this repository.
   (`link.sh`, `.linkignore`, `fix-modelines.py`, etc.) into `tools/`.
 ** `tools/link.sh` updated to scan `$REPO_ROOT/dotfiles/`
 ** `tools/.linkignore` simplified (non-dotfile files are no longer in the scan path)
-* [ ] Review the dotfile linking approach — the current `link.sh` + `_overrides/` solution
-  is a rough first cut. Specifically:
-** Define and document a portability contract for this repo:
-  no root requirement, no package-install requirement, and usable baseline on
-  bash-only hosts.
-** Keep `tools/link.sh` dependency-free (pure shell tooling). Treat GNU Stow /
-  chezmoi as optional alternatives, not hard requirements.
-** Add a design note for optional capability detection (bash/zsh/tools) and
-  profile-based setup decisions, but do not increase script complexity yet.
-** `_overrides/` was a quick solution for host-specific file overrides; reconsider
-   how host-specific overrides should work (e.g. host-specific branches, chezmoi templates, or a clean override mechanism in link.sh).
-** The underscore-prefix convention for "non-repo" dirs (`_local`, `_archive`, `_overrides`)
-   is useful but may conflict if `_*` is ever added to `.gitignore`. Consider whether a
-   dedicated `.nolink` file (gitignore-style) would be cleaner than `.linkignore`.
-** Evaluate alternatives to the current find+symlink approach: https://www.gnu.org/software/stow/[GNU Stow],
-   https://www.chezmoi.io/[chezmoi], or a significantly cleaned-up `link.sh`.
-** Evaluate a shell-agnostic dynamic loader for host/OS specific aliases,
-   functions and rc fragments, so shared logic can be sourced from both zsh and
-   bash where possible.
-** Evaluate backup location `~/dotfiles_bak_$(date +%s)/`, consider a more appropirate location (e.g. somewhere under ~/.local, ~/.cache, ~/tmp, ~/temp, /tmp, ...).
+* [x] Review and document the dotfile linking approach. Completed 2026-06-03:
+** [x] Define and document a portability contract for this repo: Created `docs/linking-system.adoc`
+   with comprehensive documentation covering architecture, safety, configuration, and design rationale.
+   Confirms: no root requirement, no package-install, usable on bash-only hosts.
+** [x] Keep `tools/link.sh` dependency-free: Confirmed pure shell implementation with no external tool dependencies.
+   Documented design decision (Stow/chezmoi treated as optional alternatives, not requirements).
+** [x] Extract configuration from hardcoded values: Created `tools/link-config.conf` to manage `SYNC_DIRS` array,
+   enabling future extensibility without script modifications.
+** [x] Add design documentation and AI agent guidance: Added sections to `CLAUDE.md` and `docs/ai-instructions.md`
+   with clear workflow patterns and anti-patterns for developers/agents.
+** [x] Evaluate backup location: Confirmed current location (`${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles-link/backups/`)
+   is XDG-compliant and appropriate; automatic retention of 10 backups prevents unbounded growth.
+** [ ] Host-specific overrides mechanism: `_overrides/` approach is still ad-hoc. Future enhancement options:
+   . Implement `.host-$(hostname)` conditional loading in `.zshrc`/`.bashrc`
+   . Use `link-config.conf` to define host-specific sync directories
+   . Consider chezmoi for complex templating if multi-host setup grows
+** [ ] Consider `.nolink` as alternative to `.linkignore`: Current `.linkignore` is clean, but gitignore-style
+   `.nolink` file could be more discoverable. Low priority; revisit if exclusion patterns grow complex.
 
 == 2. Code Quality & Style
 
@@ -276,3 +274,37 @@ evaluation: keep as-is, update/rewrite, find an alternative solution, or delete.
   only. Evaluate against `bin/wget-p` and modern alternatives (aria2c, curl-based).
 * [ ] `_archive/clear-cache.sh` — Clear known local caches and temp files. Old (2011);
   cache paths may be stale. Review and update paths if still needed, else delete.
+
+
+== 6. Dotfiles Linking System Enhancements
+
+Completed 2026-06-03: Documentation and configuration extraction for symlink-based deployment system.
+See `docs/linking-system.adoc` for current implementation, architecture, and design rationale.
+
+Potential future improvements (low priority; revisit only if requirements change):
+
+=== Host-Specific Configuration
+
+* [ ] Implement host-specific override mechanism (cleaner than current `_overrides/`):
+** Option A: Conditional `.zshrc` loading: `[[ -f ~/.zshrc.local.$(hostname) ]] && source ~/.zshrc.local.$(hostname)`
+** Option B: Extend `link-config.sh` to define host-specific sync directories per hostname
+** Option C: Adopt chezmoi if multi-host templating becomes complex (currently single-user, single-host focus)
+
+=== Linking System Extensibility
+
+* [ ] Consider adding support for:
+** Symlink groups (e.g., "gaming-tools", "work-setup") that can be toggled on/off
+** User-level override configuration (`~/.dotfiles-link-local.conf`) for personal customizations
+** Dry-run mode that estimates space impact of linking (useful before first run on constrained systems)
+
+=== Observability & Debugging
+
+* [ ] Add optional JSON output mode (`--format=json`) for parsing by external tools (e.g., automation, dashboards)
+* [ ] Consider checksum-based verification (detect if symlink target has been modified on disk vs. repo)
+* [ ] Add optional hook system: `run_before_link()`, `run_after_link()` for custom setup (e.g., permission fixes, service restarts)
+
+=== Documentation
+
+* [ ] Add troubleshooting guide to main README linking to `docs/linking-system.adoc`
+* [ ] Consider creating a video walkthrough for first-time setup
+* [ ] Document how to recover from accidental file deletions using backups (with recovery scripts if needed)

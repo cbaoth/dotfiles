@@ -15,11 +15,13 @@ LINK_FILE=$(realpath "$0")
 TOOLS_DIR=$(dirname "$LINK_FILE")
 REPO_ROOT=$(dirname "$TOOLS_DIR")
 DOTFILES="${REPO_ROOT}/dotfiles"
-# repo_dir:home_dir pairs to sync (flat file symlinks, stale-link cleanup)
-declare -A SYNC_DIRS=(
-  ["${REPO_ROOT}/bin"]="$HOME/bin"
-  ["${REPO_ROOT}/lib"]="$HOME/lib"
-)
+
+# Source linking configuration (repo_dir:home_dir sync pairs)
+# shellcheck source=/dev/null
+source "${TOOLS_DIR}/link-config.conf" || {
+  echo "error: failed to source link-config.conf from ${TOOLS_DIR}" >&2
+  exit 1
+}
 BACKUP_BASE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles-link/backups"
 BAKDIR="${BACKUP_BASE_DIR}/run-$(date +%Y%m%dT%H%M%S)"
 KEEP_LAST_BAKS=10
@@ -88,6 +90,13 @@ debug() { vlog 2 "$@"; }
 [ ! -d "${DOTFILES}" ] \
   && echo "error: dotfiles directory not found: ${DOTFILES}" \
   && exit 1
+
+# Validate that config was sourced correctly
+if [[ ${#SYNC_DIRS[@]} -eq 0 ]]; then
+  echo "error: SYNC_DIRS not populated (config sourcing failed)" >&2
+  exit 1
+fi
+
 for _sync_src in "${!SYNC_DIRS[@]}"; do
   [ ! -d "${_sync_src}" ] \
     && echo "error: repo sync source directory not found: ${_sync_src}" \
