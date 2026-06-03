@@ -1,0 +1,16 @@
+# sway-winfo blocklist
+# One rule per line: property=regex_pattern
+# Properties: app_id, title, wm_class
+# The monitor's own window (app_id=sway-winfo) is always excluded automatically.
+
+# Ignore compositor chrome and bars
+app_id=waybar
+app_id=^$
+
+# Ignore conky overlays
+wm_class=^[Cc]onky$
+
+# Ignore floating terminals (they gain focus when switching back to them)
+app_id=swayfloat
+
+# --- auto-managed (sway-winfo) ---
