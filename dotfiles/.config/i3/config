@@ -267,25 +267,25 @@ mode "$mode_system" {
 # }}} - Meta Modes -----------------------------------------------------------
 
 # {{{ - Special Keys ---------------------------------------------------------
-# volume media keys: volume up/down/topple-mute (req.: pulseaudio, osdsh)
-bindsym XF86AudioRaiseVolume exec --no-startup-id media-keys -o vol+
-bindsym XF86AudioLowerVolume exec --no-startup-id media-keys -o vol-
-bindsym XF86AudioMute exec --no-startup-id media-keys -o mute
+# volume media keys (req.: pulseaudio/pipewire-pulse, playerctl)
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ off && pactl set-sink-volume @DEFAULT_SINK@ +5%
+bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ off && pactl set-sink-volume @DEFAULT_SINK@ -5%
+bindsym XF86AudioMute        exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ toggle
 
 # mod4-mod1-=/-/0: same as above (alt. keys)
-bindsym Mod4 Mod1 equal exec --no-startup-id media-keys -o vol+
-bindsym Mod4 Mod1 minus exec --no-startup-id media-keys -o vol-
-bindsym Mod4 Mod1 0 exec --no-startup-id media-keys -o mute
+bindsym Mod4+Mod1+equal exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ off && pactl set-sink-volume @DEFAULT_SINK@ +5%
+bindsym Mod4+Mod1+minus exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ off && pactl set-sink-volume @DEFAULT_SINK@ -5%
+bindsym Mod4+Mod1+0     exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ toggle
 
-# media player keys (req.: https://github.com/acrisci/playerctl)
-bindsym XF86AudioPlay exec --no-startup-id media-keys -o play-pause
-bindsym XF86AudioPrev exec --no-startup-id media-keys -o previous
-bindsym XF86AudioNext exec --no-startup-id media-keys -o next
+# media player keys (req.: playerctl)
+bindsym XF86AudioPlay exec --no-startup-id playerctl play-pause
+bindsym XF86AudioPrev exec --no-startup-id playerctl previous
+bindsym XF86AudioNext exec --no-startup-id playerctl next
 
 # mod4-mod1-Space/,/.: same as above (alt. keys)
-bindsym Mod4 Mod1 space exec --no-startup-id media-keys -o play-pause
-bindsym Mod4 Mod1 comma exec --no-startup-id media-keys -o previous
-bindsym Mod4 Mod1 period exec --no-startup-id media-keys -o next
+bindsym Mod4+Mod1+space  exec --no-startup-id playerctl play-pause
+bindsym Mod4+Mod1+comma  exec --no-startup-id playerctl previous
+bindsym Mod4+Mod1+period exec --no-startup-id playerctl next
 
 # Sreen brightness controls (req.: xbacklight)
 bindsym XF86MonBrightnessUp exec --no-startup-id xbacklight -inc 20
