@@ -1,6 +1,6 @@
 # Shell Script Style Guide (Summary)
 
-Full guide: @docs/shell-style-guide.adoc
+Full guide: @docs/shell-style-guide.md
 
 Based on the [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html) with project-specific additions.
 
@@ -201,7 +201,7 @@ dotfiles-link -vv          # Verbose output (debug)
 → Clean up by running `dotfiles-link` (it handles orphaned links)
 → Never rely on manual linking; always use the script for consistency
 
-**See also:** `docs/linking-system.adoc` for detailed architecture and troubleshooting.
+**See also:** `docs/linking-system.md` for detailed architecture and troubleshooting.
 
 ## AI Agent Mode
 
@@ -215,7 +215,7 @@ When working in interactive shell you can expect the following to be setup for y
 
 - Use `README.md` for high-level overview and link to detailed docs in `@docs/`. Use `TODO.md` for tracking tasks and future improvements. Keep both files up to date with the project's current state and plans.
   - Create new documentation files in `@docs/` whenever it seems appropriate; especially when more extensive changes are planned/made, or complex features are added that require detailed explanation.
-- Use `@docs/shell-style-guide.adoc` for the full style guide, and this `CLAUDE.md` for a concise summary.
+- Use `@docs/shell-style-guide.md` for the full style guide, and this `CLAUDE.md` for a concise summary.
 
 ### Formatting and Style Guidelines
 

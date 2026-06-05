@@ -4,7 +4,7 @@ These instructions define the shell scripting conventions for the
 [cbaoth/dotfiles](https://github.com/cbaoth/dotfiles) repository. Use them
 when generating, editing, or reviewing shell scripts in this project.
 
-The full style guide is at `docs/shell-style-guide.adoc`. These instructions are
+The full style guide is at `docs/shell-style-guide.md`. These instructions are
 based on the [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html)
 with project-specific additions and deviations.
 
@@ -263,7 +263,7 @@ If you manually linked something while debugging (e.g., for testing edge cases):
 
 ==== For More Details
 
-See `docs/linking-system.adoc` for architecture, configuration, troubleshooting, and design rationale.
+See `docs/linking-system.md` for architecture, configuration, troubleshooting, and design rationale.
 
 ### Zsh-Specific (`.zsh.d/`)
 

@@ -5,7 +5,7 @@
 # shellcheck shell=bash
 #
 # Force system shutdown at a configured bedtime.
-# For installation and configuration, see README.adoc or run: sudo ./install.sh
+# For installation and configuration, see README.md or run: sudo ./install.sh
 
 # {{{ = COMMONS ==============================================================
 # -e: exit on error
