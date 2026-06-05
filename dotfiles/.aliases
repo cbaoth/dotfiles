@@ -490,6 +490,36 @@ dotfiles-update() {
 }
 # }}} - DOTFILES MANAGEMENT --------------------------------------------------
 
+# {{{ - SHELL NAVIGATION -----------------------------------------------------
+# alias /='cd /' is zsh-only (invalid alias name in bash) — defined in aliases.zsh
+alias h='history'
+alias hs='history | grep -Ei'
+# }}} - SHELL NAVIGATION -----------------------------------------------------
+
+# {{{ - PYTHON / CONDA -------------------------------------------------------
+# https://docs.conda.io/projects/conda/en/latest/commands/index.html
+if ${HAS_CONDA:-false}; then
+  # conda environments
+  alias condai="conda init"
+  alias condar="conda run"
+  alias condaa="conda activate"
+  alias condad="conda deactivate"
+  alias condac="conda check"
+  alias condal="conda list"
+  # conda packages
+  alias condaps="conda search"
+  alias condapi="conda install"
+  alias condapr="conda remove"
+  alias condapu="conda update"
+  alias condapua="echo 'NOTE: Running conda update --all might not update all the packages in a given environment to their latest versions. If the latest version of a package is incompatible with other packages installed in the environment, conda will only update that package to the latest compatible version.' >&2; conda update --all"
+  alias condapc="conda clean"
+  alias condapd="conda compare"
+  alias 'conda?'="conda info"
+  # conda base
+  alias conda-update-base="conda update -n base -c defaults conda"
+fi
+# }}} - PYTHON / CONDA -------------------------------------------------------
+
 # shellcheck disable=SC1091  # optional local override; path is dynamic
 [[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"
 
