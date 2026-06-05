@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Sway window state management: floating and sticky with consistent border indicators.
+#
+# Border convention:
+#   sticky + floating  → border normal 2  (visible border = sticky indicator)
+#   floating only      → border normal 0  (borderless)
+#   tiling             → border normal 2  (default tiling border)
+#
+# Note: per-window border colors are not supported by Sway; border thickness is
+# the only available sticky indicator without patching or a custom compositor.
+#
+# Usage: sway-wstate <command>
+#   float   Toggle floating state of the focused window
+#   sticky  Toggle sticky state; auto-floats the window when enabling sticky
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+# Output: "<sticky> <type>", e.g. "true floating_con" or "false con"
+get_focused_state() {
+  swaymsg -t get_tree \
+    | jq -r 'recurse(.nodes[]?, .floating_nodes[]?) | select(.focused == true) | "\(.sticky) \(.type)"' \
+    | head -1
+}
+
+cmd_float() {
+  local sticky type
+  read -r sticky type < <(get_focused_state)
+
+  if [[ "$type" == "floating_con" ]]; then
+    swaymsg floating disable
+    swaymsg border normal 2
+  else
+    swaymsg floating enable
+    # Preserve sticky border indicator if sticky was already set
+    if [[ "$sticky" == "true" ]]; then
+      swaymsg border normal 2
+    else
+      swaymsg border normal 0
+    fi
+  fi
+}
+
+cmd_sticky() {
+  local sticky type
+  swaymsg sticky toggle
+  read -r sticky type < <(get_focused_state)
+
+  if [[ "$sticky" == "true" ]]; then
+    if [[ "$type" != "floating_con" ]]; then
+      swaymsg floating enable
+    fi
+    swaymsg border normal 2
+  else
+    swaymsg border normal 0
+  fi
+}
+
+p_usg() { printf 'Usage: %s <float|sticky>\n' "$(basename "$0")"; }
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    float)  cmd_float ;;
+    sticky) cmd_sticky ;;
+    -h|--help) p_usg; exit 0 ;;
+    *)
+      p_err "unknown command: '${cmd}'"
+      p_usg >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
