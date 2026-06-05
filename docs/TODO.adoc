@@ -29,9 +29,19 @@ Ideas and future tasks for improving the shell scripts in this repository.
 ** Renamed `net-info.sh` to `net-info` (no extension for executables per style guide)
 ** 16 of 19 scripts pass shellcheck clean; remaining: `getbyext` (legacy 2001 script, needs full rewrite),
    `ff-copy-mpv-bookmarks` and `mpv-find` (1 SC2015 info each, benign)
-* [ ] Review `.zsh.d/` files for consistency
-** Include a review for shell-agnostic content that could be moved/shared so it
-   can be reused from bash-only setups.
+* [x] Review `.zsh.d/` files for consistency. Completed 2026-06-05:
+** Created `~/.common_rc` with shell-agnostic `source_ifex`/`source_ifex_custom`
+   (bash+zsh compatible, replaces zsh-only inline versions in `.zshrc`)
+** Migrated `functions/functions.zsh` → `lib/functions.sh` (shell-agnostic);
+   residual `functions.zsh` contains only `zsudo` and `compdef` (zsh-only)
+** Migrated all OS/host alias files from `.zsh.d/` → `lib/` as `.sh` files;
+   `aliases-linux.zsh` residual contains only the flatpak app function generator
+** Moved shell-agnostic content from `aliases.zsh` to `.aliases`:
+   `h`/`hs` history aliases, `conda` aliases; kept `alias /`, global aliases,
+   `help`/`reload-*`/`zsh-history-fix` in `aliases.zsh`
+** `_AUTO_REHASH_CMDS` renamed to `ZSH_AUTO_REHASH_CMDS` (intent now clear in bash context)
+** Both `.zshrc` and `.bashrc` now source the full alias/function stack;
+   bash gains: `functions.sh`, `aliases-linux.sh`, all host/OS aliases
 * [x] Consolidate duplicate logging/output implementations across scripts
 ** All `bin/` scripts now use a standard set of logging functions (`p_msg`, `p_nfo`, `p_war`, `p_err`, `p_dbg`)
    with raw ANSI codes; unused functions are commented out as a template
@@ -68,6 +78,8 @@ Ideas and future tasks for improving the shell scripts in this repository.
    . Consider chezmoi for complex templating if multi-host setup grows
 ** [ ] Consider `.nolink` as alternative to `.linkignore`: Current `.linkignore` is clean, but gitignore-style
    `.nolink` file could be more discoverable. Low priority; revisit if exclusion patterns grow complex.
+** [x] Evaluate shell-agnostic dynamic loader: Implemented 2026-06-05 via `~/.common_rc`
+   (`source_ifex_custom` with `-e EXT` parameter) and `lib/` as home for shared aliases/functions.
 
 == 2. Code Quality & Style
 
