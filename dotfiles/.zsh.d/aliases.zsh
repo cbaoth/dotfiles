@@ -3,39 +3,36 @@
 # code: language=zsh insertSpaces=true tabSize=2
 # shellcheck shell=bash disable=SC2148
 #
-# ~/.zsh.d/aliases.zsh: Common zsh aliases.
+# ~/.zsh.d/aliases.zsh: Zsh-specific aliases.
+#
+# Shell-agnostic aliases live in ~/.aliases (sourced earlier in .zshrc).
+# This file contains only zsh-specific additions: global aliases, suffix
+# aliases, and zsh-only convenience aliases.
 
-# The following aliases are intended for ZSH use only (e.g. global aliases)
-
-# {{{ - GENERAL --------------------------------------------------------------
-alias /='cd /'
-alias h='history'
-alias hs='history | grep -Ei'
+# {{{ - GENERAL (ZSH ONLY) ---------------------------------------------------
+# run-help is a zsh builtin; h and hs are in ~/.aliases
+alias /='cd /'  # invalid alias name in bash; zsh only
 alias help='run-help'
 
-alias reload-functions='. $HOME/.zsh.d/functions.zsh;
-  source_ifex_custom $HOME/.zsh.d/functions'
-alias reload-aliases='. $HOME/.zsh.d/auto-rehash.zsh; . $HOME/.zsh.d/aliases.zsh;
-  source_ifex_custom $HOME/.zsh.d/aliases'
+# Reload shell-agnostic + zsh-specific functions
+alias reload-functions='. $HOME/lib/functions.sh; . $HOME/.zsh.d/functions/functions.zsh'
+# Reload all alias layers: auto-rehash -> common -> zsh-specific -> os/host
+alias reload-aliases='. $HOME/.zsh.d/auto-rehash.zsh; . $HOME/.aliases; . $HOME/.zsh.d/aliases.zsh;
+  source_ifex_custom $HOME/lib/aliases;
+  source_ifex_custom -e .zsh $HOME/.zsh.d/aliases'
 
 alias zsh-history-fix='mv $HOME/.zsh_history $HOME/.zsh_history_corrupt && strings $HOME/.zsh_history_corrupt > $HOME/.zsh_history && fc -R $HOME/.zsh_history && rm $HOME/.zsh_history_corrupt'
-
-# }}} - GENERAL --------------------------------------------------------------
+# }}} - GENERAL (ZSH ONLY) ---------------------------------------------------
 
 # {{{ - SUFFIX ALIASES -------------------------------------------------------
-# e.g. 'alias -s txt=vim', now 'foo.txt' will open foo.txt in vim
+# e.g. 'alias -s txt=vim' makes 'foo.txt' open in vim
 #alias -s {txt,ini,conf,html,htm,xml}='vim -N'
 #alias -s {com,net,org,de,in}='links2'
 # }}} - SUFFIX ALIASES -------------------------------------------------------
 
 # {{{ - GLOBAL ALIASES -------------------------------------------------------
-# no spelling correction (if correct / correctall is active)
-# can result in issues when used with sudo
-#alias -g rm='nocorrect rm'
-#alias -g cp='nocorrect cp'
-#alias -g mv='nocorrect mv'
-#alias -g zmv='nocorrect zmv'
-#alias -g mkdir='nocorrect mkdir'
+# Global aliases are expanded anywhere on the command line (zsh only).
+# Naming convention: @PREFIX to avoid conflicts with normal commands.
 
 alias -g ...='../..'
 alias -g ....='../../..'
@@ -81,31 +78,6 @@ alias -g @url_clean2="| sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
                              s/%3f/?/gi'"
 alias -g @sum="| awk '{s+=\$1} END {print s}'"
 
-#alias -g @Sk="*~(*.bz2|*.gz|*.tgz|*.zip|*.z)"
 # }}} - GLOBAL ALIASES -------------------------------------------------------
-
-# {{{ - PYTHON ---------------------------------------------------------------
-# https://docs.conda.io/projects/conda/en/latest/commands/index.html
-if $HAS_CONDA; then
-  # conda environments
-  alias condai="conda init"
-  alias condar="conda run"
-  alias condaa="conda activate"
-  alias condad="conda deactivate"
-  alias condac="conda check"
-  alias condal="conda list"
-  # conda packages
-  alias condaps="conda search"
-  alias condapi="conda install"
-  alias condapr="conda remove"
-  alias condapu="conda update"
-  alias condapua="echo 'NOTE: Running conda update --all might not update all the packages in a given environment to their latest versions. If the latest version of a package is incompatible with other packages installed in the environment, conda will only update that package to the latest compatible version.' >&2; conda update --all"
-  alias condapc="conda clean"
-  alias condapd="conda compare"
-  alias conda\?="conda info"
-  # conda base
-  alias conda-update-base="conda update -n base -c defaults conda"
-fi
-# }}} - PYTHON ---------------------------------------------------------------
 
 return 0
