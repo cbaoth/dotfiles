@@ -302,11 +302,11 @@
       "Bash(ln -s:*)",
       "Bash(ln -sf //home/cbaoth/dotfiles/**/* //home/cbaoth/**/*)",
       "Bash(ln -fs //home/cbaoth/dotfiles/**/* //home/cbaoth/**/*)",
-      "Bash(//home/cbaoth/dotfiles/tools/*)",
       "Read(//home/cbaoth/.local/bin/**)",
       "Read(//home/cbaoth/bin/**)",
       "Read(//home/cbaoth/lib/**)",
-      "Read(//home/cbaoth/dotfiles/**)",
+      "Bash(//home/cbaoth/git/**)",
+      "Bash(//home/cbaoth/dotfiles/**)",
       "Read(//home/cbaoth/AppImages/**)",
       "Read(//etc/keyd/**)",
       "Read(//etc/xdg/**)",
@@ -327,9 +327,7 @@
       "WebFetch(domain:tampermonkey.net)",
       "Bash(mpv --no-audio --length=3 /home/cbaoth/Videos/motion/08-20260603160344.mkv)"
     ],
-    "deny": [
-      "Bash(sudo:*)",
-      "Bash(* --force*)",
+    "ask": [
       "Bash(cp -f*)",
       "Bash(cp * -f*)",
       "Bash(cp --force*)",
@@ -383,7 +381,13 @@
       "Bash(eval:*)",
       "Bash(bash -c *)",
       "Bash(sh -c *)",
-      "Bash(zsh -c *)"
+      "Bash(zsh -c *)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)"
+    ],
+    "deny": [
+      "Bash(sudo:*)",
+      "Bash(su:*)"
     ]
   }
 }
