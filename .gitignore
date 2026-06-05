@@ -35,6 +35,10 @@ _local/
 .env
 .env.*
 
-# GitHub Copilot — local instructions not tracked
-# TODO Define appropriate agent, instruction, and skill files before removing or replcing this pattern
-.github
+# Track only own cb-*.md files; everything else in .github/ stays local
+# (unreviewed/unlicensed content from awesome-copilot, future extension-managed files, etc.)
+.github/*
+!.github/cb-*.md
+!.github/instructions/
+.github/instructions/*
+!.github/instructions/cb-*.md
