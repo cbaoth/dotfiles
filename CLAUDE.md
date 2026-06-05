@@ -1,6 +1,7 @@
 # Shell Script Style Guide (Summary)
 
 Full guide: @docs/shell-style-guide.md
+Commit message conventions: @.github/instructions/cb-commit-messages.instructions.md
 
 Based on the [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html) with project-specific additions.
 
