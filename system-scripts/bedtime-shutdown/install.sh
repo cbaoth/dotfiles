@@ -130,7 +130,7 @@ TEOF
 
     sudo /opt/bin/bedtime-shutdown.sh --dry-run -v
 
-For more information, see: README.adoc
+For more information, see: README.md
 EOF
 
 exit 0

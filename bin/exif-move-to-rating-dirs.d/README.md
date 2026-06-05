@@ -1,0 +1,398 @@
+# Overview
+
+A Bash script that organizes image files into a structured directory hierarchy based on their EXIF rating and label metadata.
+
+# Features
+
+- 📂 Automatic directory structure creation: `<rating>/<label>/`
+
+- 🏷️ Supports EXIF ratings (0-5 stars) and color labels (Red, Green, Blue, etc.)
+
+- 🗺️ **Directory mapping**: Remap output directories using pattern matching (literal or regex)
+
+- 💾 Smart caching system with hash+mtime verification to skip unchanged files
+
+- 🔄 Move or copy mode
+
+- 🎯 Minimum rating threshold filtering
+
+- 🗑️ Optional removal of empty source directories
+
+- 📊 Comprehensive statistics and summary output
+
+- 🔍 Multiple verbosity levels for debugging
+
+- ✅ Dry-run mode for safe testing
+
+# Quick Start
+
+``` bash
+# Basic usage: organize images in current directory
+./exif-move-to-rating-dirs.sh /path/to/images
+
+# Copy instead of move
+./exif-move-to-rating-dirs.sh --copy /path/to/images
+
+# Only process images with rating >= 3
+./exif-move-to-rating-dirs.sh --min-rating 3 /path/to/images
+
+# Use mapping file to customize output structure
+./exif-move-to-rating-dirs.sh --mapping-file my-mappings.conf /path/to/images
+
+# Dry-run with verbose output
+./exif-move-to-rating-dirs.sh --dry-run -vv /path/to/images
+```
+
+# Output Structure
+
+Without mapping, images are organized as:
+
+    source-path/
+    ├── 5/
+    │   ├── Purple/
+    │   │   └── IMG_001.jpg
+    │   ├── Blue/
+    │   │   └── IMG_002.jpg
+    │   └── None/
+    │       └── IMG_003.jpg
+    ├── 4/
+    │   └── Green/
+    │       └── IMG_004.jpg
+    └── 3/
+        └── None/
+            └── IMG_005.jpg
+
+# Directory Mapping
+
+The `--mapping-file` option allows you to remap the default `rating/label` structure to custom paths using pattern matching.
+
+## Mapping File Format
+
+Space-separated format (one mapping per line):
+
+    SOURCE_PATTERN TARGET_PATH
+
+- **Patterns**: Can be literal strings or regex patterns
+
+- **Quotes**: Optional, required only for paths with spaces
+
+- **Comments**: Lines starting with `#` are ignored
+
+- **Evaluation order**: Patterns are evaluated top-to-bottom; **first match wins**
+
+- **Best practice**: Place more specific patterns before general catch-all patterns
+
+- **Group substitution**: Use `$1`, `$2`, etc. in target to reference regex capture groups
+
+> [!IMPORTANT]
+> Since patterns are matched in order and the first match is used, always place specific patterns (like `5/Purple`) before general catch-all patterns (like `5/.*`).
+
+### Regex Group Substitution
+
+Captured groups in patterns can be referenced in the target using `$1`, `$2`, etc.
+
+``` conf
+# Keep label with prefix
+5/(.*) keep-$1              # 5/Purple -> keep-Purple
+
+# Use rating in output path
+([0-5])/.* rating-$1        # 3/Blue -> rating-3, 5/Purple -> rating-5
+
+# Swap rating and label
+([0-5])/(.*) $2-rating-$1   # 5/Purple -> Purple-rating-5
+```
+
+## Example Mapping File
+
+``` conf
+# Consolidate all Purple and Blue labels to just the rating directory
+5/Purple 5
+5/Blue 5
+
+# Regex pattern matching multiple labels
+5/(Purple|Blue) 5
+
+# Downgrade unrated 5-star images
+5/None 4
+
+# Handle paths with spaces (use quotes)
+"5/Special Label" "6/Premium"
+
+# Match anything in rating 3 and move to rating 2
+3/.* 2
+```
+
+See [example-mapping.conf](example-mapping.conf) for a complete example.
+
+## Mapping Example
+
+**Before (default structure):**
+
+    photos/
+    ├── 5/Purple/IMG_001.jpg
+    ├── 5/Blue/IMG_002.jpg
+    └── 5/None/IMG_003.jpg
+
+**With mapping file:**
+
+``` conf
+5/Purple 5
+5/Blue 5
+5/None 4
+```
+
+**After processing:**
+
+    photos/
+    ├── 5/
+    │   ├── IMG_001.jpg
+    │   └── IMG_002.jpg
+    └── 4/
+        └── IMG_003.jpg
+
+# Usage
+
+``` bash
+./exif-move-to-rating-dirs.sh [options] <source-path> [<source-path> ...]
+```
+
+## Common Options
+
+|  |  |
+|----|----|
+| Option | Description |
+| `-o, --output <dir>` | Common target directory for all files (default: derive from source) |
+| `-t, --types <ext1,ext2,...>` | File extensions to process (default: jpg,jpeg,png,tiff,tif,cr2,dng,orf) |
+| `-c, --copy` | Copy files instead of moving them |
+| `--mapping-file <file>` | Path to directory mapping configuration file |
+| `--min-rating <n>` | Only process files with rating \>= n |
+| `--cache-file <file>` | Cache file location (default: `~/.cache/exif-move-to-rating-dirs/cache.tsv`) |
+| `--no-cache` | Disable cache (process all files) |
+| `-d, --remove-empty-source-dir` | Remove empty source directories after moving files |
+| `-f, --force` | Overwrite existing files in target directory |
+| `-n, --dry-run` | Show what would be done without making changes |
+| `-v, -vv, -vvv` | Increase verbosity (can be used multiple times) |
+| `-h, --help` | Show help message |
+
+# Caching System
+
+The script maintains an intelligent cache of processed files to optimize performance across multiple runs.
+
+## Cache Contents
+
+For each processed file, the cache stores:
+
+- File path (canonical/absolute)
+
+- SHA256 hash (for content verification)
+
+- Modification time (for quick change detection)
+
+- EXIF rating value
+
+- EXIF label/color
+
+## Default Behavior
+
+By default, the cache operates in **smart EXIF reuse mode**:
+
+- ✅ Reuses cached EXIF data (rating/label) for unchanged files
+
+- ✅ Skips expensive `exiftool` operations
+
+- ✅ Still verifies files are in correct location
+
+- ✅ Automatically moves files if mapping configuration changes
+
+- ✅ Detects and corrects manually moved files
+
+This provides the best balance of performance and safety.
+
+## Cache Options
+
+|  |  |
+|----|----|
+| Option | Behavior |
+| Default (no flag) | Smart mode: reuse EXIF data but verify location |
+| `--skip-cached` | Maximum speed: skip cached files completely without verification (use only when certain nothing changed) |
+| `--no-cache` | Disable cache entirely: read EXIF from all files and don’t update cache |
+
+## Cache File Management
+
+- **Default location**: `~/.cache/exif-move-to-rating-dirs/cache.tsv` (or `.gz` when compressed)
+
+- **Custom location**: Use `--cache-file <path>` to specify alternative location
+
+- **Auto-compression**: Files larger than 1MB are automatically gzip-compressed
+
+- **Validation**: Uses SHA256 hash + mtime for reliable change detection
+
+- **Format**: Tab-separated values (TSV) with backward compatibility for older cache versions
+
+## When to Use Each Mode
+
+``` bash
+# Smart mode (default) - Best for most cases
+./exif-move-to-rating-dirs.sh /path/to/images
+
+# After changing mapping configuration
+./exif-move-to-rating-dirs.sh --mapping-file new-config.conf /path/to/images
+# (Files automatically moved to new locations using cached EXIF)
+
+# After manually moving some files
+./exif-move-to-rating-dirs.sh /path/to/images
+# (Script detects wrong locations and corrects them)
+
+# Maximum speed (use only when nothing changed)
+./exif-move-to-rating-dirs.sh --skip-cached /path/to/images
+
+# Force full re-scan (rebuild cache from scratch)
+./exif-move-to-rating-dirs.sh --no-cache /path/to/images
+```
+
+## Cache Rebuild
+
+To completely rebuild the cache:
+
+``` bash
+# Method 1: Disable cache for one run
+./exif-move-to-rating-dirs.sh --no-cache /path/to/images
+
+# Method 2: Delete cache file
+rm -f ~/.cache/exif-move-to-rating-dirs/cache.tsv*
+./exif-move-to-rating-dirs.sh /path/to/images
+```
+
+# Requirements
+
+- Bash 4.0+
+
+- `exiftool` - For reading EXIF metadata
+
+- `sha256sum` - For file hashing (cache validation)
+
+- `gzip` (optional) - For cache compression
+
+Install dependencies:
+
+``` bash
+# Debian/Ubuntu
+sudo apt install libimage-exiftool-perl coreutils gzip
+
+# Fedora/RHEL
+sudo dnf install perl-Image-ExifTool coreutils gzip
+
+# macOS (Homebrew)
+brew install exiftool coreutils gzip
+```
+
+# Examples
+
+## Example 1: Basic Organization
+
+``` bash
+# Organize photos in ~/Pictures/2024
+./exif-move-to-rating-dirs.sh ~/Pictures/2024
+
+# Output structure:
+# ~/Pictures/2024/5/Purple/IMG_001.jpg
+# ~/Pictures/2024/5/Blue/IMG_002.jpg
+# ~/Pictures/2024/4/Green/IMG_003.jpg
+```
+
+## Example 2: Consolidated Output with Mapping
+
+``` bash
+# Create mapping file
+cat > my-mapping.conf << 'EOF'
+5/Purple 5/favorites
+5/Blue 5/favorites
+4/.* 4/good
+3/.* archive
+EOF
+
+# Apply mapping
+./exif-move-to-rating-dirs.sh --mapping-file my-mapping.conf ~/Pictures/2024
+
+# Output structure:
+# ~/Pictures/2024/5/favorites/IMG_001.jpg
+# ~/Pictures/2024/5/favorites/IMG_002.jpg
+# ~/Pictures/2024/4/good/IMG_003.jpg
+# ~/Pictures/2024/archive/IMG_004.jpg
+```
+
+## Example 3: Copy High-Rated Photos to Export Directory
+
+``` bash
+# Copy 5-star images to export folder
+./exif-move-to-rating-dirs.sh \
+  --copy \
+  --min-rating 5 \
+  --output ~/exports/best-photos \
+  ~/Pictures/2024
+```
+
+## Example 4: Process Multiple Directories
+
+``` bash
+# Organize multiple year folders
+./exif-move-to-rating-dirs.sh \
+  ~/Pictures/2022 \
+  ~/Pictures/2023 \
+  ~/Pictures/2024
+```
+
+## Example 5: Dry-Run with Verbose Output
+
+``` bash
+# Test before actual processing
+./exif-move-to-rating-dirs.sh \
+  --dry-run -vv \
+  --mapping-file my-mapping.conf \
+  ~/Pictures/2024
+```
+
+# Troubleshooting
+
+## Files Not Being Processed
+
+Check if files are already in rating directories:
+
+``` bash
+# By default, the script skips files already in rating/label directories
+# Use -i to include them:
+./exif-move-to-rating-dirs.sh -i /path/to/images
+```
+
+## Cache Issues
+
+If you suspect cache problems:
+
+``` bash
+# Disable cache for one run
+./exif-move-to-rating-dirs.sh --no-cache /path/to/images
+
+# Or delete cache file
+rm -f ~/.cache/exif-move-to-rating-dirs/cache.tsv*
+```
+
+## EXIF Metadata Not Found
+
+Verify files have EXIF data:
+
+``` bash
+# Check specific file
+exiftool -Rating -Label IMG_001.jpg
+
+# If empty, the script will use defaults (Rating: 0, Label: None)
+```
+
+# License
+
+Created for personal use. Use at your own risk.
+
+# See Also
+
+- [Main repository README](../README.md)
+
+- [Example mapping configuration](example-mapping.conf)
