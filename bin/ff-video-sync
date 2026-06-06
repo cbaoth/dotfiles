@@ -382,9 +382,15 @@ def analyze_segment_frames(
 def build_analysis_result(args: argparse.Namespace) -> AnalysisResult:
   """Run all applicable analysis methods and choose a recommended factor.
 
-  Recommendation priority: frame-count segment > time-based segment > FPS metadata.
-  Segment-based methods use actual content timing and are more reliable when the
-  container fps metadata has been altered by transcoding or re-labelling.
+  Recommendation priority: FPS ratio > segment frame count > segment timestamps.
+
+  The FPS ratio (show_fps / reaction_fps) is the exact mathematical answer for
+  any frame-rate mismatch (e.g. PAL 25fps vs NTSC 23.976fps) and carries no
+  measurement error.  It is used as the recommendation whenever fps values differ.
+
+  Segment methods are supplementary.  They are useful as a sanity check or when
+  fps values are identical (making the FPS method unusable).  Accuracy degrades
+  with short windows due to endpoint rounding and timestamp imprecision.
   """
   show_path = Path(args.show).expanduser()
   reaction_path = Path(args.reaction).expanduser()
@@ -414,17 +420,22 @@ def build_analysis_result(args: argparse.Namespace) -> AnalysisResult:
   if not methods:
     raise SyncError("FPS values are identical; provide matching segments to measure drift explicitly")
 
-  # Prefer segment-based methods (actual content timing) over fps metadata.
-  if frame_result is not None:
-    recommended: MethodResult = frame_result
+  # FPS ratio is the primary recommendation when fps values differ — it is a
+  # lossless mathematical constant with no endpoint rounding or timestamp error.
+  # Fall back to segment methods only when fps values are identical.
+  if fps_result is not None:
+    recommended: MethodResult = fps_result
+  elif frame_result is not None:
+    recommended = frame_result
   elif segment_result is not None:
     recommended = segment_result
   else:
-    recommended = fps_result or methods[0]
+    recommended = methods[0]
 
-  # Warn loudly when fps and segment methods point in opposite directions —
-  # this indicates the container fps metadata does not reflect actual playback
-  # speed (common after transcoding or container re-labelling).
+  # Warn when fps and segment methods disagree — opposite directions strongly
+  # suggest unreliable fps metadata (transcoded or re-labelled container);
+  # large same-direction differences usually indicate endpoint rounding error
+  # in a short segment window.
   if fps_result is not None and segment_result is not None:
     fps_up = fps_result.factor > 1.0
     seg_up = segment_result.factor > 1.0
@@ -432,13 +443,13 @@ def build_analysis_result(args: argparse.Namespace) -> AnalysisResult:
       log_warning(
         f"FPS method (factor {format_factor(fps_result.factor)}) and segment method "
         f"(factor {format_factor(segment_result.factor)}) disagree in direction — "
-        "fps metadata appears unreliable; using segment result"
+        "fps metadata may be unreliable; verify with a longer segment before adjusting"
       )
-    elif abs(fps_result.factor - segment_result.factor) / abs(segment_result.factor) > 0.02:
+    elif abs(fps_result.factor - segment_result.factor) / abs(fps_result.factor) > 0.02:
       log_warning(
         f"FPS method (factor {format_factor(fps_result.factor)}) and segment method "
-        f"(factor {format_factor(segment_result.factor)}) differ by more than 2%%; "
-        "using segment result"
+        f"(factor {format_factor(segment_result.factor)}) differ by more than 2%% — "
+        "segment result may be affected by endpoint rounding; consider a longer window"
       )
 
   return AnalysisResult(
@@ -780,14 +791,20 @@ def add_analyze_arguments(parser: argparse.ArgumentParser) -> None:
   """Add analyze-compatible arguments to a parser."""
   parser.add_argument("--show", required=True, help="show/movie reference file")
   parser.add_argument("reaction", help="reaction video to compare against the show")
-  parser.add_argument("--show-start", help="start of the comparable segment in the show")
+  parser.add_argument(
+    "--show-start",
+    help="start of a comparable segment in the show (HH:MM:SS, MM:SS, or seconds); "
+    "required together with --show-end and --reaction-start/--reaction-end; "
+    "useful as a sanity check or when fps values are identical",
+  )
   parser.add_argument("--show-end", help="end of the comparable segment in the show")
   parser.add_argument("--reaction-start", help="start of the comparable segment in the reaction")
   parser.add_argument("--reaction-end", help="end of the comparable segment in the reaction")
   parser.add_argument(
     "--count-frames",
     action="store_true",
-    help="count frames inside the provided segments for a slower but more precise segment method",
+    help="count frames in the provided segments (slower); useful when fps values are identical "
+    "or as a cross-check — accuracy depends on segment length and endpoint precision",
   )
 
 
@@ -799,7 +816,7 @@ def add_adjust_arguments(parser: argparse.ArgumentParser, *, include_show: bool)
     help="speed factor to apply (required unless --show is used)",
   )
   if include_show:
-    parser.add_argument("--show", help="show/movie reference file used for FPS detection")
+    parser.add_argument("--show", help="show/movie reference file; derives factor from fps ratio (alternative to --factor)")
     parser.add_argument("--show-start", help=argparse.SUPPRESS)
     parser.add_argument("--show-end", help=argparse.SUPPRESS)
     parser.add_argument("--reaction-start", help=argparse.SUPPRESS)
