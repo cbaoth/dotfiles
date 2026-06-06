@@ -11,13 +11,29 @@ Guidelines for writing consistent, readable commit messages across all personal 
 
 ```
 <Verb> <what>: <short description>
+
+Optional body — why, not what. Wrap at 72 chars.
+- Use bullet points for multiple items
+- Each point on its own line
 ```
 
-- **First line**: max 50 chars (ideal), hard limit 72 — this is what `git log --oneline` and GitHub show
-- **Blank line** after the subject, then optional body for *why* (not *what*) — wrap body at 72 chars
+- **Subject line**: one single line — never a list, never multiple sentences
+- **Length**: max 50 chars (ideal), hard limit 72 — this is what `git log --oneline` and GitHub show
+- **Blank line** required between subject and body; omit body entirely for self-explanatory changes
+- **Body content**: explain *why*, not *what* — use `- ` bullet points when listing multiple changes
 - **No trailing period** on the subject line
 - **Imperative mood**: "Add feature" not "Added feature" or "Adding feature"
   - Think: "If applied, this commit will: *Add feature*"
+
+**Multi-file changes** — subject names the primary change; body lists the rest:
+
+```
+Add mpv show-speed script and enhance OSD controls
+
+- Add show-speed: display playback speed with full precision via OSD
+- Update input.conf: add speed binding OSD feedback
+- Update config: enable milliseconds in OSD time display
+```
 
 ## Verb Prefixes
 
