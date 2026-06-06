@@ -115,7 +115,13 @@ You can use the `bindkey` command to display all key bindings in zsh.
 
 `M-(^M|^J|^I)` as well as `ESC, (ENTER|...)` insert the literal character. For example, `Alt-RETURN` and `ESC, RETURN` both insert a literal newline instead of executing the command, and `ESC, TAB` insearts a literal tab `\t` character instead of triggering `completion`.
 
-\`\`\`shell "<sup>\[</sup>I" self-insert-unmeta "<sup>\[</sup>J" self-insert-unmeta "<sup>\[</sup>M" self-insert-unmeta "!"-"~" self-insert "\M-<sup>@"-"\M-</sup>?" self-insert \`\`\`
+```shell
+"^[^I" self-insert-unmeta
+"^[^J" self-insert-unmeta
+"^[^M" self-insert-unmeta
+"!"-"~" self-insert
+"\M-^@"-"\M-^?" self-insert
+```
 
 ## Expansion, Completion, History
 
