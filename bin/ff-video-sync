@@ -1,0 +1,888 @@
+#!/usr/bin/env python3
+# -*- mode: python; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=python:et:ts=2:sts=2:sw=2
+#
+# ff-video-sync: Analyze and correct video speed drift with ffprobe/ffmpeg.
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import shlex
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from fractions import Fraction
+from pathlib import Path
+from typing import Sequence
+
+DEFAULT_OUTPUT_SUFFIX = "_adjusted"
+DEFAULT_AUDIO_CODEC = "aac"
+DEFAULT_AUDIO_BITRATE = "192k"
+FACTOR_EPSILON = 1e-6
+COPY_VIDEO_WARNING_THRESHOLD = 0.005
+ANALYSIS_FACTOR_PRECISION = 5
+FPS_DISPLAY_PRECISION = 3
+PERCENT_DISPLAY_PRECISION = 3
+SETPTS_PRECISION = 10
+
+
+class SyncError(RuntimeError):
+  """Raised when command-line validation or ffmpeg/ffprobe operations fail."""
+
+
+@dataclass(frozen=True)
+class FpsInfo:
+  """Normalized FPS values for a single video stream."""
+
+  path: Path
+  raw_r_frame_rate: str
+  raw_avg_frame_rate: str
+  r_fps: float
+  avg_fps: float
+  effective_fps: float
+  is_variable_frame_rate: bool
+
+
+@dataclass(frozen=True)
+class SegmentBounds:
+  """Comparable segment boundaries in seconds."""
+
+  start_seconds: float
+  end_seconds: float
+
+  @property
+  def duration_seconds(self) -> float:
+    """Return the segment duration in seconds."""
+    return self.end_seconds - self.start_seconds
+
+
+@dataclass(frozen=True)
+class SegmentAnalysisDetails:
+  """Additional information about a segment-based factor measurement."""
+
+  show_duration_seconds: float
+  reaction_duration_seconds: float
+
+
+@dataclass(frozen=True)
+class MethodResult:
+  """One analysis method result."""
+
+  label: str
+  factor: float
+  interpretation: str
+  details: SegmentAnalysisDetails | None = None
+
+
+@dataclass(frozen=True)
+class AnalysisResult:
+  """Aggregated analysis results and recommendation."""
+
+  show_fps: FpsInfo
+  reaction_fps: FpsInfo
+  methods: tuple[MethodResult, ...]
+  recommended_method: str
+  recommended_factor: float
+
+
+def log_warning(message: str) -> None:
+  """Print a warning to stderr."""
+  print(f"warning: {message}", file=sys.stderr)
+
+
+def log_info(message: str, *, verbose: bool) -> None:
+  """Print an informational message when verbose mode is enabled."""
+  if verbose:
+    print(message, file=sys.stderr)
+
+
+def require_tool(name: str) -> str:
+  """Return the path of an external tool or raise a SyncError."""
+  path = shutil.which(name)
+  if path is None:
+    raise SyncError(f"required executable not found in PATH: {name}")
+  return path
+
+
+def run_command(command: Sequence[str], *, expect_json: bool = False) -> str:
+  """Run a subprocess and return stdout, raising SyncError on failure."""
+  try:
+    completed = subprocess.run(
+      command,
+      check=True,
+      text=True,
+      capture_output=True,
+    )
+  except FileNotFoundError as exc:
+    raise SyncError(f"failed to execute {command[0]!r}: {exc}") from exc
+  except subprocess.CalledProcessError as exc:
+    stderr = exc.stderr.strip()
+    stdout = exc.stdout.strip()
+    detail = stderr or stdout or f"exit code {exc.returncode}"
+    raise SyncError(f"{command[0]} failed: {detail}") from exc
+
+  stdout = completed.stdout.strip()
+  if expect_json and not stdout:
+    raise SyncError(f"{command[0]} returned empty output")
+  return stdout
+
+
+def parse_fraction(value: str, *, field_name: str) -> Fraction:
+  """Parse an ffprobe fraction string into a Fraction."""
+  if not value or value == "0/0":
+    raise SyncError(f"ffprobe returned invalid {field_name}: {value!r}")
+  try:
+    return Fraction(value)
+  except (ValueError, ZeroDivisionError) as exc:
+    raise SyncError(f"ffprobe returned invalid {field_name}: {value!r}") from exc
+
+
+def parse_timecode(raw_value: str) -> float:
+  """Parse HH:MM:SS, MM:SS, or raw seconds into a float."""
+  value = raw_value.strip()
+  if not value:
+    raise SyncError("time value must not be empty")
+
+  if ":" not in value:
+    try:
+      seconds = float(value)
+    except ValueError as exc:
+      raise SyncError(f"invalid time value: {raw_value!r}") from exc
+    if seconds < 0:
+      raise SyncError(f"time value must be non-negative: {raw_value!r}")
+    return seconds
+
+  parts = value.split(":")
+  if len(parts) not in {2, 3}:
+    raise SyncError(f"invalid time value: {raw_value!r}")
+
+  try:
+    components = [float(part) for part in parts]
+  except ValueError as exc:
+    raise SyncError(f"invalid time value: {raw_value!r}") from exc
+
+  if any(component < 0 for component in components):
+    raise SyncError(f"time value must be non-negative: {raw_value!r}")
+
+  if len(components) == 2:
+    minutes, seconds = components
+    return (minutes * 60.0) + seconds
+
+  hours, minutes, seconds = components
+  return (hours * 3600.0) + (minutes * 60.0) + seconds
+
+
+def format_seconds(value: float) -> str:
+  """Format seconds for human-readable output."""
+  rounded = round(value, 3)
+  if rounded.is_integer():
+    return f"{rounded:.1f}s"
+  return f"{rounded:.3f}".rstrip("0").rstrip(".") + "s"
+
+
+def format_factor(value: float) -> str:
+  """Format a speed factor consistently."""
+  return f"{value:.{ANALYSIS_FACTOR_PRECISION}f}"
+
+
+def format_fps(value: float) -> str:
+  """Format FPS consistently."""
+  return f"{value:.{FPS_DISPLAY_PRECISION}f}"
+
+
+def interpret_factor(factor: float) -> str:
+  """Convert a factor into a human-readable action."""
+  delta = factor - 1.0
+  if math.isclose(delta, 0.0, abs_tol=FACTOR_EPSILON):
+    return "No speed adjustment needed"
+
+  percent = abs(delta) * 100.0
+  if factor > 1.0:
+    return f"Speed up reaction by {percent:.{PERCENT_DISPLAY_PRECISION}f}%"
+  return f"Slow down reaction by {percent:.{PERCENT_DISPLAY_PRECISION}f}%"
+
+
+def build_atempo_filter(factor: float) -> str:
+  """Build an atempo filter chain that stays within ffmpeg's 0.5..2.0 limits."""
+  if factor <= 0:
+    raise SyncError(f"factor must be greater than zero, got {factor}")
+
+  remaining = factor
+  filters: list[str] = []
+  while remaining < 0.5:
+    filters.append("atempo=0.5")
+    remaining /= 0.5
+  while remaining > 2.0:
+    filters.append("atempo=2.0")
+    remaining /= 2.0
+
+  filters.append(f"atempo={remaining:.10f}".rstrip("0").rstrip("."))
+  return ",".join(filters)
+
+
+def normalize_segment(start_value: str, end_value: str, *, label: str) -> SegmentBounds:
+  """Parse and validate a start/end segment pair."""
+  start_seconds = parse_timecode(start_value)
+  end_seconds = parse_timecode(end_value)
+  if end_seconds <= start_seconds:
+    raise SyncError(f"{label} end time must be greater than the start time")
+  return SegmentBounds(start_seconds=start_seconds, end_seconds=end_seconds)
+
+
+def get_video_fps(path: Path) -> FpsInfo:
+  """Read FPS information for the first video stream with ffprobe."""
+  require_tool("ffprobe")
+  command = [
+    "ffprobe",
+    "-v",
+    "quiet",
+    "-print_format",
+    "json",
+    "-show_entries",
+    "stream=r_frame_rate,avg_frame_rate",
+    "-select_streams",
+    "v:0",
+    str(path),
+  ]
+  raw_output = run_command(command, expect_json=True)
+
+  try:
+    payload = json.loads(raw_output)
+  except json.JSONDecodeError as exc:
+    raise SyncError(f"ffprobe returned invalid JSON for {path}") from exc
+
+  streams = payload.get("streams")
+  if not isinstance(streams, list) or not streams:
+    raise SyncError(f"no video stream found in {path}")
+
+  stream = streams[0]
+  if not isinstance(stream, dict):
+    raise SyncError(f"ffprobe returned malformed stream data for {path}")
+
+  raw_r_frame_rate = str(stream.get("r_frame_rate", ""))
+  raw_avg_frame_rate = str(stream.get("avg_frame_rate", ""))
+  r_fps = float(parse_fraction(raw_r_frame_rate, field_name="r_frame_rate"))
+  avg_fps = float(parse_fraction(raw_avg_frame_rate, field_name="avg_frame_rate"))
+  is_variable_frame_rate = not math.isclose(r_fps, avg_fps, rel_tol=0.0, abs_tol=FACTOR_EPSILON)
+  effective_fps = avg_fps if is_variable_frame_rate else r_fps
+
+  return FpsInfo(
+    path=path,
+    raw_r_frame_rate=raw_r_frame_rate,
+    raw_avg_frame_rate=raw_avg_frame_rate,
+    r_fps=r_fps,
+    avg_fps=avg_fps,
+    effective_fps=effective_fps,
+    is_variable_frame_rate=is_variable_frame_rate,
+  )
+
+
+def analyze_fps(show_fps: FpsInfo, reaction_fps: FpsInfo) -> MethodResult | None:
+  """Analyze a factor from the effective FPS values."""
+  if math.isclose(show_fps.effective_fps, reaction_fps.effective_fps, abs_tol=FACTOR_EPSILON):
+    return None
+
+  factor = show_fps.effective_fps / reaction_fps.effective_fps
+  return MethodResult(
+    label="FPS",
+    factor=factor,
+    interpretation=interpret_factor(factor),
+  )
+
+
+def analyze_segment_bounds(show_segment: SegmentBounds, reaction_segment: SegmentBounds, *, label: str) -> MethodResult:
+  """Analyze a factor from explicit segment durations."""
+  factor = reaction_segment.duration_seconds / show_segment.duration_seconds
+  details = SegmentAnalysisDetails(
+    show_duration_seconds=show_segment.duration_seconds,
+    reaction_duration_seconds=reaction_segment.duration_seconds,
+  )
+  return MethodResult(
+    label=label,
+    factor=factor,
+    interpretation=interpret_factor(factor),
+    details=details,
+  )
+
+
+def count_segment_frames(path: Path, segment: SegmentBounds) -> tuple[int, float]:
+  """Count frames inside a segment and return (frame_count, average_fps)."""
+  require_tool("ffprobe")
+  command = [
+    "ffprobe",
+    "-v",
+    "quiet",
+    "-count_frames",
+    "-show_entries",
+    "stream=nb_read_frames,avg_frame_rate",
+    "-select_streams",
+    "v:0",
+    "-read_intervals",
+    f"{segment.start_seconds}%{segment.end_seconds}",
+    "-of",
+    "json",
+    str(path),
+  ]
+  raw_output = run_command(command, expect_json=True)
+
+  try:
+    payload = json.loads(raw_output)
+  except json.JSONDecodeError as exc:
+    raise SyncError(f"ffprobe returned invalid JSON for {path}") from exc
+
+  streams = payload.get("streams")
+  if not isinstance(streams, list) or not streams:
+    raise SyncError(f"unable to count frames for {path}")
+
+  stream = streams[0]
+  if not isinstance(stream, dict):
+    raise SyncError(f"ffprobe returned malformed frame-count data for {path}")
+
+  raw_frames = str(stream.get("nb_read_frames", ""))
+  raw_avg_frame_rate = str(stream.get("avg_frame_rate", ""))
+  if not raw_frames or raw_frames == "N/A":
+    raise SyncError(f"ffprobe did not return nb_read_frames for {path}")
+
+  try:
+    frame_count = int(raw_frames)
+  except ValueError as exc:
+    raise SyncError(f"ffprobe returned invalid nb_read_frames for {path}: {raw_frames!r}") from exc
+
+  avg_fps = float(parse_fraction(raw_avg_frame_rate, field_name="avg_frame_rate"))
+  return frame_count, avg_fps
+
+
+def analyze_segment_frames(
+  show_path: Path,
+  reaction_path: Path,
+  show_segment: SegmentBounds,
+  reaction_segment: SegmentBounds,
+) -> MethodResult:
+  """Analyze a factor by counting frames in two segments."""
+  show_frames, show_fps = count_segment_frames(show_path, show_segment)
+  reaction_frames, reaction_fps = count_segment_frames(reaction_path, reaction_segment)
+  show_duration_seconds = show_frames / show_fps
+  reaction_duration_seconds = reaction_frames / reaction_fps
+  factor = reaction_duration_seconds / show_duration_seconds
+  details = SegmentAnalysisDetails(
+    show_duration_seconds=show_duration_seconds,
+    reaction_duration_seconds=reaction_duration_seconds,
+  )
+  return MethodResult(
+    label="Segment frames",
+    factor=factor,
+    interpretation=interpret_factor(factor),
+    details=details,
+  )
+
+
+def build_analysis_result(args: argparse.Namespace) -> AnalysisResult:
+  """Run all applicable analysis methods and choose a recommended factor.
+
+  Recommendation priority: frame-count segment > time-based segment > FPS metadata.
+  Segment-based methods use actual content timing and are more reliable when the
+  container fps metadata has been altered by transcoding or re-labelling.
+  """
+  show_path = Path(args.show).expanduser()
+  reaction_path = Path(args.reaction).expanduser()
+  ensure_input_file(show_path, label="show")
+  ensure_input_file(reaction_path, label="reaction")
+
+  show_fps = get_video_fps(show_path)
+  reaction_fps = get_video_fps(reaction_path)
+
+  methods: list[MethodResult] = []
+  fps_result = analyze_fps(show_fps, reaction_fps)
+  if fps_result is not None:
+    methods.append(fps_result)
+
+  show_segment, reaction_segment = extract_segment_pair(args)
+  segment_result: MethodResult | None = None
+  frame_result: MethodResult | None = None
+  if show_segment is not None and reaction_segment is not None:
+    segment_result = analyze_segment_bounds(show_segment, reaction_segment, label="Segment")
+    methods.append(segment_result)
+    if args.count_frames:
+      frame_result = analyze_segment_frames(show_path, reaction_path, show_segment, reaction_segment)
+      methods.append(frame_result)
+  elif args.count_frames:
+    raise SyncError("--count-frames requires --show-start/--show-end and --reaction-start/--reaction-end")
+
+  if not methods:
+    raise SyncError("FPS values are identical; provide matching segments to measure drift explicitly")
+
+  # Prefer segment-based methods (actual content timing) over fps metadata.
+  if frame_result is not None:
+    recommended: MethodResult = frame_result
+  elif segment_result is not None:
+    recommended = segment_result
+  else:
+    recommended = fps_result or methods[0]
+
+  # Warn loudly when fps and segment methods point in opposite directions —
+  # this indicates the container fps metadata does not reflect actual playback
+  # speed (common after transcoding or container re-labelling).
+  if fps_result is not None and segment_result is not None:
+    fps_up = fps_result.factor > 1.0
+    seg_up = segment_result.factor > 1.0
+    if fps_up != seg_up:
+      log_warning(
+        f"FPS method (factor {format_factor(fps_result.factor)}) and segment method "
+        f"(factor {format_factor(segment_result.factor)}) disagree in direction — "
+        "fps metadata appears unreliable; using segment result"
+      )
+    elif abs(fps_result.factor - segment_result.factor) / abs(segment_result.factor) > 0.02:
+      log_warning(
+        f"FPS method (factor {format_factor(fps_result.factor)}) and segment method "
+        f"(factor {format_factor(segment_result.factor)}) differ by more than 2%%; "
+        "using segment result"
+      )
+
+  return AnalysisResult(
+    show_fps=show_fps,
+    reaction_fps=reaction_fps,
+    methods=tuple(methods),
+    recommended_method=recommended.label,
+    recommended_factor=recommended.factor,
+  )
+
+
+def extract_segment_pair(args: argparse.Namespace) -> tuple[SegmentBounds | None, SegmentBounds | None]:
+  """Return validated show/reaction segments or (None, None) when not provided."""
+  show_values = (args.show_start, args.show_end)
+  reaction_values = (args.reaction_start, args.reaction_end)
+
+  show_complete = all(value is not None for value in show_values)
+  reaction_complete = all(value is not None for value in reaction_values)
+
+  if show_complete and reaction_complete:
+    show_segment = normalize_segment(args.show_start, args.show_end, label="show")
+    reaction_segment = normalize_segment(args.reaction_start, args.reaction_end, label="reaction")
+    return show_segment, reaction_segment
+
+  if any(value is not None for value in (*show_values, *reaction_values)):
+    raise SyncError(
+      "segment analysis requires --show-start/--show-end and --reaction-start/--reaction-end"
+    )
+
+  return None, None
+
+
+def ensure_input_file(path: Path, *, label: str) -> None:
+  """Validate that an input path points to an existing file."""
+  if not path.exists():
+    raise SyncError(f"{label} file does not exist: {path}")
+  if not path.is_file():
+    raise SyncError(f"{label} path is not a file: {path}")
+
+
+def print_fps_summary(show_fps: FpsInfo, reaction_fps: FpsInfo) -> None:
+  """Print a short FPS summary block."""
+  name_width = max(len(show_fps.path.name), len(reaction_fps.path.name), 8)
+  label_width = len("Reaction")
+  print(
+    f"{'Show:':<{label_width + 1}} {show_fps.path.name:<{name_width}} "
+    f"fps: {format_fps(show_fps.effective_fps)}  "
+    f"(r: {show_fps.raw_r_frame_rate}, avg: {show_fps.raw_avg_frame_rate})"
+  )
+  print(
+    f"{'Reaction:':<{label_width + 1}} {reaction_fps.path.name:<{name_width}} "
+    f"fps: {format_fps(reaction_fps.effective_fps)}  "
+    f"(r: {reaction_fps.raw_r_frame_rate}, avg: {reaction_fps.raw_avg_frame_rate})"
+  )
+
+
+def print_analysis_table(analysis: AnalysisResult) -> None:
+  """Print the analysis table and recommendation."""
+  print_fps_summary(analysis.show_fps, analysis.reaction_fps)
+  print()
+
+  print(f"{'Method':<16}{'Factor':<12}Interpretation")
+  print("-" * 70)
+  for method in analysis.methods:
+    detail_suffix = ""
+    if method.details is not None:
+      detail_suffix = (
+        f"  (show: {format_seconds(method.details.show_duration_seconds)}, "
+        f"reaction: {format_seconds(method.details.reaction_duration_seconds)})"
+      )
+    print(
+      f"{method.label:<16}{format_factor(method.factor):<12}"
+      f"{method.interpretation}{detail_suffix}"
+    )
+
+  print()
+  print(f"Recommended factor ({analysis.recommended_method}): {format_factor(analysis.recommended_factor)}")
+
+
+def print_verbose_analysis(analysis: AnalysisResult) -> None:
+  """Emit verbose warnings for variable-frame-rate inputs."""
+  if analysis.show_fps.is_variable_frame_rate:
+    log_warning(
+      "show video appears to be variable frame rate; using avg_frame_rate for the FPS comparison"
+    )
+  if analysis.reaction_fps.is_variable_frame_rate:
+    log_warning(
+      "reaction video appears to be variable frame rate; using avg_frame_rate for the FPS comparison"
+    )
+
+
+def detect_encoder() -> tuple[str, list[str]]:
+  """Auto-detect the preferred video encoder and its flags."""
+  require_tool("ffmpeg")
+  encoders_output = run_command(["ffmpeg", "-hide_banner", "-encoders"])
+  if "h264_nvenc" in encoders_output:
+    return "h264_nvenc", ["-preset", "p1", "-rc", "vbr", "-cq", "20"]
+  return "libx264", ["-preset", "fast", "-crf", "20"]
+
+
+def resolve_encoder_flags(encoder: str | None) -> tuple[str, list[str]]:
+  """Resolve the requested or auto-detected encoder and matching flags."""
+  if encoder is None:
+    return detect_encoder()
+  if encoder == "h264_nvenc":
+    return encoder, ["-preset", "p1", "-rc", "vbr", "-cq", "20"]
+  if encoder == "libx264":
+    return encoder, ["-preset", "fast", "-crf", "20"]
+  return encoder, []
+
+
+def build_output_path(input_path: Path, *, suffix: str, output: str | None) -> Path:
+  """Build the output path for an adjusted video."""
+  if output is not None:
+    return Path(output).expanduser()
+  return input_path.with_name(f"{input_path.stem}{suffix}{input_path.suffix}")
+
+
+def format_shell_command(command: Sequence[str]) -> str:
+  """Return a shell-escaped command string for display."""
+  return " ".join(shlex.quote(arg) for arg in command)
+
+
+def build_ffmpeg_command(
+  input_path: Path,
+  output_path: Path,
+  *,
+  factor: float,
+  input_fps: float | None,
+  encoder: str,
+  encoder_flags: Sequence[str],
+  copy_video: bool,
+) -> list[str]:
+  """Build the ffmpeg command for one file.
+
+  The ``input_fps`` parameter is mandatory for the full re-encode path.
+  It is used to add an explicit ``fps`` filter after ``setpts`` so that
+  ffmpeg's default CFR mode cannot drop/duplicate frames and override the
+  speed change.  Without it, the encoder re-enforces the source fps by
+  silently dropping the extra frames instead of playing them faster.
+  """
+  if factor <= 0:
+    raise SyncError(f"factor must be greater than zero, got {factor}")
+
+  output_scale = 1.0 / factor
+  atempo_filter = build_atempo_filter(factor)
+
+  if copy_video:
+    return [
+      "ffmpeg",
+      "-hide_banner",
+      "-itsscale",
+      f"{output_scale:.{SETPTS_PRECISION}f}",
+      "-i",
+      str(input_path),
+      "-c:v",
+      "copy",
+      "-af",
+      atempo_filter,
+      "-c:a",
+      DEFAULT_AUDIO_CODEC,
+      "-b:a",
+      DEFAULT_AUDIO_BITRATE,
+      str(output_path),
+    ]
+
+  # Build video filter: compress PTS then lock output fps so the encoder cannot
+  # override the speed change by re-normalising back to the source fps.
+  if input_fps is not None:
+    output_fps = input_fps * factor
+    video_filter = (
+      f"setpts=PTS*{output_scale:.{SETPTS_PRECISION}f},fps={output_fps:.10f}"
+    )
+  else:
+    video_filter = f"setpts=PTS*{output_scale:.{SETPTS_PRECISION}f}"
+
+  return [
+    "ffmpeg",
+    "-hide_banner",
+    "-i",
+    str(input_path),
+    "-vf",
+    video_filter,
+    "-af",
+    atempo_filter,
+    "-c:v",
+    encoder,
+    *encoder_flags,
+    "-c:a",
+    DEFAULT_AUDIO_CODEC,
+    "-b:a",
+    DEFAULT_AUDIO_BITRATE,
+    str(output_path),
+  ]
+
+
+def confirm_execution(message: str) -> bool:
+  """Ask for a yes/no confirmation."""
+  try:
+    answer = input(f"{message} [y/N] ")
+  except EOFError:
+    return False
+  return answer.strip().lower() in {"y", "yes"}
+
+
+def run_adjustment_commands(
+  jobs: Sequence[tuple[Path, Path, list[str]]],
+  *,
+  dry_run: bool,
+  yes: bool,
+  verbose: bool,
+) -> None:
+  """Print or execute adjustment jobs."""
+  for _, _, command in jobs:
+    print(format_shell_command(command))
+
+  if dry_run:
+    return
+
+  if not yes and not confirm_execution(f"Run {len(jobs)} ffmpeg command(s)?"):
+    raise SyncError("aborted by user")
+
+  for input_path, output_path, command in jobs:
+    log_info(f"adjusting {input_path} -> {output_path}", verbose=verbose)
+    try:
+      subprocess.run(command, check=True)
+    except FileNotFoundError as exc:
+      raise SyncError(f"failed to execute {command[0]!r}: {exc}") from exc
+    except subprocess.CalledProcessError as exc:
+      raise SyncError(f"ffmpeg failed for {input_path} with exit code {exc.returncode}") from exc
+
+
+def resolve_factor_for_adjust(args: argparse.Namespace) -> tuple[float, str]:
+  """Resolve the factor for adjust/sync operations."""
+  if getattr(args, "factor", None) is not None:
+    factor = float(args.factor)
+    if factor <= 0:
+      raise SyncError(f"--factor must be greater than zero, got {args.factor}")
+    return factor, "CLI"
+
+  analysis = build_analysis_result(args)
+  if args.verbose:
+    print_verbose_analysis(analysis)
+  if getattr(args, "sync_mode", False):
+    print_analysis_table(analysis)
+    print()
+  return analysis.recommended_factor, analysis.recommended_method
+
+
+def handle_analyze(args: argparse.Namespace) -> int:
+  """Run the analyze subcommand."""
+  analysis = build_analysis_result(args)
+  if args.verbose:
+    print_verbose_analysis(analysis)
+
+  if args.factor_only:
+    print(format_factor(analysis.recommended_factor))
+    return 0
+
+  print_analysis_table(analysis)
+  return 0
+
+
+def handle_adjust(args: argparse.Namespace) -> int:
+  """Run the adjust subcommand."""
+  reaction_paths = [Path(value).expanduser() for value in args.files]
+  if not reaction_paths:
+    raise SyncError("at least one input file is required")
+
+  for path in reaction_paths:
+    ensure_input_file(path, label="input")
+
+  if args.output is not None and len(reaction_paths) != 1:
+    raise SyncError("-o/--output can only be used with a single input file")
+  if args.output is not None and args.suffix is not None:
+    raise SyncError("-o/--output is mutually exclusive with --suffix")
+  if getattr(args, "reaction", None) is None and getattr(args, "show", None) is not None:
+    args.reaction = str(reaction_paths[0])
+
+  factor, factor_source = resolve_factor_for_adjust(args)
+  encoder, encoder_flags = resolve_encoder_flags(args.encoder)
+  output_suffix = args.suffix if args.suffix is not None else DEFAULT_OUTPUT_SUFFIX
+
+  if args.copy_video and abs(factor - 1.0) > COPY_VIDEO_WARNING_THRESHOLD:
+    log_warning(
+      f"--copy-video is best kept near 1.0; factor {format_factor(factor)} may drift, "
+      "consider a full re-encode"
+    )
+
+  jobs: list[tuple[Path, Path, list[str]]] = []
+  for input_path in reaction_paths:
+    output_path = build_output_path(input_path, suffix=output_suffix, output=args.output)
+    if output_path == input_path:
+      raise SyncError(f"output path would overwrite the input file: {input_path}")
+    if output_path.exists():
+      raise SyncError(f"output file already exists: {output_path}")
+
+    # Probe input fps so we can lock the output fps and prevent the encoder's
+    # default CFR mode from dropping frames instead of playing them faster.
+    try:
+      input_fps_info = get_video_fps(input_path)
+      input_fps: float | None = input_fps_info.effective_fps
+    except SyncError as exc:
+      log_warning(f"unable to probe fps for {input_path.name}: {exc}; output fps may be incorrect")
+      input_fps = None
+
+    command = build_ffmpeg_command(
+      input_path,
+      output_path,
+      factor=factor,
+      input_fps=input_fps,
+      encoder=encoder,
+      encoder_flags=encoder_flags,
+      copy_video=args.copy_video,
+    )
+    jobs.append((input_path, output_path, command))
+
+  if args.verbose:
+    log_info(
+      f"using factor {format_factor(factor)} ({factor_source}), encoder {encoder}, "
+      f"mode {'copy-video' if args.copy_video else 're-encode'}",
+      verbose=True,
+    )
+
+  run_adjustment_commands(jobs, dry_run=args.dry_run, yes=args.yes, verbose=args.verbose)
+  return 0
+
+
+def handle_sync(args: argparse.Namespace) -> int:
+  """Run analyze and adjust back-to-back for a single reaction file."""
+  if args.factor_only:
+    raise SyncError("--factor-only is not supported with sync")
+  args.sync_mode = True
+  args.files = [args.reaction]
+  return handle_adjust(args)
+
+
+def add_analyze_arguments(parser: argparse.ArgumentParser) -> None:
+  """Add analyze-compatible arguments to a parser."""
+  parser.add_argument("--show", required=True, help="show/movie reference file")
+  parser.add_argument("reaction", help="reaction video to compare against the show")
+  parser.add_argument("--show-start", help="start of the comparable segment in the show")
+  parser.add_argument("--show-end", help="end of the comparable segment in the show")
+  parser.add_argument("--reaction-start", help="start of the comparable segment in the reaction")
+  parser.add_argument("--reaction-end", help="end of the comparable segment in the reaction")
+  parser.add_argument(
+    "--count-frames",
+    action="store_true",
+    help="count frames inside the provided segments for a slower but more precise segment method",
+  )
+
+
+def add_adjust_arguments(parser: argparse.ArgumentParser, *, include_show: bool) -> None:
+  """Add adjust-compatible arguments to a parser."""
+  parser.add_argument(
+    "--factor",
+    type=float,
+    help="speed factor to apply (required unless --show is used)",
+  )
+  if include_show:
+    parser.add_argument("--show", help="show/movie reference file used for FPS detection")
+    parser.add_argument("--show-start", help=argparse.SUPPRESS)
+    parser.add_argument("--show-end", help=argparse.SUPPRESS)
+    parser.add_argument("--reaction-start", help=argparse.SUPPRESS)
+    parser.add_argument("--reaction-end", help=argparse.SUPPRESS)
+    parser.add_argument("--count-frames", action="store_true", help=argparse.SUPPRESS)
+
+  parser.add_argument("--suffix", help=f"output filename suffix (default: {DEFAULT_OUTPUT_SUFFIX!r})")
+  parser.add_argument("-o", "--output", help="exact output file path (single-file mode only)")
+  parser.add_argument(
+    "--encoder",
+    help="video encoder (default: auto-detect h264_nvenc and fall back to libx264)",
+  )
+  parser.add_argument(
+    "--copy-video",
+    action="store_true",
+    help="use -itsscale with copied video and re-encoded audio",
+  )
+  parser.add_argument("-y", "--yes", action="store_true", help="skip the confirmation prompt")
+  parser.add_argument("-n", "--dry-run", action="store_true", help="print ffmpeg commands without executing them")
+
+
+def build_parser() -> argparse.ArgumentParser:
+  """Build and return the top-level CLI parser."""
+  parser = argparse.ArgumentParser(prog="ff-video-sync")
+  subparsers = parser.add_subparsers(dest="command", required=True)
+
+  analyze_parser = subparsers.add_parser("analyze", help="detect a speed factor from two videos")
+  add_analyze_arguments(analyze_parser)
+  analyze_parser.add_argument(
+    "--factor-only",
+    action="store_true",
+    help="print only the numeric factor for scripting",
+  )
+  analyze_parser.add_argument("-v", "--verbose", action="store_true", help="show raw ffprobe values and warnings")
+  analyze_parser.set_defaults(handler=handle_analyze)
+
+  adjust_parser = subparsers.add_parser("adjust", help="apply a speed factor to one or more files")
+  add_adjust_arguments(adjust_parser, include_show=True)
+  adjust_parser.add_argument("files", nargs="+", help="reaction files to adjust")
+  adjust_parser.add_argument("-v", "--verbose", action="store_true", help="show verbose output")
+  adjust_parser.set_defaults(handler=handle_adjust, sync_mode=False)
+
+  sync_parser = subparsers.add_parser("sync", help="analyze and adjust a single reaction file in one step")
+  add_analyze_arguments(sync_parser)
+  sync_parser.add_argument(
+    "--factor-only",
+    action="store_true",
+    help=argparse.SUPPRESS,
+  )
+  sync_parser.add_argument("--factor", type=float, help="explicit factor override instead of analyzing")
+  sync_parser.add_argument("--suffix", help=f"output filename suffix (default: {DEFAULT_OUTPUT_SUFFIX!r})")
+  sync_parser.add_argument("-o", "--output", help="exact output file path")
+  sync_parser.add_argument(
+    "--encoder",
+    help="video encoder (default: auto-detect h264_nvenc and fall back to libx264)",
+  )
+  sync_parser.add_argument(
+    "--copy-video",
+    action="store_true",
+    help="use -itsscale with copied video and re-encoded audio",
+  )
+  sync_parser.add_argument("-y", "--yes", action="store_true", help="skip the confirmation prompt")
+  sync_parser.add_argument("-n", "--dry-run", action="store_true", help="print ffmpeg commands without executing them")
+  sync_parser.add_argument("-v", "--verbose", action="store_true", help="show verbose output")
+  sync_parser.set_defaults(handler=handle_sync, sync_mode=True)
+
+  return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+  """Run the CLI."""
+  parser = build_parser()
+  args = parser.parse_args(argv)
+
+  if args.command in {"adjust", "sync"} and args.factor is None and getattr(args, "show", None) is None:
+    parser.error(f"{args.command} requires either --factor or --show")
+
+  try:
+    return int(args.handler(args))
+  except SyncError as exc:
+    print(f"error: {exc}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
