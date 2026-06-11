@@ -15,6 +15,9 @@
 # Zsh-specific: uses ${(q)}, whence -p, compdef, unfunction.
 # Shell-agnostic flatpak package management aliases are in lib/aliases-linux.sh.
 __add_flatpak_app_functions() {
+  if ! command -v flatpak >/dev/null 2>&1; then
+    return 0
+  fi
   local name application alias_name function_name
   local -A alias_map
 
