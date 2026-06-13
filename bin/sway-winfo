@@ -183,9 +183,14 @@ format_info() {
   printf '\n--- Log: %s ---\n' "${LOG_FILE}"
 }
 
-# Subscribe to window focus events; display and clipboard-copy info on each.
-# Uses set +e for resilience: individual event-processing failures are logged
-# but do not terminate the monitor.
+# Subscribe to window/workspace focus events; display and clipboard-copy info
+# on each. Uses set +e for resilience: individual event-processing failures are
+# logged but do not terminate the monitor.
+#
+# Hybrid event + poll design: focus events trigger immediate updates for
+# well-behaved windows; a 1-second read timeout polls the tree as a fallback for
+# XWayland apps (e.g. Steam) that never emit window focus events via Sway IPC.
+# The focused node is always queried from the tree rather than the event payload.
 monitor() {
   # Disable errexit for the event loop — individual failures must not kill the
   # monitor. All errors are caught explicitly and logged.
@@ -196,40 +201,57 @@ monitor() {
   printf 'Monitoring window focus events  [log: %s]\n' "${LOG_FILE}"
   printf 'hover to inspect · Ctrl+C to exit\n\n'
 
-  local line change container app_id title wm_class output rc
+  local last_id="" line change read_rc=0
 
-  while IFS= read -r line; do
-    # Skip the initial {"success":true} handshake
-    jq -e '.success' <<< "$line" > /dev/null 2>&1 && continue
+  # Query the currently focused window from the tree and update the display if
+  # it differs from the last-shown window. Called on focus events and on poll
+  # timeouts (the latter catches apps that never emit Sway focus events).
+  _check_focused() {
+    local c cid a t w out
+    c=$(swaymsg -t get_tree \
+      | jq -c 'limit(1; .. | objects | select(.focused? == true
+               and (.type? == "con" or .type? == "floating_con")))' \
+      2>/dev/null) || return 0
+    [[ -n "$c" ]] || return 0
 
-    change=$(jq -r '.change // empty' <<< "$line" 2>/dev/null) || continue
-    [[ "$change" == "focus" ]] || continue
+    cid=$(jq -r '.id // empty' <<< "$c" 2>/dev/null) || true
+    [[ -n "$cid" && "$cid" == "$last_id" ]] && return 0
+    last_id="${cid}"
 
-    container=$(jq -c '.container' <<< "$line" 2>/dev/null) || continue
-    [[ -n "$container" ]] || continue
+    a=$(jq -r '.app_id // empty'                   <<< "$c" 2>/dev/null) || true
+    t=$(jq -r '.name // empty'                     <<< "$c" 2>/dev/null) || true
+    w=$(jq -r '.window_properties.class // empty'  <<< "$c" 2>/dev/null) || true
 
-    app_id=$(jq -r    '.app_id // empty'                   <<< "$container" 2>/dev/null) || true
-    title=$(jq -r     '.name // empty'                     <<< "$container" 2>/dev/null) || true
-    wm_class=$(jq -r  '.window_properties.class // empty'  <<< "$container" 2>/dev/null) || true
+    is_blocked "$a" "$t" "$w" && return 0
 
-    is_blocked "$app_id" "$title" "$wm_class" && continue
+    log "Focus: app_id=${a:-?}  class=${w:-?}  title=${t:0:60}"
 
-    log "Focus: app_id=${app_id:-?}  class=${wm_class:-?}  title=${title:0:60}"
-
-    output=$(format_info "$container" 2>/dev/null)
-    rc=$?
-    if (( rc != 0 )); then
-      log "format_info failed (rc=${rc}), skipping event"
-      continue
-    fi
-
+    out=$(format_info "$c" 2>/dev/null) || return 0
     clear
-    printf '%s\n' "$output"
-    printf '%s' "$output" | wl-copy 2>/dev/null || log "wl-copy failed"
+    printf '%s\n' "$out"
+    printf '%s' "$out" | wl-copy 2>/dev/null || log "wl-copy failed"
+  }
 
-  done < <(swaymsg -t subscribe --monitor '["window"]' 2>> "${LOG_FILE}")
+  while true; do
+    # Use || to prevent the inherited ERR trap from firing on read timeout
+    # (exit 142 = 128+SIGALRM). read_rc distinguishes: 0=data, >128=timeout,
+    # 1-128=EOF/error.
+    read_rc=0; IFS= read -r -t 1 line <&3 || read_rc=$?
+    if (( read_rc == 0 )); then
+      # Event received — skip non-focus events and the handshake line
+      jq -e '.success' <<< "$line" > /dev/null 2>&1 && continue
+      change=$(jq -r '.change // empty' <<< "$line" 2>/dev/null) || continue
+      [[ "$change" == "focus" ]] || continue
+    elif (( read_rc > 0 && read_rc <= 128 )); then
+      # EOF or error — swaymsg exited (Sway restart, etc.)
+      log "Monitor: swaymsg subscribe exited (rc=${read_rc})"
+      break
+    fi
+    # Focus event received, or 1-second poll timeout — query the focused window.
+    _check_focused
+  done 3< <(swaymsg -t subscribe --monitor '["window", "workspace"]' 2>> "${LOG_FILE}")
 
-  log "Monitor loop ended — swaymsg subscribe exited"
+  log "Monitor loop ended"
 }
 
 # Toggle the currently focused window in/out of the auto-managed blocklist section.

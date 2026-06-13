@@ -177,16 +177,16 @@ set $STICK_AND_FLOAT  sticky enable,  floating enable, border normal 2
 set $UNSTICK          sticky disable, floating enable, border normal 0
 
 # workspace numbers and names
-set $ws1  "1:#1 Pri"
+set $ws1  "1:#1 Main"
 set $ws2  "2:#2 Web"
-set $ws3  "3:#3 Dev"
-set $ws4  "4:#4 Des"
-set $ws5  "5:#5 Ent"
-set $ws6  "6:#6 Sys"
-#set $ws7  "7:Misc"
-#set $ws8  "8:Misc"
-#set $ws9  "9:Tray"
-#set $ws10 "10:Music"
+set $ws3  "3:#3 Devel"
+set $ws4  "4:#4 Create"
+set $ws5  "5:#5 Gaming"
+set $ws6  "6:#6 Fullscreen"
+set $ws7  "7:#7 Misc"
+set $ws8  "8:#8 Misc"
+set $ws9  "9:#9 Misc"
+set $ws0  "0:#10 System"
 # }}} = Variables ============================================================
 
 # {{{ = Key Bindings =========================================================
@@ -265,6 +265,10 @@ bindsym $mod+3 workspace number $ws3
 bindsym $mod+4 workspace number $ws4
 bindsym $mod+5 workspace number $ws5
 bindsym $mod+6 workspace number $ws6
+bindsym $mod+7 workspace number $ws7
+bindsym $mod+8 workspace number $ws8
+bindsym $mod+9 workspace number $ws9
+bindsym $mod+0 workspace number $ws0
 
 # switch workspace previous/next
 bindsym $mod+Ctrl+Right workspace next
@@ -277,6 +281,10 @@ bindsym $mod+Shift+3 sticky disable; move container to workspace $ws3
 bindsym $mod+Shift+4 sticky disable; move container to workspace $ws4
 bindsym $mod+Shift+5 sticky disable; move container to workspace $ws5
 bindsym $mod+Shift+6 sticky disable; move container to workspace $ws6
+bindsym $mod+Shift+7 sticky disable; move container to workspace $ws7
+bindsym $mod+Shift+8 sticky disable; move container to workspace $ws8
+bindsym $mod+Shift+9 sticky disable; move container to workspace $ws9
+bindsym $mod+Shift+0 sticky disable; move container to workspace $ws0
 
 # mod-b: toggle bar mode (dock↔hide)
 bindsym $mod+b bar mode toggle
@@ -431,48 +439,59 @@ bindsym $mod+F2           exec $term --app-id=swayfloat -e ssh -A saito-lan
 #       Both are kept here for broad compatibility.
 
 # {{{ - Workspace 1 - Main ---------------------------------------------------
-
 # }}} - Workspace 1 - Main ---------------------------------------------------
 
 # {{{ - Workspace 2 - Web ----------------------------------------------------
-# - Web Browsers
-# for_window [class="(?i)(.*chrome|firefox)"]         move container to workspace $ws2
-# for_window [app_id="firefox"]                       move container to workspace $ws2
-# for_window [app_id="(?i)(google-chrome|chromium)"]  move container to workspace $ws2
+# - Web Browsers (usually wayland native, no class)
+# for_window [app_id="firefox(-.+)?"]                       move container to workspace $ws2
+# for_window [app_id="(?i)(google-chrome|chromium)(-.+)?"]  move container to workspace $ws2
+# for_window [app_id="(?i)brave-browser(-.+)?"]             move container to workspace $ws2
+# for_window [app_id="(?i)vivaldi(-.+)?"]                   move container to workspace $ws2
 # }}} - Workspace 2 - Web ----------------------------------------------------
 
-# {{{ - Workspace 3 - Dev ----------------------------------------------------
+# {{{ - Workspace 3 - Development --------------------------------------------
 # - VS Code
-# for_window [class="(?i)code$"]                      move container to workspace $ws3
-# for_window [app_id="code"]                          move container to workspace $ws3
-# for_window [app_id="com.visualstudio.code"]         move container to workspace $ws3
-# {{{ - Workspace 3 - Dev ----------------------------------------------------
+for_window [class="(?i)(.*visual.*\.)?code$"]             move container to workspace $ws3
+# }}} - Workspace 3 - Development --------------------------------------------
 
-# {{{ - Workspace 4 - Graphics & Media ---------------------------------------
-# for_window [class="(?i)XnView(MP)?"]                move container to workspace $ws4
-# }}} - Workspace 4 - Graphics & Media ----------------------------------------
+# {{{ - Workspace 4 - Create -------------------------------------------------
+for_window [class="(?i)(.*\.)?gimp?|XnView(MP)?"]         move container to workspace $ws4
+# }}} - Workspace 4 - Create -------------------------------------------------
 
 # {{{ - Workspace 5 - Gaming -------------------------------------------------
-
+for_window [class="(?i)steam|lutris|heroic|itch|epicgameslauncher|battle.net|origin|uplay|gog"] \
+    move container to workspace $ws5
 # }}} - Workspace 5 - Gaming -------------------------------------------------
 
-# {{{ - Workspace 6 - System & Tray ------------------------------------------
-# - JDownloader main window (Java app with no class/app_id)
-for_window [title="JDownloader"]      move container to workspace $ws6, $STICK_AND_FLOAT
-# - PulseAudio volume control
-for_window [class="pavucontrol"]      move container to workspace $ws6, $STICK_AND_FLOAT
-for_window [app_id="pavucontrol"]     move container to workspace $ws6, $STICK_AND_FLOAT
-# - Nextcloud client (tray)
-for_window [class="nextcloud"]        move container to workspace $ws6, $STICK_AND_FLOAT
-for_window [app_id="nextcloud"]       move container to workspace $ws6, $STICK_AND_FLOAT
-# - NordVPN client UI (tray)
-for_window [class="nordvpn-gui"]      move container to workspace $ws6, $STICK_AND_FLOAT
-for_window [app_id="nordvpn-gui"]     move container to workspace $ws6, $STICK_AND_FLOAT
-# - Blueman bluetooth manager (tray)
-for_window [class="blueman-manager"]  move container to workspace $ws6, $STICK_AND_FLOAT
-for_window [app_id="blueman-manager"] move container to workspace $ws6, $STICK_AND_FLOAT
-# }}} - Workspace 6 - System & Tray ------------------------------------------
+# {{{ - Workspace 6 - Fullscreen Borderless ----------------------------------
+# full screen borderless (e.g. games)
+# }}} - Workspace 6 - Fullscreen Borderless ----------------------------------
 
+# {{{ - Workspace 7 - Misc ---------------------------------------------------
+# }}} - Workspace 7 - Misc ---------------------------------------------------
+
+# {{{ - Workspace 8 - Misc ---------------------------------------------------
+# }}} - Workspace 8 - Misc ---------------------------------------------------
+
+# {{{ - Workspace 9 - Misc ---------------------------------------------------
+# }}} - Workspace 9 - Misc ---------------------------------------------------
+
+# {{{ - Workspace 10 - System & Tray -----------------------------------------
+# - JDownloader main window (Java app with no class/app_id)
+for_window [title="JDownloader"]      move container to workspace $ws0, $STICK_AND_FLOAT
+# - PulseAudio volume control
+for_window [class="pavucontrol"]      move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [app_id="pavucontrol"]     move container to workspace $ws0, $STICK_AND_FLOAT
+# - Nextcloud client (tray)
+for_window [class="nextcloud"]        move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [app_id="nextcloud"]       move container to workspace $ws0, $STICK_AND_FLOAT
+# - NordVPN client UI (tray)
+for_window [class="nordvpn-gui"]      move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [app_id="nordvpn-gui"]     move container to workspace $ws0, $STICK_AND_FLOAT
+# - Blueman bluetooth manager (tray)
+for_window [class="blueman-manager"]  move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [app_id="blueman-manager"] move container to workspace $ws0, $STICK_AND_FLOAT
+# }}} - Workspace 10 - System & Tray -----------------------------------------
 # {{{ - Window Modes ---------------------------------------------------------
 # float by role (XWayland apps only — Wayland apps use app_id)
 for_window [window_role="i3float"]                  $FLOAT
@@ -501,6 +520,10 @@ for_window [class="(?i)keepassxc.*"]                $STICK_AND_FLOAT
 # - Spotify (XWayland and native)
 for_window [class="spotify"]                        $FLOAT
 for_window [app_id="spotify"]                       $FLOAT
+
+# - Steam app
+for_window [class="steam"]                          $FLOAT
+
 # }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
 
