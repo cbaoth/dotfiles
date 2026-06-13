@@ -82,7 +82,7 @@ popup_during_fullscreen leave_fullscreen
 #workspace_auto_back_and_forth yes
 
 # {{{ - Status Bar -----------------------------------------------------------
-# waybar is the recommended bar for Sway — Wayland-native, supports tray icons
+# waybar is the recommended bar for Sway - Wayland-native, supports tray icons
 # (KeePassXC, NordVPN, nm-applet, etc.), configurable via ~/.config/waybar/
 # Install: sudo apt install waybar
 # Config:  see docs at https://github.com/Alexays/Waybar
@@ -168,7 +168,7 @@ set $down p
 set $term foot
 
 # $FLOAT: used in for_window rules for windows that should always be floating+borderless
-# (not for interactive toggle — use `sway-wstate float` for that via $mod+Alt+t)
+# (not for interactive toggle - use `sway-wstate float` for that via $mod+Alt+t)
 set $FLOAT   floating enable, border normal 0
 
 # commands to enable/disable sticky with border indicator
@@ -333,7 +333,7 @@ mode "$mode_resize" {
 #       xsuspend → swaylock -f && systemctl suspend
 #       restart  → reload  (sway has no in-place restart equivalent)
 set $mode_system Sway: [l]ock, relad [c]onfigure, [e]xit - System: [S]uspend, [H]ibernate, [R]eboot, [S]hutdown
-# - PulseAudio: switch card [p]rofile, restart [P]ipeWire
+# PulseAudio: switch card [p]rofile, restart [P]ipeWire
 bindsym $mod+F12 mode "$mode_system"
 mode "$mode_system" {
     # l: lock screen
@@ -370,7 +370,7 @@ mode "$mode_system" {
 # }}} - Meta Modes -----------------------------------------------------------
 
 # {{{ - Special Keys ---------------------------------------------------------
-# volume media keys (req.: swayosd — handles WirePlumber/PipeWire + Wayland OSD)
+# volume media keys (req.: swayosd - handles WirePlumber/PipeWire + Wayland OSD)
 bindsym XF86AudioRaiseVolume   exec --no-startup-id swayosd-client --output-volume raise
 bindsym XF86AudioLowerVolume   exec --no-startup-id swayosd-client --output-volume lower
 bindsym XF86AudioMute          exec --no-startup-id swayosd-client --output-volume mute-toggle
@@ -416,8 +416,11 @@ bindsym $mod+mod1+Return  exec $term --app-id=swayfloat
 bindsym $mod+F8           exec ~/bin/sway-winfo --toggle
 bindsym $mod+Shift+F8     exec ~/bin/sway-winfo --blocklist-toggle
 
-# mod-space: rofi run launcher (consistent with GNOME setup)
+# mod-space: rofi run launcher
 bindsym $mod+space        exec rofi -show combi
+
+# mod-Shift-Ctrl-F12: run gnome control center (GNOME Settings) floating
+bindsym $mod+Shift+Ctrl+F12       exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-control-center
 
 # chord-mods-d (mod-x, d): double-commander file manager
 #$cmods+d                 exec doublecmd
@@ -442,7 +445,7 @@ bindsym $mod+F2           exec $term --app-id=swayfloat -e ssh -A saito-lan
 # }}} - Workspace 1 - Main ---------------------------------------------------
 
 # {{{ - Workspace 2 - Web ----------------------------------------------------
-# - Web Browsers (usually wayland native, no class)
+# Web Browsers (usually wayland native, no class)
 # for_window [app_id="firefox(-.+)?"]                       move container to workspace $ws2
 # for_window [app_id="(?i)(google-chrome|chromium)(-.+)?"]  move container to workspace $ws2
 # for_window [app_id="(?i)brave-browser(-.+)?"]             move container to workspace $ws2
@@ -450,7 +453,7 @@ bindsym $mod+F2           exec $term --app-id=swayfloat -e ssh -A saito-lan
 # }}} - Workspace 2 - Web ----------------------------------------------------
 
 # {{{ - Workspace 3 - Development --------------------------------------------
-# - VS Code
+# VS Code
 for_window [class="(?i)(.*visual.*\.)?code$"]             move container to workspace $ws3
 # }}} - Workspace 3 - Development --------------------------------------------
 
@@ -477,53 +480,63 @@ for_window [class="(?i)steam|lutris|heroic|itch|epicgameslauncher|battle.net|ori
 # }}} - Workspace 9 - Misc ---------------------------------------------------
 
 # {{{ - Workspace 10 - System & Tray -----------------------------------------
-# - JDownloader main window (Java app with no class/app_id)
+# JDownloader main window (Java app with no class/app_id)
 for_window [title="JDownloader"]      move container to workspace $ws0, $STICK_AND_FLOAT
-# - PulseAudio volume control
+# PulseAudio volume control
 for_window [class="pavucontrol"]      move container to workspace $ws0, $STICK_AND_FLOAT
 for_window [app_id="pavucontrol"]     move container to workspace $ws0, $STICK_AND_FLOAT
-# - Nextcloud client (tray)
+# Nextcloud client (tray)
 for_window [class="nextcloud"]        move container to workspace $ws0, $STICK_AND_FLOAT
 for_window [app_id="nextcloud"]       move container to workspace $ws0, $STICK_AND_FLOAT
-# - NordVPN client UI (tray)
+# NordVPN client UI (tray)
 for_window [class="nordvpn-gui"]      move container to workspace $ws0, $STICK_AND_FLOAT
 for_window [app_id="nordvpn-gui"]     move container to workspace $ws0, $STICK_AND_FLOAT
-# - Blueman bluetooth manager (tray)
+# Blueman bluetooth manager (tray)
 for_window [class="blueman-manager"]  move container to workspace $ws0, $STICK_AND_FLOAT
 for_window [app_id="blueman-manager"] move container to workspace $ws0, $STICK_AND_FLOAT
 # }}} - Workspace 10 - System & Tray -----------------------------------------
+
 # {{{ - Window Modes ---------------------------------------------------------
-# float by role (XWayland apps only — Wayland apps use app_id)
+# Float by custom window_role=i3float (XWayland apps only, for i3 backward compatibility)
 for_window [window_role="i3float"]                  $FLOAT
+
+# Float by custom app_id=swayfloat (e.g. `exec {app} --app-id=swayfloat`)
 for_window [app_id="swayfloat"]                     $FLOAT
 
-# sway-winfo: floating window info monitor (top-left corner, sticky)
-# no_focus: prevent the monitor window from stealing focus when it opens,
-# which would otherwise fight focus_follows_mouse and cause erratic behavior.
-no_focus   [app_id="sway-winfo"]
-for_window [app_id="sway-winfo"] \
-    $STICK_AND_FLOAT, resize set 560 340, move position 10 10
+# Media player
+for_window [class="^(?i)(mpv|galculator|spotify)$"] $FLOAT
+for_window [app_id="^(?i)(mpv|galculator|spotify)$"] $FLOAT
 
-# float by class / title / app_id
-for_window [class="^(?i)(mpv|galculator)$"]         $FLOAT
-for_window [app_id="^(?i)(mpv|galculator)$"]        $FLOAT
-for_window [title="^Task Manager - Google Chrome$"] $FLOAT
+# Task manager of chrome-based browsers
+for_window [title="^Task Manager.*$"]               $FLOAT
 
-# full screen by class
-for_window [class="streaming_client"]               fullscreen enable
+# Spotify (XWayland and native)
+for_window [class="spotify"]                        $FLOAT
+for_window [app_id="spotify"]                       $FLOAT
+
+# Steam app
+for_window [class="steam"]                          $FLOAT
+
+# GNOME Control Center (Settings)
+for_window [app_id="(?i)org.gnome.settings"]          $FLOAT
+
+# Firefox Picture-in-Picture (PiP) window
+for_window [title="Picture-in-Picture"]             $STICK_AND_FLOAT
 
 # KeePassXC: floating + sticky so unlock/auth prompts are visible on any workspace.
 # Flatpak app_id is "org.keepassxc.KeePassXC" (starts with "org."), so use .*keepassxc.*
 # to match both native and flatpak. Sway anchors regex, so keepassxc.* alone won't match.
 for_window [app_id="(?i).*keepassxc.*"]             $STICK_AND_FLOAT
 for_window [class="(?i)keepassxc.*"]                $STICK_AND_FLOAT
-# - Spotify (XWayland and native)
-for_window [class="spotify"]                        $FLOAT
-for_window [app_id="spotify"]                       $FLOAT
 
-# - Steam app
-for_window [class="steam"]                          $FLOAT
+# sway-winfo: floating window info monitor (top-left corner, sticky)
+# no_focus: prevent the monitor window from stealing focus when it opens,
+# which would otherwise fight focus_follows_mouse and cause erratic behavior.
+no_focus   [app_id="sway-winfo"]
+for_window [app_id="sway-winfo"]                    $STICK_AND_FLOAT resize set 560 340, move position 10 10
 
+# Full screen
+for_window [class="streaming_client"]               fullscreen enable
 # }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
 
@@ -535,7 +548,7 @@ exec --no-startup-id dbus-update-activation-environment --systemd \
     WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DISPLAY
 
 # xdg-desktop-portal backend is configured via ~/.config/xdg-desktop-portal/portals.conf.
-# No manual restart needed — the portal starts via socket activation and reads portals.conf.
+# No manual restart needed - the portal starts via socket activation and reads portals.conf.
 
 # Idle management and screen locking (swayidle + swaylock)
 # Install: sudo apt install swayidle swaylock
@@ -548,7 +561,7 @@ exec --no-startup-id swayidle -w \
     resume       'swaymsg "output * dpms on"' \
     before-sleep 'swaylock -f -c 000000'
 
-# Notification daemon (mako — lightweight Wayland-native)
+# Notification daemon (mako - lightweight Wayland-native)
 # Install: sudo apt install mako-notifier
 # https://github.com/emersion/mako
 # Configurable: `man 5 mako` - https://github.com/emersion/mako/blob/master/doc/mako.5.scd
@@ -571,7 +584,7 @@ exec --no-startup-id ~/bin/conky-restart
 # before starting KeePassXC so it can register its tray icon.
 exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; flatpak run org.keepassxc.KeePassXC'
 
-# Network Manager applet — tray icon for network/VPN status.
+# Network Manager applet - tray icon for network/VPN status.
 # Also started via systemd XDG autostart (app-nm-applet@autostart.service);
 # nm-applet deduplicates itself via D-Bus so only one instance runs.
 exec --no-startup-id nm-applet --indicator
@@ -583,7 +596,7 @@ exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done;
 #exec --no-startup-id sh -c 'sleep 60; nextcloud'
 exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nextcloud'
 
-# Blueman bluetooth applet — tray icon for bluetooth status/management.
+# Blueman bluetooth applet - tray icon for bluetooth status/management.
 exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; blueman-applet'
 
 # }}} - Launch Apps after waybar ---------------------------------------------
