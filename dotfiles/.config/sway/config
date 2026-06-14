@@ -149,157 +149,158 @@ set $hyper Mod3
 # x = timeout(oneshot(meta_chord), 1000, M-x)
 # ----
 # FIXE dosen't work this way
-#set $cmods $mod+Ctrl+Mod1+Shift
+#set $cmods          $mod+Ctrl+Mod1+Shift
 
 # Directional navigation keys
-set $left q
-set $right w
-set $up f
-set $down p
+set $left            q
+set $right           w
+set $up              f
+set $down            p
 
 # Directional navigation keys (vim-like hjkl)
-#set $left h
-#set $down j
-#set $up k
-#set $right l
+#set $left           h
+#set $down           j
+#set $up             k
+#set $right          l
 
 # SWAY: preferred Wayland-native terminal (foot is lightweight and native)
 # Alternatives: alacritty, kitty, wezterm, gnome-terminal
-set $term foot
+set $term            foot
+set $termfloat       foot --window-size-chars=120x50 --app-id=swayfloat
 
 # $FLOAT: used in for_window rules for windows that should always be floating+borderless
 # (not for interactive toggle - use `sway-wstate float` for that via $mod+Alt+t)
-set $FLOAT   floating enable, border normal 0
+set $FLOAT           floating enable, border normal 0
 
 # commands to enable/disable sticky with border indicator
 # sticky floating windows get border normal 2 to distinguish them visually
-set $STICK_AND_FLOAT  sticky enable,  floating enable, border normal 2
-set $UNSTICK          sticky disable, floating enable, border normal 0
+set $STICK_AND_FLOAT sticky enable,  floating enable, border normal 2
+set $UNSTICK         sticky disable, floating enable, border normal 0
 
 # workspace numbers and names
-set $ws1  "1:#1 Main"
-set $ws2  "2:#2 Web"
-set $ws3  "3:#3 Devel"
-set $ws4  "4:#4 Create"
-set $ws5  "5:#5 Gaming"
-set $ws6  "6:#6 Fullscreen"
-set $ws7  "7:#7 Misc"
-set $ws8  "8:#8 Misc"
-set $ws9  "9:#9 Misc"
-set $ws0  "0:#10 System"
+set $ws1             "1:#1 Main"
+set $ws2             "2:#2 Web"
+set $ws3             "3:#3 Devel"
+set $ws4             "4:#4 Create"
+set $ws5             "5:#5 Gaming"
+set $ws6             "6:#6 Fullscreen"
+set $ws7             "7:#7 Misc"
+set $ws8             "8:#8 Misc"
+set $ws9             "9:#9 Misc"
+set $ws10            "10:#10 System"
 # }}} = Variables ============================================================
 
 # {{{ = Key Bindings =========================================================
 # {{{ - Window/Container Navigation ------------------------------------------
 # alt-F4: close/kill focused window
-bindsym Mod1+F4 kill
+bindsym Mod1+F4              kill
 
 # SWAY: floating_modifier requires 'normal' or 'inverse' as second argument
 # Mouse+$mod: drag floating windows
-floating_modifier $mod normal
-
+floating_modifier $mod       normal
+#tiling_drag off
 # mod-(Shift-)tab/grave: change focus (left/right/up/down)
-bindsym $mod+Shift+Tab   focus left
-bindsym $mod+Tab         focus right
-bindsym $mod+Shift+grave focus up
-bindsym $mod+grave       focus down
+bindsym $mod+Shift+Tab       focus left
+bindsym $mod+Tab             focus right
+bindsym $mod+Shift+grave     focus up
+bindsym $mod+grave           focus down
 
 # mod-left/right/up/down: same as above (alt. keys)
-bindsym $mod+Left  focus left
-bindsym $mod+Right focus right
-bindsym $mod+Up    focus up
-bindsym $mod+Down  focus down
+bindsym $mod+Left            focus left
+bindsym $mod+Right           focus right
+bindsym $mod+Up              focus up
+bindsym $mod+Down            focus down
 
 # mod+Shift-left/right/up/down: move focused window
-bindsym $mod+Shift+$left  move left
-bindsym $mod+Shift+$right move right
-bindsym $mod+Shift+$up    move up
-bindsym $mod+Shift+$down  move down
+bindsym $mod+Shift+$left     move left
+bindsym $mod+Shift+$right    move right
+bindsym $mod+Shift+$up       move up
+bindsym $mod+Shift+$down     move down
 
 # mod+Shift-left/right/up/down: move focused window (alt. keys)
-bindsym $mod+Shift+Left  move left
-bindsym $mod+Shift+Right move right
-bindsym $mod+Shift+Up    move up
-bindsym $mod+Shift+Down  move down
+bindsym $mod+Shift+Left      move left
+bindsym $mod+Shift+Right     move right
+bindsym $mod+Shift+Up        move up
+bindsym $mod+Shift+Down      move down
 
 # split in horizontal orientation
-bindsym $mod+h layout splith
-bindsym $mod+Shift+h split h
+bindsym $mod+h layout        splith
+bindsym $mod+Shift+h         split h
 
 # split in vertical orientation
-bindsym $mod+v layout splitv
-bindsym $mod+Shift+v split v
+bindsym $mod+v layout        splitv
+bindsym $mod+Shift+v         split v
 
 # enter fullscreen mode for the focused container
-bindsym $mod+Alt+z fullscreen toggle
+bindsym $mod+Alt+z           fullscreen toggle
 
 # toggle sticky state; auto-floats the window, border 2 = sticky indicator
-bindsym $mod+Alt+s exec --no-startup-id sway-wstate sticky
+bindsym $mod+Alt+s           exec --no-startup-id sway-wstate sticky
 
 # mod-q/w/W: change container layout (toggle-split/tabbed/stacked)
-bindsym $mod+s layout toggle split
-bindsym $mod+Shift+s layout stacking
-bindsym $mod+t layout tabbed
+bindsym $mod+s l             layout toggle split
+bindsym $mod+Shift+s         layout stacking
+bindsym $mod+t               layout tabbed
 # mod-Alt-t: toggle floating (border 0 = floating, border 2 = tiling/sticky)
-bindsym $mod+Alt+t exec --no-startup-id sway-wstate float
+bindsym $mod+Alt+t           exec --no-startup-id sway-wstate float
 # mod-p: focus between tiling / floating windows
-bindsym $mod+p focus mode_toggle
+bindsym $mod+p               focus mode_toggle
 # mod-P: switch border style
-bindsym $mod+Shift+b border toggle
+bindsym $mod+Shift+b         border toggle
 
 # mod-a/A: focus parent/child container
-bindsym $mod+a focus parent
-bindsym $mod+Shift+a focus child
+bindsym $mod+a               focus parent
+bindsym $mod+Shift+a         focus child
 # }}} - Window/Container Navigation ------------------------------------------
 
 # {{{ - Workspace Navigation -------------------------------------------------
 # mod-z/Z: move current to / retrieve first window from scratchpad
-bindsym $mod+z move scratchpad
-bindsym $mod+Shift+z scratchpad show
-#bindsym $mod+slash [title="Visual Studio Code$"] scratchpad show
+bindsym $mod+z           move scratchpad
+bindsym $mod+Shift+z     scratchpad show
+#bindsym $mod+slash       [title="Visual Studio Code$"] scratchpad show
 
 # switch to workspace
-bindsym $mod+1 workspace number $ws1
-bindsym $mod+2 workspace number $ws2
-bindsym $mod+3 workspace number $ws3
-bindsym $mod+4 workspace number $ws4
-bindsym $mod+5 workspace number $ws5
-bindsym $mod+6 workspace number $ws6
-bindsym $mod+7 workspace number $ws7
-bindsym $mod+8 workspace number $ws8
-bindsym $mod+9 workspace number $ws9
-bindsym $mod+0 workspace number $ws0
+bindsym $mod+1           workspace number $ws1
+bindsym $mod+2           workspace number $ws2
+bindsym $mod+3           workspace number $ws3
+bindsym $mod+4           workspace number $ws4
+bindsym $mod+5           workspace number $ws5
+bindsym $mod+6           workspace number $ws6
+bindsym $mod+7           workspace number $ws7
+bindsym $mod+8           workspace number $ws8
+bindsym $mod+9           workspace number $ws9
+bindsym $mod+0           workspace number $ws10
 
 # switch workspace previous/next
-bindsym $mod+Ctrl+Right workspace next
-bindsym $mod+Ctrl+Left  workspace prev
+bindsym $mod+Ctrl+Right  workspace next
+bindsym $mod+Ctrl+Left   workspace prev
 
 # move focused container to workspace (and disable sticky mode)
-bindsym $mod+Shift+1 sticky disable; move container to workspace $ws1
-bindsym $mod+Shift+2 sticky disable; move container to workspace $ws2
-bindsym $mod+Shift+3 sticky disable; move container to workspace $ws3
-bindsym $mod+Shift+4 sticky disable; move container to workspace $ws4
-bindsym $mod+Shift+5 sticky disable; move container to workspace $ws5
-bindsym $mod+Shift+6 sticky disable; move container to workspace $ws6
-bindsym $mod+Shift+7 sticky disable; move container to workspace $ws7
-bindsym $mod+Shift+8 sticky disable; move container to workspace $ws8
-bindsym $mod+Shift+9 sticky disable; move container to workspace $ws9
-bindsym $mod+Shift+0 sticky disable; move container to workspace $ws0
+bindsym $mod+Shift+1     sticky disable; move container to workspace $ws1
+bindsym $mod+Shift+2     sticky disable; move container to workspace $ws2
+bindsym $mod+Shift+3     sticky disable; move container to workspace $ws3
+bindsym $mod+Shift+4     sticky disable; move container to workspace $ws4
+bindsym $mod+Shift+5     sticky disable; move container to workspace $ws5
+bindsym $mod+Shift+6     sticky disable; move container to workspace $ws6
+bindsym $mod+Shift+7     sticky disable; move container to workspace $ws7
+bindsym $mod+Shift+8     sticky disable; move container to workspace $ws8
+bindsym $mod+Shift+9     sticky disable; move container to workspace $ws9
+bindsym $mod+Shift+0     sticky disable; move container to workspace $ws10
 
 # mod-b: toggle bar mode (dock↔hide)
-bindsym $mod+b bar mode toggle
+bindsym $mod+b bar       mode toggle
 # SWAY: bar hidden_state does not exist in Sway; bar mode toggle covers both
 # bindsym $mod+Shift+b bar hidden_state toggle
 # }}} - Workspace Navigation -------------------------------------------------
 
 # {{{ - Meta Modes -----------------------------------------------------------
 # mod-x: meta mode
-set $mode_meta Meta: (c)lose window
-bindsym $mod+x mode "$mode_meta"
+set $mode_meta           Meta: (c)lose window
+bindsym $mod+x           mode "$mode_meta"
 mode "$mode_meta" {
-    bindsym c kill, mode "default"
-    bindsym Return mode "default"
-    bindsym Escape mode "default"
+    bindsym c            kill, mode "default"
+    bindsym Return       mode "default"
+    bindsym Escape       mode "default"
 }
 
 # mod-g: resize window mode
@@ -337,25 +338,26 @@ set $mode_system Sway: [l]ock, relad [c]onfigure, [e]xit - System: [S]uspend, [H
 bindsym $mod+F12 mode "$mode_system"
 mode "$mode_system" {
     # l: lock screen
-    bindsym l exec swaylock -c 000000, mode "default"
+    bindsym l                exec swaylock -c 000000, mode "default"
     # c: reload the configuration file (sway has no restart, reload is equivalent)
-    bindsym c reload, mode "default"
+    bindsym c                reload, mode "default"
     # e: exit sway
-    bindsym e exec swaynag -t warning -m 'Do you really want to exit Sway?' \
-        -b 'Exit Sway' 'swaymsg exit'
+    bindsym e                exec swaynag -t warning \
+                                 -m 'Do you really want to exit Sway?' \
+                                 -b 'Exit Sway' 'swaymsg exit'
 
     # S: lock screen + suspend
-    bindsym Shift+s mode "default"; exec swaylock -f -c 000000 && systemctl suspend
+    bindsym Shift+s          mode "default"; exec swaylock -f -c 000000 && systemctl suspend
     # H: lock screen + hibernate
-    bindsym Shift+h mode "default"; exec swaylock -f -c 000000 && systemctl hibernate
+    bindsym Shift+h          mode "default"; exec swaylock -f -c 000000 && systemctl hibernate
     # R: reboot
-    bindsym Shift+b exec swaynag -t warning \
-        -m 'Do you really want to reboot the system?' \
-        -b 'Reboot' 'systemctl reboot'
+    bindsym Shift+b          exec swaynag -t warning \
+                                 -m 'Do you really want to reboot the system?' \
+                                 -b 'Reboot' 'systemctl reboot'
     # S: shut down
-    bindsym Shift+d exec swaynag -t warning \
-        -m 'Do you really want to shut down the system?' \
-        -b 'Shutdown' 'systemctl poweroff'
+    bindsym Shift+d          exec swaynag -t warning \
+                                 -m 'Do you really want to shut down the system?' \
+                                 -b 'Shutdown' 'systemctl poweroff'
 
     ## p: switch audio profile off/on (same pactl commands work via PipeWire compat)
     #bindsym p mode "default"; \
@@ -364,76 +366,76 @@ mode "$mode_system" {
     ## P: restart PipeWire/WirePlumber (replaces pkill pulseaudio)
     #bindsym Shift+p mode "default"; exec systemctl --user restart wireplumber
 
-    bindsym Return mode "default"
-    bindsym Escape mode "default"
+    bindsym Return           mode "default"
+    bindsym Escape           mode "default"
 }
 # }}} - Meta Modes -----------------------------------------------------------
 
 # {{{ - Special Keys ---------------------------------------------------------
 # volume media keys (req.: swayosd - handles WirePlumber/PipeWire + Wayland OSD)
-bindsym XF86AudioRaiseVolume   exec --no-startup-id swayosd-client --output-volume raise
-bindsym XF86AudioLowerVolume   exec --no-startup-id swayosd-client --output-volume lower
-bindsym XF86AudioMute          exec --no-startup-id swayosd-client --output-volume mute-toggle
+bindsym XF86AudioRaiseVolume exec --no-startup-id swayosd-client --output-volume raise
+bindsym XF86AudioLowerVolume exec --no-startup-id swayosd-client --output-volume lower
+bindsym XF86AudioMute        exec --no-startup-id swayosd-client --output-volume mute-toggle
 
 # mod-mod1-=/-/0: alt. volume keys
-bindsym $mod+Mod1+equal        exec --no-startup-id swayosd-client --output-volume raise
-bindsym $mod+Mod1+minus        exec --no-startup-id swayosd-client --output-volume lower
-bindsym $mod+Mod1+0            exec --no-startup-id swayosd-client --output-volume mute-toggle
+bindsym $mod+Mod1+equal      exec --no-startup-id swayosd-client --output-volume raise
+bindsym $mod+Mod1+minus      exec --no-startup-id swayosd-client --output-volume lower
+bindsym $mod+Mod1+0          exec --no-startup-id swayosd-client --output-volume mute-toggle
 
 # media player keys (req.: playerctl)
-bindsym XF86AudioPlay          exec --no-startup-id playerctl play-pause
-bindsym XF86AudioPrev          exec --no-startup-id playerctl previous
-bindsym XF86AudioNext          exec --no-startup-id playerctl next
+bindsym XF86AudioPlay        exec --no-startup-id playerctl play-pause
+bindsym XF86AudioPrev        exec --no-startup-id playerctl previous
+bindsym XF86AudioNext        exec --no-startup-id playerctl next
 
 # mod-mod1-Space/,/.: alt. media player keys
-bindsym $mod+Mod1+space        exec --no-startup-id playerctl play-pause
-bindsym $mod+Mod1+comma        exec --no-startup-id playerctl previous
-bindsym $mod+Mod1+period       exec --no-startup-id playerctl next
+bindsym $mod+Mod1+space      exec --no-startup-id playerctl play-pause
+bindsym $mod+Mod1+comma      exec --no-startup-id playerctl previous
+bindsym $mod+Mod1+period     exec --no-startup-id playerctl next
 
 # SWAY: xbacklight → brightnessctl (works natively on Wayland)
-bindsym XF86MonBrightnessUp    exec brightnessctl set +20%
+bindsym XF86MonBrightnessUp  exec brightnessctl set +20%
 bindsym XF86MonBrightnessDown  exec brightnessctl set 20%-
 
 # home button: start browser
-bindsym XF86HomePage           exec firefox
+bindsym XF86HomePage         exec firefox
 
 # print button: screenshot
 # SWAY: flameshot works on Wayland; grimshot (sway-contrib) is a native alternative:
 #   exec grimshot copy area
-bindsym Print                  exec --no-startup-id flameshot gui
+bindsym Print                exec --no-startup-id flameshot gui
 
 # mod-l: lock screen (mirrors Windows/GNOME Mod4+L)
-bindsym $mod+l                 exec swaylock -f -c 000000
+bindsym $mod+l               exec swaylock -f -c 000000
 # }}} - Special Keys ---------------------------------------------------------
 
 # {{{ - Run Apps -------------------------------------------------------------
 # mod-return: run terminal (+shift for floating)
-bindsym $mod+Return       exec $term
-bindsym $mod+mod1+Return  exec $term --app-id=swayfloat
+bindsym $mod+Return          exec $term
+bindsym $mod+mod1+Return     exec $termfloat
 
 # mod-F8: toggle window info monitor (sway-winfo, hover to inspect any window)
 # mod-Shift-F8: toggle focused window in/out of the auto-managed blocklist zone
-bindsym $mod+F8           exec ~/bin/sway-winfo --toggle
-bindsym $mod+Shift+F8     exec ~/bin/sway-winfo --blocklist-toggle
+bindsym $mod+F8              exec ~/bin/sway-winfo --toggle
+bindsym $mod+Shift+F8        exec ~/bin/sway-winfo --blocklist-toggle
 
 # mod-space: rofi run launcher
-bindsym $mod+space        exec rofi -show combi
+bindsym $mod+space           exec rofi -show combi
 
 # mod-Shift-Ctrl-F12: run gnome control center (GNOME Settings) floating
-bindsym $mod+Shift+Ctrl+F12       exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-control-center
+bindsym $mod+Shift+Ctrl+F12  exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-control-center
 
 # chord-mods-d (mod-x, d): double-commander file manager
-#$cmods+d                 exec doublecmd
-#$hyper+d                 exec doublecmd
+#$cmods+d                    exec doublecmd
+#$hyper+d                    exec doublecmd
 # chord-mods-n (mod-x, n): nautilus file manager
-#$cmods+n                 exec nautilus
+#$cmods+n                    exec nautilus
 
 # mod-ESC: run htop in floating terminal
-bindsym $mod+Escape       exec $term --app-id=swayfloat -e htop
+bindsym $mod+Escape          exec $termfloat -e htop
 
 # mod-F1 to F2: open ssh session in floating terminal
-bindsym $mod+F1           exec $term --app-id=swayfloat -e ssh -A 11001001.org -p 8090
-bindsym $mod+F2           exec $term --app-id=swayfloat -e ssh -A saito-lan
+bindsym $mod+F1              exec $termfloat -e ssh -A 11001001.org -p 8090
+bindsym $mod+F2              exec $termfloat -e ssh -A saito-lan
 # }}} - Run Apps -------------------------------------------------------------
 # }}} = Key Bindings =========================================================
 
@@ -446,19 +448,19 @@ bindsym $mod+F2           exec $term --app-id=swayfloat -e ssh -A saito-lan
 
 # {{{ - Workspace 2 - Web ----------------------------------------------------
 # Web Browsers (usually wayland native, no class)
-# for_window [app_id="firefox(-.+)?"]                       move container to workspace $ws2
-# for_window [app_id="(?i)(google-chrome|chromium)(-.+)?"]  move container to workspace $ws2
-# for_window [app_id="(?i)brave-browser(-.+)?"]             move container to workspace $ws2
-# for_window [app_id="(?i)vivaldi(-.+)?"]                   move container to workspace $ws2
+# for_window [app_id="firefox(-.+)?"]                        move container to workspace $ws2
+# for_window [app_id="(?i)(google-chrome|chromium)(-.+)?"]   move container to workspace $ws2
+# for_window [app_id="(?i)brave-browser(-.+)?"]              move container to workspace $ws2
+# for_window [app_id="(?i)vivaldi(-.+)?"]                    move container to workspace $ws2
 # }}} - Workspace 2 - Web ----------------------------------------------------
 
 # {{{ - Workspace 3 - Development --------------------------------------------
 # VS Code
-for_window [class="(?i)(.*visual.*\.)?code$"]             move container to workspace $ws3
+for_window [class="(?i)(.*visual.*\.)?code$"]              move container to workspace $ws3
 # }}} - Workspace 3 - Development --------------------------------------------
 
 # {{{ - Workspace 4 - Create -------------------------------------------------
-for_window [class="(?i)(.*\.)?gimp?|XnView(MP)?"]         move container to workspace $ws4
+for_window [class="(?i)(.*\.)?gimp?|XnView(MP)?"]          move container to workspace $ws4
 # }}} - Workspace 4 - Create -------------------------------------------------
 
 # {{{ - Workspace 5 - Gaming -------------------------------------------------
@@ -481,59 +483,60 @@ for_window [class="(?i)steam|lutris|heroic|itch|epicgameslauncher|battle.net|ori
 
 # {{{ - Workspace 10 - System & Tray -----------------------------------------
 # JDownloader main window (Java app with no class/app_id)
-for_window [title="JDownloader"]      move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [title="JDownloader"]      move container to workspace $ws10, $STICK_AND_FLOAT
 # PulseAudio volume control
-for_window [class="pavucontrol"]      move container to workspace $ws0, $STICK_AND_FLOAT
-for_window [app_id="pavucontrol"]     move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [class="pavucontrol"]      move container to workspace $ws10, $STICK_AND_FLOAT
+for_window [app_id="pavucontrol"]     move container to workspace $ws10, $STICK_AND_FLOAT
 # Nextcloud client (tray)
-for_window [class="nextcloud"]        move container to workspace $ws0, $STICK_AND_FLOAT
-for_window [app_id="nextcloud"]       move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [class="nextcloud"]        move container to workspace $ws10, $STICK_AND_FLOAT
+for_window [app_id="nextcloud"]       move container to workspace $ws10, $STICK_AND_FLOAT
 # NordVPN client UI (tray)
-for_window [class="nordvpn-gui"]      move container to workspace $ws0, $STICK_AND_FLOAT
-for_window [app_id="nordvpn-gui"]     move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [class="nordvpn-gui"]      move container to workspace $ws10, $STICK_AND_FLOAT
+for_window [app_id="nordvpn-gui"]     move container to workspace $ws10, $STICK_AND_FLOAT
 # Blueman bluetooth manager (tray)
-for_window [class="blueman-manager"]  move container to workspace $ws0, $STICK_AND_FLOAT
-for_window [app_id="blueman-manager"] move container to workspace $ws0, $STICK_AND_FLOAT
+for_window [class="blueman-manager"]  move container to workspace $ws10, $STICK_AND_FLOAT
+for_window [app_id="blueman-manager"] move container to workspace $ws10, $STICK_AND_FLOAT
 # }}} - Workspace 10 - System & Tray -----------------------------------------
 
 # {{{ - Window Modes ---------------------------------------------------------
 # Float by custom window_role=i3float (XWayland apps only, for i3 backward compatibility)
-for_window [window_role="i3float"]                  $FLOAT
+for_window [window_role="i3float"]                         $FLOAT
 
 # Float by custom app_id=swayfloat (e.g. `exec {app} --app-id=swayfloat`)
-for_window [app_id="swayfloat"]                     $FLOAT
+for_window [app_id="swayfloat"]                            $FLOAT
 
-# Media player
-for_window [class="^(?i)(mpv|galculator|spotify)$"] $FLOAT
-for_window [app_id="^(?i)(mpv|galculator|spotify)$"] $FLOAT
+# Web Browsers
+for_window [title="^(?i)Task Manager.*"]                   $FLOAT
 
-# Task manager of chrome-based browsers
-for_window [title="^Task Manager.*$"]               $FLOAT
+# Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
+for_window [class="^(?i)(mpv|vlc|spotify)$"]               $FLOAT
+for_window [app_id="^(?i)(mpv|spotify)$"]                  $FLOAT
 
-# Spotify (XWayland and native)
-for_window [class="spotify"]                        $FLOAT
-for_window [app_id="spotify"]                       $FLOAT
+# Settings
+# gnome-control-center
+for_window [app_id="(?i)org.gnome.settings$"]              $FLOAT
+for_window [app_id="(?i)com.github.tchx84.Flatseal$"]      $FLOAT
 
-# Steam app
-for_window [class="steam"]                          $FLOAT
+# Other apps
+for_window [class="^(?i)galculator$"]                      $FLOAT
 
-# GNOME Control Center (Settings)
-for_window [app_id="(?i)org.gnome.settings"]          $FLOAT
+# Gaming
+for_window [class="^(?i)steam$"]                           $FLOAT
 
 # Firefox Picture-in-Picture (PiP) window
-for_window [title="Picture-in-Picture"]             $STICK_AND_FLOAT
+for_window [title="^(?i)Picture-in-Picture$"]              $STICK_AND_FLOAT
 
 # KeePassXC: floating + sticky so unlock/auth prompts are visible on any workspace.
 # Flatpak app_id is "org.keepassxc.KeePassXC" (starts with "org."), so use .*keepassxc.*
 # to match both native and flatpak. Sway anchors regex, so keepassxc.* alone won't match.
-for_window [app_id="(?i).*keepassxc.*"]             $STICK_AND_FLOAT
-for_window [class="(?i)keepassxc.*"]                $STICK_AND_FLOAT
+for_window [app_id="(?i).*keepassxc.*"]                    $STICK_AND_FLOAT
+for_window [class="(?i)keepassxc.*"]                       $STICK_AND_FLOAT
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
 # which would otherwise fight focus_follows_mouse and cause erratic behavior.
 no_focus   [app_id="sway-winfo"]
-for_window [app_id="sway-winfo"]                    $STICK_AND_FLOAT resize set 560 340, move position 10 10
+for_window [app_id="sway-winfo"]                           $STICK_AND_FLOAT resize set 560 340, move position 10 10
 
 # Full screen
 for_window [class="streaming_client"]               fullscreen enable
