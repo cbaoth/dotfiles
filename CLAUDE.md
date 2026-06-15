@@ -219,6 +219,11 @@ When working in interactive shell you can expect the following to be setup for y
   - `setopt EXTENDED_GLOB`
   - `setopt INTERACTIVECOMMENTS`
 
+## System Scripts (`system-scripts/`)
+
+- Single standalone scripts live directly under `system-scripts/` (e.g. `system-scripts/backup`).
+- Multi-file scripts (daemon + unit file, config, or dedicated README) go in a **named subdirectory** (e.g. `system-scripts/nordvpn-ipv6-watcher/`). Always include a `README.adoc` in subdirectories.
+
 ## Documentation
 
 - Use `README.md` for high-level overview and link to detailed docs in `@docs/`. Use `TODO.md` for tracking tasks and future improvements. Keep both files up to date with the project's current state and plans.

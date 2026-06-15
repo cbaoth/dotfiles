@@ -120,6 +120,7 @@ Scripts intended for system administrators or privileged operations (some requir
 | `system-scripts/dbbackup` | Backup script for MySQL and PostgreSQL databases. |
 | `system-scripts/fail2ban-summary-mail` | Send a weekly Fail2Ban summary email from recent log data (intended for cron). |
 | `system-scripts/nextcloud-maintenance` | Run routine Nextcloud maintenance tasks (DB indices, repair, integrity checks, app updates). Intended for cron with cronic. |
+| `system-scripts/nordvpn-ipv6-watcher/nordvpn-ipv6-watcher` | Restore IPv6 after NordVPN 5.x disables it system-wide (daemon + systemd unit). See `system-scripts/nordvpn-ipv6-watcher/README.adoc`. |
 | `system-scripts/openvpn-client-cfg` | Generate OpenVPN client configuration bundles from server PKI assets; manage static IPs, CCD, and certificate revocation. |
 
 ### Repository Tooling (`tools/`)
