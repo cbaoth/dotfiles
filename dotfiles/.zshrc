@@ -438,6 +438,9 @@ autoload -Uz compinit && compinit
 #else
 #  compinit -C
 #fi
+
+# enable zargs built-in
+autoload -Uz zargs
 # }}} - BASIC ----------------------------------------------------------------
 
 # {{{ - PL9K -----------------------------------------------------------------
