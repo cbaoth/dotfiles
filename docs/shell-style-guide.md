@@ -660,6 +660,35 @@ This section applies to files under `.zsh.d/` and other Zsh-only code.
 - No shebang (they are sourced, not executed directly)
 - End sourced files with `return 0`
 
+### Aliases vs. Functions
+
+Both aliases and functions expose named commands in the interactive shell. Use
+the right tool for each case:
+
+**Use a function when:**
+
+- The body spans multiple lines or requires control flow
+- Arguments need to be accessed, validated, or forwarded selectively
+- Local variables or a return code are needed
+
+**Keep as an alias when:**
+
+- It is a simple rename or command substitution (`alias vim='nvim'`)
+- It prepends fixed flags to a command (`alias grep='grep --color=auto'`)
+- It fixes a typo or abbreviation (`alias grpe=grep`)
+
+**Must remain aliases — no function equivalent:**
+
+- **Global aliases** (`alias -g @G='| grep'`) — expand anywhere in a command
+  line, not only at the command position; functions cannot do this
+- **Suffix aliases** (`alias -s pdf=zathura`) — file-type dispatch triggered
+  by typing a filename; functions cannot do this
+- **Trailing-space trick** (`alias sudo='sudo '`) — forces alias expansion of
+  the following word; cannot be replicated with a function
+
+Avoid converting working single-line aliases to functions purely for style
+reasons. The multi-line / argument / logic threshold is the meaningful signal.
+
 ### Global Aliases
 
 Zsh supports global aliases (expanded anywhere in a command line). Use

@@ -15,13 +15,25 @@ alias /='cd /'  # invalid alias name in bash; zsh only
 alias help='run-help'
 
 # Reload shell-agnostic + zsh-specific functions
-alias reload-functions='. $HOME/lib/functions.sh; . $HOME/.zsh.d/functions/functions.zsh'
-# Reload all alias layers: auto-rehash -> common -> zsh-specific -> os/host
-alias reload-aliases='. $HOME/.zsh.d/auto-rehash.zsh; . $HOME/.aliases; . $HOME/.zsh.d/aliases.zsh;
-  source_ifex_custom $HOME/lib/aliases;
-  source_ifex_custom -e .zsh $HOME/.zsh.d/aliases'
+reload-functions() {
+  . $HOME/lib/functions.sh
+  . $HOME/.zsh.d/functions/functions.zsh
+}
 
-alias zsh-history-fix='mv $HOME/.zsh_history $HOME/.zsh_history_corrupt && strings $HOME/.zsh_history_corrupt > $HOME/.zsh_history && fc -R $HOME/.zsh_history && rm $HOME/.zsh_history_corrupt'
+# Reload all alias layers: auto-rehash -> common -> zsh-specific -> os/host
+reload-aliases() {
+  . $HOME/.zsh.d/auto-rehash.zsh; . $HOME/.aliases; . $HOME/.zsh.d/aliases.zsh;
+  source_ifex_custom $HOME/lib/aliases;
+  source_ifex_custom -e .zsh $HOME/.zsh.d/aliases
+}
+
+# Fix a corrupted zsh history file by extracting printable strings and reloading it.
+zsh-history-fix() {
+  mv $HOME/.zsh_history $HOME/.zsh_history_corrupt \
+    && strings $HOME/.zsh_history_corrupt > $HOME/.zsh_history \
+    && fc -R $HOME/.zsh_history \
+    && rm $HOME/.zsh_history_corrupt
+}
 # }}} - GENERAL (ZSH ONLY) ---------------------------------------------------
 
 # {{{ - SUFFIX ALIASES -------------------------------------------------------

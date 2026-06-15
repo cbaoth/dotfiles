@@ -104,6 +104,13 @@ Avoid shadowing env vars: never use `PATH`, `PWD`, `HOME`, `USER`, `CMD`, `LOG`,
 
 Level 1 uses `=`, level 2 uses `-`. Fill to column 78. Closing line repeats section name.
 
+## Aliases vs. Functions
+
+Use a **function** when: multiple lines, argument handling, or logic/state is needed.
+Keep as an **alias** when: simple rename, fixed-flag prefix, or typo correction.
+**Always aliases** (no function equivalent): global (`-g`), suffix (`-s`), trailing-space trick.
+Don't convert working single-line aliases to functions for style reasons alone.
+
 ## Features
 
 - Prefer `[[ ... ]]` over `[ ... ]`
