@@ -233,8 +233,6 @@ source_ifex $HOME/.zsh.d/aliases.zsh
 
 # shell-agnostic functions (bash + zsh)
 source_ifex $HOME/lib/functions.sh
-# zsh-specific functions (zsudo, completions)
-source_ifex $HOME/.zsh.d/functions/functions.zsh
 
 # hash some common directories for easy access existing (if they exist)
 # TODO consider moving this to commons.sh and use in host specific files as well

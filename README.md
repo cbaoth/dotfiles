@@ -42,7 +42,6 @@ _archive/        Archived scripts pending review (not in PATH)
 | `dotfiles/.zsh.d/zshrc-freebsd.zsh` / `zshrc-motoko.zsh` / `zshrc-puppet.zsh` / `zshrc-saito.zsh` / `zshrc-11001001_org.zsh` | ZSH | OS, distribution, and/or host specific ZSH configs. |
 | `dotfiles/.zsh.d/aliases.zsh` | SH | Common aliases |
 | `dotfiles/.zsh.d/aliases-freebsd.zsh` / `aliases-linux.zsh` / `aliases-linux_wsl.zsh` | SH | OS, distribution, and/or host specific aliases. |
-| `dotfiles/.zsh.d/functions/functions.zsh` | SH | Common shell functions. |
 | `dotfiles/.bashrc` | [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) | Common Bash config _(rarely maintained)_. |
 | `dotfiles/.xsession` | X, Wayland | Used by the display manager. Loads `.profile` and `.xinitrc`. |
 | `dotfiles/.xinitrc` | [X](https://en.wikipedia.org/wiki/X_Window_System), [Wayland](https://en.wikipedia.org/wiki/Wayland_(display_server_protocol)) | Loaded from inside `.xsession` or when starting `xinit`. |
@@ -61,8 +60,8 @@ This is the sequence in which zshrc's, aliases and functions are loaded from wit
 
 ```bash
  # top of zshrc (always loaded)
- .zsh.d/functions.zsh
  .zsh.d/aliases.zsh
+ lib/functions.sh
 
  # bottom of zshrc (loaded in given sequence if host/os matches)
  .zsh.d/functions-${OS}.zsh
@@ -135,7 +134,7 @@ Scripts intended for system administrators or privileged operations (some requir
 
 ## Shell Functions
 
-Some of the shell functions contained in `.zsh.d/functions.zsh` will be described in the following chapters.
+Some of the shell functions contained in `lib/functions.sh` will be described in the following chapters.
 
 ### Print
 

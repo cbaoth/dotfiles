@@ -17,7 +17,7 @@ alias comfyui="comfy launch"  # launch comfy UI
 
 # {{{ - MOUNT ----------------------------------------------------------------
 # host specific mount aliases
-# requires: ~/.zsh.d/functions/functions.zsh
+# requires: ~/lib/functions.sh (__mount_mountpoints)
 alias mount-win='__mount_mountpoints /mnt/[c-f]/'
 alias umount-win='__mount_mountpoints -u /mnt/[c-f]/'
 alias mount-saito='__mount_mountpoints /srv/saito/*/'

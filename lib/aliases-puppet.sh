@@ -10,7 +10,7 @@
 
 # {{{ - MOUNT ----------------------------------------------------------------
 # host specific mount aliases
-# requires: ~/.zsh.d/functions/functions.zsh
+# requires: ~/lib/functions.sh (mount-mountpoints / umount-mountpoints)
 #alias mount-win='mount-mountpoints /mnt/[c-f]/'
 #alias umount-win='umount-mountpoints /mnt/[c-f]/'
 alias mount-saito='mount-mountpoints /srv/saito/*/'

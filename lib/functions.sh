@@ -19,7 +19,7 @@ if ! command -v "cl::cmd_p" >& /dev/null; then
   done
 fi
 if ! command -v "cl::cmd_p" >& /dev/null; then
-  printf "commons lib not found, unable to import functions.zsh, returning ..\n" >&2
+  printf "commons lib not found, unable to import functions.sh, returning ..\n" >&2
   return 1
 fi
 
@@ -50,7 +50,7 @@ Usage: $(cl::func_caller) DIR ${usage_args}
 # }}} = INTERNAL =============================================================
 
 # {{{ = BASE =================================================================
-# zsudo() moved to .zsh.d/functions/functions.zsh (zsh-only: uses $functions[])
+# zsudo() is in .zsh.d/aliases.zsh (zsh-only: uses $functions[])
 # }}} = BASE =================================================================
 
 # {{{ = STRING ===============================================================
@@ -1708,7 +1708,7 @@ Skips files unlikely to be shell scripts with a warning:
   return $ret
 }
 
-# completion for check_script defined in .zsh.d/functions/functions.zsh (zsh only)
+# completion for check_script defined in .zsh.d/aliases.zsh (zsh only)
 # }}} = DEVELOPMENT ==========================================================
 
 # {{{ = MULTIMEDIA ===========================================================
