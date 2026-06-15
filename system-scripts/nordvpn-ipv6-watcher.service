@@ -1,0 +1,13 @@
+[Unit]
+Description=Restore IPv6 whenever NordVPN daemon disables it
+After=nordvpnd.service
+Wants=nordvpnd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/nordvpn-ipv6-watcher
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
