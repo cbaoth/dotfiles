@@ -199,7 +199,14 @@ bindsym Mod1+F4              kill
 # Mouse+$mod: drag floating windows
 floating_modifier $mod       normal
 #tiling_drag off
-# mod-(Shift-)tab/grave: change focus (left/right/up/down)
+
+# mod-left/right/up/down: change focus
+bindsym $mod+mod1+$left      focus left
+bindsym $mod+mod1+$right     focus right
+bindsym $mod+mod1+$up        focus up
+bindsym $mod+mod1+$down      focus down
+
+# mod-(Shift-)tab/grave: same as above (alt keys)
 bindsym $mod+Shift+Tab       focus left
 bindsym $mod+Tab             focus right
 bindsym $mod+Shift+grave     focus up
@@ -257,7 +264,7 @@ bindsym $mod+Shift+a         focus child
 # mod-z/Z: move current to / retrieve first window from scratchpad
 bindsym $mod+z           move scratchpad
 bindsym $mod+Shift+z     scratchpad show
-#bindsym $mod+slash       [title="Visual Studio Code$"] scratchpad show
+#bindsym $mod+slash      [title="Visual Studio Code$"] scratchpad show
 
 # switch to workspace
 bindsym $mod+1           workspace number $ws1
@@ -272,8 +279,10 @@ bindsym $mod+9           workspace number $ws9
 bindsym $mod+0           workspace number $ws10
 
 # switch workspace previous/next
-bindsym $mod+Ctrl+Right  workspace next
+bindsym $mod+$left       workspace prev
+bindsym $mod+$right      workspace next
 bindsym $mod+Ctrl+Left   workspace prev
+bindsym $mod+Ctrl+Right  workspace next
 
 # move focused container to workspace (and disable sticky mode)
 bindsym $mod+Shift+1     sticky disable; move container to workspace $ws1
@@ -325,8 +334,8 @@ mode "$mode_resize" {
     bindsym Shift+Up     resize grow   height  10 px
     bindsym Shift+Down   resize shrink height  10 px
 
-    bindsym Return mode "default"
-    bindsym Escape mode "default"
+    bindsym Return       mode "default"
+    bindsym Escape       mode "default"
 }
 
 # mod-BackSpace: system mode
@@ -360,11 +369,11 @@ mode "$mode_system" {
                                  -b 'Shutdown' 'systemctl poweroff'
 
     ## p: switch audio profile off/on (same pactl commands work via PipeWire compat)
-    #bindsym p mode "default"; \
-    #    exec pactl set-card-profile 0 off; \
-    #    exec sh -c 'sleep 1; pactl set-card-profile 0 output:hdmi-stereo-extra1'
+    #bindsym p                mode "default"; \
+    #                             exec pactl set-card-profile 0 off; \
+    #                             exec sh -c 'sleep 1; pactl set-card-profile 0 output:hdmi-stereo-extra1'
     ## P: restart PipeWire/WirePlumber (replaces pkill pulseaudio)
-    #bindsym Shift+p mode "default"; exec systemctl --user restart wireplumber
+    #bindsym Shift+p          mode "default"; exec systemctl --user restart wireplumber
 
     bindsym Return           mode "default"
     bindsym Escape           mode "default"
@@ -394,7 +403,7 @@ bindsym $mod+Mod1+period     exec --no-startup-id playerctl next
 
 # SWAY: xbacklight → brightnessctl (works natively on Wayland)
 bindsym XF86MonBrightnessUp  exec brightnessctl set +20%
-bindsym XF86MonBrightnessDown  exec brightnessctl set 20%-
+bindsym XF86MonBrightnessDown exec brightnessctl set 20%-
 
 # home button: start browser
 bindsym XF86HomePage         exec firefox
@@ -469,7 +478,10 @@ for_window [class="(?i)steam|lutris|heroic|itch|epicgameslauncher|battle.net|ori
 # }}} - Workspace 5 - Gaming -------------------------------------------------
 
 # {{{ - Workspace 6 - Fullscreen Borderless ----------------------------------
-# full screen borderless (e.g. games)
+# full screen borderless (e.g. steam games)
+for_window [class="steam_app_.*"]                          move container to workspace $ws6, \
+                                                              fullscreen enable, border normal 0
+
 # }}} - Workspace 6 - Fullscreen Borderless ----------------------------------
 
 # {{{ - Workspace 7 - Misc ---------------------------------------------------
@@ -481,24 +493,10 @@ for_window [class="(?i)steam|lutris|heroic|itch|epicgameslauncher|battle.net|ori
 # {{{ - Workspace 9 - Misc ---------------------------------------------------
 # }}} - Workspace 9 - Misc ---------------------------------------------------
 
-# {{{ - Workspace 10 - System & Tray -----------------------------------------
-# JDownloader main window (Java app with no class/app_id)
-for_window [title="JDownloader"]      move container to workspace $ws10, $STICK_AND_FLOAT
-# PulseAudio volume control
-for_window [class="pavucontrol"]      move container to workspace $ws10, $STICK_AND_FLOAT
-for_window [app_id="pavucontrol"]     move container to workspace $ws10, $STICK_AND_FLOAT
-# Nextcloud client (tray)
-for_window [class="nextcloud"]        move container to workspace $ws10, $STICK_AND_FLOAT
-for_window [app_id="nextcloud"]       move container to workspace $ws10, $STICK_AND_FLOAT
-# NordVPN client UI (tray)
-for_window [class="nordvpn-gui"]      move container to workspace $ws10, $STICK_AND_FLOAT
-for_window [app_id="nordvpn-gui"]     move container to workspace $ws10, $STICK_AND_FLOAT
-# Blueman bluetooth manager (tray)
-for_window [class="blueman-manager"]  move container to workspace $ws10, $STICK_AND_FLOAT
-for_window [app_id="blueman-manager"] move container to workspace $ws10, $STICK_AND_FLOAT
-# }}} - Workspace 10 - System & Tray -----------------------------------------
+# {{{ - Workspace 10 - System ------------------------------------------------
+# }}} - Workspace 10 - System ------------------------------------------------
 
-# {{{ - Window Modes ---------------------------------------------------------
+# {{{ - Floating -------------------------------------------------------------
 # Float by custom window_role=i3float (XWayland apps only, for i3 backward compatibility)
 for_window [window_role="i3float"]                         $FLOAT
 
@@ -508,38 +506,63 @@ for_window [app_id="swayfloat"]                            $FLOAT
 # Web Browsers
 for_window [title="^(?i)Task Manager.*"]                   $FLOAT
 
-# Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
-for_window [class="^(?i)(mpv|vlc|spotify)$"]               $FLOAT
-for_window [app_id="^(?i)(mpv|spotify)$"]                  $FLOAT
-
-# Settings
-# gnome-control-center
-for_window [app_id="(?i)org.gnome.settings$"]              $FLOAT
-for_window [app_id="(?i)com.github.tchx84.Flatseal$"]      $FLOAT
-
 # Other apps
 for_window [class="^(?i)galculator$"]                      $FLOAT
 
 # Gaming
 for_window [class="^(?i)steam$"]                           $FLOAT
+# }}} - Floating -------------------------------------------------------------
 
-# Firefox Picture-in-Picture (PiP) window
-for_window [title="^(?i)Picture-in-Picture$"]              $STICK_AND_FLOAT
-
-# KeePassXC: floating + sticky so unlock/auth prompts are visible on any workspace.
-# Flatpak app_id is "org.keepassxc.KeePassXC" (starts with "org."), so use .*keepassxc.*
-# to match both native and flatpak. Sway anchors regex, so keepassxc.* alone won't match.
+# {{{ - Floating and Sticky --------------------------------------------------
+# KeePassXC (tray)
 for_window [app_id="(?i).*keepassxc.*"]                    $STICK_AND_FLOAT
 for_window [class="(?i)keepassxc.*"]                       $STICK_AND_FLOAT
 
+# Network manager windows
+for_window [app_id="nm-applet|nm-connection-editor"]       $STICK_AND_FLOAT
+
+# NordVPN client UI (tray)
+for_window [class="nordvpn-gui"]                           $STICK_AND_FLOAT
+for_window [app_id="nordvpn-gui"]                          $STICK_AND_FLOAT
+
+# Nextcloud client (tray)
+for_window [class="nextcloud"]                             $STICK_AND_FLOAT
+for_window [app_id="nextcloud"]                            $STICK_AND_FLOAT
+
+# PulseAudio volume control
+for_window [class="pavucontrol"]                           $STICK_AND_FLOAT
+for_window [app_id="pavucontrol"]                          $STICK_AND_FLOAT
+
+# Blueman bluetooth manager (tray)
+for_window [class="blueman-manager"]                       $STICK_AND_FLOAT
+for_window [app_id="blueman-manager"]                      $STICK_AND_FLOAT
+
+# JDownloader main window (Java app with no class/app_id)
+for_window [title="JDownloader"]                           $STICK_AND_FLOAT
+
+# Firefox pip video player window (e.g. YouTube)
+for_window [title="^(?i)Picture-in-Picture$"]              $STICK_AND_FLOAT
+
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
-# which would otherwise fight focus_follows_mouse and cause erratic behavior.
+#   which would otherwise fight focus_follows_mouse and cause erratic behavior.
 no_focus   [app_id="sway-winfo"]
 for_window [app_id="sway-winfo"]                           $STICK_AND_FLOAT resize set 560 340, move position 10 10
 
+# Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
+for_window [class="^(?i)(mpv|vlc|spotify)$"]               $FLOAT
+for_window [app_id="^(?i)(mpv|spotify)$"]                  $FLOAT
+
+# Various system settings and related windows
+# gnome-control-center
+for_window [app_id="(?i)org.gnome.settings$"]              $FLOAT
+for_window [app_id="(?i)com.github.tchx84.Flatseal$"]      $FLOAT
+# }}} - Floating and Sticky --------------------------------------------------
+
+# }}} - Others ---------------------------------------------------------------
 # Full screen
-for_window [class="streaming_client"]               fullscreen enable
+for_window [class="streaming_client"]                      fullscreen enable
+# }}} - Others x---------------------------------------------------------------
 # }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
 
