@@ -1,0 +1,36 @@
+#!/bin/sh
+# -*- mode: sh; sh-shell: sh; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=sh:et:ts=2:sts=2:sw=2
+# code: language=sh insertSpaces=true tabSize=2
+# shellcheck shell=sh
+#
+# Daemon: restore IPv6 whenever NordVPN disables it via sysctl.
+#
+# NordVPN 5.x sets net.ipv6.conf.*.disable_ipv6=1 both at daemon startup and
+# on every VPN connect. With no WAN IPv6 (link-local only), there is no actual
+# leak risk, but NM spams the journal with EPERM errors on every retry.
+#
+# Run as a systemd service (see nordvpn-ipv6-watcher.service). Polls every 5s;
+# only writes sysctl when it detects a change to 1 -- negligible overhead.
+#
+# Install:
+#   install -m 755 nordvpn-ipv6-watcher /usr/local/bin/nordvpn-ipv6-watcher
+#   install -m 644 nordvpn-ipv6-watcher.service \
+#     /etc/systemd/system/nordvpn-ipv6-watcher.service
+#   systemctl daemon-reload
+#   systemctl enable --now nordvpn-ipv6-watcher.service
+
+restore_ipv6() {
+  sysctl -w net.ipv6.conf.all.disable_ipv6=0 \
+            net.ipv6.conf.default.disable_ipv6=0 >/dev/null 2>&1
+  for f in /proc/sys/net/ipv6/conf/*/disable_ipv6; do
+    echo 0 > "${f}" 2>/dev/null
+  done
+}
+
+while true; do
+  sleep 5
+  if [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null)" = "1" ]; then
+    restore_ipv6
+  fi
+done
