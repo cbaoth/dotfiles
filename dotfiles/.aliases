@@ -22,8 +22,34 @@ alias ....='cd ../../..'
 alias cp='cp -i'
 alias mv='mv -i'
 
-# find
-findre() { find "$@" -regextype posix-extended; }
+# find with regex (POSIX extended) by default
+findre () {
+  local paths=()
+  local expressions=()
+  local in_paths=true
+
+  # Consume leading non-expression args as paths; once an expression token is seen
+  # (starts with '-', or is '!', '(', ')'), everything remaining is an expression.
+  # This matches find's grammar: paths always precede predicates, and predicate
+  # arguments (e.g. 'd' in '-type d') must not be misclassified as paths.
+  for arg in "$@"; do
+    if "${in_paths}" && [[ "$arg" != -* && "$arg" != "!" && "$arg" != "(" && "$arg" != ")" ]]; then
+      paths+=("$arg")
+    else
+      in_paths=false
+      expressions+=("$arg")
+    fi
+  done
+
+  # If no path was provided, find defaults to the current directory '.'
+  if (( ${#paths[@]} == 0 )); then
+    paths=(".")
+  fi
+
+  # Execute with -regextype safely injected exactly between paths and expressions since order matters.
+  # `-regextype posix-extended` must come before the expressions, else `findutils-default` is used
+  command find "${paths[@]}" -regextype posix-extended "${expressions[@]}"
+}
 
 # add --color option to all grep commands and add -i aliases
 # shellcheck disable=SC2139  # ${c} intentionally expands at definition time to build alias names/values
