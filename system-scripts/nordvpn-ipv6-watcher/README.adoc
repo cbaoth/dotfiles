@@ -1,0 +1,55 @@
+= nordvpn-ipv6-watcher
+:description: Restore IPv6 after NordVPN disables it system-wide
+
+Restores IPv6 on all network interfaces after NordVPN disables it via sysctl.
+
+== Background
+
+NordVPN 5.x unconditionally sets `net.ipv6.conf.*.disable_ipv6=1` at daemon
+startup *and* on every VPN connect, with no CLI option to override this. The
+stated reason is *IPv6 leak prevention*: if a VPN tunnel does not route IPv6
+traffic, that traffic can bypass the tunnel and expose the user's real IPv6
+address to remote hosts.
+
+NordVPN 5.0.0 removed the `nordvpn set ipv6` toggle that existed in earlier
+versions, and `settings.dat` has no IPv6 field at all.
+
+This behaviour is overzealous for systems without WAN IPv6: if the router has
+IPv6 disabled on the WAN side, only link-local addresses (`fe80::/64`) are
+assigned to LAN interfaces. Link-local addresses cannot route outside the LAN
+and pose no leak risk. The side effect is NetworkManager spamming the system
+journal with EPERM errors on every link-local address assignment attempt.
+
+== Files
+
+[cols="1,2"]
+|===
+| File | Description
+
+| `nordvpn-ipv6-watcher`
+| Shell daemon: polls every 5 seconds, restores `disable_ipv6=0` on all
+  network interfaces whenever NordVPN sets it to 1.
+
+| `nordvpn-ipv6-watcher.service`
+| systemd service unit that runs the watcher as a persistent background service.
+|===
+
+== Install
+
+[source,bash]
+----
+sudo install -m 755 nordvpn-ipv6-watcher /usr/local/bin/nordvpn-ipv6-watcher
+sudo install -m 644 nordvpn-ipv6-watcher.service \
+  /etc/systemd/system/nordvpn-ipv6-watcher.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now nordvpn-ipv6-watcher.service
+----
+
+== Notes
+
+* NordVPN creates a `qtun` WireGuard interface (NordWhisper technology) when connected.
+* At most ~5 seconds of NM log spam per event (daemon start or VPN connect/reconnect)
+  before the watcher restores IPv6.
+* Safe without WAN IPv6: only link-local (`fe80::/64`) gets assigned;
+  `/etc/gai.conf` IPv4 preference handles dual-stack DNS correctly.
+* Tested on Ubuntu 26.04, NordVPN 5.0.0, NetworkManager.
