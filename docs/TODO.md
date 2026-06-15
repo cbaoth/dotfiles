@@ -38,6 +38,13 @@ Ideas and future tasks for improving the shell scripts in this repository.
 - [ ] [M] Define consolidation targets; migrate callers to `lib/commons.sh` or a shared loader where sensible
 - [ ] [M] Establish a ShellCheck cleanup baseline and iteratively reduce warnings to near-zero for active scripts
 
+## Aliases & Functions Review
+
+- [ ] [S] When touching `.zsh.d/` files, opportunistically review nearby aliases/functions for conversion candidates:
+  - Multi-line aliases or aliases with complex quoting → convert to functions
+  - Trivial single-line functions with no arguments → consider converting to aliases (if simpler)
+  - Note: global (`-g`) and suffix (`-s`) aliases must remain aliases; no function equivalent exists
+
 # 2. Script & Library Improvements
 
 ## commons.sh
