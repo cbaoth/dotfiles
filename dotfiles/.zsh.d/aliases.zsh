@@ -14,10 +14,12 @@
 alias /='cd /'  # invalid alias name in bash; zsh only
 alias help='run-help'
 
+# Run a shell function as root in a new zsh instance (zsh-only: uses $functions[]).
+zsudo() { sudo zsh -c "$functions[$1]" "$@"; }
+
 # Reload shell-agnostic + zsh-specific functions
 reload-functions() {
   . $HOME/lib/functions.sh
-  . $HOME/.zsh.d/functions/functions.zsh
 }
 
 # Reload all alias layers: auto-rehash -> common -> zsh-specific -> os/host
@@ -91,5 +93,15 @@ alias -g @url_clean2="| sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
 alias -g @sum="| awk '{s+=\$1} END {print s}'"
 
 # }}} - GLOBAL ALIASES -------------------------------------------------------
+
+# {{{ - COMPLETIONS ----------------------------------------------------------
+# Completion for check_script (defined in ~/lib/functions.sh).
+_check_script() {
+  _alternative \
+    'scripts:shell script:_files -g "*.sh *.bash *.zsh *.ksh"' \
+    'plain:extensionless file:_files -g "*~*.*(.)"'
+}
+compdef _check_script check_script
+# }}} - COMPLETIONS ----------------------------------------------------------
 
 return 0

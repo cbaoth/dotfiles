@@ -511,7 +511,7 @@ alias dupes-find-rec='jdupes -Or -o time'
 
 alias dupes-find-unique='jdupes -O -u'
 alias dupes-find-unique-rec='jdupes -Or -u'
-# NOTE: also see dupes-byname-find and dupes-mv in functions.zsh (zsh only)
+# NOTE: also see dupes_find_byname and dupes_mv in lib/functions.sh
 
 alias mysqlr='mysql -u root -p'
 alias postgres-list="sudo -u postgres psql -c '\l'"
