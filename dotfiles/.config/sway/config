@@ -30,15 +30,18 @@ output * bg #000000 solid_color
 
 # {{{ - Input ----------------------------------------------------------------
 # Run: swaymsg -t get_inputs   (to list input identifiers)
+# https://man.archlinux.org/man/sway-input.5
 
 input "type:keyboard" {
-    # Custom XKB layout: us(colemak) + ISO key (<LSGT>) mapped to Hyper_L on Mod3.
+    # Two XKB layout groups for on-the-fly toggle via Scroll_Lock (kbd-layout-toggle):
+    #   Group 1 - custom(basic):  Colemak + ISO key as Hyper_L (Mod3)  ← default
+    #   Group 2 - custom(qwerty): plain US QWERTY + ISO key as Hyper_L
     # CapsLock → Backspace is built into us(colemak).
     # AltGr layer provides umlauts: AltGr+q=ä  AltGr+s=ß  AltGr+a=á  etc.
     # Symbols file: ~/.config/xkb/symbols/custom (dotfiles symlink)
     # libxkbcommon searches ~/.config/xkb/ before system paths automatically.
-    xkb_layout  custom
-    xkb_variant basic
+    xkb_layout  "custom,custom"
+    xkb_variant "basic,qwerty"
 
     # xkb_options lv3:ralt_switch  # uncomment if AltGr stops working
 
@@ -46,6 +49,11 @@ input "type:keyboard" {
     # CapsLock/Backspace repeats because repeat applies to all keys
     repeat_delay 300
     repeat_rate  30
+}
+
+input "type:pointer" {
+    accel_profile "adaptive"
+    pointer_accel 1
 }
 
 #input "type:touchpad" {
@@ -415,6 +423,11 @@ bindsym Print                exec --no-startup-id flameshot gui
 
 # mod-l: lock screen (mirrors Windows/GNOME Mod4+L)
 bindsym $mod+l               exec swaylock -f -c 000000
+
+# Scroll_Lock: toggle keyboard layout (Colemak ↔ QWERTY)
+# Sway intercepts this before passing input to any client, so it works inside
+# fullscreen games — useful for switching to Colemak when typing in game chat.
+bindsym Scroll_Lock          exec kbd-layout-toggle
 # }}} - Special Keys ---------------------------------------------------------
 
 # {{{ - Run Apps -------------------------------------------------------------
@@ -601,6 +614,9 @@ exec --no-startup-id swayosd-server
 
 # conky system monitor (native Wayland -- conky 1.22.2+ with BUILD_WAYLAND=ON)
 exec --no-startup-id ~/bin/conky-restart
+
+# xremap keyboard remapper (Wayland-native, supports per-app keymaps)
+#xremap --watch --device /dev/input/by-id/usb-Logitech_USB_Receiver-event-kbd ~/.config/xremap/config.yml
 
 # {{{ - Launch Apps after waybar ---------------------------------------------
 # KeePassXC (flatpak, auto-updates to latest stable).
