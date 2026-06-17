@@ -1,0 +1,25 @@
+keymap:
+  - name: "QWERTY passthrough"
+    application:
+      only: ["uxterm"]  # dummy app, change as needed
+    remap:
+      # Physical key → physical key that Colemak maps to the same QWERTY char
+      # All keys that differ between Colemak and QWERTY:
+      e: k   # phys-E  qwerty=e  colemak(K)=e
+      r: s   # phys-R  qwerty=r  colemak(S)=r
+      t: f   # phys-T  qwerty=t  colemak(F)=t
+      y: o   # phys-Y  qwerty=y  colemak(O)=y
+      u: i   # phys-U  qwerty=u  colemak(I)=u
+      i: l   # phys-I  qwerty=i  colemak(L)=i
+      o: semicolon  # phys-O  qwerty=o  colemak(;)=o
+      p: r   # phys-P  qwerty=p  colemak(R)=p
+      s: d   # phys-S  qwerty=s  colemak(D)=s
+      d: g   # phys-D  qwerty=d  colemak(G)=d
+      f: e   # phys-F  qwerty=f  colemak(E)=f
+      g: t   # phys-G  qwerty=g  colemak(T)=g
+      j: y   # phys-J  qwerty=j  colemak(Y)=j
+      k: n   # phys-K  qwerty=k  colemak(N)=k
+      l: u   # phys-L  qwerty=l  colemak(U)=l
+      semicolon: p  # phys-;  qwerty=;  colemak(P)=;
+      n: j   # phys-N  qwerty=n  colemak(J)=n
+      # Q, W, A, H, Z, X, C, V, B, M are unchanged in Colemak — no remap needed
