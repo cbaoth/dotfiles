@@ -1,12 +1,10 @@
 configuration {
-/*  modes: "window,drun,run,ssh";*/
-/*  font: "mono 12";*/
+  modes: "window,drun,run,ssh,combi";
   font: "FuraMono 10";
 /*  location: 0;*/
 /*  yoffset: 0;*/
 /*  xoffset: 0;*/
 /*  fixed-num-lines: true;*/
-/*  show-icons: false;*/
   show-icons: true;
 /*  terminal: "rofi-sensible-terminal";*/
 /*  ssh-client: "ssh";*/

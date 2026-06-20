@@ -51,9 +51,16 @@ input "type:keyboard" {
     repeat_rate  30
 }
 
+# For Logitech devices it is recommended to use solaar e.g. to set the DPI values above 1000 (fallback)
+# sudo apt-get install -y solaar
+# sudo udevadm control --reload-rules
+# sudo udevadm trigger
+# solaar
 input "type:pointer" {
+    # accel_profile "flat"
     accel_profile "adaptive"
-    pointer_accel 1
+    # Assumes mouse sensitivity setting of 2000 DPI e.g. in Solaar
+    pointer_accel 0.25
 }
 
 #input "type:touchpad" {
@@ -146,6 +153,8 @@ set $mod Mod4
 # https://wiki.archlinux.org/title/Sway#Change_modifier_to_CapsLock_and_keep_Super
 set $hyper Mod3
 
+set $altgr Mod5
+
 # default $mod+x chord mapping mod keys, e.g. via /etc/keyd/default.conf:
 # ----
 # [meta_chord]
@@ -184,6 +193,9 @@ set $FLOAT           floating enable, border normal 0
 # sticky floating windows get border normal 2 to distinguish them visually
 set $STICK_AND_FLOAT sticky enable,  floating enable, border normal 2
 set $UNSTICK         sticky disable, floating enable, border normal 0
+
+# mode timeout in seconds (used by sway-mode-timeout for all meta modes)
+set $mode_timeout_secs 5
 
 # workspace numbers and names
 set $ws1             "1:#1 Main"
@@ -250,14 +262,14 @@ bindsym $mod+Shift+v         split v
 bindsym $mod+Alt+z           fullscreen toggle
 
 # toggle sticky state; auto-floats the window, border 2 = sticky indicator
-bindsym $mod+Alt+s           exec --no-startup-id sway-wstate sticky
+bindsym $mod+Alt+s           exec sway-wstate sticky
 
 # mod-q/w/W: change container layout (toggle-split/tabbed/stacked)
 bindsym $mod+s l             layout toggle split
 bindsym $mod+Shift+s         layout stacking
 bindsym $mod+t               layout tabbed
 # mod-Alt-t: toggle floating (border 0 = floating, border 2 = tiling/sticky)
-bindsym $mod+Alt+t           exec --no-startup-id sway-wstate float
+bindsym $mod+Alt+t           exec sway-wstate float
 # mod-p: focus between tiling / floating windows
 bindsym $mod+p               focus mode_toggle
 # mod-P: switch border style
@@ -313,7 +325,7 @@ bindsym $mod+b bar       mode toggle
 # {{{ - Meta Modes -----------------------------------------------------------
 # mod-x: meta mode
 set $mode_meta           Meta: (c)lose window
-bindsym $mod+x           mode "$mode_meta"
+bindsym $mod+x           mode "$mode_meta"; exec sway-mode-timeout $mode_timeout_secs
 mode "$mode_meta" {
     bindsym c            kill, mode "default"
     bindsym Return       mode "default"
@@ -322,7 +334,7 @@ mode "$mode_meta" {
 
 # mod-g: resize window mode
 set $mode_resize Resize container: $left/$right/$down/$up or Left/Right/Down/Up arrow keys
-bindsym $mod+g mode "$mode_resize"
+bindsym $mod+g mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
 mode "$mode_resize" {
     bindsym $left        resize shrink width  100 px
     bindsym $right       resize grow   width  100 px
@@ -352,14 +364,14 @@ mode "$mode_resize" {
 #       restart  → reload  (sway has no in-place restart equivalent)
 set $mode_system Sway: [l]ock, relad [c]onfigure, [e]xit - System: [S]uspend, [H]ibernate, [R]eboot, [S]hutdown
 # PulseAudio: switch card [p]rofile, restart [P]ipeWire
-bindsym $mod+F12 mode "$mode_system"
+bindsym $mod+F12 mode "$mode_system"; exec sway-mode-timeout $mode_timeout_secs
 mode "$mode_system" {
     # l: lock screen
     bindsym l                exec swaylock -c 000000, mode "default"
     # c: reload the configuration file (sway has no restart, reload is equivalent)
     bindsym c                reload, mode "default"
     # e: exit sway
-    bindsym e                exec swaynag -t warning \
+    bindsym e                mode "default"; exec swaynag -t warning \
                                  -m 'Do you really want to exit Sway?' \
                                  -b 'Exit Sway' 'swaymsg exit'
 
@@ -368,11 +380,11 @@ mode "$mode_system" {
     # H: lock screen + hibernate
     bindsym Shift+h          mode "default"; exec swaylock -f -c 000000 && systemctl hibernate
     # R: reboot
-    bindsym Shift+b          exec swaynag -t warning \
+    bindsym Shift+b          mode "default"; exec swaynag -t warning \
                                  -m 'Do you really want to reboot the system?' \
                                  -b 'Reboot' 'systemctl reboot'
     # S: shut down
-    bindsym Shift+d          exec swaynag -t warning \
+    bindsym Shift+d          mode "default"; exec swaynag -t warning \
                                  -m 'Do you really want to shut down the system?' \
                                  -b 'Shutdown' 'systemctl poweroff'
 
@@ -386,28 +398,49 @@ mode "$mode_system" {
     bindsym Return           mode "default"
     bindsym Escape           mode "default"
 }
+
+# AltGr+Scroll_Lock: pointer mode
+set $mode_pointer Pointer: [p]rofile (adaptive↔flat)  accel [1]=1.0 [2]=0.9 [3]=0.8 [4]=0.7 [5]=0.6 [6]=0.5 [7]=0.4 [8]=0.3 [9]=0.2 [0]=0.0
+bindsym $altgr+Scroll_Lock mode "$mode_pointer"; exec sway-mode-timeout $mode_timeout_secs
+mode "$mode_pointer" {
+    # p: toggle between adaptive (desktop) and flat (gaming) profile
+    bindsym p      exec sway-mouse-accel toggle-profile, mode "default"
+    # 0-9: set pointer_accel value and exit mode
+    bindsym 0      exec sway-mouse-accel 0, mode "default"
+    bindsym 1      exec sway-mouse-accel 1, mode "default"
+    bindsym 2      exec sway-mouse-accel 2, mode "default"
+    bindsym 3      exec sway-mouse-accel 3, mode "default"
+    bindsym 4      exec sway-mouse-accel 4, mode "default"
+    bindsym 5      exec sway-mouse-accel 5, mode "default"
+    bindsym 6      exec sway-mouse-accel 6, mode "default"
+    bindsym 7      exec sway-mouse-accel 7, mode "default"
+    bindsym 8      exec sway-mouse-accel 8, mode "default"
+    bindsym 9      exec sway-mouse-accel 9, mode "default"
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
 # }}} - Meta Modes -----------------------------------------------------------
 
 # {{{ - Special Keys ---------------------------------------------------------
 # volume media keys (req.: swayosd - handles WirePlumber/PipeWire + Wayland OSD)
-bindsym XF86AudioRaiseVolume exec --no-startup-id swayosd-client --output-volume raise
-bindsym XF86AudioLowerVolume exec --no-startup-id swayosd-client --output-volume lower
-bindsym XF86AudioMute        exec --no-startup-id swayosd-client --output-volume mute-toggle
+bindsym XF86AudioRaiseVolume exec swayosd-client --output-volume raise
+bindsym XF86AudioLowerVolume exec swayosd-client --output-volume lower
+bindsym XF86AudioMute        exec swayosd-client --output-volume mute-toggle
 
 # mod-mod1-=/-/0: alt. volume keys
-bindsym $mod+Mod1+equal      exec --no-startup-id swayosd-client --output-volume raise
-bindsym $mod+Mod1+minus      exec --no-startup-id swayosd-client --output-volume lower
-bindsym $mod+Mod1+0          exec --no-startup-id swayosd-client --output-volume mute-toggle
+bindsym $mod+Mod1+equal      exec swayosd-client --output-volume raise
+bindsym $mod+Mod1+minus      exec swayosd-client --output-volume lower
+bindsym $mod+Mod1+0          exec swayosd-client --output-volume mute-toggle
 
 # media player keys (req.: playerctl)
-bindsym XF86AudioPlay        exec --no-startup-id playerctl play-pause
-bindsym XF86AudioPrev        exec --no-startup-id playerctl previous
-bindsym XF86AudioNext        exec --no-startup-id playerctl next
+bindsym XF86AudioPlay        exec playerctl play-pause
+bindsym XF86AudioPrev        exec playerctl previous
+bindsym XF86AudioNext        exec playerctl next
 
 # mod-mod1-Space/,/.: alt. media player keys
-bindsym $mod+Mod1+space      exec --no-startup-id playerctl play-pause
-bindsym $mod+Mod1+comma      exec --no-startup-id playerctl previous
-bindsym $mod+Mod1+period     exec --no-startup-id playerctl next
+bindsym $mod+Mod1+space      exec playerctl play-pause
+bindsym $mod+Mod1+comma      exec playerctl previous
+bindsym $mod+Mod1+period     exec playerctl next
 
 # SWAY: xbacklight → brightnessctl (works natively on Wayland)
 bindsym XF86MonBrightnessUp  exec brightnessctl set +20%
@@ -419,7 +452,7 @@ bindsym XF86HomePage         exec firefox
 # print button: screenshot
 # SWAY: flameshot works on Wayland; grimshot (sway-contrib) is a native alternative:
 #   exec grimshot copy area
-bindsym Print                exec --no-startup-id flameshot gui
+bindsym Print                exec flameshot gui
 
 # mod-l: lock screen (mirrors Windows/GNOME Mod4+L)
 bindsym $mod+l               exec swaylock -f -c 000000
@@ -493,8 +526,7 @@ for_window [class="(?i)steam|lutris|heroic|itch|epicgameslauncher|battle.net|ori
 # {{{ - Workspace 6 - Fullscreen Borderless ----------------------------------
 # full screen borderless (e.g. steam games)
 for_window [class="steam_app_.*"]                          move container to workspace $ws6, \
-                                                              fullscreen enable, border normal 0
-
+                                                               fullscreen enable, border normal 0
 # }}} - Workspace 6 - Fullscreen Borderless ----------------------------------
 
 # {{{ - Workspace 7 - Misc ---------------------------------------------------
@@ -523,7 +555,7 @@ for_window [title="^(?i)Task Manager.*"]                   $FLOAT
 for_window [class="^(?i)galculator$"]                      $FLOAT
 
 # Gaming
-for_window [class="^(?i)steam$"]                           $FLOAT
+for_window [class="^(?i)steam|PortProton$"]                           $FLOAT
 # }}} - Floating -------------------------------------------------------------
 
 # {{{ - Floating and Sticky --------------------------------------------------
@@ -570,6 +602,11 @@ for_window [app_id="^(?i)(mpv|spotify)$"]                  $FLOAT
 # gnome-control-center
 for_window [app_id="(?i)org.gnome.settings$"]              $FLOAT
 for_window [app_id="(?i)com.github.tchx84.Flatseal$"]      $FLOAT
+for_window [app_id="(?i)nvidia-settings|solaar$"]      $FLOAT
+
+# Various other apps
+for_window [class="(?i)calibre-gui|galculator|pavucontrol|blueman-manager|nm-applet|nm-connection-editor"] \
+    $STICK_AND_FLOAT
 # }}} - Floating and Sticky --------------------------------------------------
 
 # }}} - Others ---------------------------------------------------------------
@@ -583,7 +620,7 @@ for_window [class="streaming_client"]                      fullscreen enable
 # Propagate key env vars to systemd user session and D-Bus.
 # Required so xdg-desktop-portal, pipewire, and other socket-activated services
 # inherit WAYLAND_DISPLAY and XDG_CURRENT_DESKTOP (set in sway-nvidia).
-exec --no-startup-id dbus-update-activation-environment --systemd \
+exec dbus-update-activation-environment --systemd \
     WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DISPLAY
 
 # xdg-desktop-portal backend is configured via ~/.config/xdg-desktop-portal/portals.conf.
@@ -594,7 +631,7 @@ exec --no-startup-id dbus-update-activation-environment --systemd \
 # -w: wait for lock command to finish before sleeping (critical for before-sleep)
 # PAM auth (incl. U2F): sudo install -m 644 /dev/null /etc/pam.d/swaylock
 #   echo 'auth include common-auth' | sudo tee /etc/pam.d/swaylock
-exec --no-startup-id swayidle -w \
+exec swayidle -w \
     timeout 900  'swaylock -f -c 000000' \
     timeout 3600  'swaymsg "output * dpms off"' \
     resume       'swaymsg "output * dpms on"' \
@@ -605,15 +642,15 @@ exec --no-startup-id swayidle -w \
 # https://github.com/emersion/mako
 # Configurable: `man 5 mako` - https://github.com/emersion/mako/blob/master/doc/mako.5.scd
 # Control: `man makoctl` - https://github.com/emersion/mako/blob/master/doc/makoctl.1.scd
-exec --no-startup-id mako
+exec mako
 
 # OSD for volume and brightness (Wayland-native, PipeWire/WirePlumber integration)
 # Install: sudo apt install swayosd
 # https://github.com/ErikReider/SwayOSD
-exec --no-startup-id swayosd-server
+exec swayosd-server
 
 # conky system monitor (native Wayland -- conky 1.22.2+ with BUILD_WAYLAND=ON)
-exec --no-startup-id ~/bin/conky-restart
+exec ~/bin/conky-restart
 
 # xremap keyboard remapper (Wayland-native, supports per-app keymaps)
 #xremap --watch --device /dev/input/by-id/usb-Logitech_USB_Receiver-event-kbd ~/.config/xremap/config.yml
@@ -624,22 +661,22 @@ exec --no-startup-id ~/bin/conky-restart
 # outdated AppImage path and is skipped by systemd, so we launch it explicitly here.
 # Wait until waybar is running, then add 2s for the tray module to initialize,
 # before starting KeePassXC so it can register its tray icon.
-exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; flatpak run org.keepassxc.KeePassXC'
+exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; flatpak run org.keepassxc.KeePassXC'
 
 # Network Manager applet - tray icon for network/VPN status.
 # Also started via systemd XDG autostart (app-nm-applet@autostart.service);
 # nm-applet deduplicates itself via D-Bus so only one instance runs.
-exec --no-startup-id nm-applet --indicator
+exec nm-applet --indicator
 
 # NordVPN client UI
-exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nordvpn-gui'
+exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nordvpn-gui'
 
 # nextcloud client (1min delay so KeePassXC can unlock first)
-#exec --no-startup-id sh -c 'sleep 60; nextcloud'
-exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nextcloud'
+#exec sh -c 'sleep 60; nextcloud'
+exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nextcloud'
 
 # Blueman bluetooth applet - tray icon for bluetooth status/management.
-exec --no-startup-id sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; blueman-applet'
+exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; blueman-applet'
 
 # }}} - Launch Apps after waybar ---------------------------------------------
 # }}} = Launch Apps ==========================================================

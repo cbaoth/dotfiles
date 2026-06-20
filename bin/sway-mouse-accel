@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Set or toggle mouse acceleration profile and speed in a running Sway session.
+
+set -euo pipefail
+
+# Keys 1-9 map descending from 1.0; key 0 = neutral 0.0
+declare -rA ACCEL_MAP=(
+  [0]="0.0" [1]="1.0" [2]="0.9" [3]="0.8" [4]="0.7"
+  [5]="0.6" [6]="0.5" [7]="0.4" [8]="0.3" [9]="0.2"
+)
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") <command>
+
+Commands:
+  toggle-profile   Toggle between adaptive (desktop) and flat (gaming) profiles
+  0-9              Set pointer_accel: 1=1.0, 2=0.9, ..., 9=0.2, 0=0.0
+EOF
+}
+
+get_profile() {
+  swaymsg -t get_inputs \
+    | jq -r '[.[] | select(.type == "pointer") | .libinput.accel_profile] | first // "unknown"'
+}
+
+toggle_profile() {
+  local current new_profile label
+  current=$(get_profile)
+  if [[ "$current" == "adaptive" ]]; then
+    new_profile="flat"
+    label="flat (gaming)"
+  else
+    new_profile="adaptive"
+    label="adaptive (desktop)"
+  fi
+  swaymsg input "type:pointer" accel_profile "${new_profile}"
+  notify-send -t 2000 "Mouse" "Profile: ${label}"
+}
+
+set_accel() {
+  local -r key="$1"
+  local -r value="${ACCEL_MAP[${key}]}"
+  swaymsg input "type:pointer" pointer_accel "${value}"
+  notify-send -t 2000 "Mouse" "Accel: ${value}"
+}
+
+case "${1:-}" in
+  toggle-profile|toggle|p)
+    toggle_profile
+    ;;
+  [0-9])
+    set_accel "$1"
+    ;;
+  -h|--help)
+    usage
+    ;;
+  *)
+    p_err "unknown command: ${1:-<none>}"
+    usage >&2
+    exit 1
+    ;;
+esac
