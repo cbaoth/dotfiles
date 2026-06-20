@@ -325,7 +325,12 @@
       "WebFetch(domain:wiktionary.org)",
       "WebFetch(domain:openvpn.net)",
       "WebFetch(domain:tampermonkey.net)",
-      "Bash(mpv --no-audio --length=3 /home/cbaoth/Videos/motion/08-20260603160344.mkv)"
+      "Bash(mpv --no-audio --length=3 /home/cbaoth/Videos/motion/08-20260603160344.mkv)",
+      "Bash(dotfiles-link)"
+    ],
+    "deny": [
+      "Bash(sudo:*)",
+      "Bash(su:*)"
     ],
     "ask": [
       "Bash(cp -f*)",
@@ -384,10 +389,6 @@
       "Bash(zsh -c *)",
       "Bash(ssh:*)",
       "Bash(scp:*)"
-    ],
-    "deny": [
-      "Bash(sudo:*)",
-      "Bash(su:*)"
     ]
   },
   "effortLevel": "medium"
