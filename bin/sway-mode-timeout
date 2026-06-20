@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Auto-exit the current Sway mode after a delay. Only one timer runs at a time;
+# entering a new mode cancels the previous timer via a pidfile.
+
+declare -r PIDFILE="${XDG_RUNTIME_DIR:-/tmp}/sway-mode-timeout.pid"
+declare -ri TIMEOUT="${1:-5}"
+
+if [[ -f "$PIDFILE" ]]; then
+  kill "$(cat "$PIDFILE")" 2>/dev/null || true
+fi
+printf '%s\n' "$$" > "$PIDFILE"
+
+sleep "$TIMEOUT"
+rm -f "$PIDFILE"
+
+current=$(swaymsg -t get_binding_state | jq -r '.name')
+[[ "$current" != "default" ]] && swaymsg mode default
