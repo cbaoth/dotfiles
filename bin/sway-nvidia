@@ -16,6 +16,12 @@ LOG_FILE="$HOME/.xsession.log"
 # Overwrite instead of append to avoid huge log files (no need for log rotation)
 exec > >(tee "$LOG_FILE") 2>&1
 
+# Wayland-native defaults (https://github.com/swaywm/sway/wiki/Running-programs-natively-under-wayland)
+# Qt5/6: force Wayland backend (XDG_SESSION_TYPE=wayland is set by sway, but being explicit is cleaner)
+export QT_QPA_PLATFORM=wayland
+# Java: required for correct rendering under Xwayland (reparenting WM workaround)
+export _JAVA_AWT_WM_NONREPARENTING=1
+
 # Nvidia: software cursor (no hardware cursor support with proprietary drivers)
 export WLR_NO_HARDWARE_CURSORS=1
 
