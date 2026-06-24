@@ -493,8 +493,8 @@ bindsym $mod+Shift+Ctrl+F12  exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-con
 bindsym $mod+Escape          exec $termfloat -e htop
 
 # mod-F1 to F2: open ssh session in floating terminal
-bindsym $mod+F1              exec $termfloat -e ssh -A 11001001.org -p 8090
-bindsym $mod+F2              exec $termfloat -e ssh -A saito-lan
+bindsym $mod+F1              exec $termfloat -e ssh -X -A 11001001.org -p 8090
+bindsym $mod+F2              exec $termfloat -e ssh -X -A saito-lan
 # }}} - Run Apps -------------------------------------------------------------
 # }}} = Key Bindings =========================================================
 
