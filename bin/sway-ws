@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Sway workspace navigation with wrapping and container move support.
+#
+# By default reads workspace names from the sway config (set $ws<N> "..." lines),
+# sorted by number, and navigates through them in order. Falls back to numeric
+# range (--min / --max) if the config is not found or has no workspace definitions.
+#
+# Named workspace navigation avoids the "empty workspaces are skipped" problem
+# by using `workspace <name>` (creates with the correct name) instead of
+# `workspace prev/next` (skips workspaces that don't exist yet).
+
+# Sway config lookup: $SWAYCONFIG → $XDG_CONFIG_HOME/sway/config → default
+declare -r WS_CONFIG_DEFAULT="${SWAYCONFIG:-${XDG_CONFIG_HOME:-${HOME}/.config}/sway/config}"
+declare -ri WS_MIN_DEFAULT=1
+declare -ri WS_MAX_DEFAULT=10
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+get_current_ws_num() {
+  swaymsg -t get_workspaces | jq -r '.[] | select(.focused == true) | .num'
+}
+
+get_current_ws_name() {
+  swaymsg -t get_workspaces | jq -r '.[] | select(.focused == true) | .name'
+}
+
+# Read workspace names from sway config, sorted by variable number.
+# Matches lines: set $ws<N>  "name"
+# Outputs one name per line, in numeric order.
+read_ws_names() {
+  local -r config="${1:-$WS_CONFIG_DEFAULT}"
+  [[ -f "$config" ]] || return 1
+  local output
+  # shellcheck disable=SC2016  # $ws in single quotes is intentional (regex literal)
+  output=$(grep -E '^set \$ws[0-9]+[[:space:]]' "$config" \
+    | sed -n 's/^set \$ws\([0-9]*\)[[:space:]]*"\(.*\)".*/\1:\2/p' \
+    | sort -t: -k1,1n \
+    | cut -d: -f2-)
+  [[ -n "$output" ]] || return 1
+  printf '%s\n' "$output"
+}
+
+# Numeric mode: compute target workspace number
+_numeric_target() {
+  local -r direction="$1"
+  local -ri ws_min="$2"
+  local -ri ws_max="$3"
+  local -ri current="$4"
+  if [[ "$direction" == "next" ]]; then
+    echo $(( current >= ws_max ? ws_min : current + 1 ))
+  else
+    echo $(( current <= ws_min ? ws_max : current - 1 ))
+  fi
+}
+
+# Named mode: find current workspace in list, return target name
+_list_target() {
+  local -r direction="$1"; shift
+  local -a list=("$@")
+  local current_name
+  current_name=$(get_current_ws_name)
+
+  local -i current_idx=-1 i
+  for i in "${!list[@]}"; do
+    if [[ "${list[$i]}" == "$current_name" ]]; then
+      current_idx=$i
+      break
+    fi
+  done
+
+  local -ri count=${#list[@]}
+  local -i target_idx
+  if (( current_idx < 0 )); then
+    if [[ "$direction" == "next" ]]; then target_idx=0; else target_idx=$(( count - 1 )); fi
+  elif [[ "$direction" == "next" ]]; then
+    target_idx=$(( current_idx >= count - 1 ? 0 : current_idx + 1 ))
+  else
+    target_idx=$(( current_idx <= 0 ? count - 1 : current_idx - 1 ))
+  fi
+
+  echo "${list[$target_idx]}"
+}
+
+cmd_navigate() {
+  local -r direction="$1"
+  local -ri ws_min="$2"
+  local -ri ws_max="$3"
+  local -r ws_arg="$4"
+  local -r config="$5"
+
+  local -a ws_list
+  if [[ -n "$ws_arg" ]]; then
+    IFS=',' read -ra ws_list <<< "$ws_arg"
+  else
+    mapfile -t ws_list < <(read_ws_names "$config")
+  fi
+
+  if (( ${#ws_list[@]} > 0 )); then
+    local target
+    target=$(_list_target "$direction" "${ws_list[@]}")
+    swaymsg "workspace ${target}"
+  else
+    local -i current target
+    current=$(get_current_ws_num)
+    if [[ -z "$current" ]]; then
+      p_err "could not determine current workspace"
+      return 1
+    fi
+    target=$(_numeric_target "$direction" "$ws_min" "$ws_max" "$current")
+    swaymsg "workspace number ${target}"
+  fi
+}
+
+cmd_move() {
+  local -r direction="$1"
+  local -ri ws_min="$2"
+  local -ri ws_max="$3"
+  local -r follow="$4"
+  local -r ws_arg="$5"
+  local -r config="$6"
+
+  local -a ws_list
+  if [[ -n "$ws_arg" ]]; then
+    IFS=',' read -ra ws_list <<< "$ws_arg"
+  else
+    mapfile -t ws_list < <(read_ws_names "$config")
+  fi
+
+  if (( ${#ws_list[@]} > 0 )); then
+    local target
+    target=$(_list_target "$direction" "${ws_list[@]}")
+    swaymsg "move container to workspace ${target}"
+    if [[ "$follow" == "true" ]]; then
+      swaymsg "workspace ${target}"
+    fi
+  else
+    local -i current target
+    current=$(get_current_ws_num)
+    if [[ -z "$current" ]]; then
+      p_err "could not determine current workspace"
+      return 1
+    fi
+    target=$(_numeric_target "$direction" "$ws_min" "$ws_max" "$current")
+    swaymsg "move container to workspace number ${target}"
+    if [[ "$follow" == "true" ]]; then
+      swaymsg "workspace number ${target}"
+    fi
+  fi
+}
+
+p_usg() {
+  cat <<EOF
+Usage: $(basename "$0") [OPTIONS] <prev|next|move-prev|move-next>
+
+Commands:
+  prev        Navigate to the previous workspace (wrapping)
+  next        Navigate to the next workspace (wrapping)
+  move-prev   Move focused container to previous workspace and follow
+  move-next   Move focused container to next workspace and follow
+
+Options:
+  --config FILE      Sway config to read workspace names from
+                     (default: \$SWAYCONFIG or \$XDG_CONFIG_HOME/sway/config)
+  --workspaces LIST  Comma-separated ordered workspace names (no spaces allowed
+                     due to shell quoting; prefer auto-read from sway config)
+                     Mutually exclusive with --min / --max.
+  --min N            Minimum workspace number for numeric mode (default: ${WS_MIN_DEFAULT})
+  --max N            Maximum workspace number for numeric mode (default: ${WS_MAX_DEFAULT})
+  --no-follow        With move-prev/move-next: move container without navigating
+  -h, --help         Show this help message and exit
+
+Auto-detection:
+  Named mode is used automatically when 'set \$ws<N> "name"' lines are found in
+  the sway config. Numeric mode is used as fallback when config is not found.
+EOF
+}
+
+main() {
+  local -i ws_min=$WS_MIN_DEFAULT
+  local -i ws_max=$WS_MAX_DEFAULT
+  local ws_arg=""
+  local config="$WS_CONFIG_DEFAULT"
+  local follow=true
+  local cmd=""
+  local has_min_max=false
+
+  while (( $# > 0 )); do
+    case "$1" in
+      --config)
+        shift
+        config="$1"
+        ;;
+      --workspaces)
+        shift
+        ws_arg="$1"
+        ;;
+      --min)
+        shift
+        ws_min="$1"
+        has_min_max=true
+        ;;
+      --max)
+        shift
+        ws_max="$1"
+        has_min_max=true
+        ;;
+      --no-follow)
+        follow=false
+        ;;
+      prev|next|move-prev|move-next)
+        cmd="$1"
+        ;;
+      -h|--help)
+        p_usg
+        exit 0
+        ;;
+      *)
+        p_err "unknown argument: '${1}'"
+        p_usg >&2
+        exit 1
+        ;;
+    esac
+    shift
+  done
+
+  if [[ -n "$ws_arg" && "$has_min_max" == "true" ]]; then
+    p_err "--workspaces and --min/--max are mutually exclusive"
+    p_usg >&2
+    exit 1
+  fi
+
+  if [[ -z "$cmd" ]]; then
+    p_err "no command specified"
+    p_usg >&2
+    exit 1
+  fi
+
+  case "$cmd" in
+    prev)      cmd_navigate "prev" "$ws_min" "$ws_max" "$ws_arg" "$config" ;;
+    next)      cmd_navigate "next" "$ws_min" "$ws_max" "$ws_arg" "$config" ;;
+    move-prev) cmd_move "prev" "$ws_min" "$ws_max" "$follow" "$ws_arg" "$config" ;;
+    move-next) cmd_move "next" "$ws_min" "$ws_max" "$follow" "$ws_arg" "$config" ;;
+  esac
+}
+
+main "$@"

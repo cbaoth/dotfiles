@@ -166,7 +166,7 @@ set $altgr Mod5
 # x = timeout(oneshot(meta_chord), 1000, M-x)
 # ----
 # FIXE dosen't work this way
-#set $cmods          $mod+Ctrl+Mod1+Shift
+#set $cmods          $mod+Ctrl+Alt+Shift
 
 # Directional navigation keys
 set $left            q
@@ -213,42 +213,45 @@ set $ws10            "10:#10 System"
 # {{{ = Key Bindings =========================================================
 # {{{ - Window/Container Navigation ------------------------------------------
 # alt-F4: close/kill focused window
-bindsym Mod1+F4              kill
+bindsym Alt+F4              kill
 
 # SWAY: floating_modifier requires 'normal' or 'inverse' as second argument
 # Mouse+$mod: drag floating windows
 floating_modifier $mod       normal
 #tiling_drag off
 
-# mod-left/right/up/down: change focus
-bindsym $mod+mod1+$left      focus left
-bindsym $mod+mod1+$right     focus right
-bindsym $mod+mod1+$up        focus up
-bindsym $mod+mod1+$down      focus down
+# mod-Alt-left/right/up/down: change focus
+bindsym $mod+Alt+$left       focus left
+bindsym $mod+Alt+$right      focus right
+bindsym $mod+Alt+$up         focus up
+bindsym $mod+Alt+$down       focus down
 
-# mod-(Shift-)tab/grave: same as above (alt keys)
+bindsym $mod+Alt+Left        focus left
+bindsym $mod+Alt+Right       focus right
+bindsym $mod+Alt+Up          focus up
+bindsym $mod+Alt+Down        focus down
+
 bindsym $mod+Shift+Tab       focus left
 bindsym $mod+Tab             focus right
 bindsym $mod+Shift+grave     focus up
 bindsym $mod+grave           focus down
 
-# mod-left/right/up/down: same as above (alt. keys)
-bindsym $mod+Left            focus left
-bindsym $mod+Right           focus right
-bindsym $mod+Up              focus up
-bindsym $mod+Down            focus down
+# mod-Alt-Shift-left/right/up/down: move focused window
+bindsym $mod+Alt+Shift+$left     move left
+bindsym $mod+Alt+Shift+$right    move right
+bindsym $mod+Alt+Shift+$up       move up
+bindsym $mod+Alt+Shift+$down     move down
 
-# mod+Shift-left/right/up/down: move focused window
-bindsym $mod+Shift+$left     move left
-bindsym $mod+Shift+$right    move right
-bindsym $mod+Shift+$up       move up
-bindsym $mod+Shift+$down     move down
+bindsym $mod+Alt+Shift+Left      move left
+bindsym $mod+Alt+Shift+Right     move right
+bindsym $mod+Alt+Shift+Up        move up
+bindsym $mod+Alt+Shift+Down      move down
 
-# mod+Shift-left/right/up/down: move focused window (alt. keys)
-bindsym $mod+Shift+Left      move left
-bindsym $mod+Shift+Right     move right
-bindsym $mod+Shift+Up        move up
-bindsym $mod+Shift+Down      move down
+# mod-Shift-left/right: move focused window to prev/next workspace and follow
+bindsym $mod+Shift+$left     exec sway-ws move-prev
+bindsym $mod+Shift+$right    exec sway-ws move-next
+bindsym $mod+Shift+Left      exec sway-ws move-prev
+bindsym $mod+Shift+Right     exec sway-ws move-next
 
 # split in horizontal orientation
 bindsym $mod+h layout        splith
@@ -287,34 +290,35 @@ bindsym $mod+Shift+z     scratchpad show
 #bindsym $mod+slash      [title="Visual Studio Code$"] scratchpad show
 
 # switch to workspace
-bindsym $mod+1           workspace number $ws1
-bindsym $mod+2           workspace number $ws2
-bindsym $mod+3           workspace number $ws3
-bindsym $mod+4           workspace number $ws4
-bindsym $mod+5           workspace number $ws5
-bindsym $mod+6           workspace number $ws6
-bindsym $mod+7           workspace number $ws7
-bindsym $mod+8           workspace number $ws8
-bindsym $mod+9           workspace number $ws9
-bindsym $mod+0           workspace number $ws10
+bindsym $mod+1           workspace $ws1
+bindsym $mod+2           workspace $ws2
+bindsym $mod+3           workspace $ws3
+bindsym $mod+4           workspace $ws4
+bindsym $mod+5           workspace $ws5
+bindsym $mod+6           workspace $ws6
+bindsym $mod+7           workspace $ws7
+bindsym $mod+8           workspace $ws8
+bindsym $mod+9           workspace $ws9
+bindsym $mod+0           workspace $ws10
 
 # switch workspace previous/next
-bindsym $mod+$left       workspace prev
-bindsym $mod+$right      workspace next
-bindsym $mod+Ctrl+Left   workspace prev
-bindsym $mod+Ctrl+Right  workspace next
+bindsym $mod+$left       exec sway-ws prev
+bindsym $mod+$right      exec sway-ws next
 
-# move focused container to workspace (and disable sticky mode)
-bindsym $mod+Shift+1     sticky disable; move container to workspace $ws1
-bindsym $mod+Shift+2     sticky disable; move container to workspace $ws2
-bindsym $mod+Shift+3     sticky disable; move container to workspace $ws3
-bindsym $mod+Shift+4     sticky disable; move container to workspace $ws4
-bindsym $mod+Shift+5     sticky disable; move container to workspace $ws5
-bindsym $mod+Shift+6     sticky disable; move container to workspace $ws6
-bindsym $mod+Shift+7     sticky disable; move container to workspace $ws7
-bindsym $mod+Shift+8     sticky disable; move container to workspace $ws8
-bindsym $mod+Shift+9     sticky disable; move container to workspace $ws9
-bindsym $mod+Shift+0     sticky disable; move container to workspace $ws10
+bindsym $mod+Left        exec sway-ws prev
+bindsym $mod+Right       exec sway-ws next
+
+# move focused container to workspace and follow (disables sticky mode)
+bindsym $mod+Shift+1     sticky disable; move workspace $ws1; workspace $ws1
+bindsym $mod+Shift+2     sticky disable; move workspace $ws2; workspace $ws2
+bindsym $mod+Shift+3     sticky disable; move workspace $ws3; workspace $ws3
+bindsym $mod+Shift+4     sticky disable; move workspace $ws4; workspace $ws4
+bindsym $mod+Shift+5     sticky disable; move workspace $ws5; workspace $ws5
+bindsym $mod+Shift+6     sticky disable; move workspace $ws6; workspace $ws6
+bindsym $mod+Shift+7     sticky disable; move workspace $ws7; workspace $ws7
+bindsym $mod+Shift+8     sticky disable; move workspace $ws8; workspace $ws8
+bindsym $mod+Shift+9     sticky disable; move workspace $ws9; workspace $ws9
+bindsym $mod+Shift+0     sticky disable; move workspace $ws10; workspace $ws10
 
 # mod-b: toggle bar mode (dock↔hide)
 bindsym $mod+b bar       mode toggle
@@ -427,20 +431,20 @@ bindsym XF86AudioRaiseVolume exec swayosd-client --output-volume raise
 bindsym XF86AudioLowerVolume exec swayosd-client --output-volume lower
 bindsym XF86AudioMute        exec swayosd-client --output-volume mute-toggle
 
-# mod-mod1-=/-/0: alt. volume keys
-bindsym $mod+Mod1+equal      exec swayosd-client --output-volume raise
-bindsym $mod+Mod1+minus      exec swayosd-client --output-volume lower
-bindsym $mod+Mod1+0          exec swayosd-client --output-volume mute-toggle
+# mod-Alt-=/-/0: alt. volume keys
+bindsym $mod+Alt+equal       exec swayosd-client --output-volume raise
+bindsym $mod+Alt+minus       exec swayosd-client --output-volume lower
+bindsym $mod+Alt+0           exec swayosd-client --output-volume mute-toggle
 
 # media player keys (req.: playerctl)
 bindsym XF86AudioPlay        exec playerctl play-pause
 bindsym XF86AudioPrev        exec playerctl previous
 bindsym XF86AudioNext        exec playerctl next
 
-# mod-mod1-Space/,/.: alt. media player keys
-bindsym $mod+Mod1+space      exec playerctl play-pause
-bindsym $mod+Mod1+comma      exec playerctl previous
-bindsym $mod+Mod1+period     exec playerctl next
+# mod-Alt-Space/,/.: alt. media player keys
+bindsym $mod+Alt+space       exec playerctl play-pause
+bindsym $mod+Alt+comma       exec playerctl previous
+bindsym $mod+Alt+period      exec playerctl next
 
 # SWAY: xbacklight → brightnessctl (works natively on Wayland)
 bindsym XF86MonBrightnessUp  exec brightnessctl set +20%
@@ -466,7 +470,7 @@ bindsym Scroll_Lock          exec kbd-layout-toggle
 # {{{ - Run Apps -------------------------------------------------------------
 # mod-return: run terminal (+shift for floating)
 bindsym $mod+Return          exec $term
-bindsym $mod+mod1+Return     exec $termfloat
+bindsym $mod+Alt+Return     exec $termfloat
 
 # mod-F8: toggle window info monitor (sway-winfo, hover to inspect any window)
 # mod-Shift-F8: toggle focused window in/out of the auto-managed blocklist zone
@@ -519,8 +523,8 @@ for_window [class="(?i)(.*\.)?gimp?|XnView(MP)?"]          move container to wor
 # }}} - Workspace 4 - Create -------------------------------------------------
 
 # {{{ - Workspace 5 - Gaming -------------------------------------------------
-for_window [class="(?i)steam|lutris|heroic|itch|epicgameslauncher|battle.net|origin|uplay|gog"] \
-    move container to workspace $ws5
+# for_window [app_id="(?i).*(lutris|hgl).*|ProtonPlus"]      move container to workspace $ws5
+# for_window [class="^(?i)steam|PortProton$"]                move container to workspace $ws5
 # }}} - Workspace 5 - Gaming -------------------------------------------------
 
 # {{{ - Workspace 6 - Fullscreen Borderless ----------------------------------
@@ -555,7 +559,8 @@ for_window [title="^(?i)Task Manager.*"]                   $FLOAT
 for_window [class="^(?i)galculator$"]                      $FLOAT
 
 # Gaming
-for_window [class="^(?i)steam|PortProton$"]                           $FLOAT
+for_window [app_id="(?i).*(lutris|hgl).*|ProtonPlus"]      $FLOAT
+for_window [class="^(?i)steam|PortProton$"]                $FLOAT
 # }}} - Floating -------------------------------------------------------------
 
 # {{{ - Floating and Sticky --------------------------------------------------
@@ -617,6 +622,16 @@ for_window [class="streaming_client"]                      fullscreen enable
 # }}} = Window Rules =========================================================
 
 # {{{ = Launch Apps ==========================================================
+# Pre-initialize workspaces 1-10 on startup so they always exist (optional).
+# sway-ws works without this — it creates workspaces on first visit.
+# Useful only if you want empty workspaces visible in the bar from the start.
+# Forces focus to workspace 1 after startup; uncomment at most one form.
+#
+# Named form — creates workspaces with correct full names (use with --workspaces):
+#exec sh -c 'for ws in "10:#10 System" "9:#9 Misc" "8:#8 Misc" "7:#7 Misc" "6:#6 Fullscreen" "5:#5 Gaming" "4:#4 Create" "3:#3 Devel" "2:#2 Web" "1:#1 Main"; do swaymsg workspace "$ws"; sleep 0.05; done'
+# Numeric form — creates workspaces 1..10 without names (use without --workspaces):
+#exec sh -c 'for n in 10 9 8 7 6 5 4 3 2 1; do swaymsg "workspace number $n"; done'
+
 # Propagate key env vars to systemd user session and D-Bus.
 # Required so xdg-desktop-portal, pipewire, and other socket-activated services
 # inherit WAYLAND_DISPLAY and XDG_CURRENT_DESKTOP (set in sway-nvidia).
@@ -677,6 +692,9 @@ exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nextcl
 
 # Blueman bluetooth applet - tray icon for bluetooth status/management.
 exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; blueman-applet'
+
+# Solaar - tray icon for Logitech devices (mice, keyboards, etc.)
+exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; solaar -w hide'
 
 # }}} - Launch Apps after waybar ---------------------------------------------
 # }}} = Launch Apps ==========================================================
