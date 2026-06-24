@@ -341,9 +341,13 @@ process_files() {
 
     dir="$(dirname "${file}")"
     base="$(basename "${file}")"
-    name_noext="${base%%.*}"
-    cur_ext="${base#"${name_noext}"}"
-    cur_ext="${cur_ext#.}"
+    if [[ "${base}" == *.* ]]; then
+      name_noext="${base%.*}"
+      cur_ext="${base##*.}"
+    else
+      name_noext="${base}"
+      cur_ext=""
+    fi
 
     if [[ "${cur_ext,,}" == "${new_ext}" ]] && ! "${add_hash}"; then
       "${verbose}" && printf '%bOK:%b      %q (already .%s)\n' "${C_CYAN}" "${C_NC}" "${file}" "${new_ext}"
@@ -385,13 +389,13 @@ process_files() {
     new_name="$(basename "${new_path}")"
 
     if "${dry_run}"; then
-      printf '%bWould rename:%b %q -> %q\n' "${C_CYAN}" "${C_NC}" "${file}" "${new_name}"
+      printf '%bWould rename:%b %q -> %q\n' "${C_CYAN}" "${C_NC}" "${file}" "${new_path}"
       (( renamed++ )) || true
       continue
     fi
 
     if "${interactive}"; then
-      printf "Rename %q -> %q? [y/N]: " "${file}" "${new_name}"
+      printf "Rename %q -> %q? [y/N]: " "${file}" "${new_path}"
       read -r -n1 confirm
       printf '\n'
       if [[ ! "${confirm}" =~ ^[yY]$ ]]; then
@@ -402,7 +406,7 @@ process_files() {
     fi
 
     mv -- "${file}" "${new_path}"
-    printf '%bRenamed:%b %q -> %q\n' "${C_GREEN}" "${C_NC}" "${file}" "${new_name}"
+    printf '%bRenamed:%b %q -> %q\n' "${C_GREEN}" "${C_NC}" "${file}" "${new_path}"
     (( renamed++ )) || true
   done
 
