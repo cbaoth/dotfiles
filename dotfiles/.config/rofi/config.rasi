@@ -25,6 +25,7 @@ configuration {
 /*  sort: false;*/
 /*  sorting-method: "normal";*/
 /*  case-sensitive: false;*/
+/*  case-smart: false;*/
 /*  cycle: true;*/
 /*  -mode: false;*/
 /*  hover-select: false;*/
@@ -33,7 +34,8 @@ configuration {
 /*  parse-hosts: false;*/
 /*  parse-known-hosts: true;*/
 /*  combi-modes: "window,run";*/
-/*  matching: "normal";*/
+/*  matching: "normal";*/ /* options: normal, regex, glob, fuzzy, prefix */
+    matching: "fuzzy";
 /*  tokenize: true;*/
 /*  m: "-5";*/
 /*  filter: ;*/
