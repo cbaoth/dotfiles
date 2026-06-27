@@ -326,7 +326,9 @@
       "WebFetch(domain:openvpn.net)",
       "WebFetch(domain:tampermonkey.net)",
       "Bash(mpv --no-audio --length=3 /home/cbaoth/Videos/motion/08-20260603160344.mkv)",
-      "Bash(dotfiles-link)"
+      "Bash(dotfiles-link)",
+      "Bash(npx prettier *)",
+      "Bash(npx eslint *)"
     ],
     "deny": [
       "Bash(sudo:*)",
@@ -391,5 +393,7 @@
       "Bash(scp:*)"
     ]
   },
-  "effortLevel": "medium"
+  "model": "opus",
+  "effortLevel": "high",
+  "tui": "fullscreen"
 }
