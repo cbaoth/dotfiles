@@ -96,13 +96,108 @@ focus_wrapping no
 popup_during_fullscreen leave_fullscreen
 #workspace_auto_back_and_forth yes
 
+# {{{ - Color Theme - Default ------------------------------------------------
+# class                  <border>   <background> <text>   [<indicator> [<child_border>]]
+# client.focused           #4c7899  #285577    #ffffff #2e9ef4   #285577
+# client.focused_inactive  #333333  #5f676a    #ffffff #484e50   #5f676a
+# client.unfocused         #333333  #222222    #888888 #292d2e   #222222
+# client.urgent            #2f343a  #900000    #ffffff #900000   #900000
+# note: .background and .placeholder are ignored (present for i3 compatibility only)
+#       .focused_tab_title doesn't seem to be used (used the first three colors of .focused_inactive)
+# }}} - Color Theme - Default ------------------------------------------------
+
+# {{{ - Color Theme - Custom -------------------------------------------------
+# Source: https://github.com/rkubosz/base16-sway/blob/master/themes/
+# TODO - check out some themes, e.g.
+# theme() { echo "$(cat "$1" | grep -vE '^$|^#')
+# client.focused            \$base05 \$base0D \$base00 \$base0D \$base0D
+# client.focused_inactive   \$base01 \$base01 \$base05 \$base03 \$base01
+# client.unfocused          \$base01 \$base00 \$base05 \$base01 \$base01
+# client.urgent             \$base08 \$base08 \$base00 \$base08 \$base08
+# " | while read l; do swaymsg "$l"; done }
+# for f in ~/git/base16-sway/themes/*.config; do
+#   echo "Loading sway color theme: $f"
+#   theme "$f"
+#   printf "Ok (y)? "
+#   read -k k
+#   if [[ $k == 'y' ]]; then
+#     echo "$f" >> /tmp/themes-ok.list
+#     echo -e "\n... added to /tmp/themes-ok.list"
+#   else
+#     echo "$f" >> /tmp/themes-nok.list
+#     echo -e "\n... added to /tmp/themes-nok.list"
+#   fi
+# done
+
+# base16-pasque
+set $base00 #271C3A
+set $base01 #100323
+set $base02 #3E2D5C
+set $base03 #5D5766
+set $base04 #BEBCBF
+set $base05 #DEDCDF
+set $base06 #EDEAEF
+set $base07 #BBAADD
+set $base08 #A92258
+set $base09 #918889
+set $base0A #804ead
+set $base0B #C6914B
+set $base0C #7263AA
+set $base0D #8E7DC6
+set $base0E #953B9D
+set $base0F #59325C
+
+# some themes have hard to read focused window text, so let's swap them
+# default
+# set $textp $base05
+# set $texts $base00
+# all texts use theme's primary text color
+set $textp $base05
+set $texts $base05
+# all text use theme's secondary text color
+# set $textp $base00
+# set $texts $base00
+
+# base16-vice
+# base16-dracula
+# base16-github
+# base16-unikitty-light
+# base16-equilibrium-light base16-google-light base16-humanoid-light base16-one-light base16-summerfruit-light
+# base16-rebecca
+# base16-outrun-dark
+# base16-icy.config
+# base16-greenscreen
+
+# Source: https://github.com/rkubosz/base16-sway/blob/master/config
+#                         Border  BG      Text    Ind     Child Border
+client.focused            $base05 $base0D $textp $base0D $base0D
+client.focused_inactive   $base01 $base01 $texts $base03 $base01
+client.unfocused          $base01 $base00 $texts $base01 $base01
+client.urgent             $base08 $base08 $textp $base08 $base08
+# }}} - Color Theme - Custom -------------------------------------------------
+
 # {{{ - Status Bar -----------------------------------------------------------
+
 # waybar is the recommended bar for Sway - Wayland-native, supports tray icons
 # (KeePassXC, NordVPN, nm-applet, etc.), configurable via ~/.config/waybar/
 # Install: sudo apt install waybar
-# Config:  see docs at https://github.com/Alexays/Waybar
+# Config:  see https://github.com/Alexays/Waybar/wiki/Configuration
 bar {
     swaybar_command waybar
+
+    # Source: https://github.com/rkubosz/base16-sway/blob/master/config
+    colors {
+        background $base00
+        separator  $base01
+        statusline $base04
+
+        #                   Border  BG      Text
+        focused_workspace   $base05 $base0D $base00
+        active_workspace    $base05 $base03 $base00
+        inactive_workspace  $base03 $base01 $base05
+        urgent_workspace    $base08 $base08 $base00
+        binding_mode        $base00 $base0A $base00
+    }
 }
 
 # Fallback: built-in swaybar with i3status (install: sudo apt install i3status)
@@ -116,31 +211,20 @@ bar {
 # }
 # }}} - Status Bar -----------------------------------------------------------
 
-# {{{ - Color Theme - Default ------------------------------------------------
-# class                  <border>   <background> <text>   [<indicator> [<child_border>]]
-# client.focused           #4c7899  #285577    #ffffff #2e9ef4   #285577
-# client.focused_inactive  #333333  #5f676a    #ffffff #484e50   #5f676a
-# client.focused_tab_title #333333  #5f676a    #ffffff
-# client.unfocused         #333333  #222222    #888888 #292d2e   #222222
-# client.urgent            #2f343a  #900000    #ffffff #900000   #900000
-# note: .background and .placeholder are ignored (present for i3 compatibility only)
-# }}} - Color Theme - Default ------------------------------------------------
-
-# {{{ - Color Theme - Custom -------------------------------------------------
-# class                  <border>   <background> <text>   [<indicator> [<child_border>]]
-client.focused           #4c7899  #285577    #ffffff #2e9ef4   #285577
-client.focused_inactive  #333333  #5f676a    #ffffff #484e50   #5f676a
-client.focused_tab_title #333333  #5f676a    #ffffff
-client.unfocused         #333333  #222222    #888888 #292d2e   #222222
-client.urgent            #2f343a  #900000    #ffffff #900000   #900000
-# }}} - Color Theme - Custom -------------------------------------------------
 # }}} = Styles ===============================================================
 
 # {{{ = Variables ============================================================
-# default mod key (Super_L/Super_R keys, usually the Windows key)
+# Main mod key (Super_L/Super_R keys, usually the Windows key)
 set $mod Mod4
 
-# alternative mod key (Hyper_L, ISO key between Left Shift and Z on ISO keyboards)
+# Alt keys (Alt_L/Alt_R) are Mod1, just use "Alt" in bindssym.
+# set $alt   Mod1
+
+# AltGr (ISO_Level3_Shift) is Mod5
+set $altgr Mod5
+
+# Hyper mod key (Hyper_L, ISO key between Left Shift and Z on ISO keyboards)
+set $hyper Mod3
 # Requires ~/.config/xkb/symbols/custom to map <LSGT> to Hyper_L on Mod3, e.g.:
 # ----
 # xkb_symbols "basic" {
@@ -151,9 +235,6 @@ set $mod Mod4
 # }
 # ----
 # https://wiki.archlinux.org/title/Sway#Change_modifier_to_CapsLock_and_keep_Super
-set $hyper Mod3
-
-set $altgr Mod5
 
 # default $mod+x chord mapping mod keys, e.g. via /etc/keyd/default.conf:
 # ----
@@ -191,7 +272,7 @@ set $FLOAT           floating enable, border normal 0
 
 # commands to enable/disable sticky with border indicator
 # sticky floating windows get border normal 2 to distinguish them visually
-set $STICK_AND_FLOAT sticky enable,  floating enable, border normal 2
+set $STICK_AND_FLOAT sticky enable,  floating enable, border normal 2 #
 set $UNSTICK         sticky disable, floating enable, border normal 0
 
 # mode timeout in seconds (used by sway-mode-timeout for all meta modes)
@@ -588,7 +669,8 @@ for_window [class="blueman-manager"]                       $STICK_AND_FLOAT
 for_window [app_id="blueman-manager"]                      $STICK_AND_FLOAT
 
 # JDownloader main window (Java app with no class/app_id)
-for_window [title="JDownloader"]                           $STICK_AND_FLOAT
+for_window [class="java-lang-Thread"][title="JDownloader|INFODIALOG"] \
+                                                           $STICK_AND_FLOAT
 
 # Firefox pip video player window (e.g. YouTube)
 for_window [title="^(?i)Picture-in-Picture$"]              $STICK_AND_FLOAT
@@ -601,13 +683,13 @@ for_window [app_id="sway-winfo"]                           $STICK_AND_FLOAT resi
 
 # Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
 for_window [class="^(?i)(mpv|vlc|spotify)$"]               $FLOAT
-for_window [app_id="^(?i)(mpv|spotify)$"]                  $FLOAT
+for_window [app_id="^mpv|spotify"]                         $FLOAT
 
 # Various system settings and related windows
-# gnome-control-center
-for_window [app_id="(?i)org.gnome.settings$"]              $FLOAT
+for_window [app_id="org.gnome.settings$"]                  $FLOAT
 for_window [app_id="(?i)com.github.tchx84.Flatseal$"]      $FLOAT
-for_window [app_id="(?i)nvidia-settings|solaar$"]      $FLOAT
+for_window [app_id="nvidia-settings|solaar$"]              $FLOAT
+for_window [app_id="ulauncher"]                            $FLOAT
 
 # Various other apps
 for_window [class="(?i)calibre-gui|galculator|pavucontrol|blueman-manager|nm-applet|nm-connection-editor"] \
