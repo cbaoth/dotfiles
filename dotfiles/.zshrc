@@ -150,7 +150,7 @@ setopt HIST_IGNORE_SPACE # don't record lines stating with a space (privacy)
 #setopt HIST_REDUCE_BLANKS # remove unnecessary spaces
 #setopt HIST_VERIFY # don't execute immediately after history expansion
 #setopt HIST_NO_STORE # don't store history / fc commands
-setopt HIST_NO_FUNCTIONS # don't store function definitions
+#setopt HIST_NO_FUNCTIONS # don't store function definitions
 # }}} - SECURITY & PRIVACY RELATED -------------------------------------------
 
 # {{{ -- SYSTEM/ENV STATE ----------------------------------------------------
@@ -426,6 +426,11 @@ promptinit
 prompt fade 0
 
 export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump"
+
+# register custom completions before compinit
+fpath=("$HOME/.zsh.d/completions" "${fpath[@]}")
+[[ -d "$HOME/git/cb-voice-toolkit" ]] && fpath=("$HOME/git/cb-voice-toolkit/completions" "${fpath[@]}")
+
 # enable new style completion system
 autoload -Uz compinit && compinit
 # check cache only once per day (can be slow when done more frequently)
@@ -940,7 +945,8 @@ fi
 # }}} = ZSH KEYBINDINGS ======================================================
 
 # {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
-fpath=($HOME/.zsh.d/functions $HOME/.zfunc $fpath)
+fpath=("$HOME/.zsh.d/functions" "${fpath[@]}")
+
 # shell-agnostic os/host alias files (bash + zsh)
 source_ifex_custom $HOME/lib/aliases
 # zsh-specific os/host alias and rc files
