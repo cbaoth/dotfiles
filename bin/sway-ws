@@ -153,15 +153,72 @@ cmd_move() {
   fi
 }
 
+# List the workspaces exactly as the script resolves them, for verification /
+# debugging (e.g. to confirm the sway config is parsed as expected). Works
+# without a running sway; the current-workspace marker is simply omitted when
+# swaymsg is unavailable.
+cmd_list() {
+  local -ri ws_min="$1"
+  local -ri ws_max="$2"
+  local -r ws_arg="$3"
+  local -r config="$4"
+
+  local current_name current_num
+  current_name=$(get_current_ws_name 2>/dev/null) || true
+  current_num=$(get_current_ws_num 2>/dev/null) || true
+
+  local -a ws_list
+  local source=""
+  if [[ -n "$ws_arg" ]]; then
+    IFS=',' read -ra ws_list <<< "$ws_arg"
+    source="--workspaces argument"
+  else
+    mapfile -t ws_list < <(read_ws_names "$config")
+    (( ${#ws_list[@]} > 0 )) && source="$config"
+  fi
+
+  local -i i n
+  local marker
+  if (( ${#ws_list[@]} > 0 )); then
+    printf 'Mode:   named\n'
+    printf 'Source: %s\n' "$source"
+    printf 'Workspaces (navigation order):\n'
+    for i in "${!ws_list[@]}"; do
+      marker="  "
+      [[ -n "$current_name" && "${ws_list[$i]}" == "$current_name" ]] && marker="* "
+      printf '  %s%2d. %s\n' "$marker" "$(( i + 1 ))" "${ws_list[$i]}"
+    done
+  else
+    printf 'Mode:   numeric (fallback)\n'
+    if [[ -f "$config" ]]; then
+      # shellcheck disable=SC2016  # literal $ws<N> in message, not an expansion
+      printf 'Source: %s (no '\''set $ws<N>'\'' definitions found)\n' "$config"
+    else
+      printf 'Source: config not found: %s\n' "$config"
+    fi
+    printf 'Workspaces (navigation order):\n'
+    for (( n = ws_min; n <= ws_max; n++ )); do
+      marker="  "
+      [[ -n "$current_num" && "$n" == "$current_num" ]] && marker="* "
+      printf '  %s%2d.\n' "$marker" "$n"
+    done
+  fi
+
+  [[ -n "$current_name" ]] && printf 'Current: %s\n' "$current_name"
+  return 0
+}
+
 p_usg() {
   cat <<EOF
-Usage: $(basename "$0") [OPTIONS] <prev|next|move-prev|move-next>
+Usage: $(basename "$0") [OPTIONS] <prev|next|move-prev|move-next|list>
 
 Commands:
   prev        Navigate to the previous workspace (wrapping)
   next        Navigate to the next workspace (wrapping)
   move-prev   Move focused container to previous workspace and follow
   move-next   Move focused container to next workspace and follow
+  list        Print the workspaces as parsed, marking the current one, to
+              verify the sway config is loaded as expected
 
 Options:
   --config FILE      Sway config to read workspace names from
@@ -212,7 +269,7 @@ main() {
       --no-follow)
         follow=false
         ;;
-      prev|next|move-prev|move-next)
+      prev|next|move-prev|move-next|list)
         cmd="$1"
         ;;
       -h|--help)
@@ -245,6 +302,7 @@ main() {
     next)      cmd_navigate "next" "$ws_min" "$ws_max" "$ws_arg" "$config" ;;
     move-prev) cmd_move "prev" "$ws_min" "$ws_max" "$follow" "$ws_arg" "$config" ;;
     move-next) cmd_move "next" "$ws_min" "$ws_max" "$follow" "$ws_arg" "$config" ;;
+    list)      cmd_list "$ws_min" "$ws_max" "$ws_arg" "$config" ;;
   esac
 }
 
