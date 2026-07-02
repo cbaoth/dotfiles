@@ -229,9 +229,9 @@ set $hyper Mod3
 # ----
 # xkb_symbols "basic" {
 #   include "us(colemak)"
-#   name[Group1] = "English (Colemak + ISO mod)";
+#   name[Group1] = "Colemak (US)";
 #   key <LSGT> { [ Hyper_L, Hyper_L ] };
-#   modifier_map Mod3 { Hyper_L };
+#   modifier_map Mod3 { <LSGT> };
 # }
 # ----
 # https://wiki.archlinux.org/title/Sway#Change_modifier_to_CapsLock_and_keep_Super
@@ -564,11 +564,11 @@ bindsym $mod+space           exec rofi -show combi
 # mod-Shift-Ctrl-F12: run gnome control center (GNOME Settings) floating
 bindsym $mod+Shift+Ctrl+F12  exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-control-center
 
-# chord-mods-d (mod-x, d): double-commander file manager
-#$cmods+d                    exec doublecmd
-#$hyper+d                    exec doublecmd
+# hyper-d: double-commander file manager
+#bindsym $cmods+d             exec doublecmd
+bindsym $hyper+d             exec doublecmd
 # chord-mods-n (mod-x, n): nautilus file manager
-#$cmods+n                    exec nautilus
+#bindsym $cmods+n             exec nautilus
 
 # mod-ESC: run htop in floating terminal
 bindsym $mod+Escape          exec $termfloat -e htop

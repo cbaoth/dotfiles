@@ -1,30 +1,37 @@
-// Custom XKB symbols: Colemak/US + ISO key as Mod3 (Hyper_L) modifier.
-// libxkbcommon searches ~/.config/xkb/symbols/ before system paths, so this
-// file is found automatically when sway specifies xkb_layout=custom, xkb_variant=basic.
+// Custom XKB symbols
+//
+// https://xkbcommon.org/doc/current/keymap-text-format-v1-v2.html
 // https://lars.ingebrigtsen.no/2024/04/28/the-simplest-thing-in-the-world-modifing-keymaps-in-wayland/
 //
-// To revert to plain Colemak without this modifier, change sway input block to:
-//   xkb_layout us
-//   xkb_variant colemak
+// libxkbcommon searches ~/.config/xkb/symbols/ before system paths, so this
+// file is found automatically when sway specifies xkb_layout=custom, xkb_variant=basic.
+//
+// Basic sway input block to use this custom layout:
+// input "type:keyboard" {
+//    # Use custom layouts, primary (Colemak) and alt (QWERTY)
+//    xkb_layout  "custom,custom"
+//    xkb_variant "basic,qwerty"
+//    # Use plain Colemak
+//    #xkb_layout us
+//    #xkb_variant colemak
+// }
 
 xkb_symbols "basic" {
     // Full Colemak layout (includes CapsLock → Backspace)
     include "us(colemak)"
-
     name[Group1] = "Colemak (US)";
 
     // ISO key (<LSGT>): the key between Left Shift and Z on ISO keyboards.
-    // In us(colemak) this key is not defined, falling back to backslash/bar.
-    // Map to Hyper_L so sway can use it as $hyper (Mod3) in bindsym directives.
+    // us(colemak) maps this key to minus/underscore; override it with Hyper_L
+    // so sway can use it as $hyper (Mod3) in bindsym directives.
     key <LSGT> { [ Hyper_L, Hyper_L ] };
     modifier_map Mod3 { <LSGT> };
 };
 
 xkb_symbols "qwerty" {
-    // Plain US QWERTY layout, ISO key still mapped to Hyper_L/Mod3.
+    // Plain US QWERTY layout (maps <LSGT> to backslash/bar, overridden below).
     // Activated via Scroll_Lock toggle (kbd-layout-toggle) for gaming / QWERTY sessions.
     include "us(basic)"
-
     name[Group1] = "QWERTY (US)";
 
     key <LSGT> { [ Hyper_L, Hyper_L ] };
