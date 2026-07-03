@@ -548,7 +548,9 @@ bindsym $mod+l               exec swaylock -f -c 000000
 bindsym Scroll_Lock          exec kbd-layout-toggle
 # }}} - Special Keys ---------------------------------------------------------
 
-# {{{ - Run Apps -------------------------------------------------------------
+# {{{ - Run Apps: Mod Key ----------------------------------------------------
+# core apps only, otherwise use Hyper (see next section)
+
 # mod-return: run terminal (+shift for floating)
 bindsym $mod+Return          exec $term
 bindsym $mod+Alt+Return     exec $termfloat
@@ -564,19 +566,28 @@ bindsym $mod+space           exec rofi -show combi
 # mod-Shift-Ctrl-F12: run gnome control center (GNOME Settings) floating
 bindsym $mod+Shift+Ctrl+F12  exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-control-center
 
-# hyper-d: double-commander file manager
-#bindsym $cmods+d             exec doublecmd
-bindsym $hyper+d             exec doublecmd
-# chord-mods-n (mod-x, n): nautilus file manager
-#bindsym $cmods+n             exec nautilus
-
 # mod-ESC: run htop in floating terminal
 bindsym $mod+Escape          exec $termfloat -e htop
 
 # mod-F1 to F2: open ssh session in floating terminal
 bindsym $mod+F1              exec $termfloat -e ssh -X -A 11001001.org -p 8090
 bindsym $mod+F2              exec $termfloat -e ssh -X -A saito-lan
-# }}} - Run Apps -------------------------------------------------------------
+# }}} - Run Apps: Mod Key ----------------------------------------------------
+
+# {{{ - Run Apps: Hyper Key --------------------------------------------------
+# hyper-e: double-commander file manager
+bindsym $hyper+e             exec doublecmd
+
+# hyper-E: nautilus file manager
+bindsym $hyper+Shift+e       exec nautilus
+
+# hyper-o: Obsidian (focus existing window if any, else start new instance)
+# `focus` switches to its workspace, restores from scratchpad, and is a no-op
+# if already visible; falls back to launching a new instance if not running
+bindsym $hyper+o             exec swaymsg '[app_id="(?i)obsidian"] focus' \
+    || swaymsg '[class="(?i)obsidian"] focus' \
+    || flatpak run md.obsidian.Obsidian
+# }}} - Run Apps: Hyper Key --------------------------------------------------
 # }}} = Key Bindings =========================================================
 
 # {{{ = Window Rules =========================================================
