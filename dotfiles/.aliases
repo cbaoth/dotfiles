@@ -601,6 +601,33 @@ if ${HAS_CONDA:-false}; then
 fi
 # }}} - PYTHON / CONDA -------------------------------------------------------
 
+# {{{ - PYTHON / UV -----------------------------------------------------------
+# https://docs.astral.sh/uv/getting-started/features/
+if command -v uv >/dev/null 2>&1; then
+  # project env (./.venv)
+  alias uvs="uv sync --all-extras"
+  alias uvr="uv run"
+  alias uva="uv add"
+  alias uvad="uv add --dev"
+  alias uvrm="uv remove"
+  alias uvl="uv lock"
+  # common dev tooling via the project .venv
+  alias uvt="uv run pytest"
+  alias uvfmt="uv run ruff format ."
+  alias uvc="uv run ruff check ."
+  alias uvcf="uv run ruff check . --fix"
+  alias uvpr="uv run pyright"
+  # global tool installs (~/.local/bin), independent of any project .venv
+  alias uvti="uv tool install --editable ."
+  alias uvtu="uv tool upgrade"
+  alias uvtl="uv tool list"
+  alias uvtun="uv tool uninstall"
+  # python version management
+  alias uvpi="uv python install"
+  alias uvpl="uv python list"
+fi
+# }}} - PYTHON / UV -----------------------------------------------------------
+
 # shellcheck disable=SC1091  # optional local override; path is dynamic
 [[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"
 

@@ -995,28 +995,6 @@ if [[ -d "$HOME/.config/nvm" ]]; then
   fi
 fi
 
-# anaconda3 / miniconda3
-# - https://www.anaconda.com/docs/getting-started/miniconda/main
-# - https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-if [[ -f "$HOME/anaconda3/bin/conda" ]]; then
-  _MY_CONDA="$HOME/anaconda3"
-elif [[ -f  "$HOME/miniconda3/bin/conda" ]]; then
-  _MY_CONDA="$HOME/miniconda3"
-fi
-if [[ -n "${_MY_CONDA:-}" ]]; then
-  if __conda_setup="$("$_MY_CONDA/bin/conda" 'shell.zsh' 'hook' 2>/dev/null)"; then
-    eval "$__conda_setup"
-  else
-    if [[ -f "$_MY_CONDA/etc/profile.d/conda.sh" ]]; then
-      # shellcheck source=/dev/null
-      source "$_MY_CONDA/etc/profile.d/conda.sh"
-    else
-      export PATH="$_MY_CONDA/bin:$PATH"
-    fi
-  fi
-  unset __conda_setup
-fi
-
 # determinate-nix > official nix CLI
 if command -v determinate-nixd >/dev/null 2>&1; then
   # activate determinate-nixd auto completion subcommand
