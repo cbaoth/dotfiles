@@ -315,6 +315,7 @@
       "Read(//usr/lib*/**)",
       "Read(//usr/local/bin*/**)",
       "Read(//usr/local/lib*/**)",
+      "Read(//tmp/**)",
       "WebSearch",
       "WebFetch(domain:claude.ai)",
       "WebFetch(domain:openrouter.ai)",
@@ -329,10 +330,6 @@
       "Bash(dotfiles-link)",
       "Bash(npx prettier *)",
       "Bash(npx eslint *)"
-    ],
-    "deny": [
-      "Bash(sudo:*)",
-      "Bash(su:*)"
     ],
     "ask": [
       "Bash(cp -f*)",
@@ -390,10 +387,16 @@
       "Bash(sh -c *)",
       "Bash(zsh -c *)",
       "Bash(ssh:*)",
-      "Bash(scp:*)"
+      "Bash(scp:*)",
+      "Bash(source:*)",
+      "Bash(.:*)"
+    ],
+    "deny": [
+      "Bash(sudo:*)",
+      "Bash(su:*)"
     ]
   },
-  "model": "claude-fable-5",
+  "model": "sonnet",
   "effortLevel": "high",
   "tui": "fullscreen"
 }
