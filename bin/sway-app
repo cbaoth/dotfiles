@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Run-or-raise for Sway: focus an existing window matching an app's
+# app_id/class (Wayland/XWayland), or launch it if no window matches.
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="$(basename "$0")"
+
+# -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
+set -o errtrace
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = HELPERS ===============================================================
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] [--] COMMAND [ARGS...]
+
+Focus an existing window matching COMMAND (run-or-raise), or launch
+COMMAND if no matching window exists.
+
+Options:
+  -m, --match REGEX    case-insensitive regex to match app_id/class
+                        (default: basename of COMMAND)
+  -t, --title           also match against the window title
+  -A, --action ACTION  focus (default) | toggle | focus-only
+  -n, --dry-run        print the action instead of executing it
+  -h, --help           show this help and exit
+
+Actions:
+  focus       Focus a matching window if one exists, else launch COMMAND.
+  toggle      Focus a matching window if hidden/elsewhere; if it is
+              already visible, hide it to the scratchpad instead. Falls
+              back to launching COMMAND if no window matches.
+  focus-only  Focus a matching window if one exists; do nothing
+              otherwise (never launches).
+
+Examples:
+  ${SCRIPT_FILE} doublecmd
+  ${SCRIPT_FILE} -m obsidian -A toggle -- flatpak run md.obsidian.Obsidian
+EOF
+}
+
+# Find the best matching window in the Sway tree.
+# Outputs: "<con_id> <visible>" of the best match, or nothing if none found.
+# Priority: focused > visible > first match.
+find_window() {
+  swaymsg -t get_tree | jq -r \
+    --arg re "${match_re}" \
+    --arg use_title "${use_title}" '
+    [ recurse(.nodes[]?, .floating_nodes[]?)
+      | select(.app_id != null or (.window_properties.class? != null))
+      | select(
+          ((.app_id // "") | test($re; "i"))
+          or ((.window_properties.class? // "") | test($re; "i"))
+          or ($use_title == "1" and ((.name // "") | test($re; "i")))
+        )
+      | {id, visible, focused}
+    ]
+    | if length == 0 then empty
+      else min_by(if .focused then 0 elif .visible then 1 else 2 end)
+        | "\(.id) \(.visible)"
+      end
+  '
+}
+
+launch() {
+  if (( dry_run )); then
+    printf 'exec: %s\n' "${command[*]}"
+  else
+    exec "${command[@]}"
+  fi
+}
+
+focus_window() {
+  local -r con_id="$1"
+  if (( dry_run )); then
+    printf 'swaymsg: [con_id=%s] focus\n' "${con_id}"
+  else
+    swaymsg "[con_id=${con_id}] focus"
+  fi
+}
+
+hide_window() {
+  local -r con_id="$1"
+  if (( dry_run )); then
+    printf 'swaymsg: [con_id=%s] move scratchpad\n' "${con_id}"
+  else
+    swaymsg "[con_id=${con_id}] move scratchpad"
+  fi
+}
+
+# }}} = HELPERS ===============================================================
+
+# {{{ = MAIN ===================================================================
+
+parse_args() {
+  match_re=""
+  use_title="0"
+  action="focus"
+  dry_run=0
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -m|--match)
+        shift; match_re="${1:-}" ;;
+      -t|--title)
+        use_title="1" ;;
+      -A|--action)
+        shift; action="${1:-}" ;;
+      -n|--dry-run)
+        dry_run=1 ;;
+      -h|--help)
+        usage; exit 0 ;;
+      --)
+        shift; break ;;
+      -*)
+        p_err "unknown option: $1"
+        usage >&2
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  command=("$@")
+  if (( ${#command[@]} == 0 )); then
+    p_err "COMMAND is required"
+    usage >&2
+    exit 1
+  fi
+
+  case "${action}" in
+    focus|toggle|focus-only) ;;
+    *)
+      p_err "invalid action: '${action}' (expected: focus, toggle, focus-only)"
+      exit 1
+      ;;
+  esac
+
+  [[ -n "${match_re}" ]] || match_re="$(basename "${command[0]}")"
+}
+
+main() {
+  local match_re use_title action dry_run
+  local -a command
+  parse_args "$@"
+
+  local win_id="" win_visible=""
+  read -r win_id win_visible < <(find_window) || true
+
+  case "${action}" in
+    focus)
+      if [[ -n "${win_id}" ]]; then
+        focus_window "${win_id}"
+      else
+        launch
+      fi
+      ;;
+    focus-only)
+      [[ -n "${win_id}" ]] && focus_window "${win_id}"
+      ;;
+    toggle)
+      if [[ -n "${win_id}" ]]; then
+        if [[ "${win_visible}" == "true" ]]; then
+          hide_window "${win_id}"
+        else
+          focus_window "${win_id}"
+        fi
+      else
+        launch
+      fi
+      ;;
+  esac
+}
+
+main "$@"
+
+# }}} = MAIN ===================================================================

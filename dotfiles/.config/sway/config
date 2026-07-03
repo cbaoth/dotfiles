@@ -575,24 +575,38 @@ bindsym $mod+F2              exec $termfloat -e ssh -X -A saito-lan
 # }}} - Run Apps: Mod Key ----------------------------------------------------
 
 # {{{ - Run Apps: Hyper Key --------------------------------------------------
-# hyper-e: double-commander file manager
-bindsym $hyper+e             exec doublecmd
+# Run-or-raise convention: $hyper+{key} focuses an existing window if one
+# exists (else launches), via bin/sway-app. $hyper+Shift+{key} bypasses this
+# and always launches a new instance -- only bound for apps where running
+# more than one instance is actually useful (e.g. file managers).
 
-# hyper-E: nautilus file manager
-bindsym $hyper+Shift+e       exec nautilus
+# hyper-e: double-commander file manager (focus existing, else launch)
+bindsym $hyper+e             exec sway-app doublecmd
+# hyper-Shift-e: double-commander, always start a new instance
+bindsym $hyper+Shift+e       exec doublecmd
 
-# hyper-o: Obsidian (focus existing window if any, else start new instance)
-# `focus` switches to its workspace, restores from scratchpad, and is a no-op
-# if already visible; falls back to launching a new instance if not running
-bindsym $hyper+o             exec swaymsg '[app_id="(?i)obsidian"] focus' \
-    || swaymsg '[class="(?i)obsidian"] focus' \
-    || flatpak run md.obsidian.Obsidian
+# hyper-Ctrl-e: nautilus file manager (focus existing, else launch)
+bindsym $hyper+Ctrl+e        exec sway-app nautilus
+# hyper-Ctrl-Shift-e: nautilus, always start a new instance
+bindsym $hyper+Ctrl+Shift+e  exec nautilus
+
+# hyper-o: Obsidian, toggle visibility -- focus if hidden/elsewhere, hide to
+# scratchpad if already visible, launch if not running. Deterministic
+# show/hide for this one app, unlike the FIFO-queue-based scratchpad bindings.
+bindsym $hyper+o             exec sway-app -m obsidian -A toggle -- flatpak run md.obsidian.Obsidian
 # }}} - Run Apps: Hyper Key --------------------------------------------------
 # }}} = Key Bindings =========================================================
 
 # {{{ = Window Rules =========================================================
-# SWAY: [class=...] matches XWayland apps; [app_id=...] matches Wayland-native apps.
-#       Both are kept here for broad compatibility.
+# SWAY: criteria matching is an unanchored SUBSTRING search, not a whole-
+#       string match (confirmed via `sway(5)` CRITERIA section + live testing).
+#       Use \b or ^/$ to avoid accidental matches on short/generic tokens.
+# SWAY: [class=...] matches XWayland apps; [app_id=...] matches Wayland-native
+#       apps. Both are kept here for broad compatibility, where verified.
+# SWAY: no native way to OR across attribute keys (app_id vs class) in one
+#       rule -- all given keys are ANDed, and $variables don't substitute
+#       inside [...] criteria values (tested). One rule per attribute is the
+#       only option; regex alternation (|) still works within one value.
 
 # {{{ - Workspace 1 - Main ---------------------------------------------------
 # }}} - Workspace 1 - Main ---------------------------------------------------
@@ -606,23 +620,25 @@ bindsym $hyper+o             exec swaymsg '[app_id="(?i)obsidian"] focus' \
 # }}} - Workspace 2 - Web ----------------------------------------------------
 
 # {{{ - Workspace 3 - Development --------------------------------------------
-# VS Code
-for_window [class="(?i)(.*visual.*\.)?code$"]              move container to workspace $ws3
+# VS Code: app_id is plain "code" on Wayland (verified live); class kept as
+# an XWayland fallback in case that build ever runs there instead.
+for_window [app_id="^(?i)code$"]                           move container to workspace $ws3
+for_window [class="(?i)\bcode\b"]                          move container to workspace $ws3
 # }}} - Workspace 3 - Development --------------------------------------------
 
 # {{{ - Workspace 4 - Create -------------------------------------------------
-for_window [class="(?i)(.*\.)?gimp?|XnView(MP)?"]          move container to workspace $ws4
+for_window [class="(?i)\b(gimp|XnView(MP)?)\b"]            move container to workspace $ws4
 # }}} - Workspace 4 - Create -------------------------------------------------
 
 # {{{ - Workspace 5 - Gaming -------------------------------------------------
-# for_window [app_id="(?i).*(lutris|hgl).*|ProtonPlus"]      move container to workspace $ws5
-# for_window [class="^(?i)steam|PortProton$"]                move container to workspace $ws5
+# for_window [app_id="(?i)\b(lutris|hgl|ProtonPlus)\b"]      move container to workspace $ws5
+# for_window [class="(?i)\b(steam|PortProton)\b"]            move container to workspace $ws5
 # }}} - Workspace 5 - Gaming -------------------------------------------------
 
 # {{{ - Workspace 6 - Fullscreen Borderless ----------------------------------
 # full screen borderless (e.g. steam games)
-for_window [class="steam_app_.*"]                          move container to workspace $ws6, \
-                                                               fullscreen enable, border normal 0
+for_window [class="^steam_app_"]                           move container to workspace $ws6, \
+                                                             fullscreen enable, border normal 0
 # }}} - Workspace 6 - Fullscreen Borderless ----------------------------------
 
 # {{{ - Workspace 7 - Misc ---------------------------------------------------
@@ -639,77 +655,78 @@ for_window [class="steam_app_.*"]                          move container to wor
 
 # {{{ - Floating -------------------------------------------------------------
 # Float by custom window_role=i3float (XWayland apps only, for i3 backward compatibility)
-for_window [window_role="i3float"]                         $FLOAT
+for_window [window_role="^i3float$"]                       $FLOAT
 
 # Float by custom app_id=swayfloat (e.g. `exec {app} --app-id=swayfloat`)
-for_window [app_id="swayfloat"]                            $FLOAT
+for_window [app_id="^swayfloat$"]                          $FLOAT
 
 # Web Browsers
-for_window [title="^(?i)Task Manager.*"]                   $FLOAT
-
-# Other apps
-for_window [class="^(?i)galculator$"]                      $FLOAT
+for_window [title="(?i)\btask[ ._-]?manager\b"]            $FLOAT
 
 # Gaming
-for_window [app_id="(?i).*(lutris|hgl).*|ProtonPlus"]      $FLOAT
-for_window [class="^(?i)steam|PortProton$"]                $FLOAT
+for_window [app_id="(?i)\b(lutris|hgl|ProtonPlus)\b"]      $FLOAT
+for_window [class="(?i)\b(steam|PortProton)\b"]            $FLOAT
 # }}} - Floating -------------------------------------------------------------
 
 # {{{ - Floating and Sticky --------------------------------------------------
-# KeePassXC (tray)
-for_window [app_id="(?i).*keepassxc.*"]                    $STICK_AND_FLOAT
-for_window [class="(?i)keepassxc.*"]                       $STICK_AND_FLOAT
+# Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
+for_window [app_id="^mpv|spotify"]                         $FLOAT
+for_window [class="^(?i)(mpv|vlc|spotify)$"]               $FLOAT
 
-# Network manager windows
-for_window [app_id="nm-applet|nm-connection-editor"]       $STICK_AND_FLOAT
-
-# NordVPN client UI (tray)
-for_window [class="nordvpn-gui"]                           $STICK_AND_FLOAT
-for_window [app_id="nordvpn-gui"]                          $STICK_AND_FLOAT
-
-# Nextcloud client (tray)
-for_window [class="nextcloud"]                             $STICK_AND_FLOAT
-for_window [app_id="nextcloud"]                            $STICK_AND_FLOAT
-
-# PulseAudio volume control
-for_window [class="pavucontrol"]                           $STICK_AND_FLOAT
-for_window [app_id="pavucontrol"]                          $STICK_AND_FLOAT
-
-# Blueman bluetooth manager (tray)
-for_window [class="blueman-manager"]                       $STICK_AND_FLOAT
-for_window [app_id="blueman-manager"]                      $STICK_AND_FLOAT
-
-# JDownloader main window (Java app with no class/app_id)
-for_window [class="java-lang-Thread"][title="JDownloader|INFODIALOG"] \
-                                                           $STICK_AND_FLOAT
-
-# Firefox pip video player window (e.g. YouTube)
-for_window [title="^(?i)Picture-in-Picture$"]              $STICK_AND_FLOAT
+# Various system settings and related windows
+for_window [app_id="^(?i)org.gnome.settings$"]             $FLOAT
+for_window [app_id="^(?i)com.github.tchx84.Flatseal$"]     $FLOAT
+for_window [app_id="^(?i)ulauncher$"]                      $FLOAT
+for_window [app_id="^(?i)org.gnome.Software$"]             $FLOAT
+for_window [app_id="(?i)(^|[ ._-])(nvidia-settings|solaar)"] \
+                                                           $FLOAT
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
 #   which would otherwise fight focus_follows_mouse and cause erratic behavior.
-no_focus   [app_id="sway-winfo"]
-for_window [app_id="sway-winfo"]                           $STICK_AND_FLOAT resize set 560 340, move position 10 10
+no_focus   [app_id="^sway-winfo$"]
+for_window [app_id="^sway-winfo$"]                         $STICK_AND_FLOAT resize set 560 340, move position 10 10
 
-# Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
-for_window [class="^(?i)(mpv|vlc|spotify)$"]               $FLOAT
-for_window [app_id="^mpv|spotify"]                         $FLOAT
+# KeePassXC (tray)
+for_window [app_id="(?i)\bkeepassxc\b"]                    $STICK_AND_FLOAT
+for_window [class="(?i)\bkeepassxc\b"]                     $STICK_AND_FLOAT
 
-# Various system settings and related windows
-for_window [app_id="org.gnome.settings$"]                  $FLOAT
-for_window [app_id="(?i)com.github.tchx84.Flatseal$"]      $FLOAT
-for_window [app_id="nvidia-settings|solaar$"]              $FLOAT
-for_window [app_id="ulauncher"]                            $FLOAT
+# Network manager windows
+for_window [app_id="(?i)\b(nm-applet|nm-connection-editor)\b"] \
+                                                           $STICK_AND_FLOAT
 
-# Various other apps
-for_window [class="(?i)calibre-gui|galculator|pavucontrol|blueman-manager|nm-applet|nm-connection-editor"] \
-    $STICK_AND_FLOAT
+# NordVPN client UI (tray)
+for_window [app_id="(?i)\bnordvpn\b"]                      $STICK_AND_FLOAT
+for_window [class="(?i)\bnordvpn\b"]                       $STICK_AND_FLOAT
+
+# Nextcloud client (tray)
+for_window [app_id="(?i)\bnextcloud\b"]                    $STICK_AND_FLOAT
+for_window [class="(?i)\bnextcloud\b"]                     $STICK_AND_FLOAT
+
+# PulseAudio volume control
+for_window [app_id="^pavucontrol$"]                        $STICK_AND_FLOAT
+for_window [class="^pavucontrol$"]                         $STICK_AND_FLOAT
+
+# Blueman bluetooth manager (tray)
+for_window [app_id="^blueman-manager$"]                    $STICK_AND_FLOAT
+for_window [class="^blueman-manager$"]                     $STICK_AND_FLOAT
+
+# Firefox pip video player window (e.g. YouTube)
+for_window [title="(?i)^Picture-in-Picture$"]              $STICK_AND_FLOAT
+
+# JDownloader main window (Java app with no class/app_id)
+for_window [class="(?i)^java-lang-Thread$"][title="(?i)^JDownloader|INFODIALOG$"] \
+                                                           $STICK_AND_FLOAT
+
+# Math apps
+for_window [app_id="(?i)\b(calculator|qalculate-\w+|speedcrunch)\b"] \
+                                                           $STICK_AND_FLOAT
+for_window [class="(?i)\b(galculator|qalculate)\b"]        $STICK_AND_FLOAT
 # }}} - Floating and Sticky --------------------------------------------------
 
 # }}} - Others ---------------------------------------------------------------
 # Full screen
-for_window [class="streaming_client"]                      fullscreen enable
+for_window [class="^streaming_client$"]                    fullscreen enable
 # }}} - Others x---------------------------------------------------------------
 # }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
