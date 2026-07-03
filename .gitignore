@@ -18,15 +18,21 @@ desktop.ini
 *.bak
 *.log
 
-# Local scratch space — never commit
-# Convention: _local/ dirs are for test dumps, scratch work, ad-hoc experiments
-_local/
+# Track only own cb-*.md files; everything else in .github/ stays local
+# (unreviewed/unlicensed content from awesome-copilot, future extension-managed files, etc.)
+.github/*
+!.github/cb-*.md
+!.github/instructions/
+!.github/agents/
+!.github/skills/
+.github/instructions/*
+.github/agents/*
+.github/skills/*
+!.github/instructions/cb-*.md
+!.github/agents/cb-*.md
+!.github/skills/cb-*.md
 
-# Local config overrides — may contain sensitive data (e.g., credentials, API keys)
-# Convention: foo.local or foo.local.conf overrides the tracked foo config (not committed)
-*.local.*
-
-# Claude Code — machine-specific / auto-generated
+# local: configuratins and variables, may contain sensitive info (e.g., API keys)
 .claude/settings.local.json
 .claude/memory/
 .claude/plans/
@@ -35,10 +41,10 @@ _local/
 .env
 .env.*
 
-# Track only own cb-*.md files; everything else in .github/ stays local
-# (unreviewed/unlicensed content from awesome-copilot, future extension-managed files, etc.)
-.github/*
-!.github/cb-*.md
-!.github/instructions/
-.github/instructions/*
-!.github/instructions/cb-*.md
+# Local scratch space — never commit
+# Convention: _local/ dirs are for test dumps, scratch work, ad-hoc experiments
+_local/
+
+# Local config overrides — may contain sensitive data (e.g., credentials, API keys)
+# Convention: foo.local or foo.local.conf overrides the tracked foo config (not committed)
+*.local.*
