@@ -600,7 +600,17 @@ bindsym $hyper+o             exec sway-app -m obsidian -A toggle -- flatpak run 
 # {{{ = Window Rules =========================================================
 # SWAY: criteria matching is an unanchored SUBSTRING search, not a whole-
 #       string match (confirmed via `sway(5)` CRITERIA section + live testing).
-#       Use \b or ^/$ to avoid accidental matches on short/generic tokens.
+#       Use ^/$ or a (^|[ ._-])...([ ._-]|$) boundary group to avoid
+#       accidental matches on short/generic tokens.
+# SWAY: \b (word boundary) is silently broken in for_window/config-parsed
+#       criteria -- verified live that it gets eaten (likely stripped as an
+#       unrecognized backslash-escape by the config string parser), so
+#       for_window rules using it never match, while the *identical* pattern
+#       works fine via an ad-hoc runtime `swaymsg '[...] ...'` command (which
+#       doesn't go through config parsing). Use the (^|[ ._-])...([ ._-]|$)
+#       character-class form in for_window/no_focus instead; reserve \b for
+#       one-off runtime swaymsg calls (e.g. bin/sway-app, which matches via
+#       jq, not sway's own criteria parser, and is unaffected by this).
 # SWAY: [class=...] matches XWayland apps; [app_id=...] matches Wayland-native
 #       apps. Both are kept here for broad compatibility, where verified.
 # SWAY: no native way to OR across attribute keys (app_id vs class) in one
@@ -623,16 +633,17 @@ bindsym $hyper+o             exec sway-app -m obsidian -A toggle -- flatpak run 
 # VS Code: app_id is plain "code" on Wayland (verified live); class kept as
 # an XWayland fallback in case that build ever runs there instead.
 for_window [app_id="^(?i)code$"]                           move container to workspace $ws3
-for_window [class="(?i)\bcode\b"]                          move container to workspace $ws3
+for_window [class="(?i)(^|[ ._-])(visual.*)?code$"]        move container to workspace $ws3
 # }}} - Workspace 3 - Development --------------------------------------------
 
 # {{{ - Workspace 4 - Create -------------------------------------------------
-for_window [class="(?i)\b(gimp|XnView(MP)?)\b"]            move container to workspace $ws4
+for_window [class="(?i)(^|[ ._-])(gimp|XnView(MP)?)$"]     move container to workspace $ws4
 # }}} - Workspace 4 - Create -------------------------------------------------
 
 # {{{ - Workspace 5 - Gaming -------------------------------------------------
-# for_window [app_id="(?i)\b(lutris|hgl|ProtonPlus)\b"]      move container to workspace $ws5
-# for_window [class="(?i)\b(steam|PortProton)\b"]            move container to workspace $ws5
+# for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] \
+#                                                            move container to workspace $ws5
+# for_window [class="(?i)(^|[ ._-])(steam|PortProton)$"]     move container to workspace $ws5
 # }}} - Workspace 5 - Gaming -------------------------------------------------
 
 # {{{ - Workspace 6 - Fullscreen Borderless ----------------------------------
@@ -661,11 +672,13 @@ for_window [window_role="^i3float$"]                       $FLOAT
 for_window [app_id="^swayfloat$"]                          $FLOAT
 
 # Web Browsers
-for_window [title="(?i)\btask[ ._-]?manager\b"]            $FLOAT
+for_window [title="(?i)(^|[ ._-])(Task[ ._-]?Manager)([ ._-]|$)"] \
+                                                           $FLOAT
 
 # Gaming
-for_window [app_id="(?i)\b(lutris|hgl|ProtonPlus)\b"]      $FLOAT
-for_window [class="(?i)\b(steam|PortProton)\b"]            $FLOAT
+for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] \
+                                                         $FLOAT
+for_window [class="(?i)(^|[ ._-])(steam|PortProton)$"]     $FLOAT
 # }}} - Floating -------------------------------------------------------------
 
 # {{{ - Floating and Sticky --------------------------------------------------
@@ -685,23 +698,29 @@ for_window [app_id="(?i)(^|[ ._-])(nvidia-settings|solaar)"] \
 # no_focus: prevent the monitor window from stealing focus when it opens,
 #   which would otherwise fight focus_follows_mouse and cause erratic behavior.
 no_focus   [app_id="^sway-winfo$"]
-for_window [app_id="^sway-winfo$"]                         $STICK_AND_FLOAT resize set 560 340, move position 10 10
+for_window [app_id="^sway-winfo$"]                         $STICK_AND_FLOAT, resize set 560 340, move position 10 10
 
 # KeePassXC (tray)
-for_window [app_id="(?i)\bkeepassxc\b"]                    $STICK_AND_FLOAT
-for_window [class="(?i)\bkeepassxc\b"]                     $STICK_AND_FLOAT
+for_window [app_id="(?i)(^|[ ._-])keepassxc$"]             $STICK_AND_FLOAT
+for_window [class="(?i)(^|[ ._-])keepassxc$"]              $STICK_AND_FLOAT
 
 # Network manager windows
-for_window [app_id="(?i)\b(nm-applet|nm-connection-editor)\b"] \
+for_window [app_id="(?i)(^|[ ._-])(nm-applet|nm-connection-editor)$"] \
                                                            $STICK_AND_FLOAT
 
-# NordVPN client UI (tray)
-for_window [app_id="(?i)\bnordvpn\b"]                      $STICK_AND_FLOAT
-for_window [class="(?i)\bnordvpn\b"]                       $STICK_AND_FLOAT
+# NordVPN client UI (tray): app_id is plain "nordvpn-gui", Wayland-native, no
+# class (verified live via sway-winfo). class rule kept as a harmless no-op
+# fallback in case a future build adds an XWayland path.
+for_window [app_id="^(?i)nordvpn-gui$"]                    $STICK_AND_FLOAT
+for_window [class="^(?i)nordvpn-gui$"]                     $STICK_AND_FLOAT
 
 # Nextcloud client (tray)
-for_window [app_id="(?i)\bnextcloud\b"]                    $STICK_AND_FLOAT
-for_window [class="(?i)\bnextcloud\b"]                     $STICK_AND_FLOAT
+# move position cursor: open centered on the mouse (right where the tray
+# icon was clicked) so reaching it never crosses another window and steals
+# focus via focus_follows_mouse -- the client itself closes on focus loss
+# (upstream limitation, no client-side setting: nextcloud/desktop#8065)
+for_window [app_id="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]  $STICK_AND_FLOAT, move position cursor
+for_window [class="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]   $STICK_AND_FLOAT, move position cursor
 
 # PulseAudio volume control
 for_window [app_id="^pavucontrol$"]                        $STICK_AND_FLOAT
@@ -715,13 +734,17 @@ for_window [class="^blueman-manager$"]                     $STICK_AND_FLOAT
 for_window [title="(?i)^Picture-in-Picture$"]              $STICK_AND_FLOAT
 
 # JDownloader main window (Java app with no class/app_id)
-for_window [class="(?i)\b(java-lang-Thread|JDownloader)\b"] \
-           [title="(?i)\b(JDownloader|INFODIALOG)\b"]                   $STICK_AND_FLOAT
+# class matches real launcher window "org-jdownloader-update-launcher-
+# JDLauncher" (verified live via sway-winfo, dash-bounded "jdownloader" token);
+# java-lang-Thread kept for older builds/dialogs that report a generic class.
+for_window [class="(?i)(^|[ ._-])(java-lang-Thread|jdownloader)([ ._-]|$)"] \
+           [title="(?i)(^|[ ._-])(JDownloader|INFODIALOG)"] \
+                                                           $STICK_AND_FLOAT
 
 # Math apps
-for_window [app_id="(?i)\b(calculator|qalculate-\w+|speedcrunch)\b"] \
+for_window [app_id="(?i)(^|[ ._-])(calculator|qalculate-\w+|speedcrunch)$"] \
                                                            $STICK_AND_FLOAT
-for_window [class="(?i)\b(galculator|qalculate)\b"]        $STICK_AND_FLOAT
+for_window [class="(?i)(^|[ ._-])(galculator|qalculate)$"] $STICK_AND_FLOAT
 # }}} - Floating and Sticky --------------------------------------------------
 
 # }}} - Others ---------------------------------------------------------------
