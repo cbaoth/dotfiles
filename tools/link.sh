@@ -178,8 +178,9 @@ backup_existing() {
 
 # Use the pattern in the find command; avoid subshell so arrays persist
 while IFS= read -r -d '' f; do
-  # get relative target/source file location
-  relpath=$(realpath --relative-to "$DOTFILES" "$f")
+  # get relative target/source file location (-s: don't resolve symlinks, a
+  # symlinked source must be linked at its logical location, not its target's)
+  relpath=$(realpath -s --relative-to "$DOTFILES" "$f")
   target=$HOME/$relpath
   info ""
   info "Processing: $relpath -> $HOME/$relpath ..."
