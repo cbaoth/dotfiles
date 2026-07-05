@@ -2,9 +2,10 @@
 :toc:
 :toclevels: 2
 
-How AI coding agent instructions are organized in this repository so that
-*Claude Code* and *GitHub Copilot* (CLI, VS Code, coding agent, code review)
-share a single source of truth instead of duplicated files.
+How AI coding agent instructions are organized so that *Claude Code* and
+*GitHub Copilot* (CLI, VS Code, coding agent, code review) share a single
+source of truth — in this repository and, via user-level deployment, in
+*every* repository on the machine.
 
 == Design
 
@@ -30,20 +31,27 @@ Verified against Claude Code 2.1.x and Copilot CLI 1.0.x (July 2026):
 | ✓
 
 | `.github/instructions/*.instructions.md` (`applyTo` frontmatter)
-| via `.claude/rules/` symlinks (`paths` frontmatter)
+| ✗
 | ✓ (path-scoped)
 | ✓ (path-scoped)
 
-| `.claude/rules/*.md` (`paths` frontmatter)
-| ✓ (path-scoped, lazy-loaded)
+| `~/.claude/rules/*.md` (`paths` frontmatter, user-level)
+| ✓ (all repos, path-scoped, lazy)
 | ✗
+| ✓ (all repos, matches `*.instructions.md`)
+
+| `$COPILOT_CUSTOM_INSTRUCTIONS_DIRS/.github/instructions/*.instructions.md`
+| ✗
+| ✓ (all repos)
 | ✗
 |===
 
-Resulting layout — each piece of content exists exactly once:
+=== Canonical files (this repo)
+
+Each piece of content exists exactly once:
 
 ----
-AGENTS.md                                  # canonical project instructions
+AGENTS.md                                  # canonical project instructions (this repo)
 CLAUDE.md                                  # thin: "@AGENTS.md" import + Claude notes
 .github/copilot-instructions.md            # thin pointer to AGENTS.md (for surfaces
                                            #   that don't read AGENTS.md, e.g. code review)
@@ -51,12 +59,40 @@ CLAUDE.md                                  # thin: "@AGENTS.md" import + Claude 
   cb-shell-script.instructions.md          # canonical shell style summary (path-scoped)
   cb-python.instructions.md                # canonical python style (path-scoped)
   cb-commit-messages.instructions.md       # canonical commit conventions (always on)
-.claude/rules/
-  cb-shell-script.md -> ../../.github/instructions/cb-shell-script.instructions.md
-  cb-python.md       -> ../../.github/instructions/cb-python.instructions.md
-  cb-commit-messages.md -> ../../.github/instructions/cb-commit-messages.instructions.md
 docs/shell-style-guide.md                  # full human-readable guide (NOT agent-loaded)
 ----
+
+=== Machine-wide deployment (all repos, all hosts)
+
+The style guides apply globally through user-level mechanisms, deployed from
+`dotfiles/` by `dotfiles-link` (username-independent, `$HOME`-based). No
+per-repo copies or links are needed — not even in this repo:
+
+----
+dotfiles/.claude/rules/cb-*.instructions.md
+  -> ../../../.github/instructions/...     # linked to ~/.claude/rules/
+                                           #   read by: Claude Code (user-level rules)
+                                           #            VS Code Copilot (default user location)
+dotfiles/.copilot/.github/instructions/cb-*.instructions.md
+  -> ../../../../.github/instructions/...  # linked to ~/.copilot/.github/instructions/
+                                           #   read by: Copilot CLI via
+                                           #   COPILOT_CUSTOM_INSTRUCTIONS_DIRS=$HOME/.copilot
+                                           #   (exported in dotfiles/.common_env)
+----
+
+Notes:
+
+* The user-level rule files keep the full `*.instructions.md` suffix so VS
+  Code Copilot (which only matches that pattern in `~/.claude/rules`) picks
+  them up as well; Claude Code loads any `*.md`.
+* No `AGENTS.md` is placed in `~/.copilot/` — that would inject dotfiles
+  project instructions into every repo; only the path-scoped style guides are
+  global.
+* In this repo the cb-* files are visible to Copilot twice (repo
+  `.github/instructions/` + global dir) — harmless, identical content.
+* GitHub *server-side* surfaces (Copilot code review, cloud agent on
+  github.com) see none of the user-level config; repos that need instructions
+  there must commit real copies (see Maintenance Rules).
 
 == Key Mechanics and Gotchas
 
@@ -71,11 +107,14 @@ docs/shell-style-guide.md                  # full human-readable guide (NOT agen
 * *Claude path-scoped rules load lazily* when Claude reads/edits a matching
   file. A rule file without a `paths` key is loaded unconditionally at launch
   (used for the commit-message conventions).
-* *`.claude/rules/` supports symlinks* (also to targets outside the
+* *Claude rules directories support symlinks* (also to targets outside the
   directory), which is what makes the single-source setup possible.
 * Copilot CLI reads `AGENTS.md` but *not* `CLAUDE.md`; the Copilot *cloud
   agent* reads both. Copilot code review reads `copilot-instructions.md` and
   path-scoped instructions, but no agent files — hence the pointer file.
+* Copilot's path-specific mechanism injects an *index* (pattern + path +
+  description) and instructs the model to read the matching file before
+  editing matching code, rather than inlining the content upfront.
 
 == Verifying the Setup
 
@@ -95,13 +134,18 @@ Copilot CLI::
 
 * Style/convention content goes into `.github/instructions/cb-*.instructions.md`
   — never into `AGENTS.md`, `CLAUDE.md`, or `copilot-instructions.md`.
-* Project workflow/layout content goes into `AGENTS.md` only.
+* Project workflow/layout content goes into `AGENTS.md` only (per repo).
+* Other repos need *no* copies of the cb-* files. Exception: repos that use
+  GitHub server-side Copilot features (code review, coding agent) or have
+  other contributors — commit real copies there and re-sync them on change.
 * Keep `AGENTS.md` under ~100 lines and instruction files under ~200 lines;
   adherence drops as always-loaded context grows.
 * When shell conventions change, update both
   `cb-shell-script.instructions.md` (agent summary, authoritative) and
   `docs/shell-style-guide.md` (human guide).
-* Third-party instruction files in `.github/instructions/` (from
-  awesome-copilot, gitignored) affect Copilot only; prefer narrow `applyTo`
-  globs — files with `applyTo: '**'` are injected into *every* Copilot
-  request.
+* Third-party instruction files (awesome-copilot etc.) are not kept in this
+  repo — the originals live in `~/git/awesome-copilot`. If one is adopted,
+  copy it, prefix it `cb-`, and give it a narrow `applyTo` — files with
+  `applyTo: '**'` are injected into *every* Copilot request.
+* Work machines: if global personal rules would interfere with work repos,
+  skip linking them there (host-specific override — see `docs/TODO.md`).

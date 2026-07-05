@@ -5,6 +5,7 @@
 
 ## Claude Code Specifics
 
-- Path-scoped style rules load automatically via `.claude/rules/` (symlinks to
-  `.github/instructions/cb-*.instructions.md`); run `/memory` to inspect what
-  is loaded in the current session.
+- Path-scoped style rules load automatically from the user-level
+  `~/.claude/rules/` (symlinks into this repo's `.github/instructions/`,
+  deployed by `dotfiles-link`); run `/memory` to inspect what is loaded in the
+  current session.

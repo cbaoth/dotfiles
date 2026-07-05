@@ -256,6 +256,11 @@ command -v java >& /dev/null \
 #esac
 #export CXXFLAGS="${CFLAGS}"
 #export MAKEFLAGS="-j5" # -j2 + extra cores (job count)
+
+# AI agents: Copilot CLI loads AGENTS.md and .github/instructions/**/*.instructions.md
+# from these dirs in ANY repo/cwd; ~/.copilot/.github/instructions/ is deployed
+# from the dotfiles repo via dotfiles-link (see docs/agent-instructions.adoc)
+export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.copilot"
 # }}} - DEV ------------------------------------------------------------------
 
 # {{{ - DBMS -----------------------------------------------------------------

@@ -42,8 +42,10 @@ dotfiles-link -vv          # verbose/debug output
 
 Coding conventions live in `.github/instructions/*.instructions.md` and are
 loaded automatically per file type — by GitHub Copilot via the `applyTo`
-frontmatter, and by Claude Code via the `paths` frontmatter through
-`.claude/rules/` symlinks:
+frontmatter, and by Claude Code via the `paths` frontmatter. They are also
+deployed machine-wide (all repos) via `dotfiles-link`: `~/.claude/rules/` for
+Claude Code and VS Code Copilot, `~/.copilot/.github/instructions/` (with
+`COPILOT_CUSTOM_INSTRUCTIONS_DIRS` set in `.common_env`) for Copilot CLI:
 
 - `cb-shell-script.instructions.md` — Bash/Zsh/sh scripts and shell rc files.
   Consult it before writing a new shell script if it is not already loaded.

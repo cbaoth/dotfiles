@@ -101,6 +101,11 @@ Current implementation documented in `docs/linking-system.md`. Low priority; rev
   - Option A: Conditional loading in `.zshrc`/`.bashrc`: `[[ -f ~/.zshrc.local.$(hostname) ]] && source ...`
   - Option B: Extend `link-config.conf` to define host-specific sync directories per hostname
   - Option C: Adopt chezmoi if multi-host templating becomes complex (currently single-user, single-host focus)
+- [ ] [S] Host-specific opt-out for global AI agent instructions (work PC): skip linking
+  `dotfiles/.claude/rules/` + `dotfiles/.copilot/` and/or leave `COPILOT_CUSTOM_INSTRUCTIONS_DIRS`
+  unset there, so personal conventions (esp. commit messages — Gerrit at work) don't leak into
+  work repos. Could reuse the host-override mechanism above (e.g. per-host `.linkignore` entries).
+  See `docs/agent-instructions.adoc`.
 
 ## Extensibility
 

@@ -1,1 +1,0 @@
-../../.github/instructions/cb-commit-messages.instructions.md
