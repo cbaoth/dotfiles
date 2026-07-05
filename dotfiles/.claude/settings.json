@@ -287,6 +287,7 @@
       "Bash(git tag:*)",
       "Bash(git fetch:*)",
       "Bash(git pull:*)",
+      "Bash(git check-ignore:*)",
       "Bash(journalctl:*)",
       "Bash(systemctl status:*)",
       "Bash(systemctl list-units:*)",
@@ -302,6 +303,7 @@
       "Bash(ln -s:*)",
       "Bash(ln -sf //home/cbaoth/dotfiles/**/* //home/cbaoth/**/*)",
       "Bash(ln -fs //home/cbaoth/dotfiles/**/* //home/cbaoth/**/*)",
+      "Bash(command -v:*)",
       "Read(//home/cbaoth/.local/bin/**)",
       "Read(//home/cbaoth/bin/**)",
       "Read(//home/cbaoth/lib/**)",
@@ -321,6 +323,7 @@
       "WebFetch(domain:openrouter.ai)",
       "WebFetch(domain:github.io)",
       "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.github.com)",
       "WebFetch(domain:githubusercontent.com)",
       "WebFetch(domain:wikipedia.org)",
       "WebFetch(domain:wiktionary.org)",
@@ -328,8 +331,13 @@
       "WebFetch(domain:tampermonkey.net)",
       "Bash(mpv --no-audio --length=3 /home/cbaoth/Videos/motion/08-20260603160344.mkv)",
       "Bash(dotfiles-link)",
-      "Bash(npx prettier *)",
-      "Bash(npx eslint *)"
+      "Bash(npx prettier:*)",
+      "Bash(npx eslint:*)",
+      "Bash(copilot help:*)"
+    ],
+    "deny": [
+      "Bash(sudo:*)",
+      "Bash(su:*)"
     ],
     "ask": [
       "Bash(cp -f*)",
@@ -390,13 +398,9 @@
       "Bash(scp:*)",
       "Bash(source:*)",
       "Bash(.:*)"
-    ],
-    "deny": [
-      "Bash(sudo:*)",
-      "Bash(su:*)"
     ]
   },
-  "model": "sonnet",
+  "model": "claude-fable-5",
   "effortLevel": "high",
   "tui": "fullscreen"
 }
