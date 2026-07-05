@@ -11,7 +11,6 @@
 declare -r SCRIPT_FILE="$(basename "$0")"
 
 # -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
-set -o errtrace
 set -o errexit
 set -o pipefail
 set -o nounset
@@ -21,7 +20,7 @@ set -o nounset
 
 p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
-usage() {
+p_usg() {
   cat <<EOF
 Usage: ${SCRIPT_FILE} [OPTIONS] [--] COMMAND [ARGS...]
 
@@ -120,12 +119,12 @@ parse_args() {
       -n|--dry-run)
         dry_run=1 ;;
       -h|--help)
-        usage; exit 0 ;;
+        p_usg; exit 0 ;;
       --)
         shift; break ;;
       -*)
         p_err "unknown option: $1"
-        usage >&2
+        p_usg >&2
         exit 1
         ;;
       *)
@@ -138,7 +137,7 @@ parse_args() {
   command=("$@")
   if (( ${#command[@]} == 0 )); then
     p_err "COMMAND is required"
-    usage >&2
+    p_usg >&2
     exit 1
   fi
 

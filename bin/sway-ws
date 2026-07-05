@@ -14,6 +14,9 @@
 # by using `workspace <name>` (creates with the correct name) instead of
 # `workspace prev/next` (skips workspaces that don't exist yet).
 
+# -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
+set -euo pipefail
+
 # Sway config lookup: $SWAYCONFIG → $XDG_CONFIG_HOME/sway/config → default
 declare -r WS_CONFIG_DEFAULT="${SWAYCONFIG:-${XDG_CONFIG_HOME:-${HOME}/.config}/sway/config}"
 declare -ri WS_MIN_DEFAULT=1

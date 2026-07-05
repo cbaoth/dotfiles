@@ -7,16 +7,51 @@
 # Auto-exit the current Sway mode after a delay. Only one timer runs at a time;
 # entering a new mode cancels the previous timer via a pidfile.
 
+set -euo pipefail
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="$(basename "$0")"
 declare -r PIDFILE="${XDG_RUNTIME_DIR:-/tmp}/sway-mode-timeout.pid"
-declare -ri TIMEOUT="${1:-5}"
 
-if [[ -f "$PIDFILE" ]]; then
-  kill "$(cat "$PIDFILE")" 2>/dev/null || true
-fi
-printf '%s\n' "$$" > "$PIDFILE"
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
-sleep "$TIMEOUT"
-rm -f "$PIDFILE"
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [TIMEOUT_SECS]
 
-current=$(swaymsg -t get_binding_state | jq -r '.name')
-[[ "$current" != "default" ]] && swaymsg mode default
+Auto-exit the current Sway mode after TIMEOUT_SECS (default: 5). Only one
+timer runs at a time; entering a new mode cancels the previous timer.
+
+Options:
+  -h, --help   Show this help message and exit
+EOF
+}
+
+main() {
+  local -r timeout="${1:-5}"
+
+  case "${timeout}" in
+    -h|--help) p_usg; exit 0 ;;
+  esac
+
+  if [[ ! "${timeout}" =~ ^[0-9]+$ ]]; then
+    p_err "TIMEOUT_SECS must be a non-negative integer: '${timeout}'"
+    p_usg >&2
+    exit 1
+  fi
+
+  if [[ -f "${PIDFILE}" ]]; then
+    kill "$(cat "${PIDFILE}")" 2>/dev/null || true
+  fi
+  printf '%s\n' "$$" > "${PIDFILE}"
+
+  sleep "${timeout}"
+  rm -f "${PIDFILE}"
+
+  local current
+  current=$(swaymsg -t get_binding_state | jq -r '.name')
+  [[ "${current}" != "default" ]] && swaymsg mode default
+  return 0
+}
+
+main "$@"

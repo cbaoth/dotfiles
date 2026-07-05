@@ -18,6 +18,9 @@
 #   float   Toggle floating state of the focused window
 #   sticky  Toggle sticky state; auto-floats the window when enabling sticky
 
+# -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
+set -euo pipefail
+
 p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
 # Output: "<sticky> <type>", e.g. "true floating_con" or "false con"

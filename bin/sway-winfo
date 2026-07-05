@@ -67,7 +67,7 @@ trap 'printf "\nINTERRUPT\n"; log "Interrupted"; exit 1' SIGINT SIGTERM
 
 # Check that required commands are available
 check_deps() {
-  local missing=()
+  local missing=() cmd
   for cmd in swaymsg jq wl-copy foot; do
     command -v "$cmd" > /dev/null 2>&1 || missing+=("$cmd")
   done
@@ -81,6 +81,14 @@ check_deps() {
     p_err "Optional command not found: notify-send (install: sudo apt install libnotify-bin)"
     p_err "Notifications will be disabled"
   fi
+}
+
+# Query the focused container from the sway tree (con or floating_con only).
+# Outputs compact JSON, or nothing if no window is focused.
+get_focused_container() {
+  swaymsg -t get_tree \
+    | jq -c 'limit(1; .. | objects | select(.focused? == true
+             and (.type? == "con" or .type? == "floating_con")))'
 }
 
 # Return 0 if the winfo floating terminal is currently open
@@ -208,10 +216,7 @@ monitor() {
   # timeouts (the latter catches apps that never emit Sway focus events).
   _check_focused() {
     local c cid a t w out
-    c=$(swaymsg -t get_tree \
-      | jq -c 'limit(1; .. | objects | select(.focused? == true
-               and (.type? == "con" or .type? == "floating_con")))' \
-      2>/dev/null) || return 0
+    c=$(get_focused_container 2>/dev/null) || return 0
     [[ -n "$c" ]] || return 0
 
     cid=$(jq -r '.id // empty' <<< "$c" 2>/dev/null) || true
@@ -267,9 +272,7 @@ blocklist_toggle() {
   local container app_id wm_class entry
   local -r separator="# --- auto-managed (sway-winfo) ---"
 
-  container=$(swaymsg -t get_tree \
-    | jq -c 'limit(1; .. | objects | select(.focused? == true
-             and (.type? == "con" or .type? == "floating_con")))') || true
+  container=$(get_focused_container) || true
 
   if [[ -z "$container" ]]; then
     notify "sway-winfo" "No focused window found"
@@ -338,7 +341,7 @@ blocklist_toggle() {
 
 # }}} = CORE ==================================================================
 
-usage() {
+p_usg() {
   cat <<EOF
 Usage: ${SCRIPT_FILE} [--toggle|--monitor|--blocklist-add] [-h|--help]
 
@@ -390,8 +393,8 @@ main() {
       --monitor)       mode="monitor" ;;
       --blocklist-toggle) mode="blocklist-toggle" ;;
       --blocklist-add)    mode="blocklist-toggle" ;; # kept for backwards compat
-      -h|--help)       usage; return 0 ;;
-      -*) p_err "Unknown option: $1"; usage >&2; return 1 ;;
+      -h|--help)       p_usg; return 0 ;;
+      -*) p_err "Unknown option: $1"; p_usg >&2; return 1 ;;
     esac
     shift
   done

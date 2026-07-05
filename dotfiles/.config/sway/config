@@ -11,7 +11,7 @@
 # Proprietary Nvidia drivers require --unsupported-gpu to start sway.
 # Set WLR_NO_HARDWARE_CURSORS=1 *before* sway starts (not here):
 #   WLR_NO_HARDWARE_CURSORS=1 sway --unsupported-gpu
-# Consider using ~/bin/sway-nvidia
+# Handled automatically (auto-detected) by ~/bin/sway-start
 # }}} = Nvidia Workarounds ====================================================
 
 # {{{ = Output / Input =======================================================
@@ -557,8 +557,8 @@ bindsym $mod+Alt+Return     exec $termfloat
 
 # mod-F8: toggle window info monitor (sway-winfo, hover to inspect any window)
 # mod-Shift-F8: toggle focused window in/out of the auto-managed blocklist zone
-bindsym $mod+F8              exec ~/bin/sway-winfo --toggle
-bindsym $mod+Shift+F8        exec ~/bin/sway-winfo --blocklist-toggle
+bindsym $mod+F8              exec sway-winfo --toggle
+bindsym $mod+Shift+F8        exec sway-winfo --blocklist-toggle
 
 # mod-space: rofi run launcher
 bindsym $mod+space           exec rofi -show combi
@@ -715,8 +715,8 @@ for_window [class="^blueman-manager$"]                     $STICK_AND_FLOAT
 for_window [title="(?i)^Picture-in-Picture$"]              $STICK_AND_FLOAT
 
 # JDownloader main window (Java app with no class/app_id)
-for_window [class="(?i)^java-lang-Thread$"][title="(?i)^JDownloader|INFODIALOG$"] \
-                                                           $STICK_AND_FLOAT
+for_window [class="(?i)\b(java-lang-Thread|JDownloader)\b"] \
+           [title="(?i)\b(JDownloader|INFODIALOG)\b"]                   $STICK_AND_FLOAT
 
 # Math apps
 for_window [app_id="(?i)\b(calculator|qalculate-\w+|speedcrunch)\b"] \
@@ -744,7 +744,7 @@ for_window [class="^streaming_client$"]                    fullscreen enable
 
 # Propagate key env vars to systemd user session and D-Bus.
 # Required so xdg-desktop-portal, pipewire, and other socket-activated services
-# inherit WAYLAND_DISPLAY and XDG_CURRENT_DESKTOP (set in sway-nvidia).
+# inherit WAYLAND_DISPLAY and XDG_CURRENT_DESKTOP (set in sway-start).
 exec dbus-update-activation-environment --systemd \
     WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DISPLAY
 

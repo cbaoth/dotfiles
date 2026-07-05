@@ -70,7 +70,7 @@ Ideas and future tasks for improving the shell scripts in this repository.
 
 # 3. Desktop / Sway Setup
 
-GDM is currently required only to provide a graphical login. Since Sway is started manually from a TTY (`sudo systemctl stop gdm && sway-nvidia`), GDM adds overhead with no benefit.
+GDM is currently required only to provide a graphical login. Since Sway is started manually from a TTY (`sudo systemctl stop gdm && sway-start`), GDM adds overhead with no benefit.
 
 **Prerequisite:** Sway must be confirmed stable (waybar, keyring, key bindings all verified working) before making any change permanent.
 

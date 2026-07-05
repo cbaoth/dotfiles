@@ -1,8 +1,8 @@
 # Introduction
 
-This document covers the one-time setup steps required to run Sway on Ubuntu when migrating from (or alongside) a GNOME desktop. It focuses on things that are **not** handled automatically by the config files or the `sway-nvidia` launch script — those are considered working by definition.
+This document covers the one-time setup steps required to run Sway on Ubuntu when migrating from (or alongside) a GNOME desktop. It focuses on things that are **not** handled automatically by the config files or the `sway-start` launch script — those are considered working by definition.
 
-The Sway configuration lives at `~/.config/sway/config` (symlinked from `dotfiles/dotfiles/.config/sway/config`). The launch script is `~/bin/sway-nvidia`.
+The Sway configuration lives at `~/.config/sway/config` (symlinked from `dotfiles/dotfiles/.config/sway/config`). The launch script is `~/bin/sway-start`.
 
 # Required Packages
 
@@ -43,14 +43,14 @@ sudo apt install \
 
 # Launching Sway
 
-Sway must be started from a TTY (not inside an existing Wayland/X11 session). The `sway-nvidia` script sets required environment variables for Nvidia proprietary drivers.
+Sway must be started from a TTY (not inside an existing Wayland/X11 session). The `sway-start` script sets required environment variables and, if the proprietary Nvidia driver is detected (or forced via `--nvidia`), adds the Nvidia-specific flag/vars automatically.
 
 ``` bash
 # In a TTY — stop GDM first if it is running
 sudo systemctl stop gdm
 
 # Launch Sway, redirect output for debugging
-sway-nvidia >/tmp/sway.log 2>&1
+sway-start >/tmp/sway.log 2>&1
 ```
 
 To inspect startup issues:
@@ -201,15 +201,15 @@ Basic `mako` configuration (optional) goes in `~/.config/mako/config`. The defau
 
 # Nvidia Proprietary Drivers
 
-The `sway-nvidia` script sets:
+The `sway-start` script auto-detects the proprietary Nvidia driver (via `/sys/module/nvidia`) and, when active, sets:
 
 - `WLR_NO_HARDWARE_CURSORS=1` — software cursor (hardware cursors not supported by the proprietary driver under wlroots)
 
-- `XDG_CURRENT_DESKTOP=sway` — required for portal backend selection
+- `sway --unsupported-gpu` — required flag for the proprietary driver
 
-- `sway --unsupported-gpu` — required flag; remove when switching to Nouveau or open kernel modules
+`XDG_CURRENT_DESKTOP=sway` is set unconditionally (required for portal backend selection regardless of GPU driver).
 
-These can be removed once the open kernel modules (nvidia-open) or Nouveau are in use.
+Detection (and thus the flag/vars above) goes away on its own once the open kernel modules (nvidia-open) or Nouveau are in use — no script changes needed. Use `--nvidia` / `--no-nvidia` to override the auto-detection.
 
 # Known Harmless Log Noise
 

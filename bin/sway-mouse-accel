@@ -16,7 +16,7 @@ declare -rA ACCEL_MAP=(
 
 p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
-usage() {
+p_usg() {
   cat <<EOF
 Usage: $(basename "$0") <command>
 
@@ -60,11 +60,11 @@ case "${1:-}" in
     set_accel "$1"
     ;;
   -h|--help)
-    usage
+    p_usg
     ;;
   *)
     p_err "unknown command: ${1:-<none>}"
-    usage >&2
+    p_usg >&2
     exit 1
     ;;
 esac
