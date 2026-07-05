@@ -794,13 +794,10 @@ A VS Code extension is available:
 > frameworks is tracked in `docs/TODO.md`.
 
 
-## Documentation
+## Related Files
 
-- Use `README.md` for high-level overview and link to detailed docs in `@docs/`. Use `TODO.md` for tracking tasks and future improvements. Keep both files up to date with the project's current state and plans.
-  - Create new documentation files in `@docs/` whenever it seems appropriate; especially when more extensive changes are planned/made, or complex features are added that require detailed explanation.
-- Use this `@docs/shell-style-guide.md` for the full style guide, and `CLAUDE.md` for a concise summary.
-
-### Formatting and Style Guidelines
-
-- Use [Asciidoc](https://asciidoctor.org/docs/asciidoc-syntax-quick-reference/) for documentation.
-- Avoid the use of tabs, use spaces for indentation.
+This document is the full, human-readable style guide. The concise agent-facing
+summary lives in `.github/instructions/cb-shell-script.instructions.md`
+(loaded automatically by GitHub Copilot and, via `.claude/rules/`, by Claude
+Code) — keep the two in sync when conventions change. See
+`docs/agent-instructions.adoc` for how the AI instruction files are wired up.

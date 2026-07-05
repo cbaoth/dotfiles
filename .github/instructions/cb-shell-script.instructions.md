@@ -1,11 +1,21 @@
 ---
 description: 'Best practices and conventions for all bash, sh, and zsh shell scripts (standalone, sourced, and shell configuration files)'
-applyTo: '**/*.sh', '**/*.zsh', '**/bin/**/*', '**/.profile', '**/.env', '**/.common_env', '**/.aliases', '**/.functions', '**/*.{bashrc,bash_login,bash_logout,bash_profile,profile}', '**/*.{zshrc,zlogin,zlogout,zprofile}'
+# applyTo: used by GitHub Copilot — single string, comma-separated globs
+applyTo: "**/*.sh,**/*.zsh,bin/**,lib/**,system-scripts/**,**/.{bashrc,bash_login,bash_logout,bash_profile,profile,zshenv,zshrc,zlogin,zlogout,zprofile,aliases,functions,env,common_env}"
+# paths: used by Claude Code (loaded as path-scoped rule via .claude/rules/ symlink)
+paths:
+  - "**/*.{sh,zsh}"
+  - "bin/**"
+  - "lib/**"
+  - "system-scripts/**"
+  - "**/.{bashrc,bash_login,bash_logout,bash_profile,profile,zshenv,zshrc,zlogin,zlogout,zprofile,aliases,functions,env,common_env}"
 ---
 
 # Shell Script Style Guide (Summary)
 
-Instructions for writing clean, safe, and maintainable shell scripts for bash, sh, zsh, and other shells. Based on the [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html) with project-specific additions.
+Instructions for writing clean, safe, and maintainable shell scripts for bash, sh, and zsh. Based on the
+[Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html) with project-specific additions.
+Extended human-readable guide: `docs/shell-style-guide.md` (this summary is authoritative for agents).
 
 ## Shells
 
@@ -46,10 +56,10 @@ For sourced files and shell config files (no shebang):
 # ~/.zshrc: executed by zsh(1)
 ```
 
-- **Emacs** modeline `# -*- `: Always use `mode: sh` and set `ft=(bash|zsh|sh)` to the script specific shell (default `bash`).
-- **VIM** modeline `# vim:`: Set `language=(bash|zsh|sh)` to the script specific shell (if any, otherwise `bash`).
-- **Spellcheck** modeline `# spellcheck `: Set `shell=(bash|sh)` to either `bash` (default, no support for `zsh`).
-  - For files without shebang (sourced/config files) set spellcheck `disable=SC2148` to prevent "no shebang" lint error.
+- **Emacs** modeline `# -*- `: Always use `mode: sh` and set `sh-shell: (bash|zsh|sh)` to the script specific shell (default `bash`).
+- **VIM** modeline `# vim:`: Set `ft=(bash|zsh|sh)` to the script specific shell (if any, otherwise `bash`).
+- **ShellCheck** directive `# shellcheck `: Set `shell=(bash|sh)` — `bash` by default (`zsh` is not supported), `sh` only if specifically required.
+  - For files without shebang (sourced/config files) add `disable=SC2148` to prevent the "no shebang" lint error.
 - **Description:** a concise, single line summary of the script's purpose/usage/functionality. For sourced/rc files where location is semantically important lead with the canonical path.
 - **Spacing:** empty line between header block and following script implementation.
 
@@ -116,7 +126,7 @@ Don't convert working single-line aliases to functions for style reasons alone.
 
 ## Features
 
-- Prefer `[[ ... ]]` over  `[ ... ]`
+- Prefer `[[ ... ]]` over `[ ... ]`
 - Prefer `$(cmd)` over backticks
 - Prefer `(( ... ))` for arithmetic, never `let` or `expr`
 - Prefer parameter expansion over external commands
@@ -145,20 +155,9 @@ Namespace: functions `cl::name`, constants `CL_NAME`.
 
 - Errors/warnings to stderr (`>&2`)
 - With `lib/commons.sh` sourced: `cl::p_err`, `cl::p_war`, `cl::p_msg`, `cl::p_dbg`
-- Without: define `log_error()`, `log_warn()`, `log_info()` helpers
+- Without: use `p_err()`, `p_war()`, `p_msg()`, `p_nfo()`, `p_dbg()` helpers with raw ANSI codes
+  (or `log_error()`, `log_warn()`, `log_info()` for scripts with structured logging)
 
 ## Linting
 
 - Use [ShellCheck](https://www.shellcheck.net/) for static analysis.
-
-## AI Agent Mode
-
-When working in interactive shell you can expect the following to be setup for you:
-
-- Default shell is `zsh` with:
-  - `setopt EXTENDED_GLOB`
-  - `setopt INTERACTIVECOMMENTS`
-
-## Resources
-
--

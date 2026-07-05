@@ -1,0 +1,107 @@
+= AI Agent Instructions Architecture
+:toc:
+:toclevels: 2
+
+How AI coding agent instructions are organized in this repository so that
+*Claude Code* and *GitHub Copilot* (CLI, VS Code, coding agent, code review)
+share a single source of truth instead of duplicated files.
+
+== Design
+
+Verified against Claude Code 2.1.x and Copilot CLI 1.0.x (July 2026):
+
+[cols="3,1,1,1",options="header"]
+|===
+| File | Claude Code | Copilot CLI | Copilot VS Code
+
+| `CLAUDE.md`
+| ✓ (always)
+| ✗
+| ✗
+
+| `AGENTS.md`
+| via `@AGENTS.md` import in `CLAUDE.md`
+| ✓
+| ✓
+
+| `.github/copilot-instructions.md`
+| ✗
+| ✓
+| ✓
+
+| `.github/instructions/*.instructions.md` (`applyTo` frontmatter)
+| via `.claude/rules/` symlinks (`paths` frontmatter)
+| ✓ (path-scoped)
+| ✓ (path-scoped)
+
+| `.claude/rules/*.md` (`paths` frontmatter)
+| ✓ (path-scoped, lazy-loaded)
+| ✗
+| ✗
+|===
+
+Resulting layout — each piece of content exists exactly once:
+
+----
+AGENTS.md                                  # canonical project instructions
+CLAUDE.md                                  # thin: "@AGENTS.md" import + Claude notes
+.github/copilot-instructions.md            # thin pointer to AGENTS.md (for surfaces
+                                           #   that don't read AGENTS.md, e.g. code review)
+.github/instructions/
+  cb-shell-script.instructions.md          # canonical shell style summary (path-scoped)
+  cb-python.instructions.md                # canonical python style (path-scoped)
+  cb-commit-messages.instructions.md       # canonical commit conventions (always on)
+.claude/rules/
+  cb-shell-script.md -> ../../.github/instructions/cb-shell-script.instructions.md
+  cb-python.md       -> ../../.github/instructions/cb-python.instructions.md
+  cb-commit-messages.md -> ../../.github/instructions/cb-commit-messages.instructions.md
+docs/shell-style-guide.md                  # full human-readable guide (NOT agent-loaded)
+----
+
+== Key Mechanics and Gotchas
+
+* *Claude Code `@path` imports load the whole file at launch* (they are not
+  lazy). Never `@`-import large human docs like `docs/shell-style-guide.md`;
+  mention paths in backticks instead, which suppresses the import.
+* *Dual frontmatter*: the instruction files carry both keys. Copilot reads
+  `applyTo` (a _single_ comma-separated string — multiple quoted strings are
+  invalid YAML and break matching) and ignores `paths` (VS Code shows a
+  harmless "not supported" hint). Claude Code rules read `paths` (a YAML list,
+  brace expansion supported) and ignore `applyTo` and `description`.
+* *Claude path-scoped rules load lazily* when Claude reads/edits a matching
+  file. A rule file without a `paths` key is loaded unconditionally at launch
+  (used for the commit-message conventions).
+* *`.claude/rules/` supports symlinks* (also to targets outside the
+  directory), which is what makes the single-source setup possible.
+* Copilot CLI reads `AGENTS.md` but *not* `CLAUDE.md`; the Copilot *cloud
+  agent* reads both. Copilot code review reads `copilot-instructions.md` and
+  path-scoped instructions, but no agent files — hence the pointer file.
+
+== Verifying the Setup
+
+Claude Code::
+* `/memory` in a session lists all loaded CLAUDE.md/rules files.
+* An `InstructionsLoaded` hook can log exactly which instruction files load
+  and when (useful for path-scoped rules).
+* Quick check: `claude -p "which project instruction files are in your context?"`
+
+Copilot CLI::
+* `/context` (session) or ask: `copilot -p "which custom instruction files
+  were loaded?"`.
+* `--no-custom-instructions` disables AGENTS.md and related files (useful for
+  A/B checks).
+
+== Maintenance Rules
+
+* Style/convention content goes into `.github/instructions/cb-*.instructions.md`
+  — never into `AGENTS.md`, `CLAUDE.md`, or `copilot-instructions.md`.
+* Project workflow/layout content goes into `AGENTS.md` only.
+* Keep `AGENTS.md` under ~100 lines and instruction files under ~200 lines;
+  adherence drops as always-loaded context grows.
+* When shell conventions change, update both
+  `cb-shell-script.instructions.md` (agent summary, authoritative) and
+  `docs/shell-style-guide.md` (human guide).
+* Third-party instruction files in `.github/instructions/` (from
+  awesome-copilot, gitignored) affect Copilot only; prefer narrow `applyTo`
+  globs — files with `applyTo: '**'` are injected into *every* Copilot
+  request.

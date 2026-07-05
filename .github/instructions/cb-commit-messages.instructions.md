@@ -1,5 +1,7 @@
 ---
 description: 'Conventions for writing git commit messages — verb prefix, imperative mood, length limits, and foreign-repo guidance'
+# applyTo: used by GitHub Copilot; Claude Code loads this unconditionally
+# (no `paths` key) as an always-on rule via .claude/rules/ symlink
 applyTo: '**'
 ---
 

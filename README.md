@@ -32,6 +32,10 @@ _archive/        Archived scripts pending review (not in PATH)
 
 > **Note:** See [docs/TODO.md](docs/TODO.md) for the full task/improvement list.
 
+> **AI agents:** Instructions for Claude Code / GitHub Copilot are single-sourced
+> in [AGENTS.md](AGENTS.md) and `.github/instructions/` — see
+> [docs/agent-instructions.adoc](docs/agent-instructions.adoc) for the architecture.
+
 ### Dot-files
 
 | File / Folder | App | Description |

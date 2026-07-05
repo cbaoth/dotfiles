@@ -21,6 +21,7 @@ desktop.ini
 # Track only own cb-*.md files; everything else in .github/ stays local
 # (unreviewed/unlicensed content from awesome-copilot, future extension-managed files, etc.)
 .github/*
+!.github/copilot-instructions.md
 !.github/cb-*.md
 !.github/instructions/
 !.github/agents/
