@@ -130,6 +130,18 @@ main() {
     kill "$pid" 2>/dev/null || true
   done < <(pgrep -f '^(conky|(sh|bash) -c conky) ')
 
+  # Conky catches SIGTERM and can hang mid-cleanup if its Wayland connection
+  # is already dead (e.g. orphaned from a previous, since-exited sway
+  # session), so pkill alone doesn't guarantee it actually exits. Give it a
+  # short grace period, then force-kill any stragglers -- otherwise we'd
+  # spawn duplicate instances for the same config.
+  local -i waited=0
+  while pgrep -x conky &>/dev/null && (( waited < 20 )); do
+    sleep 0.1
+    (( waited++ ))
+  done
+  pkill -9 -x conky 2>/dev/null || true
+
   local log_file
   for config in "${configs[@]}"; do
     log_file="${LOG_DIR}/$(basename "$config").log"
