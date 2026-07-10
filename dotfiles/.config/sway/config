@@ -60,7 +60,7 @@ input "type:pointer" {
     # accel_profile "flat"
     accel_profile "adaptive"
     # Assumes mouse sensitivity setting of 2000 DPI e.g. in Solaar
-    pointer_accel 0.25
+    pointer_accel 0.2
 }
 
 #input "type:touchpad" {
@@ -619,6 +619,8 @@ bindsym $hyper+o             exec sway-app -m obsidian -A toggle -- flatpak run 
 #       only option; regex alternation (|) still works within one value.
 
 # {{{ - Workspace 1 - Main ---------------------------------------------------
+# Communication and social apps
+for_window [app_id="(?i)^org\.signal\.Signal$"]              move container to workspace $ws1
 # }}} - Workspace 1 - Main ---------------------------------------------------
 
 # {{{ - Workspace 2 - Web ----------------------------------------------------
@@ -632,12 +634,12 @@ bindsym $hyper+o             exec sway-app -m obsidian -A toggle -- flatpak run 
 # {{{ - Workspace 3 - Development --------------------------------------------
 # VS Code: app_id is plain "code" on Wayland (verified live); class kept as
 # an XWayland fallback in case that build ever runs there instead.
-for_window [app_id="^(?i)code$"]                           move container to workspace $ws3
-for_window [class="(?i)(^|[ ._-])(visual.*)?code$"]        move container to workspace $ws3
+# for_window [app_id="(?i)^code$"]                           move container to workspace $ws3
+# for_window [class="(?i)(^|[ ._-])(visual.*)?code$"]        move container to workspace $ws3
 # }}} - Workspace 3 - Development --------------------------------------------
 
 # {{{ - Workspace 4 - Create -------------------------------------------------
-for_window [class="(?i)(^|[ ._-])(gimp|XnView(MP)?)$"]     move container to workspace $ws4
+# for_window [class="(?i)(^|[ ._-])(gimp|XnView(MP)?)$"]     move container to workspace $ws4
 # }}} - Workspace 4 - Create -------------------------------------------------
 
 # {{{ - Workspace 5 - Gaming -------------------------------------------------
@@ -648,7 +650,7 @@ for_window [class="(?i)(^|[ ._-])(gimp|XnView(MP)?)$"]     move container to wor
 
 # {{{ - Workspace 6 - Fullscreen Borderless ----------------------------------
 # full screen borderless (e.g. steam games)
-for_window [class="^steam_app_"]                           move container to workspace $ws6, \
+for_window [class="(?i)^steam_app_"]                       move container to workspace $ws6, \
                                                              fullscreen enable, border normal 0
 # }}} - Workspace 6 - Fullscreen Borderless ----------------------------------
 
@@ -669,30 +671,33 @@ for_window [class="^steam_app_"]                           move container to wor
 for_window [window_role="^i3float$"]                       $FLOAT
 
 # Float by custom app_id=swayfloat (e.g. `exec {app} --app-id=swayfloat`)
-for_window [app_id="^swayfloat$"]                          $FLOAT
+for_window [app_id="(?i)^swayfloat$"]                      $FLOAT
 
 # Web Browsers
 for_window [title="(?i)(^|[ ._-])(Task[ ._-]?Manager)([ ._-]|$)"] \
                                                            $FLOAT
 
 # Gaming
-for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] \
-                                                         $FLOAT
+for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] $FLOAT
 for_window [class="(?i)(^|[ ._-])(steam|PortProton)$"]     $FLOAT
+for_window [title="(?i)(Games Launcher|battle\.net)$"]     $FLOAT
 # }}} - Floating -------------------------------------------------------------
 
 # {{{ - Floating and Sticky --------------------------------------------------
 # Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
-for_window [app_id="^mpv|spotify"]                         $FLOAT
-for_window [class="^(?i)(mpv|vlc|spotify)$"]               $FLOAT
+for_window [app_id="(?i)^mpv|spotify"]                     $FLOAT
+for_window [class="(?i)^(mpv|vlc|spotify)$"]               $FLOAT
 
 # Various system settings and related windows
-for_window [app_id="^(?i)org.gnome.settings$"]             $FLOAT
-for_window [app_id="^(?i)com.github.tchx84.Flatseal$"]     $FLOAT
-for_window [app_id="^(?i)ulauncher$"]                      $FLOAT
-for_window [app_id="^(?i)org.gnome.Software$"]             $FLOAT
+for_window [app_id="(?i)^org.gnome.settings$"]             $FLOAT
+for_window [app_id="(?i)^com.github.tchx84.Flatseal$"]     $FLOAT
+for_window [app_id="(?i)^ulauncher$"]                      $FLOAT
+for_window [app_id="(?i)^org.gnome.Software$"]             $FLOAT
 for_window [app_id="(?i)(^|[ ._-])(nvidia-settings|solaar)"] \
                                                            $FLOAT
+
+# Communication and social apps
+for_window [app_id="(?i)^org\.signal\.Signal$"]            $FLOAT
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
@@ -711,8 +716,8 @@ for_window [app_id="(?i)(^|[ ._-])(nm-applet|nm-connection-editor)$"] \
 # NordVPN client UI (tray): app_id is plain "nordvpn-gui", Wayland-native, no
 # class (verified live via sway-winfo). class rule kept as a harmless no-op
 # fallback in case a future build adds an XWayland path.
-for_window [app_id="^(?i)nordvpn-gui$"]                    $STICK_AND_FLOAT
-for_window [class="^(?i)nordvpn-gui$"]                     $STICK_AND_FLOAT
+for_window [app_id="(?i)^nordvpn-gui$"]                    $STICK_AND_FLOAT
+for_window [class="(?i)^nordvpn-gui$"]                     $STICK_AND_FLOAT
 
 # Nextcloud client (tray)
 # move position cursor: open centered on the mouse (right where the tray
@@ -723,15 +728,15 @@ for_window [app_id="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]  $STICK_AND_FLOAT, mov
 for_window [class="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]   $STICK_AND_FLOAT, move position cursor
 
 # PulseAudio volume control
-for_window [app_id="^pavucontrol$"]                        $STICK_AND_FLOAT
-for_window [class="^pavucontrol$"]                         $STICK_AND_FLOAT
+for_window [app_id="(?i)^pavucontrol$"]                    $STICK_AND_FLOAT
+for_window [class="(?i)^pavucontrol$"]                     $STICK_AND_FLOAT
 
 # Blueman bluetooth manager (tray)
 for_window [app_id="^blueman-manager$"]                    $STICK_AND_FLOAT
 for_window [class="^blueman-manager$"]                     $STICK_AND_FLOAT
 
 # Firefox pip video player window (e.g. YouTube)
-for_window [title="(?i)^Picture-in-Picture$"]              $STICK_AND_FLOAT
+for_window [title="(?i)^Picture.?in.?Picture$"]            $STICK_AND_FLOAT
 
 # JDownloader main window (Java app with no class/app_id)
 # class matches real launcher window "org-jdownloader-update-launcher-
@@ -749,7 +754,7 @@ for_window [class="(?i)(^|[ ._-])(galculator|qalculate)$"] $STICK_AND_FLOAT
 
 # }}} - Others ---------------------------------------------------------------
 # Full screen
-for_window [class="^streaming_client$"]                    fullscreen enable
+for_window [class="(?i)^streaming.?client$"]               fullscreen enable
 # }}} - Others x---------------------------------------------------------------
 # }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
