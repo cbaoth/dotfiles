@@ -1,5 +1,8 @@
 // ~/.config/waybar/config.jsonc: Waybar configuration for Sway
 // See https://github.com/Alexays/Waybar/wiki/Configuration
+// TODO check out some style/theme releated resources
+//      https://github.com/Alexays/Waybar/wiki/Styling
+//      https://github.com/topics/waybar-themes
 {
     "layer": "top",
     "position": "top",
@@ -15,12 +18,13 @@
         "sway/window"
     ],
     "modules-right": [
-        "pulseaudio",
         "network",
-        "cpu",
+        "tray",
+        "custom/sway-awake",
+        "pulseaudio",
         "memory",
-        "clock",
-        "tray"
+        "cpu",
+        "clock"
     ],
 
     "sway/workspaces": {
@@ -52,13 +56,13 @@
     },
 
     "cpu": {
-        "format": " {usage}%",
+        "format": "{usage}%",
         "tooltip": true,
         "interval": 5
     },
 
     "memory": {
-        "format": " {}%",
+        "format": "{}%",
         "interval": 10
     },
 
@@ -67,7 +71,7 @@
         "format-ethernet": " {ipaddr}",
         "format-linked": " {ifname} (no IP)",
         "format-disconnected": "⚠ disconnected",
-        "format-alt": "{ifname}: {ipaddr}/{cidr}",
+        /* "format-alt": "{ifname}: {ipaddr}/{cidr}", */ /* toggle on click */
         "tooltip-format": "{ifname}: {ipaddr}/{cidr}\nGateway: {gwaddr}"
     },
 
@@ -89,5 +93,20 @@
 
     "tray": {
         "spacing": 8
+    },
+
+    // Manual + automatic idle-inhibit indicator (bin/sway-awake).
+    //   moon  = off (normal idle/lock)    coffee  = manual keep-awake
+    //   film  = auto (media/game active)
+    // Click to toggle manual mode; right-click for a 30-min timeout.
+    "custom/sway-awake": {
+        "exec": "sway-awake waybar",
+        "return-type": "json",
+        "interval": 5,
+        "signal": 8,
+        "format": "{}",
+        "tooltip": true,
+        "on-click": "sway-awake toggle",
+        "on-click-right": "sway-awake toggle 30m"
     }
 }

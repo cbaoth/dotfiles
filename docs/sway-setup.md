@@ -199,6 +199,32 @@ systemctl --user mask waybar
 
 Basic `mako` configuration (optional) goes in `~/.config/mako/config`. The defaults work without any config file.
 
+# Idle Inhibit & Keep-Awake
+
+`swayidle` locks after 15 min and blanks the display after 60 min (see the `exec swayidle` line in the Sway config). Two mechanisms suppress this when appropriate, and a waybar module shows the current state at a glance.
+
+**Automatic (media/games)** — `wayland-pipewire-idle-inhibit` keeps the screen awake whenever audio plays through PipeWire, filtering short notification sounds via `media_minimum_duration` (config: `~/.config/wayland-pipewire-idle-inhibit/config.toml`). Apps that set their own inhibitor (Firefox video, mpv) and any fullscreen window (`inhibit_idle fullscreen` catch-all) are covered too. These register as **application** inhibitors.
+
+Install (prebuilt binary from nixpkgs, requires Determinate Nix / Nix):
+
+``` bash
+nix profile add nixpkgs#wayland-pipewire-idle-inhibit
+```
+
+Alternatives: `cargo install wayland-pipewire-idle-inhibit` (needs `libpipewire-0.3-dev libspa-0.2-dev clang`), or the AUR/Nixpkgs packages.
+
+**Manual (`sway-awake`)** — `bin/sway-awake` toggles a keep-awake state on demand. It holds a Sway **user** idle inhibitor via a tiny invisible holder window (app_id `sway-awake-idle-inhibitor`), which is what lets the bar tell manual mode apart from automatic mode.
+
+``` bash
+sway-awake toggle          # on/off
+sway-awake toggle 30m      # on, auto-off after 30 min (also: 45s, 90, 1h)
+sway-awake status          # off / manual / auto
+```
+
+- Hotkey: `$mod+Alt+x` enters the system mode, then `a` toggles (or `Shift+a` toggles with a 30-min auto-off).
+- Waybar `custom/sway-awake` module: coffee = manual (yellow), film = auto (blue), moon = off. Left-click toggles, right-click enables a 30-min auto-off. Colors encode *why* the screen is awake (manual vs media), not which button was pressed. The timeout uses a transient `systemd --user` timer (`sway-awake-timeout`).
+- Dependency: the bar's automatic (blue) state uses `pactl` to detect active audio — install `pulseaudio-utils` (`sudo apt install pulseaudio-utils`). Without it, media that does not set its own inhibitor is still kept awake by the PipeWire tool, but the bar will not surface the blue "auto" state.
+
 # Nvidia Proprietary Drivers
 
 The `sway-start` script auto-detects the proprietary Nvidia driver (via `/sys/module/nvidia`) and, when active, sets:

@@ -1,0 +1,26 @@
+# ~/.config/wayland-pipewire-idle-inhibit/config.toml
+# Config for wayland-pipewire-idle-inhibit (auto keep-awake while media plays).
+# https://github.com/rafaelrc7/wayland-pipewire-idle-inhibit
+# Started via `exec wayland-pipewire-idle-inhibit` in the Sway config.
+
+verbosity = "WARN"
+
+# Ignore audio shorter than this many seconds before inhibiting idle. Filters
+# out notification blips (Discord/Steam pings, system sounds) so they do not
+# keep the screen awake or wake it from idle.
+media_minimum_duration = 10
+
+# Idle inhibitor backend: "wayland" (idle-inhibit protocol, honoured by
+# swayidle) — the right choice for Sway. "d-bus" is only needed on GNOME.
+idle_inhibitor = "wayland"
+
+# Only consider these audio sinks (regex on name); empty = all sinks.
+sink_whitelist = [ ]
+
+# Sources to ignore even while playing (regex). Uncomment to let the screen
+# still sleep while only background music plays, e.g.:
+node_blacklist = [ ]
+# [[node_blacklist]]
+# app_name = "(?i)spotify"
+# [[node_blacklist]]
+# name = "(?i)mpd|Music Player Daemon"

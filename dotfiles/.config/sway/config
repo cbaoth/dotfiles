@@ -5,7 +5,7 @@
 #   sudo apt install sway swaylock swaynag swayidle foot brightnessctl \
 #     waybar rofi mako-notifier grim slurp flameshot playerctl \
 #     network-manager-applet xdg-desktop-portal-wlr fonts-font-awesome \
-#     jq wl-clipboard libnotify-bin
+#     jq wl-clipboard libnotify-bin pulseaudio-utils
 
 # {{{ = Nvidia Workarounds ====================================================
 # Proprietary Nvidia drivers require --unsupported-gpu to start sway.
@@ -443,32 +443,42 @@ mode "$mode_resize" {
     bindsym Escape       mode "default"
 }
 
-# mod-BackSpace: system mode
+# mod-Alt-x: system mode
 # SWAY: i3-nagbar → swaynag, i3-msg → swaymsg, dm-tool lock → swaylock
 #       xsuspend → swaylock -f && systemctl suspend
 #       restart  → reload  (sway has no in-place restart equivalent)
-set $mode_system Sway: [l]ock, relad [c]onfigure, [e]xit - System: [S]uspend, [H]ibernate, [R]eboot, [S]hutdown
+set $mode_system Sway: [l]ock, reload-[c]onfigure, e[X]it | Awake: keep-[a]wake (30min [A]uto-off) | System: [S]uspend, [H]ibernate, [R]eboot, shut[D]own
+
 # PulseAudio: switch card [p]rofile, restart [P]ipeWire
-bindsym $mod+F12 mode "$mode_system"; exec sway-mode-timeout $mode_timeout_secs
+bindsym $mod+Alt+x mode "$mode_system"; exec sway-mode-timeout $mode_timeout_secs
 mode "$mode_system" {
+    # Sway:
     # l: lock screen
     bindsym l                exec swaylock -c 000000, mode "default"
     # c: reload the configuration file (sway has no restart, reload is equivalent)
     bindsym c                reload, mode "default"
-    # e: exit sway
-    bindsym e                mode "default"; exec swaynag -t warning \
+    # X: exit sway
+    bindsym Shift+x          mode "default"; exec swaynag -t warning \
                                  -m 'Do you really want to exit Sway?' \
                                  -b 'Exit Sway' 'swaymsg exit'
 
+    # Awake:
+    # a: toggle sway-awake (manual keep-awake)
+    bindsym a                mode "default"; exec sway-awake toggle
+    # A: with 30-min auto-off.
+    bindsym Shift+a          mode "default"; exec sway-awake toggle 30m
+    # Indicator + click-toggle also available via the waybar custom/sway-awake module.
+
+    # System:
     # S: lock screen + suspend
     bindsym Shift+s          mode "default"; exec swaylock -f -c 000000 && systemctl suspend
     # H: lock screen + hibernate
     bindsym Shift+h          mode "default"; exec swaylock -f -c 000000 && systemctl hibernate
-    # R: reboot
-    bindsym Shift+b          mode "default"; exec swaynag -t warning \
+    # Alt+r: reboot
+    bindsym Shift+r          mode "default"; exec swaynag -t warning \
                                  -m 'Do you really want to reboot the system?' \
                                  -b 'Reboot' 'systemctl reboot'
-    # S: shut down
+    # D: shut down
     bindsym Shift+d          mode "default"; exec swaynag -t warning \
                                  -m 'Do you really want to shut down the system?' \
                                  -b 'Shutdown' 'systemctl poweroff'
@@ -755,6 +765,27 @@ for_window [class="(?i)(^|[ ._-])(galculator|qalculate)$"] $STICK_AND_FLOAT
 # }}} - Others ---------------------------------------------------------------
 # Full screen
 for_window [class="(?i)^streaming.?client$"]               fullscreen enable
+
+# Idle inhibit: keep the screen awake while any window is fullscreen (games /
+# fullscreen video that does not set its own inhibitor). `inhibit_idle
+# fullscreen` only inhibits while the window is actually fullscreen; it
+# registers as an application inhibitor. [class=".*"] matches XWayland windows,
+# [app_id=".*"] Wayland windows — together, all windows.
+for_window [app_id=".*"]                                   inhibit_idle fullscreen
+for_window [class=".*"]                                    inhibit_idle fullscreen
+
+# sway-awake (bin/sway-awake): invisible holder window for the *manual* keep-awake
+# toggle. Spawned/killed on demand; `inhibit_idle open` holds a *user* idle
+# inhibitor for as long as the window exists, distinguishing manual mode from
+# application inhibitors (media/games) in `swaymsg -t get_tree`.
+# MUST come after the catch-all above so `open` wins over `fullscreen`.
+# foot enforces a minimum window size (~72x39), so we cannot shrink it to 1x1;
+# instead park it fully off-screen (negative coords) and set opacity 0 so it is
+# invisible and cannot catch pointer clicks. inhibit_idle holds while it exists.
+no_focus   [app_id="^sway-awake-idle-inhibitor$"]
+for_window [app_id="^sway-awake-idle-inhibitor$"] \
+    floating enable, border none, opacity 0, \
+    move position -500 -500, inhibit_idle open
 # }}} - Others x---------------------------------------------------------------
 # }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
@@ -790,6 +821,14 @@ exec swayidle -w \
     resume       'swaymsg "output * dpms on"' \
     before-sleep 'swaylock -f -c 000000' \
     after-resume '~/bin/conky-restart'
+
+# Auto idle-inhibit while media/audio plays (PipeWire-aware). Filters short
+# notification sounds via `media_minimum_duration`, so a Discord/Steam ping does
+# not keep the screen awake. Registers an *application* idle inhibitor, which
+# bin/sway-awake surfaces as "auto" mode in waybar.
+# Install: nix profile add nixpkgs#wayland-pipewire-idle-inhibit
+# Config:  ~/.config/wayland-pipewire-idle-inhibit/config.toml
+exec wayland-pipewire-idle-inhibit
 
 # Notification daemon (mako - lightweight Wayland-native)
 # Install: sudo apt install mako-notifier

@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# sway-awake: toggle a manual "keep the display awake" idle inhibitor for Sway.
+#
+# Holds a Sway *user* idle inhibitor via a tiny invisible holder window so it is
+# distinguishable in `swaymsg -t get_tree` from *application* inhibitors set by
+# media/games (Firefox video, mpv, wayland-pipewire-idle-inhibit, ...).
+# Supports an optional auto-off timeout, desktop notifications, and a `waybar`
+# subcommand that renders the current state (off / manual / auto) as JSON.
+
+# set options (see also bin/conky-restart for the house pattern)
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n'
+
+# traps
+trap 'printf "\nINTERRUPT\n" >&2; exit 1' SIGINT SIGTERM
+
+# Logging
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+# {{{ = CONSTANTS ============================================================
+# app_id of the holder window; must match the `for_window`/`no_focus` rules in
+# the Sway config (dotfiles/.config/sway/config).
+declare -r HOLDER_APP_ID="sway-awake-idle-inhibitor"
+
+# waybar custom module signal (SIGRTMIN+N); must match "signal" in the waybar
+# config (dotfiles/.config/waybar/config.jsonc).
+declare -ri WAYBAR_SIGNAL=8
+
+# Runtime state (auto-off deadline for the countdown display).
+declare -r STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/sway-awake"
+declare -r UNTIL_FILE="${STATE_DIR}/until"
+declare -r TIMER_UNIT="sway-awake-timeout"
+
+# Bar glyphs (Font Awesome, matching the rest of the waybar config).
+# Font Awesome codepoints (waybar's font-family is FontAwesome). Defined via
+# ANSI-C $'\uXXXX' escapes so the source stays ASCII and the glyph is produced
+# at runtime. f186 = moon-o, f0f4 = coffee, f008 = film.
+declare -r ICON_OFF=$''      # moon   — normal idle/lock behaviour
+declare -r ICON_MANUAL=$''   # coffee — you enabled keep-awake
+declare -r ICON_AUTO=$''     # film   — media/game keeps it awake
+
+# Absolute path to this script (for the systemd auto-off timer).
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+declare -r SELF
+# }}} = CONSTANTS ============================================================
+
+# {{{ = HELPERS =============================================================
+usage() {
+  cat <<-EOF
+Usage: sway-awake [COMMAND] [DURATION]
+
+Manual keep-the-display-awake toggle for Sway.
+
+Commands:
+  toggle [DURATION]  Turn manual keep-awake on (with optional timeout) or off
+  on     [DURATION]  Turn on; with DURATION, auto-off after that time
+  off                Turn off
+  status             Print current state (off / manual / auto)
+  waybar             Emit waybar JSON for the custom/sway-awake module
+  -h, --help         Show this help
+
+DURATION: <n>[smh]  (bare number = minutes), e.g. 45s, 30m, 90, 1h
+EOF
+}
+
+# Parse a DURATION (45s / 30m / 90 / 1h; bare number = minutes) into seconds.
+to_seconds() {
+  local input="${1,,}" n unit
+  [[ "${input}" =~ ^([0-9]+)([smh]?)$ ]] || return 1
+  n="${BASH_REMATCH[1]}"
+  unit="${BASH_REMATCH[2]:-m}"
+  case "${unit}" in
+    s) printf '%d' "${n}" ;;
+    h) printf '%d' "$(( n * 3600 ))" ;;
+    *) printf '%d' "$(( n * 60 ))" ;;
+  esac
+}
+
+# Format seconds for humans: "45m" or "1h05m".
+human_duration() {
+  local -i s="${1}" h m
+  (( s < 0 )) && s=0
+  h=$(( s / 3600 ))
+  m=$(( (s % 3600 + 59) / 60 ))   # round up to whole minutes
+  (( h == 0 && m == 0 )) && m=1
+  if (( h > 0 )); then
+    printf '%dh%02dm' "${h}" "${m}"
+  else
+    printf '%dm' "${m}"
+  fi
+}
+
+notify() {
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -a sway-awake -t 2500 "${1}" "${2:-}" 2>/dev/null || true
+}
+
+signal_waybar() {
+  pkill "-RTMIN+${WAYBAR_SIGNAL}" waybar 2>/dev/null || true
+}
+
+# True if the manual holder window currently exists (i.e. manual mode is on).
+holder_present() {
+  swaymsg -t get_tree 2>/dev/null \
+    | jq -e --arg id "${HOLDER_APP_ID}" \
+        '([recurse(.nodes[]?, .floating_nodes[]?) | select(.app_id == $id)] | length) > 0' \
+        >/dev/null 2>&1
+}
+
+# Names of windows currently holding an *application* idle inhibitor (media that
+# self-inhibits: Firefox video, mpv, fullscreen games, ...). One per line.
+app_inhibitor_apps() {
+  swaymsg -t get_tree 2>/dev/null | jq -r '
+    [ recurse(.nodes[]?, .floating_nodes[]?)
+      | select((.idle_inhibitors.application // "none") != "none")
+      | (.app_id // .window_properties.class // .name // "app") ]
+    | unique | .[]' 2>/dev/null
+}
+
+# True if any PipeWire/Pulse sink-input is actively (not corked) playing audio.
+# Proxy for wayland-pipewire-idle-inhibit, whose layer-shell inhibitor is not
+# visible in get_tree.
+audio_playing() {
+  pactl list sink-inputs 2>/dev/null | grep -q 'Corked: no'
+}
+# }}} = HELPERS =============================================================
+
+# {{{ = TIMER ===============================================================
+cancel_timer() {
+  systemctl --user stop "${TIMER_UNIT}.timer" >/dev/null 2>&1 || true
+  rm -f "${UNTIL_FILE}"
+}
+
+# Schedule `sway-awake off` after N seconds via a transient user timer. The Sway
+# environment (SWAYSOCK, WAYLAND_DISPLAY, D-Bus) is passed through explicitly so
+# swaymsg and notify-send work from the systemd context.
+start_timer() {
+  local -i secs="${1}"
+  cancel_timer
+  mkdir -p "${STATE_DIR}"
+  systemd-run --user \
+    --unit="${TIMER_UNIT}" \
+    --timer-property=AccuracySec=1s \
+    --on-active="${secs}s" \
+    --setenv=SWAYSOCK="${SWAYSOCK:-}" \
+    --setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+    --setenv=DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
+    -- "${SELF}" off >/dev/null 2>&1 \
+    || { p_err "failed to schedule auto-off timer"; return 1; }
+  printf '%d' "$(( $(date +%s) + secs ))" > "${UNTIL_FILE}"
+}
+# }}} = TIMER ===============================================================
+
+# {{{ = STATE CHANGES =======================================================
+# Launch the invisible holder window if it is not already present. The Sway
+# `for_window` rule makes it 1x1/borderless/off-screen, no_focus, and applies
+# `inhibit_idle open` — so the window's mere existence holds the inhibitor.
+ensure_holder() {
+  holder_present && return 0
+  if command -v setsid >/dev/null 2>&1; then
+    setsid -f foot --app-id="${HOLDER_APP_ID}" sh -c 'exec sleep infinity' \
+      >/dev/null 2>&1
+  else
+    nohup foot --app-id="${HOLDER_APP_ID}" sh -c 'exec sleep infinity' \
+      >/dev/null 2>&1 &
+    disown
+  fi
+  # Wait briefly for the window to map so the inhibitor is active before we
+  # notify / refresh the bar (usually well under 200ms).
+  local -i i
+  for (( i = 0; i < 40; i++ )); do
+    holder_present && return 0
+    sleep 0.05
+  done
+  p_err "holder window did not appear; is 'foot' installed and Sway running?"
+  return 1
+}
+
+sway_awake_on() {
+  local duration="${1:-}"
+  local -i secs=0
+  if [[ -n "${duration}" ]]; then
+    secs="$(to_seconds "${duration}")" \
+      || { p_err "invalid duration: ${duration}"; return 1; }
+  fi
+  ensure_holder || return 1
+  cancel_timer
+  local msg="Display will stay awake"
+  if (( secs > 0 )); then
+    start_timer "${secs}" || true
+    msg="Awake for $(human_duration "${secs}")"
+  fi
+  notify "Sway-awake on" "${msg}"
+  signal_waybar
+}
+
+sway_awake_off() {
+  cancel_timer
+  swaymsg "[app_id=\"${HOLDER_APP_ID}\"] kill" >/dev/null 2>&1 || true
+  notify "Sway-awake off" "Normal idle/lock behaviour"
+  signal_waybar
+}
+
+sway_awake_toggle() {
+  if holder_present; then
+    sway_awake_off
+  else
+    sway_awake_on "${1:-}"
+  fi
+}
+
+sway_awake_status() {
+  if holder_present; then
+    local extra=""
+    if [[ -f "${UNTIL_FILE}" ]]; then
+      local -i left=$(( $(cat "${UNTIL_FILE}") - $(date +%s) ))
+      (( left > 0 )) && extra=" (auto-off in $(human_duration "${left}"))"
+    fi
+    printf 'sway-awake: ON — manual%s\n' "${extra}"
+  elif [[ -n "$(app_inhibitor_apps)" ]] || audio_playing; then
+    printf 'sway-awake: auto — media active\n'
+  else
+    printf 'sway-awake: off\n'
+  fi
+}
+# }}} = STATE CHANGES =======================================================
+
+# {{{ = WAYBAR ==============================================================
+sway_awake_waybar() {
+  local text tooltip class
+  local -r nl=$'\n'
+
+  if holder_present; then
+    class="manual"
+    local rem=""
+    if [[ -f "${UNTIL_FILE}" ]]; then
+      local -i left=$(( $(cat "${UNTIL_FILE}") - $(date +%s) ))
+      (( left > 0 )) && rem="$(human_duration "${left}")"
+    fi
+    text="${ICON_MANUAL}${rem:+ ${rem}}"
+    tooltip="Sway-awake: ON — manual${rem:+ (${rem} left)}${nl}Display will not sleep or lock."
+  else
+    local -a apps=()
+    mapfile -t apps < <(app_inhibitor_apps)
+    if (( ${#apps[@]} > 0 )) || audio_playing; then
+      class="auto"
+      text="${ICON_AUTO}"
+      local why=""
+      (( ${#apps[@]} > 0 )) && why+="Inhibiting apps: ${apps[*]}${nl}"
+      audio_playing && why+="Audio is playing${nl}"
+      tooltip="Sway-awake: auto — media active${nl}${why}Managed by wayland-pipewire-idle-inhibit."
+    else
+      class="off"
+      text="${ICON_OFF}"
+      tooltip="Sway-awake: off${nl}Normal idle/lock behaviour."
+    fi
+  fi
+
+  jq -cn --arg text "${text}" --arg tooltip "${tooltip}" --arg class "${class}" \
+    '{text: $text, tooltip: $tooltip, class: $class, alt: $class}'
+}
+# }}} = WAYBAR ==============================================================
+
+main() {
+  local cmd="${1:-toggle}"
+  [[ $# -gt 0 ]] && shift
+  case "${cmd}" in
+    on)             sway_awake_on "${1:-}" ;;
+    off)            sway_awake_off ;;
+    toggle)         sway_awake_toggle "${1:-}" ;;
+    status)         sway_awake_status ;;
+    waybar)         sway_awake_waybar ;;
+    -h|--help|help) usage ;;
+    *)              p_err "unknown command: ${cmd}"; usage >&2; exit 1 ;;
+  esac
+}
+
+main "$@"
