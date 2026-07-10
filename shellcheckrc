@@ -1,0 +1,38 @@
+# ----------------------------------------------------------------------------
+# https://github.com/koalaman/shellcheck/wiki/Directive#shellcheckrc-file
+# ----------------------------------------------------------------------------
+
+# Look for 'source'd files relative to the checked script
+source-path=SCRIPTDIR
+
+# Look for 'source'd in the most common dotfiles repo locations
+# TODO not sure if this works (and makes any sense), if so consider adding lib dir(s) as well
+#      including those in home (usually absolute paths)
+# source-path="${HOME}/dotfiles"
+# source-path="${HOME}/git/dotfiles"
+
+# Allow opening any 'source'd file, even if not specified as input
+# external-sources=true
+
+
+# ----------------------------------------------------------------------------
+# Enable optional checks
+# https://github.com/koalaman/shellcheck/wiki/Optional
+# ----------------------------------------------------------------------------
+
+# Suggest ${VAR} in place of $VAR
+enable=require-variable-braces
+
+# Turn on warnings for unquoted variables with safe values
+# enable=quote-safe-variables
+
+# Turn on warnings for unassigned uppercase variables
+# enable=check-unassigned-uppercase
+
+
+# ----------------------------------------------------------------------------
+# Disable checks/warnings
+# ----------------------------------------------------------------------------
+
+# Allow [ ! -z foo ] instead of suggesting -n
+# disable=SC2236
