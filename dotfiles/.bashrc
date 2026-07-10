@@ -83,46 +83,13 @@ source_ifex_custom "$HOME/lib/aliases"
 #     fi
 # fi
 # }}} - X WINDOWS / WAYLAND --------------------------------------------------
-# {{{ - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
-# Load NodeJS version manager if installed
-# - https://nodejs.org/en/download
-# - https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
-if [[ -d "$HOME/.config/nvm" ]]; then
-  export NVM_DIR="$HOME/.config/nvm"
-  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-    # shellcheck source=/dev/null
-    source "$NVM_DIR/nvm.sh"
-  fi
-  if [[ -s "$NVM_DIR/bash_completion" ]]; then
-    # shellcheck source=/dev/null
-    source "$NVM_DIR/bash_completion"
-  fi
-fi
-
-# determinate-nix > official nix CLI
-if command -v determinate-nixd >/dev/null 2>&1; then
-  # activate determinate-nixd auto completion subcommand
-  # https://docs.determinate.systems/determinate-nix/#determinate-nixd-completion
-  eval "$(determinate-nixd completion bash)"
-else
-  # source Nix profile (official version, see below for Determinate Nix)
-  if ! command -v nix >/dev/null 2>&1 && [[ -f ~/.nix-profile/etc/profile.d/nix.sh ]]; then
-    # shellcheck source=/dev/null
-    source ~/.nix-profile/etc/profile.d/nix.sh
-  fi
-fi
-
-# # angular CLI autocompletion, if ng is avaiable
-# if command -v ng >/dev/null 2>&1; then
-#   source <(ng completion script)
-# fi
-
+# {{{ - FINAL PATH UPDATE ----------------------------------------------------
 # finally let's ensure that ~/bin and ~/.local/bin are always on top of the PATH
 # e.g. to ensure that local tool installations take precedence
 PATH="\
 ${HOME}/bin:\
 ${HOME}/.local/bin:\
-$PATH"
+${PATH}"
 
 # Sanitize PATH: remove empty entries (e.g. double colons) and duplicates (first occurrence wins)
 PATH="$(printf '%s\n' "${PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
@@ -130,8 +97,7 @@ export PATH
 
 LD_LIBRARY_PATH="$(printf '%s\n' "${LD_LIBRARY_PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
 export LD_LIBRARY_PATH
-# }}} - SOURCE/INITIALIZE DEV TOOLS ------------------------------------------
-
+# }}} - FINAL PATH UPDATE ----------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)
 if (( SHLVL == 1 )); then
