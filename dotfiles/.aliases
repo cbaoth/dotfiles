@@ -77,7 +77,9 @@ alias kill-suspend='kill -TSTP'
 alias kill-resume='kill -CONT'
 
 # dmesg piped to less with timestamp format and colors
-alias dmesg-less='sudo dmesg -wT --color=always | less -R'
+alias dmesgp='sudo dmesg -wT --color=always | less -R'
+alias dmesgj='journalctl -ko short-monotonic --no-hostname --no-pager'
+alias dmesgjp='journalctl -ko short-monotonic --no-hostname'
 
 # backup source to target (no deletion but overwrite)
 # show progress, ignoring ext. links
