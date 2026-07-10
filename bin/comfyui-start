@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Wrapper script to launch ComfyUI with options to upgrade comfy-cli, update ComfyUI and Custom Nodes.
+# Installation (uv-managed venv):
+#   uv venv --seed --python 3.13 ~/comfy/venv
+#   source ~/comfy/venv/bin/activate
+#   uv pip install comfy-cli
+#   comfy --install-completion
+#   comfy set-default ~/comfy/ComfyUI   # point comfy-cli at the existing install
+#   comfy launch
+
+# {{{ = CONSTANTS ============================================================
+declare -r BASE_OUT_DIR=/srv/saito/stash
+declare -r COMFY_VENV="$HOME/comfy/venv"
+
+declare -r COMFYUI_LAUNCH_ARGS=(
+  # https://docs.comfy.org/interface/settings/server-config
+  # https://github.com/Comfy-Org/ComfyUI/blob/master/comfy/cli_args.py
+  #--highvram
+  #--normalvram
+  --lowvram
+  #--novram
+  #--cpu
+  --reserve-vram 2
+  --disable-smart-memory
+  #--force-fp16
+  #--cache-lru 10
+  #--use-flash-attention
+  --use-sage-attention
+  #--fast
+  --output-dir "$BASE_OUT_DIR/AI/ComfyUI/output/"
+  --input-dir "$BASE_OUT_DIR/AI/ComfyUI/input/"
+)
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = HELPER FUNCTIONS =====================================================
+echo_section() {
+  local msg="$*"
+  cat <<EOL
+
+==============================================================================
+${msg}
+------------------------------------------------------------------------------
+EOL
+}
+
+exit_msg() {
+  local msg
+  if [[ -n "$*" ]]; then msg="$*"; else msg="Failed! Exiting ..."; fi
+  echo -e "\e[31mERROR:\e[0m: ${msg[*]}]" >&2
+  exit 1
+}
+
+usage() {
+  cat <<EOL
+Usage: $(basename "$0") [OPTIONS]
+
+Options:
+  -c, --upgrade-comfy-cli       Upgrade comfy-cli (pip)
+  -u, --update-comfyui          Update ComfyUI
+  -n, --update-custom-nodes     Update ComfyUI Custom Nodes (all)
+  -a, --update-all              Upgrade comfy-cli, update ComfyUI and Custom Nodes
+  -i, --ignore-update-errors    Ignore errors during upgrade/update processes
+  -v, --verbose                 Enable verbose output (debug mode)
+  -h, --help                    Show this help message and exit
+EOL
+}
+
+declare UPGRADE_COMFY="false"
+declare UPDATE_COMFYUI="false"
+declare UPDATE_CUSTOM_NODES="false"
+declare IGNORE_UPDATE_ERRORS="false"
+parse_args() {
+  # Parse command-line arguments
+  for arg in "$@"; do
+    case $arg in
+      -c|--upgrade-comfy-cli) UPGRADE_COMFY="true";;
+      -u|--update-comfyui) UPDATE_COMFYUI="true";;
+      -n|--update-custom-nodes) UPDATE_CUSTOM_NODES="true";;
+      -a|--update-all)
+        UPGRADE_COMFY="true"
+        UPDATE_COMFYUI="true"
+        UPDATE_CUSTOM_NODES="true"
+      ;;
+      -i|--ignore-update-errors) IGNORE_UPDATE_ERRORS="true";;
+      -v|--verbose) set -x;;
+      -h|--help)
+        usage
+        exit 0
+      ;;
+      *) echo -e "\e[31mERROR:\e[0m: Unknown argument '$1'"
+        usage
+        exit 1
+      ;;
+    esac
+    shift
+  done
+}
+
+init_venv() {
+  echo_section "Activating ComfyUI venv ($COMFY_VENV) ..."
+  if [[ ! -f "$COMFY_VENV/bin/activate" ]]; then
+    exit_msg "venv not found at $COMFY_VENV! Create it with: uv venv --seed --python 3.13 $COMFY_VENV"
+  fi
+  # shellcheck source=/dev/null
+  source "$COMFY_VENV/bin/activate" \
+    || exit_msg "Failed to activate ComfyUI venv! Exiting ..."
+  which python3
+  python3 --version
+}
+
+declare PIP_IS_UPGRADED=false
+pip_upgrade() {
+  if [[ "$PIP_IS_UPGRADED" = "true" ]]; then
+    return 0
+  fi
+  echo_section "Upgrading pip ..."
+  pip install --upgrade pip \
+    || exit_msg "Failed to upgrate pip! Exiting ..."
+  PIP_IS_UPGRADED=true
+  return 0
+}
+
+update_error() {
+  local msg="$*"
+  if [[ "$IGNORE_UPDATE_ERRORS" = "true" ]]; then
+    echo -e "\e[33mWARNING:\e[0m ${msg[*]}]"
+  else
+    exit_msg "${msg[@]}"
+  fi
+}
+
+preconditions_checks() {
+  if [[ "$EUID" -eq 0 ]]; then
+    exit_msg "This script should not be run as root! Exiting ..."
+  fi
+  if ! mountpoint -q "$BASE_OUT_DIR"; then
+    echo "Mountpoint $BASE_OUT_DIR is not mounted, attempting to mount it now ..."
+    mount "$BASE_OUT_DIR" \
+      || exit_msg "Mountpoint $BASE_OUT_DIR is not mounted and mounting failed! Exiting ..."
+  fi
+  if [[ ! -d "$BASE_OUT_DIR/AI/ComfyUI" ]]; then
+    exit_msg "Mountpoint $BASE_OUT_DIR appears to be mounted but directory $BASE_OUT_DIR/AI/ComfyUI is missing! Exiting ..."
+  fi
+}
+# }}} = HELPER FUNCTIONS =====================================================
+
+# {{{ = MAIN FUNCTION ========================================================
+main() {
+  preconditions_checks
+  parse_args "$@"
+
+  echo_section "Ensure /mnt/c is mounted (contains models, etc.) ..."
+  if ! mountpoint -q /mnt/c; then
+    echo "/mnt/c is not mounted. Attempting to mount it now ..."
+    mount /mnt/c \
+      || exit_msg "/mnt/c is not mounted and mounting failed! Exiting ..."
+  fi
+
+  init_venv
+
+  if [[ "$UPGRADE_COMFY" = "true" ]]; then
+    pip_upgrade
+    echo_section "Upgrading comfy-cli (pip) ..."
+    pip install --upgrade comfy-cli \
+      || update_error "Failed to upgrate comfy-cli (pip)! Exiting ..."
+  fi
+
+  if [[ "$UPDATE_COMFYUI" = "true" ]]; then
+    pip_upgrade
+    echo_section "Updating ComfyUI ..."
+    comfy update \
+      || update_error "Failed to update ComfyUI! Exiting ..."
+    echo_section "Updating ComfyUI Manager ..."
+    pip install -U comfyui-manager \
+      || update_error "Failed to update ComfyUI Manager! Exiting ..."
+  fi
+
+  if [[ "$UPDATE_CUSTOM_NODES" = "true" ]]; then
+    pip_upgrade
+    echo_section "Updating ComfyUI Custom Nodes (all) ..."
+    comfy node update all \
+      || update_error "Failed to update ComfyUI Custom Nodes! Exiting ..."
+  fi
+
+  echo_section "Launching ComfyUI ..."
+  echo "ComfyUI Launch Args: ${COMFYUI_LAUNCH_ARGS[*]}"
+  comfy launch -- "${COMFYUI_LAUNCH_ARGS[@]}" \
+    2>&1 | tee /tmp/comfyui_"$(date +%s)".log
+
+  #cd ~/ComfyUI
+  #python main.py
+}
+# }}} = MAIN FUNCTION ========================================================
+
+main "$@"
+
+exit 0

@@ -6,8 +6,7 @@
 # ~/lib/aliases-motoko.sh: Host-specific aliases for motoko.
 
 # {{{ - APPS -----------------------------------------------------------------
-#alias comfyenv="source ~/comfy-env/bin/activate"
-alias comfyenv="conda activate comfy"  # activate comfy env (assumes conda env "comfy" exists)
+alias comfyenv="source ~/comfy/venv/bin/activate"  # activate comfy uv venv
 alias comfy="command -v comfy-cli >& /dev/null || comfyenv && comfy-cli"  # run comfy-cli while ensuring that comfy env is activated
 alias comfyu="comfy update"  # update comfy itself, not the nodes
 alias comfyun="comfy node update all"  # update all comfy nodes
