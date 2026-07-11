@@ -100,14 +100,4 @@ alias -g @sum="| awk '{s+=\$1} END {print s}'"
 
 # }}} - GLOBAL ALIASES -------------------------------------------------------
 
-# {{{ - COMPLETIONS ----------------------------------------------------------
-# Completion for check_script (defined in ~/lib/functions.sh).
-_check_script() {
-  _alternative \
-    'scripts:shell script:_files -g "*.sh *.bash *.zsh *.ksh"' \
-    'plain:extensionless file:_files -g "*~*.*(.)"'
-}
-compdef _check_script check_script
-# }}} - COMPLETIONS ----------------------------------------------------------
-
 return 0

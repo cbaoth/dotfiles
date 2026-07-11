@@ -1708,7 +1708,7 @@ Skips files unlikely to be shell scripts with a warning:
   return $ret
 }
 
-# completion for check_script defined in .zsh.d/aliases.zsh (zsh only)
+# zsh completion for check_script defined in ~/.zsh.d/completions/_check_script
 # }}} = DEVELOPMENT ==========================================================
 
 # {{{ = MULTIMEDIA ===========================================================

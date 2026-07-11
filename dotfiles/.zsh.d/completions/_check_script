@@ -1,0 +1,10 @@
+#compdef check_script
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for check_script (function defined in ~/lib/functions.sh).
+# Autoloaded by compinit via the #compdef tag above — do not call `compdef`
+# manually (this dir is added to fpath before compinit in ~/.zshrc).
+
+_alternative \
+  'scripts:shell script:_files -g "*.sh *.bash *.zsh *.ksh"' \
+  'plain:extensionless file:_files -g "*~*.*(.)"'
