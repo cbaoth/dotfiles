@@ -348,10 +348,10 @@ bindsym $mod+Alt+z           fullscreen toggle
 # toggle sticky state; auto-floats the window, border 2 = sticky indicator
 bindsym $mod+Alt+s           exec sway-wstate sticky
 
-# mod-q/w/W: change container layout (toggle-split/tabbed/stacked)
-bindsym $mod+s l             layout toggle split
-bindsym $mod+Shift+s         layout stacking
+# mod-s/t/S: change container layout (toggle-split/tabbed/stacked)
+bindsym $mod+s               layout toggle split
 bindsym $mod+t               layout tabbed
+bindsym $mod+Shift+s         layout stacking
 # mod-Alt-t: toggle floating (border 0 = floating, border 2 = tiling/sticky)
 bindsym $mod+Alt+t           exec sway-wstate float
 # mod-p: focus between tiling / floating windows
@@ -408,49 +408,43 @@ bindsym $mod+b bar       mode toggle
 # }}} - Workspace Navigation -------------------------------------------------
 
 # {{{ - Meta Modes -----------------------------------------------------------
-# mod-x: meta mode
-set $mode_meta           Meta: (c)lose window
+# mod-x: window mode
+set $mode_meta           Window mode | General: (c)lose window | Resize: $left/$right/$down/$up or Left/Right/Down/Up arrow keys
 bindsym $mod+x           mode "$mode_meta"; exec sway-mode-timeout $mode_timeout_secs
 mode "$mode_meta" {
     bindsym c            kill, mode "default"
-    bindsym Return       mode "default"
-    bindsym Escape       mode "default"
-}
 
-# mod-g: resize window mode
-set $mode_resize Resize container: $left/$right/$down/$up or Left/Right/Down/Up arrow keys
-bindsym $mod+g mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
-mode "$mode_resize" {
-    bindsym $left        resize shrink width  100 px
-    bindsym $right       resize grow   width  100 px
-    bindsym $up          resize grow   height 100 px
-    bindsym $down        resize shrink height 100 px
-    bindsym Shift+$left  resize shrink width   10 px
-    bindsym Shift+$right resize grow   width   10 px
-    bindsym Shift+$up    resize grow   height  10 px
-    bindsym Shift+$down  resize shrink height  10 px
+    bindsym $left        resize shrink width  100 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym $right       resize grow   width  100 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym $up          resize grow   height 100 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym $down        resize shrink height 100 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Shift+$left  resize shrink width   10 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Shift+$right resize grow   width   10 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Shift+$up    resize grow   height  10 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Shift+$down  resize shrink height  10 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
 
-    bindsym Left         resize shrink width  100 px
-    bindsym Right        resize grow   width  100 px
-    bindsym Up           resize grow   height 100 px
-    bindsym Down         resize shrink height 100 px
-    bindsym Shift+Left   resize shrink width   10 px
-    bindsym Shift+Right  resize grow   width   10 px
-    bindsym Shift+Up     resize grow   height  10 px
-    bindsym Shift+Down   resize shrink height  10 px
+    bindsym Left         resize shrink width  100 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Right        resize grow   width  100 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Up           resize grow   height 100 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Down         resize shrink height 100 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Shift+Left   resize shrink width   10 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Shift+Right  resize grow   width   10 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Shift+Up     resize grow   height  10 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
+    bindsym Shift+Down   resize shrink height  10 px; mode "$mode_resize"; exec sway-mode-timeout $mode_timeout_secs
 
     bindsym Return       mode "default"
     bindsym Escape       mode "default"
 }
 
-# mod-Alt-x: system mode
+# mod-ESC: system mode
 # SWAY: i3-nagbar → swaynag, i3-msg → swaymsg, dm-tool lock → swaylock
 #       xsuspend → swaylock -f && systemctl suspend
 #       restart  → reload  (sway has no in-place restart equivalent)
-set $mode_system Sway: [l]ock, reload-[c]onfigure, e[X]it | Awake: keep-[a]wake (30min [A]uto-off) | System: [S]uspend, [H]ibernate, [R]eboot, shut[D]own
-
-# PulseAudio: switch card [p]rofile, restart [P]ipeWire
-bindsym $mod+Alt+x mode "$mode_system"; exec sway-mode-timeout $mode_timeout_secs
+set $mode_system Sway: [l]ock, reload-[c]onfigure, e[X]it \
+        | Awake: keep-[a]wake (30min [A]uto-off) \
+        | System: [S]uspend, [H]ibernate, [R]eboot, shut[D]own
+#       | PulseAudio: switch card [p]rofile, restart [P]ipeWire
+bindsym $mod+Escape mode "$mode_system"; exec sway-mode-timeout $mode_timeout_secs
 mode "$mode_system" {
     # Sway:
     # l: lock screen
@@ -573,15 +567,12 @@ bindsym $mod+Shift+F8        exec sway-winfo --blocklist-toggle
 # mod-space: rofi run launcher
 bindsym $mod+space           exec rofi -show combi
 
-# mod-Shift-Ctrl-F12: run gnome control center (GNOME Settings) floating
-bindsym $mod+Shift+Ctrl+F12  exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-control-center
-
-# mod-ESC: run htop in floating terminal
-bindsym $mod+Escape          exec $termfloat -e htop
-
 # mod-F1 to F2: open ssh session in floating terminal
 bindsym $mod+F1              exec $termfloat -e ssh -X -A 11001001.org -p 8090
 bindsym $mod+F2              exec $termfloat -e ssh -X -A saito-lan
+
+# mod-Shift-Ctrl-F12: run gnome control center (GNOME Settings) floating
+bindsym $mod+Shift+Ctrl+F12  exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-control-center
 # }}} - Run Apps: Mod Key ----------------------------------------------------
 
 # {{{ - Run Apps: Hyper Key --------------------------------------------------
@@ -605,6 +596,11 @@ bindsym $hyper+Ctrl+Shift+e  exec nautilus
 # show/hide for this one app, unlike the FIFO-queue-based scratchpad bindings.
 bindsym $hyper+o             exec sway-app -m obsidian -A toggle -- flatpak run md.obsidian.Obsidian
 # }}} - Run Apps: Hyper Key --------------------------------------------------
+
+# {{{ - Run Apps: Other ------------------------------------------------------
+# Ctrl-Shift-ESC: run htop in floating terminal
+bindsym Ctrl+Shift+Escape          exec $term --window-size-chars=180x50 --app-id=swayfloat -e htop
+# }}} - Run Apps: Other ------------------------------------------------------
 # }}} = Key Bindings =========================================================
 
 # {{{ = Window Rules =========================================================
@@ -708,6 +704,11 @@ for_window [app_id="(?i)(^|[ ._-])(nvidia-settings|solaar)"] \
 
 # Communication and social apps
 for_window [app_id="(?i)^org\.signal\.Signal$"]            $FLOAT
+
+# Dialog windows
+# for_window [title="(?i)(^|[ ._-])(Preferences|Settings|Options)([ ._-]|$)"] \
+for_window [class="(?i)^Doublecmd$"] \
+           [title="(?i)^(Options|File operations)$"]       $FLOAT
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
