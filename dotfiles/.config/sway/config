@@ -289,12 +289,16 @@ set $ws7             "7:#7 Misc"
 set $ws8             "8:#8 Misc"
 set $ws9             "9:#9 Misc"
 set $ws10            "10:#10 System"
+
+# other apps and commands
+# TODO consider fallback strategy, first existing is used
+set $browser         firefox-nightly
 # }}} = Variables ============================================================
 
 # {{{ = Key Bindings =========================================================
 # {{{ - Window/Container Navigation ------------------------------------------
 # alt-F4: close/kill focused window
-bindsym Alt+F4              kill
+bindsym Alt+F4               kill
 
 # SWAY: floating_modifier requires 'normal' or 'inverse' as second argument
 # Mouse+$mod: drag floating windows
@@ -536,7 +540,7 @@ bindsym XF86MonBrightnessUp  exec brightnessctl set +20%
 bindsym XF86MonBrightnessDown exec brightnessctl set 20%-
 
 # home button: start browser
-bindsym XF86HomePage         exec firefox
+bindsym XF86HomePage         exec $browser
 
 # print button: screenshot
 # SWAY: flameshot works on Wayland; grimshot (sway-contrib) is a native alternative:
@@ -557,7 +561,7 @@ bindsym Scroll_Lock          exec kbd-layout-toggle
 
 # mod-return: run terminal (+shift for floating)
 bindsym $mod+Return          exec $term
-bindsym $mod+Alt+Return     exec $termfloat
+bindsym $mod+Alt+Return      exec $termfloat
 
 # mod-F8: toggle window info monitor (sway-winfo, hover to inspect any window)
 # mod-Shift-F8: toggle focused window in/out of the auto-managed blocklist zone
@@ -577,18 +581,20 @@ bindsym $mod+Shift+Ctrl+F12  exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-con
 
 # {{{ - Run Apps: Hyper Key --------------------------------------------------
 # Run-or-raise convention: $hyper+{key} focuses an existing window if one
-# exists (else launches), via bin/sway-app. $hyper+Shift+{key} bypasses this
-# and always launches a new instance -- only bound for apps where running
-# more than one instance is actually useful (e.g. file managers).
+# exists (else launches), via bin/sway-app.
+# $hyper+Shift+{key} bypasses this and always launches a new instance -- only
+# bound for apps where running more than one instance is actually useful.
 
-# hyper-e: double-commander file manager (focus existing, else launch)
+# hyper-[Shift-]e: web browser
+bindsym $hyper+w             exec sway-app $browser
+bindsym $hyper+Shift+w       exec $browser
+
+# hyper-[Shift-]e: double-commander file manager
 bindsym $hyper+e             exec sway-app doublecmd
-# hyper-Shift-e: double-commander, always start a new instance
 bindsym $hyper+Shift+e       exec doublecmd
 
-# hyper-Ctrl-e: nautilus file manager (focus existing, else launch)
+# hyper-Ctrl-[Shift-]e: nautilus file manager
 bindsym $hyper+Ctrl+e        exec sway-app nautilus
-# hyper-Ctrl-Shift-e: nautilus, always start a new instance
 bindsym $hyper+Ctrl+Shift+e  exec nautilus
 
 # hyper-o: Obsidian, toggle visibility -- focus if hidden/elsewhere, hide to
@@ -599,7 +605,7 @@ bindsym $hyper+o             exec sway-app -m obsidian -A toggle -- flatpak run 
 
 # {{{ - Run Apps: Other ------------------------------------------------------
 # Ctrl-Shift-ESC: run htop in floating terminal
-bindsym Ctrl+Shift+Escape          exec $term --window-size-chars=180x50 --app-id=swayfloat -e htop
+bindsym Ctrl+Shift+Escape    exec $term --window-size-chars=180x50 --app-id=swayfloat -e htop
 # }}} - Run Apps: Other ------------------------------------------------------
 # }}} = Key Bindings =========================================================
 
