@@ -19,11 +19,11 @@
     ],
     "modules-right": [
         "network",
-        "tray",
-        "custom/sway-awake",
-        "pulseaudio",
         "memory",
         "cpu",
+        "custom/sway-awake",
+        "tray",
+        "pulseaudio",
         "clock"
     ],
 
