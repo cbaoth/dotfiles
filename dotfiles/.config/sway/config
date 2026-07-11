@@ -841,7 +841,11 @@ exec mako
 # OSD for volume and brightness (Wayland-native, PipeWire/WirePlumber integration)
 # Install: sudo apt install swayosd
 # https://github.com/ErikReider/SwayOSD
-exec swayosd-server
+# Started as a systemd --user unit (~/.config/systemd/user/swayosd.service) instead
+# of a bare `exec`, so Restart=on-failure recovers if the server loses the startup
+# race against the env import above and only half-registers its D-Bus name (which
+# silently breaks the volume keys). Must run after dbus-update-activation-environment.
+exec systemctl --user start swayosd.service
 
 # conky system monitor (native Wayland -- conky 1.22.2+ with BUILD_WAYLAND=ON)
 exec ~/bin/conky-restart

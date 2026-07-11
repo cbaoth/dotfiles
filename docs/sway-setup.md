@@ -17,6 +17,7 @@ sudo apt install \
   mako-notifier \
   grim slurp \
   brightnessctl \
+  swayosd \
   network-manager-applet \
   xdg-desktop-portal-wlr \
   playerctl \
@@ -33,6 +34,7 @@ sudo apt install \
 | `mako-notifier` | Notification daemon (`org.freedesktop.Notifications`) |
 | `grim`, `slurp` | Screenshot tools (Wayland-native, used by `flameshot` on Wayland or as CLI tools) |
 | `brightnessctl` | Backlight control (replaces `xbacklight` which is X11 only) |
+| `swayosd` | On-screen display for volume/brightness/caps-lock (see [Volume / Brightness OSD](#volume--brightness-osd-swayosd)) |
 | `network-manager-applet` | nm-applet tray icon (WiFi/VPN status) |
 | `xdg-desktop-portal-wlr` | XDG desktop portal backend for wlroots compositors (Sway). Required for file pickers, screen sharing, and other portal-based features in Firefox, VS Code, etc. Ubuntu ships `xdg-desktop-portal-gnome` by default which requires a GNOME session. |
 | `playerctl` | Media key support (used by `media-keys` script) |
@@ -198,6 +200,23 @@ systemctl --user mask waybar
 `mako` is used as the notification daemon. It starts via `exec mako` in the Sway config. Without a notification daemon, apps silently drop notifications or log errors to stderr.
 
 Basic `mako` configuration (optional) goes in `~/.config/mako/config`. The defaults work without any config file.
+
+# Volume / Brightness OSD (swayosd)
+
+`swayosd` draws the on-screen volume/brightness overlay and applies the change (PipeWire/WirePlumber-aware). The keys are bound in the Sway config to `swayosd-client` (`XF86AudioRaiseVolume` etc., plus `$mod+Alt+=/-/0`); those talk over D-Bus to a running `swayosd-server`.
+
+**Server as a systemd user unit.** The server runs via `~/.config/systemd/user/swayosd.service` (deployed from `dotfiles/.config/systemd/user/swayosd.service`), started from the Sway config with `exec systemctl --user start swayosd.service` — *after* the `dbus-update-activation-environment --systemd` line, so it inherits `WAYLAND_DISPLAY`. No `systemctl --user enable` is needed; deploying the two files is enough.
+
+Why a unit instead of a bare `exec swayosd-server`: the server registers **two** session-bus names (`org.erikreider.swayosd` and `org.erikreider.swayosd-server`, the latter is what `swayosd-client` calls). Started too early it can win the first name but never finish registering the second, leaving the volume keys silently dead (`org.freedesktop.DBus.Error.ServiceUnknown`) while the process still appears to run. `Restart=on-failure` in the unit recovers from that race automatically.
+
+Diagnosing if the keys ever go dead again:
+
+``` bash
+busctl --user list | grep erikreider          # both names must be present
+systemctl --user restart swayosd.service       # re-register cleanly
+```
+
+`swayosd` also ships `swayosd-libinput-backend.service`, a system service that grabs input globally so swayosd can show an OSD for keys it captures itself (Caps/Scroll/Num-Lock). **This setup does not use it** — the media keys are bound in the Sway config — and it plays no part in the volume/brightness OSD. It ships disabled; leave it that way (no action needed). If a package upgrade ever enables it per its preset, that is harmless. A `SwayOSD LibInput Backend isn't available, waiting...` line from the server (`journalctl --user -u swayosd.service`) is expected and can be ignored.
 
 # Idle Inhibit & Keep-Awake
 
