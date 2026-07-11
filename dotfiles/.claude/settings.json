@@ -114,9 +114,11 @@
       "Bash(nvidia-smi -B:*)",
       "Bash(nvidia-smi --list-*)",
       "Bash(nvidia-smi --query-*--format=*)",
+      "Bash(pactl list:*)",
       "Bash(ffmpeg:*)",
       "Bash(ffprobe:*)",
       "Bash(ffmpeg.ffprobe:*)",
+      "Bash(mpv:*)",
       "Bash(magick compare:*)",
       "Bash(magick composite:*)",
       "Bash(magick conjure:*)",
@@ -307,8 +309,8 @@
       "Read(//home/cbaoth/.local/bin/**)",
       "Read(//home/cbaoth/bin/**)",
       "Read(//home/cbaoth/lib/**)",
-      "Bash(//home/cbaoth/git/**)",
-      "Bash(//home/cbaoth/dotfiles/**)",
+      "Read(//home/cbaoth/git/**)",
+      "Read(//home/cbaoth/dotfiles/**)",
       "Read(//home/cbaoth/AppImages/**)",
       "Read(//etc/keyd/**)",
       "Read(//etc/xdg/**)",
@@ -327,13 +329,19 @@
       "WebFetch(domain:githubusercontent.com)",
       "WebFetch(domain:wikipedia.org)",
       "WebFetch(domain:wiktionary.org)",
+      "WebFetch(domain:code.visualstudio.com)",
       "WebFetch(domain:openvpn.net)",
       "WebFetch(domain:tampermonkey.net)",
-      "Bash(mpv --no-audio --length=3 /home/cbaoth/Videos/motion/08-20260603160344.mkv)",
+      "Bash(copilot help:*)",
       "Bash(dotfiles-link)",
       "Bash(npx prettier:*)",
       "Bash(npx eslint:*)",
-      "Bash(copilot help:*)"
+      "Bash(node --check:*)",
+      "Bash(sway --validate:*)",
+      "Bash(swaymsg -t get_tree:*)",
+      "Bash(swaymsg reload)",
+      "Bash(./tools/link.sh)",
+      "Bash(systemctl --user status:*)"
     ],
     "deny": [
       "Bash(sudo:*)",
@@ -398,9 +406,13 @@
       "Bash(scp:*)",
       "Bash(source:*)",
       "Bash(.:*)"
+    ],
+    "additionalDirectories": [
+      "/home/cbaoth/git/cb-voice-lab",
+      "/home/cbaoth/git/userscripts"
     ]
   },
-  "model": "claude-fable-5",
+  "model": "opus",
   "effortLevel": "high",
   "tui": "fullscreen"
 }
