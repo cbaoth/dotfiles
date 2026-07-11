@@ -176,7 +176,7 @@ if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
               fi'
 
   # install
-  alias agi='sudo apt-get -y install'
+  alias agi='sudo apt-get install'
   alias 'agi!'='sudo apt-get install -f' # fix broken dependencies for individual packages (vs. dist-upgrade for all, fixes unmet dependencies e.g. for "packages have been kept back")
   alias agiu='sudo apt-get install --only-upgrade' # force upgrade (e.g. for early access to "upgrades have been deferred due to phasing")
   ZSH_AUTO_REHASH_CMDS+=(agi 'agi!' agiu)
@@ -220,7 +220,7 @@ if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
   alias at="sudo aptitude"
 
   # install
-  alias ati='sudo aptitude -y install'
+  alias ati='sudo aptitude install'
   alias 'ati!'='sudo aptitude install -f'
   ZSH_AUTO_REHASH_CMDS+=(ati 'ati!')
 
@@ -254,7 +254,7 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
               fi'
 
   # install
-  alias api='sudo apt -y install'
+  alias api='sudo apt install'
   alias 'api!'='sudo apt install -f'
   ZSH_AUTO_REHASH_CMDS+=(api 'api!')
   # update
