@@ -102,11 +102,13 @@ ARG CACHE_BUST=1
 
 # Clone dotfiles to `/home/$USERNAME/dotfiles` and create all symlinks
 RUN git clone https://github.com/cbaoth/dotfiles "$HOME/dotfiles" \
-    && "$HOME/dotfiles/tools/link.sh" \
-    && touch "$HOME/.zplug-force-install"
+    && "$HOME/dotfiles/tools/link.sh"
 
-# Start zsh one time with dotfiles to setup stuff (e.g. install zplug and plugins)
-RUN zsh -ic true
+# Start zsh one time to bootstrap the plugin manager (zinit) and install all
+# plugins. ZINIT_TURBO=false forces synchronous loading so every plugin is
+# installed during this build step (turbo/async would defer installs to the
+# first real prompt, which never happens in `zsh -ic true`).
+RUN ZINIT_TURBO=false zsh -ic true
 
 # Auto-activate the default conda environment for interactive zsh/bash shells.
 RUN /opt/miniconda/bin/conda init zsh bash \

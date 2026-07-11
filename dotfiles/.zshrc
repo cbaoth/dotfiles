@@ -294,119 +294,76 @@ unfunction __hash_mountpoints  # cleanup, not needed anymore
 is_me() { [[ $USER:l =~ ^(cbaoth|(a\.)?weyer)$ ]]; }
 # }}} = CORE FUNCTIONS, SOURCING, ALIASES ====================================
 
-# {{{ = ZPLUG PREPARE ========================================================
-# disable oh-my-zsh auto update, we'll do it below via zplug
+# {{{ = ZINIT PREPARE ========================================================
+# Plugin manager: zinit (https://github.com/zdharma-continuum/zinit).
+# zinit self-installs on first run and self-manages; there is deliberately no
+# install/update logic on shell startup (updates are explicit, see `zplugup`).
+
+# disable oh-my-zsh auto update (OMZ plugins are loaded as zinit OMZP:: snippets)
 export DISABLE_AUTO_UPDATE=true
-#export DISABLE_UPDATE_PROMPT=true
-#export UPDATE_ZSH_DAYS=30
 
-# custom ZPLUG modes (full: load all, mini: load less, skip: load none)
-_ZPLUG_MODE_DEFAULT="full"
-# optionally set deviating ZPLUG mode depending on the environment
-_ZPLUG_MODE_WSL="full"       # load all zplugs when in WSL
-_ZPLUG_MODE_DOCKER="mini"    # load all zplugs when inside a Docker containers
-_ZPLUG_MODE_ANDROID="skip"   # skip zplug when on Android (maybe much too slow or even crash the terminal)
+# custom plugin modes (full: load all, mini: load less, skip: load none)
+_PLUGIN_MODE_DEFAULT="full"
+# optionally deviate per environment
+_PLUGIN_MODE_WSL="full"       # load all plugins in WSL
+_PLUGIN_MODE_DOCKER="mini"    # load fewer plugins inside Docker containers
+_PLUGIN_MODE_ANDROID="skip"   # skip plugins on Android (too slow / unstable)
 
-ZPLUG_MODE=$_ZPLUG_MODE_DEFAULT
-${IS_ANDROID:-false} && ZPLUG_MODE=${_ZPLUG_MODE_ANDROID:=${_ZPLUG_MODE_DEFAULT}} \
-  && [[ $ZPLUG_MODE != $_ZPLUG_MODE_DEFAULT ]] \
-  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Android as per \$_ZPLUG_MODE_ANDROID=$_ZPLUG_MODE_ANDROID."
-${IS_WSL:-false}     && ZPLUG_MODE=${_ZPLUG_MODE_WSL:-$_ZPLUG_MODE_DEFAULT} \
-  && [[ $ZPLUG_MODE != $_ZPLUG_MODE_DEFAULT ]] \
-  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for WSL as per \$_ZPLUG_MODE_WSL=$_ZPLUG_MODE_WSL."
-${IS_DOCKER:-false}  && ZPLUG_MODE=${_ZPLUG_MODE_DOCKER:-$_ZPLUG_MODE_DEFAULT} \
-  && [[ $ZPLUG_MODE != $_ZPLUG_MODE_DEFAULT ]] \
-  && cl::p_msg "Switching to non-default zplug mode '$ZPLUG_MODE' for Docker as pere \$_ZPLUG_MODE_DOCKER=$_ZPLUG_MODE_DOCKER."
-ZPLUG_MODE_IS_SKIP=$([[ $ZPLUG_MODE = 'skip' ]] && 'true' || print 'false')
-ZPLUG_MODE_IS_MINI=$([[ $ZPLUG_MODE = 'mini' ]] && 'true' || print 'false')
-ZPLUG_MODE_IS_FULL=$([[ $ZPLUG_MODE = 'full' ]] && 'true' || print 'false')
+PLUGIN_MODE=$_PLUGIN_MODE_DEFAULT
+${IS_ANDROID:-false} && PLUGIN_MODE=${_PLUGIN_MODE_ANDROID:-$_PLUGIN_MODE_DEFAULT}
+${IS_WSL:-false}     && PLUGIN_MODE=${_PLUGIN_MODE_WSL:-$_PLUGIN_MODE_DEFAULT}
+${IS_DOCKER:-false}  && PLUGIN_MODE=${_PLUGIN_MODE_DOCKER:-$_PLUGIN_MODE_DEFAULT}
+[[ $PLUGIN_MODE != $_PLUGIN_MODE_DEFAULT ]] \
+  && cl::p_dbg -t 0 1 "Using non-default plugin mode '$PLUGIN_MODE' (default: $_PLUGIN_MODE_DEFAULT)."
 
-IS_ZPLUG=false
-ZPLUG_CMD=:
-ZPLUG_SKIP_INSTALL_PROMPT=$([[ -f $HOME/.zplug-skip-install-prompt ]] && print true || print false)
-ZPLUG_IS_NEW_INSTALL=false
-ZPLUG_IS_NEW_INSTALL_FORCED=false
-if [[ -f "$HOME/.zplug-force-install" ]]; then
-  rm -f "$HOME/.zplug-force-install"
-  ZPLUG_IS_NEW_INSTALL_FORCED=true
+MODE_IS_SKIP=$([[ $PLUGIN_MODE = 'skip' ]] && print true || print false)
+MODE_IS_MINI=$([[ $PLUGIN_MODE = 'mini' ]] && print true || print false)
+MODE_IS_FULL=$([[ $PLUGIN_MODE = 'full' ]] && print true || print false)
+
+# Turbo (async) loading: the prompt appears instantly and plugins finish loading
+# in the background — a big win on slow machines. An explicit ZINIT_TURBO in the
+# environment always wins; otherwise default to turbo only for interactive shells.
+# Set ZINIT_TURBO=false to force synchronous loading, e.g. `ZINIT_TURBO=false
+# zsh -ic true` during a Docker build installs every plugin at build time
+# (replaces the old .zplug-force-install dummy file).
+if [[ -z "${ZINIT_TURBO:-}" ]]; then
+  if [[ -o interactive ]]; then
+    ZINIT_TURBO=true
+  else
+    ZINIT_TURBO=false
+  fi
 fi
 
-_zplug_source() {
-  cl::p_dbg -t 0 1 "Sourcing ~/.zplug/init.sh ..."
-  time source "$HOME/.zplug/init.zsh" \
-    && IS_ZPLUG=true && ZPLUG_CMD=zplug
-}
-
-_zplug_install() {
-  cl::p_msg "Removing previous/corrupted ~/.zplug ..."
-  rm -rf "$HOME/.zplug" >& /dev/null
-  cl::p_msg "Downloading and installing zplug ..."
-  if wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh; then
-    ZPLUG_IS_NEW_INSTALL=true
-    cl::p_dbg -t 0 1 "Waiting 1 sec post-install for parallel steps to finish ..."
-    sleep 1
-    _zplug_source
+IS_ZINIT=false
+if ! $MODE_IS_SKIP; then
+  declare ZINIT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git"
+  if [[ ! -f "$ZINIT_HOME/zinit.zsh" ]]; then
+    cl::p_msg "Installing zinit (one-time) ..."
+    command mkdir -p "$(dirname "$ZINIT_HOME")"
+    command git clone --depth=1 https://github.com/zdharma-continuum/zinit "$ZINIT_HOME" \
+      && cl::p_msg "zinit installed."
+  fi
+  if [[ -f "$ZINIT_HOME/zinit.zsh" ]]; then
+    source "$ZINIT_HOME/zinit.zsh"
+    IS_ZINIT=true
   else
-    cl::p_err "Error installing/init zplug, not all features may be available!"
+    cl::p_err "zinit not found and install failed, plugins unavailable!"
+  fi
+else
+  cl::p_dbg -t 0 1 "zinit init skipped as per \$PLUGIN_MODE=$PLUGIN_MODE."
+fi
+
+# Apply the turbo ice (wait lucid) to the next plugin, but only when turbo is
+# enabled. Extra ice modifiers may be passed through in either case.
+#   zt [extra-ice ...]; zinit light|snippet <target>
+zt() {
+  if $ZINIT_TURBO; then
+    zinit ice wait lucid "$@"
+  elif (( $# > 0 )); then
+    zinit ice "$@"
   fi
 }
-
-_zplug_init() {
-  if $IS_WSL && [[ ${_ZPLUG_MODE_WSL:-${_ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-      cl::p_dbg -t 0 1 "zplug init skipped as per \$_ZPLUG_MODE_WSL=$_ZPLUG_MODE_WSL (with \$_ZPLUG_MODE_DEFAULT=$_ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
-    return 0
-  elif $IS_ANDROID && [[ ${_ZPLUG_MODE_ANDROID:-${_ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-    cl::p_dbg -t 0 1 "zplug init skipped as per \$_ZPLUG_MODE_ANDROID=$_ZPLUG_MODE_ANDROID (with \$_ZPLUG_MODE_DEFAULT=$_ZPLUG_MODE_DEFAULT > 'full' as fallback)."
-    return 0
-  elif $IS_DOCKER && [[ ${_ZPLUG_MODE_DOCKER:-${_ZPLUG_MODE_DEFAULT:-full}} = 'skip' ]]; then
-    cl::p_dbg -t 0 1 "zplug init skipped as per \$_ZPLUG_MODE_DOCKER=$_ZPLUG_MODE_DOCKER (with \$_ZPLUG_MODE_DEFAULT=$_ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
-    return 0
-  elif $ZPLUG_MODE_IS_SKIP; then
-    cl::p_dbg -t 0 1 "zplug init skipped as per \$ZPLUG_MODE=$ZPLUG_MODE (with \$_ZPLUG_MODE_DEFAULT=$_ZPLUG_MODE_DEFAULT > 'full' as fallback strategy)."
-    return 0
-  fi
-  if ${ZPLUG_IS_NEW_INSTALL_FORCED:-false}; then
-    cl::p_msg "Forcing new zplug installation (~/.zplug-force-install found) ..."
-    _zplug_install
-    return 0
-  fi
-  if [[ -f "$HOME/.zplug/init.zsh" ]]; then
-    cl::p_dbg -t 0 1 "zplug found (~/.zplug/init.zsh)"
-    ${IS_WSL-false} && cl::p_dbg -t 0 1 "To disable zplug in WSL set ZPLUG_IS_WSL_SKIP=true"
-    ${IS_ANDROID:-false} && cl::p_dbg -t 0 1 "To disable zplug on Android set ZPLUG_IS_ANDROID_SKIP=true"
-    _zplug_source
-    return 0
-  fi
-  if ${ZPLUG_SKIP_INSTALL_PROMPT:-false}; then
-    cl::p_dbg -t 0 1 "zplug install prompt skipped since ~/.zplug-skip-install-prompt exists"
-    return 0
-  fi
-  if cl::q_yesno "Install zplug now (or never ask again)?"; then
-    _zplug_install
-  else
-    if [[ -d "$HOME/.zplug" ]]; then
-      cl::p_war "zplug installation incomplete/corrupted since ~/.zplug exists but ~/.zplug/init.zsh does not."
-      cl::p_msg "Try removing the folder and restart zsh:"
-      echo "  rm -rf ~/.zplug"
-    fi
-    cl::p_msg "To manually install and setup zplug, run the following commands:"
-    echo "  wget -q -O - https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh"
-    echo "  sleep 1; source ~/.zplug/init.zsh"
-    echo "  zplug install"
-    cl::p_msg "Creating file ~/.zplug-skip-install-prompt to not ask again (delete file to r-enable)."
-    touch ~/.zplug-skip-install-prompt
-  fi
-}
-
-case $ZPLUG_MODE in
-  skip) ;;
-  *)
-    _zplug_init
-esac
-
-# self-manage zplug (zplug update will upldate zplug itself)
-$ZPLUG_CMD 'zplug/zplug', hook-build:'zplug --self-manage'
-# }}} = ZPLUG PREPARE ========================================================
+# }}} = ZINIT PREPARE ========================================================
 
 # {{{ = PROMPT ===============================================================
 # load colors, alternative: tput https://stackoverflow.com/a/20983251/7393995
@@ -460,15 +417,16 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 #source_ifex /usr/share/powerlevel9k/powerlevel9k.zsh-theme
 POWERLEVEL9K_ISACTIVE=false  # for backward compatibility (deprecated)
 POWERLEVEL10K_ISACTIVE=false
-if $IS_ZPLUG; then
-  if $ZPLUG_CMD "romkatv/powerlevel10k", as:theme, depth:1; then
-    POWERLEVEL9K_ISACTIVE=true
-    POWERLEVEL10K_ISACTIVE=true
-  fi
+if $IS_ZINIT; then
+  # the prompt must load immediately (never turbo), else it isn't the prompt
+  zinit ice depth=1
+  zinit light romkatv/powerlevel10k
+  POWERLEVEL9K_ISACTIVE=true
+  POWERLEVEL10K_ISACTIVE=true
 fi
 
 # {{{ - - General ------------------------------------------------------------
-# TODO review after switching to powerlevel10k
+# TODO review after switching to powerlevel10k. are all these variables  still used? consider migrating to powerlevel10k variables instead (where applicable).
 # The 9K parameters should be backward compatible but in it's current state it
 # is not identical to the original 9k layout (parts are missing).
 # The default seems fine though, so we'll keep it for now until i have more
@@ -480,7 +438,7 @@ POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable vcs) # disk_usage
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time \
                                     background_jobs docker_machine)
 #[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]]
-$ZPLUG_MODE_IS_FULL && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
+$MODE_IS_FULL && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
 
 #export DEFAULT_USER="$USER" # not an options, lambda should always be shown
@@ -578,132 +536,114 @@ POWERLEVEL9K_VCS_MODIFIED_BACKGROUND='yellow'
 # }}} - PL9K -----------------------------------------------------------------
 # }}} = PROMPT ===============================================================
 
-# {{{ = ZPLUG PLUGINS ========================================================
+# {{{ = ZINIT PLUGINS ========================================================
 # TODO consider https://github.com/zsh-users/zsh-completions
+#
+# Loading strategy:
+# - powerlevel10k (above) and the widget plugins below (autosuggestions, zaw)
+#   load immediately, so their keybindings further down are always available.
+# - everything else is turbo-loaded (async) via `zt` when $ZINIT_TURBO is set.
+# - fast-syntax-highlighting is declared last so it highlights everything.
+if $IS_ZINIT; then
 
-#https://github.com/zsh-users/zsh-autosuggestions
-$ZPLUG_CMD "zsh-users/zsh-autosuggestions"
+# https://github.com/zsh-users/zsh-autosuggestions
+# loaded immediately so its `^ ` accept binding (keybindings section) works
 ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=25
+zinit light zsh-users/zsh-autosuggestions
 
 # https://github.com/zsh-users/zaw
-$ZPLUG_CMD "zsh-users/zaw"
+# loaded immediately so its zle widgets are bound in the keybindings section
+zinit light zsh-users/zaw
+
 # {{{ - OH MY ZSH ------------------------------------------------------------
-# https://github.com/robbyrussell/oh-my-zsh/wiki/Plugins
-# WSL: May be skipped (see above)
-
-$ZPLUG_CMD "plugins/catimg", from:oh-my-zsh
-#plugins/common-aliases
-$ZPLUG_CMD "plugins/command-not-found", from:oh-my-zsh
-#plugins/debian
-$ZPLUG_CMD "plugins/dirhistory", from:oh-my-zsh
-$ZPLUG_CMD "plugins/docker", from:oh-my-zsh # docker autocompletion
-$ZPLUG_CMD "plugins/encode64", from:oh-my-zsh # encode64/decode64
-#https://github.com/robbyrussell/oh-my-zsh/wiki/Plugin:git
-if $IS_MODE_FULL; then
-  $ZPLUG_CMD "plugins/git", from:oh-my-zsh
-  $ZPLUG_CMD "plugins/git-extras", from:oh-my-zsh # completion for apt:git-extras
-else
-  $ZPLUG_CMD "plugins/git-fast", from:oh-my-zsh
+# oh-my-zsh plugins as individual zinit snippets (no full OMZ framework).
+# https://github.com/ohmyzsh/ohmyzsh/wiki/Plugins
+zt; zinit snippet OMZP::catimg
+#OMZP::common-aliases
+zt; zinit snippet OMZP::command-not-found
+#OMZP::debian
+zt; zinit snippet OMZP::dirhistory
+zt; zinit snippet OMZP::docker         # docker completion
+zt; zinit snippet OMZP::encode64       # encode64/decode64
+# https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/git
+if $MODE_IS_FULL; then
+  zt; zinit snippet OMZP::git
+  zt; zinit snippet OMZP::git-extras   # completion for apt:git-extras
 fi
-$ZPLUG_CMD "plugins/httpie", from:oh-my-zsh # completion for apt:httpie (http)
-$ZPLUG_CMD "plugins/jsontools", from:oh-my-zsh # *_json
-$ZPLUG_CMD "plugins/mvn", from:oh-my-zsh # maven completion
-$ZPLUG_CMD "plugins/sudo", from:oh-my-zsh # add sudo via 2xESC
-$ZPLUG_CMD "plugins/systemd", from:oh-my-zsh # systemd sc-* aliases
-$ZPLUG_CMD "plugins/tmux", from:oh-my-zsh
-$ZPLUG_CMD "plugins/urltools", from:oh-my-zsh # urlencode/-decode
-$ZPLUG_CMD "plugins/vagrant", from:oh-my-zsh
-$ZPLUG_CMD "plugins/vscode", from:oh-my-zsh # vs* aliases
-$ZPLUG_CMD "plugins/web-search", from:oh-my-zsh
-$ZPLUG_CMD "plugins/wd", from:oh-my-zsh # wd (warp directory)
-#$ZPLUG_CMD "zsh-users/zsh-history-substring-search"
+# httpie: OMZ ships only a completion file (_httpie), no *.plugin.zsh
+zt as"completion"; zinit snippet OMZP::httpie/_httpie   # completion for https://httpie.io/ (apt/snap: httpie)
+zt; zinit snippet OMZP::jsontools      # *_json
+zt; zinit snippet OMZP::mvn            # maven completion
+zt; zinit snippet OMZP::sudo           # add sudo via 2xESC
+zt; zinit snippet OMZP::systemd        # systemd sc-* aliases
+zt; zinit snippet OMZP::tmux
+zt; zinit snippet OMZP::urltools       # urlencode/-decode
+zt; zinit snippet OMZP::vagrant
+zt; zinit snippet OMZP::vscode         # vs* aliases
+zt; zinit snippet OMZP::web-search
+# wd (warp directory): loaded from upstream, not OMZP::wd — the OMZ plugin is
+# multi-file (wd.plugin.zsh sources wd.sh) and a single-file snippet breaks it.
+zt; zinit light mfaerevaag/wd
+#zt; zinit snippet OMZP::history-substring-search
 
-# TODO review
-# https://github.com/chrissicool/zsh-256color
-#$ZPLUG_CMD "chrissicool/zsh-256color"
-
-# ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
-# do not lode if
-# 1. we are in an ssh session, use ssh -A agent forwarding if needed
+# ssh-agent: https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/ssh-agent
+# do not load if
+# 1. we are in an ssh session, use `ssh -A` agent forwarding if needed
 # 2. we are in wsl/termux, use other means if needed
 # 3. SSH_AUTH_SOCK is already set (e.g. KeePassXC, Gnome Keyring, Pageant etc.)
 #    Note that SSH_AUTH_SOCK may also be set in .common_env
-if $ZPLUG_MODE_IS_FULL && ! cl::is_ssh && [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
-  $ZPLUG_CMD "plugins/ssh-agent", from:oh-my-zsh # auto run ssh-agent
+# zstyles must be set before the snippet loads (see keybindings/completion below)
+if $MODE_IS_FULL && ! cl::is_ssh && [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
+  zstyle :omz:plugins:ssh-agent agent-forwarding on
+  #zstyle :omz:plugins:ssh-agent identities id_rsa ...
+  #zstyle :omz:plugins:ssh-agent lifetime 4h
+  zt; zinit snippet OMZP::ssh-agent    # auto run ssh-agent
 fi
 
 if ${HAS_CONDA:-false}; then
-  $ZPLUG_CMD "esc/conda-zsh-completion"
+  zt; zinit light esc/conda-zsh-completion
 fi
 
 # TODO review and consider potential key binding conflicts
 # https://github.com/junegunn/fzf/blob/master/shell/key-bindings.zsh
 #
 # if command -v fzf >/dev/null 2>&1; then
-#   $ZPLUG_CMD "junegunn/fzf", use:shell/key-bindings.zsh
+#   zt; zinit snippet https://github.com/junegunn/fzf/blob/master/shell/key-bindings.zsh
 # fi
 # }}} - OH MY ZSH ------------------------------------------------------------
 
 # {{{ - OTHER PLUGINS --------------------------------------------------------
-# A Zsh plugin to help remembering those shell aliases and Git aliases you once defined.
-# https://github.com/djui/alias-tips
-$ZPLUG_CMD "djui/alias-tips"
+# Reminds you of aliases you defined but forgot: https://github.com/djui/alias-tips
+zt; zinit light djui/alias-tips
 
+# Inline expansion of aliases/globs/history on space/enter:
+# https://github.com/MenkeTechnologies/zsh-expand
+# NOTE: takes over the SPACE key widget — it replaces the old `magic-space` bind
+# (removed in the keybindings section). Disable by commenting this out.
+zt nocompile; zinit load MenkeTechnologies/zsh-expand
 # }}} - OTHER PLUGINS --------------------------------------------------------
 
-# activate syntax highlighting, load last to affect everything loaded before
-# # apt: zsh-syntax-highlighting - https://github.com/zsh-users/zsh-syntax-highlighting
-# [[ -r "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] \
-#   && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
-#    || $ZPLUG_CMD "zsh-users/zsh-syntax-highlighting"
+# syntax highlighting: declared LAST so it highlights everything loaded before.
+# https://github.com/zdharma-continuum/fast-syntax-highlighting
+# (lighter alternative to zsh-users/zsh-syntax-highlighting)
+#
+# atinit runs once all earlier plugins are loaded (this is the last one), in both
+# turbo and sync modes: rebuild the completion cache so plugin-provided
+# completions (e.g. wd, http/https) register, then replay captured compdefs.
+zt atinit'zicompinit; zicdreplay'
+zinit light zdharma-continuum/fast-syntax-highlighting
 
-# alternative syntax highlighter:
-# lightweight (less features, maybe faster; if relevant) and different style (if prefered)
-$ZPLUG_CMD zdharma-continuum/fast-syntax-highlighting
-# }}} = ZPLUG PLUGINS ========================================================
+fi  # $IS_ZINIT
+# }}} = ZINIT PLUGINS ========================================================
 
-# {{{ = ZPLUG LOAD ===========================================================
-# check for updates no more than every 14 days
-_zplug_install_and_update() {
-  if $ZPLUG_IS_NEW_INSTALL_FORCE && cl::p_msg "Installing missing zplug packages (if any)..." || cl::q_yesno "Install missing zplug packages (if any)"; then
-    cl::p_war "Please be patient: Even after \"Installation finished successfully!\" is shown it can take a while to finish..."
-    $ZPLUG_CMD install
-  fi
-  cl::p_msg "Updating zplug packages ..."
-  cl::p_war "Please be patient: Even after \"Updating finished successfully!\" is shown it can take a while to finish..."
-  $ZPLUG_CMD update && touch ~/.zplug/lastcheck
-  return 0
-}
-
-if $IS_ZPLUG; then
-  if $ZPLUG_IS_NEW_INSTALL; then
-    cl::p_msg "New zplug installation requested, checking ..."
-    _zplug_install_and_update
-  elif  [[ ! -f ~/.zplug/lastcheck ]]; then
-    cl::p_msg "No info about last zplug install/update, checking ..."
-    _zplug_install_and_update
-  elif [[ -e ~/.zplug/lastcheck && $(($(date +%s) - $(stat -c %Y ~/.zplug/lastcheck))) -gt 1209600 ]]; then
-    cl::p_msg "Last zplug install/update more than 14 days ago, checking ..."
-    _zplug_install_and_update
-  else
-    cl::p_dbg -t 0 2 "Last successfull update less than 14 days ago ($((($(date +%s) - $(stat -c %Y ~/.zplug/lastcheck))/60/60/24)) days), skipping ..."
-  fi
-fi
-
-# load local plugins
-#$ZPLUG_CMD "$HOME/.zsh.d", from:local
-
-$ZPLUG_CMD load
-# }}} = ZPLUG LOAD ===========================================================
-
-# {{{ = ZPLUG SETTINGS =======================================================
-# tmux
+# {{{ = PLUGIN SETTINGS ======================================================
+# tmux (OMZP::tmux)
 #ZSH_TMUX_AUTOSTART # default: false, auto start tmux on login
 #ZSH_TMUX_AUTOSTART_ONCE # default: true, start for ever (nested) zsh session
 #ZSH_TMUX_AUTOCONNECT # default: true, try connect to existing else new
 #ZSH_TMUX_AUTOQUIT # default: ZSH_TMUX_AUTOSTART, close session if tmux exits
 #ZSH_TMUX_FIXTERM # default: true, set TERM=screen(256color)
-# }}} = ZPLUG SETTINGS =======================================================
+# }}} = PLUGIN SETTINGS ======================================================
 
 # {{{ ZSH SETTINGS ===========================================================
 # load zmv extension (http://zshwiki.org/home/builtin/functions/zmv)
@@ -788,16 +728,9 @@ zstyle ':completion:*' group-name ''
 # complete only specific hosts (big host file)
 #zstyle '*' hosts $HOST motoko.intra puppet.intra bateau.intra togusa.intra 11001001.org
 
-# ssh agent: https://github.com/robbyrussell/oh-my-zsh/tree/master/plugins/ssh-agent
-# but not on remote machines (use ssh -A agent forwarding if needed)
-if $ZPLUG_MODE_IS_FULL && ! cl::is_ssh; then
-  # ssh-agent forwarding
-  zstyle :omz:plugins:ssh-agent agent-forwarding on
-  # ssh-agent identities
-  #zstyle :omz:plugins:ssh-agent identities id_rsa ...
-  # ssh-agent max identity lifetime
-  #zstyle :omz:plugins:ssh-agent lifetime 4h
-fi
+# ssh-agent (OMZP::ssh-agent): its zstyles (agent-forwarding, identities,
+# lifetime) must be set BEFORE the snippet loads — they now live in the ZINIT
+# PLUGINS section, next to the `zinit snippet OMZP::ssh-agent` line.
 
 # TODO compctl is a legacy feature which may be brittle with OMZ, review and useg compdef instead if needed
 # file type command detecton
@@ -863,11 +796,13 @@ bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working
 #bindkey "^[^[" sudo-command-line # esc, esc (if \e\e doesn't work)
 
 # {{{ - COMPLETION -----------------------------------------------------------
-# lookup spaces
-bindkey ' ' magic-space
+# NOTE: the SPACE key is owned by zsh-expand (ZINIT PLUGINS section), which
+# supersedes the old `bindkey ' ' magic-space` (!-history expansion on space).
+# Re-enable magic-space here only if you disable the zsh-expand plugin.
+#bindkey ' ' magic-space
 #bindkey '^ ' globalias
 
-#if zplug check "zsh-users/zsh-history-substring-search"; then
+#if $IS_ZINIT; then  # (enable OMZP::history-substring-search above first)
 #  bindkey '^[OA' history-substring-search-up # up (vs. up-line-or-history)
 #  bindkey '^[OB' history-substring-search-down # down (vs. down-line-or-history)
 #fi
@@ -909,6 +844,10 @@ fi
 # {{{ - VI MODE --------------------------------------------------------------
 # vi mode
 # open command line in vim
+# register the edit-command-line widget before binding it, otherwise
+# fast-syntax-highlighting warns "unhandled ZLE widget 'edit-command-line'"
+autoload -Uz edit-command-line
+zle -N edit-command-line
 bindkey -M vicmd '^v' edit-command-line
 
 # search histor using / and ?
@@ -916,8 +855,8 @@ bindkey -M vicmd '^v' edit-command-line
 #bindkey -M vicmd '/' history-incremental-search-forward
 # }}} - VI MODE --------------------------------------------------------------
 # {{{ - ZAW ------------------------------------------------------------------
-# https://github.com/zsh-users/zaw
-if $ZPLUG_CMD check "zsh-users/zaw"; then
+# https://github.com/zsh-users/zaw (loaded immediately, so its widgets exist here)
+if $IS_ZINIT; then
   bindkey '^[r' zaw # alt-r
   bindkey '^r' zaw-history # ctrl-r
 
@@ -927,7 +866,7 @@ if $ZPLUG_CMD check "zsh-users/zaw"; then
   bindkey '^[v^[s' zaw-git-status # alt-v, alt-s
 
   # filterlist bindings
-  if $IS_ZPLUG; then
+  if $IS_ZINIT; then
     bindkey -M filterselect '^r' down-line-or-history
     bindkey -M filterselect '^w' up-line-or-history
     bindkey -M filterselect '^ ' accept-search

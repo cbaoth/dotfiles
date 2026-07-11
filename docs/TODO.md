@@ -68,6 +68,24 @@ Ideas and future tasks for improving the shell scripts in this repository.
 - [ ] [S] Consolidate output text formatting if gaps remain
   - Consider [Zsh Prompt Expansion](https://zsh.sourceforge.io/Doc/Release/Prompt-Expansion.html) for zsh scripts (e.g., `print -P "%Uunderlined%u"`)
 
+## Zsh Plugins (zinit)
+
+Follow-ups after the zplug → zinit migration:
+
+- [ ] [S] Turbo-load `zsh-autosuggestions` and `zaw` too (currently loaded
+  synchronously so their keybindings resolve). Move their `bindkey` calls into
+  `atload'…'` ice so the widgets exist when bound, then drop the sync loads.
+- [ ] [S] Consider p10k *instant prompt*: run `p10k configure` to generate
+  `~/.p10k.zsh`, then add the instant-prompt preamble at the top of `.zshrc`
+  (biggest perceived-startup win on slow machines).
+- [ ] [S] Clean up leftover zplug state once the migration is confirmed good:
+  `rm -rf ~/.zplug ~/.zplug-skip-install-prompt ~/.zplug-force-install`.
+- [ ] [S] Re-evaluate `zsh-expand` config vars (`ZPWR_EXPAND*`, `ZPWR_CORRECT`,
+  `ZPWR_EXPAND_BLACKLIST`) and the dropped `magic-space` binding after living
+  with the new space-key behavior.
+- [ ] [S] Audit the OMZ plugin list — several were loaded but rarely used; prune
+  what you don't need to further cut startup cost.
+
 # 3. Desktop / Sway Setup
 
 GDM is currently required only to provide a graphical login. Since Sway is started manually from a TTY (`sudo systemctl stop gdm && sway-start`), GDM adds overhead with no benefit.

@@ -38,6 +38,12 @@ zsh-history-fix() {
 }
 # }}} - GENERAL (ZSH ONLY) ---------------------------------------------------
 
+# {{{ - PLUGIN MANAGEMENT (ZINIT) --------------------------------------------
+# Update zinit itself and all plugins. Deliberately NOT run on shell startup —
+# invoke manually when you want updates (replaces zplug's on-startup updater).
+alias zplugup='zinit self-update && zinit update --all --parallel'
+# }}} - PLUGIN MANAGEMENT (ZINIT) --------------------------------------------
+
 # {{{ - SUFFIX ALIASES -------------------------------------------------------
 # e.g. 'alias -s txt=vim' makes 'foo.txt' open in vim
 #alias -s {txt,ini,conf,html,htm,xml}='vim -N'
