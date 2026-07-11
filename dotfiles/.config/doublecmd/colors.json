@@ -1,0 +1,4069 @@
+{
+  Styles : [
+    {
+      Name : "Light",
+      FilePanel : {
+        CursorBorderColor : -2147483635,
+        ForeColor : -2147483640,
+        BackColor : -2147483643,
+        BackColor2 : -2147483643,
+        MarkColor : 255,
+        CursorColor : 65535,
+        CursorText : -2147483640,
+        GridLine : 12632256,
+        InactiveCursorColor : -2147483637,
+        InactiveMarkColor : 255
+      },
+      FreeSpaceIndicator : {
+        ForeColor : 0,
+        BackColor : 16777215,
+        ThresholdForeColor : 255
+      },
+      Path : {
+        ActiveColor : 0,
+        ActiveFontColor : -2147483634,
+        InactiveColor : -2147483633,
+        InactiveFontColor : -2147483630
+      },
+      Log : {
+        InfoColor : 8388608,
+        ErrorColor : 255,
+        SuccessColor : 32768
+      },
+      SyncDirs : {
+        LeftColor : 32768,
+        RightColor : 16711680,
+        UnknownColor : 255
+      },
+      Viewer : {
+        ImageBackColor1 : -2147483643,
+        ImageBackColor2 : 536870912,
+        BookBackgroundColor : 0,
+        BookFontColor : 16777215
+      },
+      Differ : {
+        AddedColor : 11206570,
+        DeletedColor : 11184895,
+        ModifiedColor : 16755370,
+        ModifiedBinaryColor : 255
+      },
+      TreeViewMenu : {
+        BackgroundColor : -2147483617,
+        ShortcutColor : 128,
+        NormalTextColor : -2147483640,
+        SecondaryTextColor : -2147483642,
+        FoundTextColor : -2147483635,
+        UnselectableTextColor : -2147483631,
+        CursorColor : -2147483635,
+        ShortcutUnderCursor : -2147483634,
+        NormalTextUnderCursor : -2147483634,
+        SecondaryTextUnderCursor : -2147483628,
+        FoundTextUnderCursor : 65535,
+        UnselectableUnderCursor : -2147483631
+      },
+      ColumnSets : [
+        {
+          Unique : "70301086-3CCB-4759-8550-586A9906EB2C",
+          Name : "Default",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "628622F9-69C8-4F2D-9673-A722A730833D",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "FFDB6255-A65C-4328-B97A-914BB38C0038",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "176EFD29-4CF5-425E-B729-21BE34F5AA97",
+              Title : "Type",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "7EDAEBF3-B6DB-44E7-BA89-9324C93EFADF",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "93199CEC-11A4-48DC-AA70-B7CE3A662090",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "AFD0AE74-3ED1-424B-945E-385E98A96B3A",
+              Title : "Attributes",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "D9A52740-EDE8-4A94-BE6D-1672D037EF78",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "A4470662-6E5B-4355-A630-0C085F87C4CC",
+              Title : "Owner",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "75B99430-C34F-4461-B497-C1A75C4AD630",
+              Title : "Group",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            },
+            {
+              Unique : "8A722A0B-6215-41F9-9128-F7B2E5476B4D",
+              Title : "Link To",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : 15780518,
+              CursorText : -2147483640,
+              InactiveCursorColor : -2147483637,
+              InactiveMarkColor : 255
+            }
+          ]
+        }
+      ],
+      Highlighters : [
+        {
+          Name : "Plain text",
+          Attributes : [
+            {
+              Name : "Default text",
+              Value : "$80000007|$80000005|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "C++",
+          Attributes : [
+            {
+              Name : "Assembler",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Illegal char",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Preprocessor",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Cascading style sheets",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Measurement unit",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Selector",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Diff File",
+          Attributes : [
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Diff Added line",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Diff Changed Line",
+              Value : "$1FFFFFFF|$00800080|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Diff Chunk Line Counts",
+              Value : "$1FFFFFFF|$00800080|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Chunk Marker",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Chunk New Line Count",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Chunk Original Line Count",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Context Line",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Diff New File",
+              Value : "$00008000|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Original File",
+              Value : "$000000FF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Removed Line",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Unknown word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|2|0"
+            }
+          ]
+        },
+        {
+          Name : "HTML document",
+          Attributes : [
+            {
+              Name : "Asp",
+              Value : "$0000FFFF|$00000000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "CDATA",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "DOCTYPE",
+              Value : "$0000FFFF|$00000000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Escape ampersand",
+              Value : "$1FFFFFFF|$0000FF00|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$00FF0080|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Unknown word",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Value",
+              Value : "$1FFFFFFF|$00FF8000|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "INI file",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Section",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Java",
+          Attributes : [
+            {
+              Name : "Annotation",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Documentation",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Invalid symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Lazarus Form definition",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Lua Script",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Function",
+              Value : "$1FFFFFFF|$00C05000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800080|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00000080|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "MS-DOS batch language",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "ObjectPascal",
+          Attributes : [
+            {
+              Name : "Assembler",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Case label",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Directive",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "IDE Directive",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Modifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "PasDoc-Keyword",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "PasDoc-Symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "PasDoc-Unknown",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Procedure header name",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "PHP",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Invalid symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Perl",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Illegal char",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Operator",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Pragma",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            }
+          ]
+        },
+        {
+          Name : "Python",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00808080|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Documentation",
+              Value : "$1FFFFFFF|$00808000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Float",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Hexadecimal",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Non-reserved keyword",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Octal",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "SyntaxError",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "System functions and variables",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            }
+          ]
+        },
+        {
+          Name : "SQL",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Data type",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default packages",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Exception",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Function",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Reserved word (PL/SQL)",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "SQL*Plus command",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Table Name",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "TeX",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00808000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Math Mode",
+              Value : "$1FFFFFFF|$00008080|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Round Bracket",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$00FFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Square Bracket",
+              Value : "$1FFFFFFF|$00800080|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "TeX Command",
+              Value : "$00FFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$00000000|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "UNIX Shell Script",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Second reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00000080|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Unknown word",
+              Value : "$1FFFFFFF|$00808080|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$00800080|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Visual Basic",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "XML document",
+          Attributes : [
+            {
+              Name : "Attribute Name",
+              Value : "$1FFFFFFF|$00000080|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Attribute Value",
+              Value : "$1FFFFFFF|$00800000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "CDATA Section",
+              Value : "$1FFFFFFF|$00008080|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$00C0C0C0|$00808080|$1FFFFFFF|0|1|3|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "DOCTYPE Section",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Element Name",
+              Value : "$1FFFFFFF|$00000080|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Entity Reference",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Namespace Attribute Name",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Namespace Attribute Value",
+              Value : "$1FFFFFFF|$000000FF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Processing Instruction",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$00000000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Whitespace",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "po language files",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Flags",
+              Value : "$1FFFFFFF|$00808000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$00008000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$00FF0000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Previous value",
+              Value : "$1FFFFFFF|$00008080|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF00FF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        }
+      ],
+      UniHighlighters : [
+        {
+          Name : "Assembler (x86)",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              Sets : [
+                {
+                  Name : "Numbers",
+                  Attributes : "$00000080,$80000005;False:True."
+                }
+              ],
+              KeyLists : [
+                {
+                  Name : "Commands",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Commands SSE2",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Registers",
+                  Attributes : "$00FF0080,$80000005;False:True."
+                },
+                {
+                  Name : "Registers x86_64",
+                  Attributes : "$00FF0080,$80000005;False:True."
+                },
+                {
+                  Name : "Key Words",
+                  Attributes : "$00808000,$80000005;False:True."
+                },
+                {
+                  Name : "Segments",
+                  Attributes : "$00FF00FF,$80000005;False:True.B"
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Remarks",
+                  Attributes : "$00800000,$80000005;False:True."
+                },
+                {
+                  Name : "String",
+                  Attributes : "$000000FF,$80000005;False:True."
+                },
+                {
+                  Name : ".",
+                  Attributes : "$00FF0000,$80000005;False:True."
+                },
+                {
+                  Name : "@",
+                  Attributes : "$000080FF,$80000005;False:True."
+                },
+                {
+                  Name : "String",
+                  Attributes : "$000000FF,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "C#",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Contextual keywords",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Data types",
+                  Attributes : "$00FF0000,$80000005;False:True."
+                },
+                {
+                  Name : ".NET Data types",
+                  Attributes : "$00008080,$80000005;False:True."
+                },
+                {
+                  Name : "Preprocessor directives",
+                  Attributes : "$00FF0080,$80000005;False:True."
+                },
+                {
+                  Name : "Operators",
+                  Attributes : "$000080FF,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$000000FF,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$000000FF,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$000000FF,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00800000,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00800000,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "DC Error File",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              Sets : [
+                {
+                  Name : "Digits",
+                  Attributes : "$00808000,$1FFFFFFF;False:False."
+                }
+              ],
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00800000,$1FFFFFFF;False:False."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Date",
+                  Attributes : "$00800000,$1FFFFFFF;False:True."
+                },
+                {
+                  Name : "About",
+                  Attributes : "$00800080,$1FFFFFFF;False:False."
+                },
+                {
+                  Name : "Exception",
+                  Attributes : "$000000D2,$1FFFFFFF;False:False."
+                },
+                {
+                  Name : "Address",
+                  Attributes : "$00000096,$1FFFFFFF;False:False."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Go",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00FF0000,$80000005;False:True."
+                },
+                {
+                  Name : "Types",
+                  Attributes : "$00000080,$80000005;False:True."
+                },
+                {
+                  Name : "Functions",
+                  Attributes : "$00800000,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings `..`",
+                  Attributes : "$00696969,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00696969,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00696969,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00008000,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "JSON",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              Sets : [
+                {
+                  Name : "Numbers",
+                  Attributes : "$00008000,$80000005;False:True."
+                }
+              ],
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$000080FF,$80000005;False:True."
+                },
+                {
+                  Name : "Punctuators",
+                  Attributes : "$00800000,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00000080,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00000080,$80000005;True:True."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Java script",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Functions and key words",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Reserved words",
+                  Attributes : "$00FF0000,$80000005;False:True."
+                },
+                {
+                  Name : "Common Events",
+                  Attributes : "$00FF0080,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Remark //",
+                  Attributes : "$00A00000,$80000005;False:True."
+                },
+                {
+                  Name : "Remark /*...*/",
+                  Attributes : "$00A00000,$80000005;False:True."
+                },
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$000000FF,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$000000FF,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$000000FF,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$000000FF,$80000005;True:True."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Kotlin",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              Sets : [
+                {
+                  Name : "Numbers",
+                  Attributes : "$00FF0000,$80000005;False:True."
+                }
+              ],
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00800000,$80000005;False:True.B"
+                },
+                {
+                  Name : "Contextual keywords",
+                  Attributes : "$00800000,$80000005;False:True.B"
+                },
+                {
+                  Name : "Modifier keywords",
+                  Attributes : "$00800000,$80000005;False:True.B"
+                },
+                {
+                  Name : "Special Identifiers",
+                  Attributes : "$00000000,$80000005;False:True.B"
+                },
+                {
+                  Name : "Basic data types",
+                  Attributes : "$1FFFFFFF,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "@Annotation",
+                  Attributes : "$00008080,$80000005;False:True."
+                },
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$00008000,$80000005;False:True.B"
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00008000,$80000005;False:True.B",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00800000,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00808080,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00808080,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /**..*/",
+                  Attributes : "$00808080,$80000005;False:True.I"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "PowerShell",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00FF0000,$80000005;False:True."
+                },
+                {
+                  Name : "Aliases",
+                  Attributes : "$00C08000,$80000005;False:True."
+                },
+                {
+                  Name : "Functions",
+                  Attributes : "$00000080,$80000005;False:True."
+                },
+                {
+                  Name : "Cmdlets",
+                  Attributes : "$00800080,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings @'..'@",
+                  Attributes : "$000000FF,$80000005;False:True."
+                },
+                {
+                  Name : "Strings @\"..\"@",
+                  Attributes : "$000000FF,$80000005;False:True."
+                },
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$000000FF,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$000000FF,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks #",
+                  Attributes : "$00800000,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks <#..#>",
+                  Attributes : "$00800000,$80000005;False:True."
+                },
+                {
+                  Name : "Variables",
+                  Attributes : "$00008000,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "QML",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00008080,$80000005;False:True."
+                },
+                {
+                  Name : "Basic types",
+                  Attributes : "$00008080,$80000005;False:True."
+                },
+                {
+                  Name : "QtQuick Object Types",
+                  Attributes : "$00800080,$80000005;False:True."
+                },
+                {
+                  Name : "Aurora & Sailfish Silica Types",
+                  Attributes : "$00800080,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00008000,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Rust",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00FF0000,$80000005;False:True."
+                },
+                {
+                  Name : "Macros",
+                  Attributes : "$00800000,$80000005;False:True."
+                },
+                {
+                  Name : "Operators",
+                  Attributes : "$00CC3299,$80000005;False:True."
+                },
+                {
+                  Name : "Punctuators",
+                  Attributes : "$000000FF,$80000005;False:True."
+                },
+                {
+                  Name : "Types",
+                  Attributes : "$00000080,$80000005;False:True."
+                },
+                {
+                  Name : "Complex types",
+                  Attributes : "$00000080,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00696969,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00696969,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Chars '..'",
+                  Attributes : "$00696969,$80000005;False:True."
+                },
+                {
+                  Name : "Attributes (outer)",
+                  Attributes : "$00000096,$80000005;False:True."
+                },
+                {
+                  Name : "Attributes (inner)",
+                  Attributes : "$00000096,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Swift",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00FF0000,$00FFFFFF;False:True."
+                },
+                {
+                  Name : "Operators",
+                  Attributes : "$00CC3299,$80000005;False:True."
+                },
+                {
+                  Name : "Punctuators",
+                  Attributes : "$000000FF,$80000005;False:True."
+                },
+                {
+                  Name : "Types",
+                  Attributes : "$00000080,$00FFFFFF;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00008000,$00FFFFFF;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00008000,$00FFFFFF;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00696969,$00FFFFFF;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00696969,$00FFFFFF;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Strings \"\"\"...\"\"\"",
+                  Attributes : "$00696969,$00FFFFFF;False:True."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      Name : "Dark",
+      FilePanel : {
+        CursorBorderColor : -2147483635,
+        ForeColor : -2147483640,
+        BackColor : -2147483643,
+        BackColor2 : -2147483643,
+        MarkColor : 255,
+        CursorColor : -2147483635,
+        CursorText : -2147483634,
+        GridLine : 4737096,
+        InactiveCursorColor : -2147483645,
+        InactiveMarkColor : 128
+      },
+      FreeSpaceIndicator : {
+        ForeColor : 0,
+        BackColor : 16777215,
+        ThresholdForeColor : 255
+      },
+      Path : {
+        ActiveColor : -2147483635,
+        ActiveFontColor : -2147483634,
+        InactiveColor : -2147483633,
+        InactiveFontColor : -2147483630
+      },
+      Log : {
+        InfoColor : 12622689,
+        ErrorColor : 6383296,
+        SuccessColor : 9097847
+      },
+      SyncDirs : {
+        LeftColor : 9097847,
+        RightColor : 12622689,
+        UnknownColor : 6383296
+      },
+      Viewer : {
+        ImageBackColor1 : -2147483643,
+        ImageBackColor2 : 536870912,
+        BookBackgroundColor : 0,
+        BookFontColor : 16777215
+      },
+      Differ : {
+        AddedColor : 9097847,
+        DeletedColor : 6383296,
+        ModifiedColor : 12622689,
+        ModifiedBinaryColor : 6383296
+      },
+      TreeViewMenu : {
+        BackgroundColor : -2147483617,
+        ShortcutColor : 255,
+        NormalTextColor : -2147483640,
+        SecondaryTextColor : -2147483642,
+        FoundTextColor : -2147483635,
+        UnselectableTextColor : -2147483631,
+        CursorColor : -2147483635,
+        ShortcutUnderCursor : -2147483634,
+        NormalTextUnderCursor : -2147483634,
+        SecondaryTextUnderCursor : -2147483628,
+        FoundTextUnderCursor : 65535,
+        UnselectableUnderCursor : -2147483631
+      },
+      ColumnSets : [
+        {
+          Unique : "70301086-3CCB-4759-8550-586A9906EB2C",
+          Name : "Default",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "628622F9-69C8-4F2D-9673-A722A730833D",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "FFDB6255-A65C-4328-B97A-914BB38C0038",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "7EDAEBF3-B6DB-44E7-BA89-9324C93EFADF",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "93199CEC-11A4-48DC-AA70-B7CE3A662090",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "D9A52740-EDE8-4A94-BE6D-1672D037EF78",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "A4470662-6E5B-4355-A630-0C085F87C4CC",
+              Title : "Owner",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "75B99430-C34F-4461-B497-C1A75C4AD630",
+              Title : "Group",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "8A722A0B-6215-41F9-9128-F7B2E5476B4D",
+              Title : "Link To",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "AFD0AE74-3ED1-424B-945E-385E98A96B3A",
+              Title : "Attributes",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "176EFD29-4CF5-425E-B729-21BE34F5AA97",
+              Title : "Type",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "D1606D6A-105C-4691-93EC-BA538117FA28",
+          Name : "Default (2026-07-11@14-51-08)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "CE88E429-19BE-4EDA-886E-ABB9DB238522",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "C20B934D-9C7C-48B2-B789-8B4AB05EA2FA",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "A85B0B50-C9BE-4283-9142-E54A49FFF901",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "4FEBA379-A7CA-4A2B-9124-92481436B72B",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "65ADB3F8-7110-4FDD-982A-742FB91EA377",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "730C138E-3527-4C14-B00B-885F63FC07DF",
+          Name : "Default (2026-07-11@14-51-12)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "E90D366E-5D0C-4A2F-A5F5-363179C76F1E",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "0EDF6441-5793-4CE0-9796-FE7E81D0D801",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "760E481D-7819-41F3-B8A1-1C9B31BD0854",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "60C5161A-2FCD-4354-B77E-4CA4AA071F05",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "D9F7EF3F-A486-48F2-A622-13765CAD8082",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "6B0543BE-30D5-4848-A287-CB1BBBFCF0CD",
+          Name : "Default (2026-07-11@14-51-15)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "BA8702F6-EDC4-4EB7-B7FE-6B4B9F67B5BE",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "C8ED1744-B9E1-4718-B8F5-E3419374A112",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "FBF6E0A1-D0B9-4159-B310-84D0ACFA1827",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "63308DF3-4CF8-42F8-B5E9-790A929E6327",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "BA309571-F303-4D8C-A771-396435EC52BF",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "61EA00D3-967F-4343-BE23-4230D891497A",
+          Name : "Default (2026-07-11@14-51-15)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "8DF0C20E-BA88-4305-80C0-8EE16ABE9D75",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "3CA7B503-5E18-42CF-812D-E88F35958C59",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "026E6CF5-A7F0-4185-AD53-F13DB2A41909",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "93E1988D-D409-4928-8571-068036D0EE18",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "CEDD9DF5-19DD-486E-9A3D-6476594B96A2",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "FCC98AAE-C87D-4C89-997D-7048CC5C53CD",
+          Name : "Default (2026-07-11@14-51-16)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "BFC94F71-8199-4682-8447-F03556B6845E",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "AA6B0F6A-719D-4537-B452-022029F21509",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "43B58C7D-087F-41A6-A19E-F629E349B950",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "EDDF0E9E-3D3F-4349-B744-932DE0DB75CB",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "23207EBB-386A-4F3C-9714-14A4ACE09E2B",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "464754E9-C4B2-4E29-B277-9D28EB8707A3",
+          Name : "Default (2026-07-11@14-51-16)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "1878692A-1F2C-41B3-A460-1D3E0311B560",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "475B4149-5192-4633-9103-A6EDE4AEEE5E",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "3E8CD00A-4151-4526-A93A-43081713B943",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "7A219AFF-FB71-42AC-B092-479CF130AE64",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "F67D24D4-E37C-427E-90D8-2E4657829D23",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "33B655A5-5CA8-44B6-A393-C71951C4AB93",
+          Name : "Default (2026-07-11@14-51-16)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "043320F1-D106-4912-9F0B-F11A480CE461",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "EF37FCC5-1BD2-4E7C-AF24-F464A7FD7526",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "E4CB72A7-273B-4E04-8672-EC8B8FE9EBCF",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "0DD9A42B-1876-4875-AD6A-31CE34D6B3FA",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "F46CE412-8E63-40D0-9155-D01336AF734D",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "227E2993-EE7E-45E4-B5F1-08FC03991C9B",
+          Name : "Default (2026-07-11@14-51-16)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "9C841899-71FD-4297-9C52-5265B8DF36B0",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "0B6E3AA4-B454-499B-A402-672DD4B9E5AF",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "D5C27FA8-8B28-4D1A-8A2B-0BCC26D17DBA",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "335F2517-F31F-4337-8D21-B72C0A99A380",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "3E3FB1A3-88DF-465E-81E2-2889611D3DCA",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        },
+        {
+          Unique : "F34EE368-62BF-4CFA-B1E8-961B63E69121",
+          Name : "Default (2026-07-11@14-51-16)",
+          CursorBorderColor : -2147483635,
+          Columns : [
+            {
+              Unique : "3D26436C-ED09-425A-A8B6-8EA2EC0915C9",
+              Title : "Name",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "75C51E61-A504-4DD9-893F-BFC782A26A1F",
+              Title : "Ext",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "C9E8EC95-B6D6-4226-BC12-AEC2E109EC13",
+              Title : "Size",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "1F2F55F6-81A4-4539-AF8C-49202CEB8AC0",
+              Title : "Date",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            },
+            {
+              Unique : "83B12CF5-E1CA-41AB-A0D2-FBD021D43A07",
+              Title : "Attr",
+              TextColor : -2147483640,
+              Background : -2147483643,
+              Background2 : -2147483643,
+              MarkColor : 255,
+              CursorColor : -2147483635,
+              CursorText : -2147483634,
+              InactiveCursorColor : -2147483645,
+              InactiveMarkColor : 128
+            }
+          ]
+        }
+      ],
+      Highlighters : [
+        {
+          Name : "Plain text",
+          Attributes : [
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "C++",
+          Attributes : [
+            {
+              Name : "Assembler",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Illegal char",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Preprocessor",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$80000005|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$00898BB9|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Cascading style sheets",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Measurement unit",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00DA9396|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Selector",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Diff File",
+          Attributes : [
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Diff Added line",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Diff Changed Line",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Diff Chunk Line Counts",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Chunk Marker",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Chunk New Line Count",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Chunk Original Line Count",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Context Line",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Diff New File",
+              Value : "$0076E56C|$80000011|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Original File",
+              Value : "$006C6CE5|$80000017|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Diff Removed Line",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Unknown word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|2|0"
+            }
+          ]
+        },
+        {
+          Name : "HTML document",
+          Attributes : [
+            {
+              Name : "Asp",
+              Value : "$0000FFFF|$00000000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "CDATA",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "DOCTYPE",
+              Value : "$0000FFFF|$00000000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Escape ampersand",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$00D15894|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Unknown word",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Value",
+              Value : "$1FFFFFFF|$00FBA249|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "INI file",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$00D4914E|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Section",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Java",
+          Attributes : [
+            {
+              Name : "Annotation",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF8000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Documentation",
+              Value : "$1FFFFFFF|$00FF8000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Invalid symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00C28789|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$80000005|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF8000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Lazarus Form definition",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00FF8000|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00FF8000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Lua Script",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Function",
+              Value : "$1FFFFFFF|$00D5A6A6|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00AC95B3|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$00ECA761|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00837189|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "MS-DOS batch language",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "ObjectPascal",
+          Attributes : [
+            {
+              Name : "Assembler",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Case label",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Directive",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "IDE Directive",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Modifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "PasDoc-Keyword",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "PasDoc-Symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "PasDoc-Unknown",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Procedure header name",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "PHP",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Invalid symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Perl",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Illegal char",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Operator",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Pragma",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$80000005|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            }
+          ]
+        },
+        {
+          Name : "Python",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00808080|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Documentation",
+              Value : "$1FFFFFFF|$00808000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Float",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Hexadecimal",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Non-reserved keyword",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Octal",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "SyntaxError",
+              Value : "$1FFFFFFF|$006166C0|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "System functions and variables",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            }
+          ]
+        },
+        {
+          Name : "SQL",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Data type",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default packages",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Exception",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Function",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Reserved word (PL/SQL)",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "SQL*Plus command",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$004D4DAA|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Table Name",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "TeX",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00F0CAA6|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Math Mode",
+              Value : "$1FFFFFFF|$0081D2D2|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Round Bracket",
+              Value : "$1FFFFFFF|$006F6F98|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$8000001D|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Square Bracket",
+              Value : "$1FFFFFFF|$00AC95B3|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "TeX Command",
+              Value : "$00F0CAA6|$00F0CAA6|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$00C0C0C0|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "UNIX Shell Script",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Second reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00837189|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$004D4DAA|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Unknown word",
+              Value : "$1FFFFFFF|$00808080|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Variable",
+              Value : "$1FFFFFFF|$00AC95B3|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "Visual Basic",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Number",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Reserved word",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$004D4DAA|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "XML document",
+          Attributes : [
+            {
+              Name : "Attribute Name",
+              Value : "$1FFFFFFF|$00817285|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Attribute Value",
+              Value : "$1FFFFFFF|$00E8BCBC|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "CDATA Section",
+              Value : "$1FFFFFFF|$00008080|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$00C0C0C0|$1FFFFFFF|0|1|3|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "DOCTYPE Section",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Element Name",
+              Value : "$1FFFFFFF|$00837189|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Entity Reference",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Namespace Attribute Name",
+              Value : "$1FFFFFFF|$004D4DAA|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Namespace Attribute Value",
+              Value : "$1FFFFFFF|$004D4DAA|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Processing Instruction",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Symbol",
+              Value : "$1FFFFFFF|$00C09B61|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$00FFFFFF|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Whitespace",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        },
+        {
+          Name : "po language files",
+          Attributes : [
+            {
+              Name : "Comment",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Default text",
+              Value : "$80000005|$80000008|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Flags",
+              Value : "$1FFFFFFF|$00808000|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Identifier",
+              Value : "$1FFFFFFF|$008AD277|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Key",
+              Value : "$1FFFFFFF|$00E86363|$1FFFFFFF|0|1|1|0"
+            },
+            {
+              Name : "Previous value",
+              Value : "$1FFFFFFF|$00008080|$1FFFFFFF|0|1|2|0"
+            },
+            {
+              Name : "Space",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "String",
+              Value : "$1FFFFFFF|$00AF77D2|$1FFFFFFF|0|1|0|0"
+            },
+            {
+              Name : "Text",
+              Value : "$1FFFFFFF|$1FFFFFFF|$1FFFFFFF|0|1|0|0"
+            }
+          ]
+        }
+      ],
+      UniHighlighters : [
+        {
+          Name : "Assembler (x86)",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              Sets : [
+                {
+                  Name : "Numbers",
+                  Attributes : "$00E8BCBC,$80000005;False:True."
+                }
+              ],
+              KeyLists : [
+                {
+                  Name : "Commands",
+                  Attributes : "$008AD277,$80000005;False:True."
+                },
+                {
+                  Name : "Commands SSE2",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Registers",
+                  Attributes : "$00E8BCBC,$80000005;False:True."
+                },
+                {
+                  Name : "Registers x86_64",
+                  Attributes : "$00E8BCBC,$80000005;False:True."
+                },
+                {
+                  Name : "Key Words",
+                  Attributes : "$00808000,$80000005;False:True."
+                },
+                {
+                  Name : "Segments",
+                  Attributes : "$00D15894,$80000005;False:True.B"
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Remarks",
+                  Attributes : "$00C09B61,$80000005;False:True."
+                },
+                {
+                  Name : "String",
+                  Attributes : "$00898BB9,$80000005;False:True."
+                },
+                {
+                  Name : ".",
+                  Attributes : "$00FBA249,$80000005;False:True."
+                },
+                {
+                  Name : "@",
+                  Attributes : "$000080FF,$80000005;False:True."
+                },
+                {
+                  Name : "String",
+                  Attributes : "$00898BB9,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "C#",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Contextual keywords",
+                  Attributes : "$00008000,$80000005;False:True."
+                },
+                {
+                  Name : "Data types",
+                  Attributes : "$00FBA249,$80000005;False:True."
+                },
+                {
+                  Name : ".NET Data types",
+                  Attributes : "$00008080,$80000005;False:True."
+                },
+                {
+                  Name : "Preprocessor directives",
+                  Attributes : "$00D15894,$80000005;False:True."
+                },
+                {
+                  Name : "Operators",
+                  Attributes : "$000080FF,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$00898BB9,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00898BB9,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00898BB9,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00C09B61,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00C09B61,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "DC Error File",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$00AAAAAA,$80000005;False:False.",
+              Sets : [
+                {
+                  Name : "Digits",
+                  Attributes : "$00C09B61,$80000005;False:False."
+                }
+              ],
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00C09B61,$80000005;False:False."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Date",
+                  Attributes : "$00000000,$008AD277;False:False."
+                },
+                {
+                  Name : "About",
+                  Attributes : "$008AD277,$80000005;False:False."
+                },
+                {
+                  Name : "Exception",
+                  Attributes : "$00898BB9,$80000005;False:False."
+                },
+                {
+                  Name : "Address",
+                  Attributes : "$00898BB9,$80000005;False:False."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Go",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00D69C56,$80000005;False:True."
+                },
+                {
+                  Name : "Types",
+                  Attributes : "$00B0C94E,$80000005;False:True."
+                },
+                {
+                  Name : "Functions",
+                  Attributes : "$00FFC14F,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings `..`",
+                  Attributes : "$007891CE,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$007891CE,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$007891CE,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Remarks //",
+                  Attributes : "$008AD277,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$008AD277,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "JSON",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              Sets : [
+                {
+                  Name : "Numbers",
+                  Attributes : "$008AD277,$80000005;False:True."
+                }
+              ],
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$007891E2,$80000005;False:True."
+                },
+                {
+                  Name : "Punctuators",
+                  Attributes : "$00C09B61,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00898BB9,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00898BB9,$80000005;True:True."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Java script",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Functions and key words",
+                  Attributes : "$008AD277,$80000005;False:True."
+                },
+                {
+                  Name : "Reserved words",
+                  Attributes : "$00E8BCBC,$80000005;False:True."
+                },
+                {
+                  Name : "Common Events",
+                  Attributes : "$00E8BCBC,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Remark //",
+                  Attributes : "$00C09B61,$80000005;False:True."
+                },
+                {
+                  Name : "Remark /*...*/",
+                  Attributes : "$00C09B61,$80000005;False:True."
+                },
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$00898BB9,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00898BB9,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00898BB9,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$00898BB9,$80000005;True:True."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Kotlin",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              Sets : [
+                {
+                  Name : "Numbers",
+                  Attributes : "$00B8AC2A,$80000005;False:True."
+                }
+              ],
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$006D8ECF,$80000005;False:True."
+                },
+                {
+                  Name : "Contextual keywords",
+                  Attributes : "$006D8ECF,$80000005;False:True."
+                },
+                {
+                  Name : "Modifier keywords",
+                  Attributes : "$006D8ECF,$80000005;False:True."
+                },
+                {
+                  Name : "Special Identifiers",
+                  Attributes : "$1FFFFFFF,$80000005;False:True.B"
+                },
+                {
+                  Name : "Basic data types",
+                  Attributes : "$1FFFFFFF,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "@Annotation",
+                  Attributes : "$0060AEB3,$80000005;False:True."
+                },
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$0073AB6A,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$0073AB6A,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$006D8ECF,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00857E7A,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00857E7A,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /**..*/",
+                  Attributes : "$006B825F,$80000005;False:True.I"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "PowerShell",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00FBA249,$80000005;False:True."
+                },
+                {
+                  Name : "Aliases",
+                  Attributes : "$00C08000,$80000005;False:True."
+                },
+                {
+                  Name : "Functions",
+                  Attributes : "$008AD277,$80000005;False:True."
+                },
+                {
+                  Name : "Cmdlets",
+                  Attributes : "$00D15894,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings @'..'@",
+                  Attributes : "$00898BB9,$80000005;False:True."
+                },
+                {
+                  Name : "Strings @\"..\"@",
+                  Attributes : "$00898BB9,$80000005;False:True."
+                },
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$00898BB9,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$00898BB9,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks #",
+                  Attributes : "$00C09B61,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks <#..#>",
+                  Attributes : "$00C09B61,$80000005;False:True."
+                },
+                {
+                  Name : "Variables",
+                  Attributes : "$00008000,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "QML",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$003278CC,$80000005;False:True."
+                },
+                {
+                  Name : "Basic types",
+                  Attributes : "$003278CC,$80000005;False:True."
+                },
+                {
+                  Name : "QtQuick Object Types",
+                  Attributes : "$006DC6FF,$80000005;False:True."
+                },
+                {
+                  Name : "Aurora & Sailfish Silica Types",
+                  Attributes : "$006DC6FF,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Strings '..'",
+                  Attributes : "$0059876A,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$0059876A,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks //",
+                  Attributes : "$00808080,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$00808080,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Rust",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00D69C56,$80000005;False:True."
+                },
+                {
+                  Name : "Macros",
+                  Attributes : "$00FFC14F,$80000005;False:True."
+                },
+                {
+                  Name : "Operators",
+                  Attributes : "$00E8BCBC,$80000005;False:True."
+                },
+                {
+                  Name : "Punctuators",
+                  Attributes : "$00D4D4D4,$80000005;False:True."
+                },
+                {
+                  Name : "Types",
+                  Attributes : "$00B0C94E,$80000005;False:True."
+                },
+                {
+                  Name : "Complex types",
+                  Attributes : "$00B0C94E,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Remarks //",
+                  Attributes : "$008AD277,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$008AD277,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$007891CE,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$007891CE,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Chars '..'",
+                  Attributes : "$007891CE,$80000005;False:True."
+                },
+                {
+                  Name : "Attributes (outer)",
+                  Attributes : "$006166C0,$80000005;False:True."
+                },
+                {
+                  Name : "Attributes (inner)",
+                  Attributes : "$006166C0,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          Name : "Swift",
+          Ranges : [
+            {
+              Name : "Root",
+              Attributes : "$80000008,$80000005;False:False.",
+              KeyLists : [
+                {
+                  Name : "Keywords",
+                  Attributes : "$00D69C56,$80000005;False:True."
+                },
+                {
+                  Name : "Operators",
+                  Attributes : "$00E8BCBC,$80000005;False:True."
+                },
+                {
+                  Name : "Punctuators",
+                  Attributes : "$00D4D4D4,$80000005;False:True."
+                },
+                {
+                  Name : "Types",
+                  Attributes : "$00B0C94E,$80000005;False:True."
+                }
+              ],
+              Ranges : [
+                {
+                  Name : "Remarks //",
+                  Attributes : "$008AD277,$80000005;False:True."
+                },
+                {
+                  Name : "Remarks /*..*/",
+                  Attributes : "$008AD277,$80000005;False:True."
+                },
+                {
+                  Name : "Strings \"..\"",
+                  Attributes : "$007891CE,$80000005;False:True.",
+                  KeyLists : [
+                    {
+                      Name : "Escape",
+                      Attributes : "$007891CE,$80000005;True:True."
+                    }
+                  ]
+                },
+                {
+                  Name : "Strings \"\"\"...\"\"\"",
+                  Attributes : "$007891CE,$80000005;False:True."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  FileColors : [
+  ]
+}
