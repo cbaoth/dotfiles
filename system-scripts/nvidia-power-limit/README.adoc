@@ -1,0 +1,87 @@
+= nvidia-power-limit
+:toc:
+:icons: font
+
+Applies a persistent NVIDIA GPU power cap at boot.
+
+Mitigation for *Xid 79* ("GPU has fallen off the bus") hard crashes caused by
+microsecond transient power spikes on Ada (40-series) cards.
+
+Full background, the diagnosis, and the other fixes on the list:
+`docs/troubleshooting/gpu-xid79-bus-fall-off.md`.
+
+== Why this exists
+
+`nvidia-smi -pl 250` is a *runtime setting inside the driver*. It is not written
+to hardware or BIOS, and it *does not survive a reboot*.
+
+That is a trap, not just an inconvenience: set the cap, then reboot into BIOS to
+change a PCIe setting, and the cap is silently gone — you would be testing the
+BIOS change alone while believing you were testing both. This unit removes the
+trap by re-applying the cap on every boot.
+
+== Install
+
+[source,bash]
+----
+sudo ./install.sh
+----
+
+Installs:
+
+[cols="1,2"]
+|===
+| `/opt/bin/nvidia-power-limit.sh`             | the script
+| `/etc/nvidia-power-limit.conf`               | the tuning value (never overwritten on re-install)
+| `/etc/systemd/system/nvidia-power-limit.service` | oneshot unit, `WantedBy=multi-user.target`
+|===
+
+Then enables and starts the unit.
+
+== Tuning
+
+The whole point of the config file is that the cap can be bisected without
+touching code:
+
+[source,bash]
+----
+sudo $EDITOR /etc/nvidia-power-limit.conf   # NVIDIA_POWER_LIMIT_W=250 → 240 → 220
+sudo systemctl restart nvidia-power-limit
+nvidia-power-limit.sh --show
+----
+
+Ladder: *250 W* first (~1–2% loss in games, ~2–4% on sustained AI compute), then
+*240*, then *220*. If 220 W still crashes, transient spikes are probably *not* the
+cause — stop lowering it and work down the rest of the list in the troubleshooting
+note (reseat connectors, `pcie_aspm=off`, PSU).
+
+== Usage
+
+[source,bash]
+----
+nvidia-power-limit.sh --show     # current vs. configured vs. stock limits
+nvidia-power-limit.sh --reset    # restore the card's stock default
+systemctl status nvidia-power-limit
+----
+
+== Uninstall
+
+[source,bash]
+----
+sudo systemctl disable --now nvidia-power-limit
+sudo /opt/bin/nvidia-power-limit.sh --reset
+sudo rm /opt/bin/nvidia-power-limit.sh \
+        /etc/nvidia-power-limit.conf \
+        /etc/systemd/system/nvidia-power-limit.service
+sudo systemctl daemon-reload
+----
+
+== Notes
+
+* The unit is `Type=oneshot` with `RemainAfterExit=yes` — it is a boot-time
+  setting, not a daemon, but this lets `systemctl status` show it as active and
+  `systemctl restart` re-apply it after a config edit.
+* `ConditionPathExists=/dev/nvidia0` means it silently does nothing on a machine
+  without the NVIDIA driver, rather than failing noisily.
+* The script refuses a value outside the card's supported range rather than
+  letting `nvidia-smi` fail cryptically at boot where nobody is watching.

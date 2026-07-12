@@ -1,0 +1,20 @@
+[Unit]
+Description=Apply persistent NVIDIA GPU power limit (Xid 79 mitigation)
+Documentation=file:/opt/bin/nvidia-power-limit.sh
+# The driver must be loaded and the device present before nvidia-smi can talk
+# to it. nvidia-persistenced keeps the driver resident; ordering after it is the
+# reliable way to know the GPU is ready this early in boot.
+After=nvidia-persistenced.service systemd-modules-load.service
+Wants=nvidia-persistenced.service
+ConditionPathExists=/dev/nvidia0
+
+[Service]
+Type=oneshot
+ExecStart=/opt/bin/nvidia-power-limit.sh
+# The cap is a boot-time setting, not a daemon — but RemainAfterExit lets
+# `systemctl status` show it as active, and `systemctl restart` re-apply it
+# after editing the config (which is how you walk the 250/240/220 ladder).
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
