@@ -77,9 +77,37 @@ above their rated draw** — enough to trip PSU over-current protection and drop
 card off the bus. Pair that with a fresh AM5 board on early BIOS and aggressive
 PCIe Gen 5 auto-negotiation, and this is the classic Xid 79 profile.
 
-PSU is a be quiet! Pure Power, 700–750 W: adequate on paper, mid-tier Gold. The
-problem is not total wattage; it is **transient spike handling and OCP
-sensitivity**.
+### The PSU is the two-old-parts problem
+
+The 2025-10 rebuild replaced the **CPU, board, RAM, cooler, and case**. It did *not*
+replace the **GPU** or the **PSU** — the case was bought *ohne Netzteil*. So the
+be quiet! Pure Power (700–750 W) is:
+
+- the **only** component not refreshed,
+- feeding a substantially hungrier platform than it was originally sized for,
+- absorbing the 4070 Ti's transient excursions (~450–500 W on a 285 W card),
+- and **aging** — capacitor transient response degrades over years.
+
+That is a much stronger suspect than "adequate on paper, mid-tier Gold" suggests,
+and it reframes the fault: not a wattage shortfall, but **degraded transient
+response feeding a card known for spikes**. Sizing and the ATX 3.1 requirement:
+[../reference/hardware-motoko.md](../reference/hardware-motoko.md#psu--the-weak-link).
+
+**Its exact model is not recorded anywhere.** Confirm it from the label or the
+original order emails — without that, the PSU discussion is guesswork.
+
+### Ruled out: PCIe lane loss
+
+The second 990 PRO added for Linux was a real hardware delta, and on this board
+`M.2_2` / `PCI_E2` **share the CPU Gen5 x16 pool with the GPU slot** — populating
+either drops the GPU to x8. So it was worth checking. It is fine:
+
+```bash
+nvidia-smi --query-gpu=pcie.link.width.current --format=csv   # 16
+```
+
+GPU is at full **x16** → those slots are empty. Not a factor. Lane map:
+[../reference/hardware-motoko.md](../reference/hardware-motoko.md#pcie-lane-sharing-x870e-carbon).
 
 ## What has been done
 
