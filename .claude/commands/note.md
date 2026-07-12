@@ -1,0 +1,1 @@
+../../.github/prompts/cb-note.prompt.md

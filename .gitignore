@@ -28,12 +28,15 @@ desktop.ini
 !.github/instructions/
 !.github/agents/
 !.github/skills/
+!.github/prompts/
 .github/instructions/*
 .github/agents/*
 .github/skills/*
+.github/prompts/*
 !.github/instructions/cb-*.md
 !.github/agents/cb-*.md
 !.github/skills/cb-*.md
+!.github/prompts/cb-*.prompt.md
 
 # local: configuratins and variables, may contain sensitive info (e.g., API keys)
 .claude/settings.local.json
@@ -47,6 +50,12 @@ desktop.ini
 # Local scratch space — never commit
 # Convention: _local/ dirs are for test dumps, scratch work, ad-hoc experiments
 _local/
+
+# Raw Obsidian notes staged for migration into docs/ — NOT sanitized.
+# Contains real WiFi SSIDs, disk UUIDs, and MAC addresses; this repo is public.
+# Migrate into docs/{setup,troubleshooting,reference}/ (see docs/setup/MIGRATION.md),
+# then delete. Never commit the raw notes.
+Obsidian_Example/
 
 # Local config overrides — may contain sensitive data (e.g., credentials, API keys)
 # Convention: foo.local or foo.local.conf overrides the tracked foo config (not committed)
