@@ -77,24 +77,52 @@ above their rated draw** — enough to trip PSU over-current protection and drop
 card off the bus. Pair that with a fresh AM5 board on early BIOS and aggressive
 PCIe Gen 5 auto-negotiation, and this is the classic Xid 79 profile.
 
-### The PSU is the two-old-parts problem
+### The PSU: identified, and it is not a quality problem
 
-The 2025-10 rebuild replaced the **CPU, board, RAM, cooler, and case**. It did *not*
-replace the **GPU** or the **PSU** — the case was bought *ohne Netzteil*. So the
-be quiet! Pure Power (700–750 W) is:
+**be quiet! Straight Power 11, 750 W** (identified 2026-07 from the box in the
+basement — the unit sits in a cable channel and its label is not readable in situ).
 
-- the **only** component not refreshed,
-- feeding a substantially hungrier platform than it was originally sized for,
-- absorbing the 4070 Ti's transient excursions (~450–500 W on a 285 W card),
-- and **aging** — capacitor transient response degrades over years.
+This is a **good** PSU: be quiet!'s high-end line, 80+ Gold, fully modular,
+FSP-built. So the naive "cheap PSU" theory is dead. The real issue is narrower and
+much more specific:
 
-That is a much stronger suspect than "adequate on paper, mid-tier Gold" suggests,
-and it reframes the fault: not a wattage shortfall, but **degraded transient
-response feeding a card known for spikes**. Sizing and the ATX 3.1 requirement:
+> **It is ATX 2.x** (launched ~2018–19). It predates the standard written to solve
+> this exact problem.
+
+ATX 3.0/3.1 mandates riding out **200 % transient excursions** — a requirement that
+exists *precisely because* good ATX 2.x units were tripping OCP on 30/40-series
+spikes. **A high-quality ATX 2.x PSU shutting down under Ada transients is the
+canonical documented failure mode**, not an edge case. Add ~6–7 years of capacitor
+aging, and:
+
+| | Draw |
+| --- | --- |
+| 9950X3D (PPT) | ~200 W |
+| RTX 4070 Ti | 285 W sustained, **~450–500 W transient** |
+| Rest of system | ~80–100 W |
+| **Transient peak** | **can momentarily approach or exceed 750 W** |
+
+Right at the rail's limit — which is where OCP fires and the GPU falls off the bus.
+Sizing and the ATX 3.1 requirement:
 [../reference/hardware-motoko.md](../reference/hardware-motoko.md#psu--the-weak-link).
 
-**Its exact model is not recorded anywhere.** Confirm it from the label or the
-original order emails — without that, the PSU discussion is guesswork.
+It is also the **only component not refreshed** in the 2025-10 rebuild (the case was
+bought *ohne Netzteil*; the GPU was carried over too).
+
+### #2 got more important: check the GPU cabling — it is FREE
+
+The PSU is **modular**, and the spare cables were kept. So:
+
+> **Is the GPU fed by two separate PCIe cables from the PSU, or one cable with two
+> connectors (daisy-chain / pigtail)?**
+
+A single daisy-chained cable feeding a 285 W card with 500 W transients is a real
+and common cause of exactly this fault, and fixing it costs **nothing**. Run two
+independent cables. Do this before spending money on anything.
+
+While in there, also confirm what the Gigabyte 4070 Ti GAMING OC actually takes:
+2× 8-pin, or a 12VHPWR/16-pin via adapter. If it is an adapter, that adapter is
+itself a known weak point and reseating it matters.
 
 ### Ruled out: PCIe lane loss
 
@@ -111,14 +139,15 @@ GPU is at full **x16** → those slots are empty. Not a factor. Lane map:
 
 ## What has been done
 
-| # | Change | Status |
-| - | ------ | ------ |
-| 1 | **Power cap 285 → 250 W** | ✅ now persistent — `system-scripts/nvidia-power-limit/` |
-| 2 | Reseat 12VHPWR/PCIe connectors at *both* ends + reseat card | ⬜ do at next physical access |
-| 3 | **BIOS: PCIe slot Auto → Gen4** | ✅ done (`pcie.link.gen.max` = 4) |
-| 4 | Kernel `pcie_aspm=off` | ⬜ only if 1+3 fail |
-| 5 | **BIOS update** (1.A64 → 1.AA3) | ✅ done |
-| 6 | PSU replacement / separate PCIe cables | ⬜ last resort |
+| # | Change | Cost | Status |
+| - | ------ | ---- | ------ |
+| 1 | **Power cap 285 → 250 W** | free | ✅ persistent — `system-scripts/nvidia-power-limit/` (needs `install.sh`) |
+| 2 | **Two separate PCIe cables to the GPU** (not daisy-chained) + reseat both ends + reseat card | **free** | ⬜ **do at next physical access — promoted** |
+| 3 | **BIOS: PCIe slot Auto → Gen4** | free | ✅ done (`pcie.link.gen.max` = 4) |
+| 4 | Kernel `pcie_aspm=off` | free | ⬜ only if 1–3 fail |
+| 5 | **BIOS update** (1.A64 → 1.AA3) | free | ✅ done |
+| 6 | **PSU → 1000 W ATX 3.1** | €€ | ⬜ the likely real fix, but only after 1–4 |
+| — | PCIe lane loss (2nd NVMe stealing GPU lanes) | — | ✅ **ruled out** — GPU at x16 |
 
 **Do them one at a time.** Changing several at once means learning nothing about
 which one mattered.

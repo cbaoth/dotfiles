@@ -24,7 +24,8 @@ Kept as a doc because most of this is awkward to retrieve at runtime (needs
 | **GPU** | Gigabyte GeForce RTX 4070 Ti GAMING OC 12 GB *(carried over)* |
 | **Board** | MSI MPG X870E Carbon WiFi (AM5, ATX) |
 | **Case** | Fractal Design Define 7 Black Solid, Midi Tower |
-| **PSU** | be quiet! Pure Power, 700–750 W *(carried over — **exact model unconfirmed**)* |
+| **PSU** | **be quiet! Straight Power 11, 750 W** — 80+ Gold, fully modular, **ATX 2.x** *(carried over; bought ~2019 as a replacement, fitted by a local shop)* |
+| **Monitor** | LG 38GN950 (37.5" ultrawide, 3840×1600, 144 Hz) |
 
 RAM runs at its rated 6000 MT/s with EXPO enabled (confirmed via
 `dmidecode -t memory`). 2×48 GB @ 6000 CL30 is stable out of the box on AM5;
@@ -46,6 +47,38 @@ enable EXPO and leave everything else on Auto.
 > by the two 990 PROs. Do not "reclaim" it as a system drive.
 
 **SATA:** Crucial MX500 2 TB (`CT2000MX500SSD1`), Samsung 850 EVO 500 GB.
+
+Live device map (`hwinfo --short`): `nvme0n1` + `nvme1n1` = the two Samsung 990 PROs,
+`nvme2n1` = the Crucial P3 Plus, `sda` = MX500, `sdb` = 850 EVO.
+
+## Network & peripherals
+
+| Interface | Device | Use |
+| --------- | ------ | --- |
+| `enp6s0` | Realtek RTL8125 **2.5 GbE** | direct link to [saito](hardware-saito.md) |
+| `enp7s0` | Realtek Gigabit | — |
+| `wlp14s0` | Qualcomm | WiFi |
+| `qtun` | — | NordVPN (NordLynx) |
+
+Peripherals worth recording (they show up in `hwinfo` and occasionally in bug
+hunts): Logitech Unifying receiver (keyboard + mouse), Logitech C922 Pro webcam,
+3Dconnexion SpaceMouse Wireless, **Feitian U2F** security key (see
+[../setup/security.md](../setup/security.md)), Sony WH-1000XM4 (Bluetooth),
+MSI Mystic Light (RGB).
+
+## Refreshing this doc
+
+Most of the above comes straight from:
+
+```bash
+hwinfo --short
+```
+
+That is also how the second WD Elements on saito was spotted — a hand-maintained
+inventory drifts. Re-run it after any hardware change and reconcile.
+
+What `hwinfo` will *not* tell you: the **PSU** (no electrical bus to report on), RAM
+part numbers (`sudo dmidecode -t memory`), and the exact board revision.
 
 ## PCIe lane sharing (X870E Carbon)
 
@@ -85,45 +118,69 @@ Sources: [X870E Carbon manual (PDF)](https://download-2.msi.com/archive/mnu_exe/
 
 ## PSU — the weak link
 
-**This is the most important open item on this machine.**
+**be quiet! Straight Power 11, 750 W.** Bought ~2019 as an emergency replacement
+(the previous PSU failed; a local shop diagnosed and fitted it — no email invoice,
+only a paper one). Identified 2026-07 from the original box in the basement, since
+the unit is routed into a cable channel and its label is not visible in situ.
 
-In the 2025-10 rebuild, the CPU, board, RAM, cooler, and case were all new. The
-**GPU and the PSU were not** — the case was bought *ohne Netzteil*. So the PSU is
-an older be quiet! Pure Power (700–750 W), and it is now:
+### It is a *good* PSU. That is not the point.
 
-- the **only** component not refreshed,
-- feeding a substantially hungrier platform than it was originally sized for,
-- absorbing an RTX 4070 Ti's **microsecond transient spikes** (Ada cards spike far
-  above rated draw — ~450–500 W excursions on a 285 W card),
-- and **aging** — capacitor transient response degrades over years.
+Straight Power 11 is be quiet!'s high-end line — 80+ Gold, fully modular, FSP-built.
+The failure mode here has nothing to do with build quality:
 
-That makes it a prime suspect for the
-[Xid 79 crashes](../troubleshooting/gpu-xid79-bus-fall-off.md), not an afterthought.
+> **It is ATX 2.x.** It predates the standard that was written to solve this exact
+> problem.
 
-### TODO: confirm the exact model
+ATX 3.0/3.1 mandates riding out **200 % transient excursions**. That requirement
+exists *precisely because* good ATX 2.x units were tripping OCP on 30/40-series
+spikes. A high-quality ATX 2.x PSU shutting down under Ada transients is the
+**canonical documented failure mode**, not an edge case.
 
-The model and wattage are not recorded anywhere. Check the label on the unit
-itself, or the original order emails. Without it, the PSU discussion is guesswork.
+### The power budget
+
+| Component | Draw |
+| --------- | ---- |
+| Ryzen 9 9950X3D (PPT) | ~200 W |
+| RTX 4070 Ti | 285 W sustained, **~450–500 W transient** |
+| Board, 3× NVMe, 2× SATA, fans, RGB, peripherals | ~80–100 W |
+| **Sustained peak** | ~570–600 W |
+| **Transient peak** | **can momentarily approach or exceed 750 W** |
+
+On a 750 W rail that is right at the edge — which is where OCP fires and the GPU
+drops off the bus. Add ~6–7 years of capacitor aging (transient response degrades)
+and this is a strong suspect, not an afterthought. See
+[Xid 79](../troubleshooting/gpu-xid79-bus-fall-off.md).
+
+### Check the cabling first — it is free
+
+**Is the GPU fed by two separate PCIe cables from the PSU, or one cable with two
+connectors (daisy-chain / pigtail)?**
+
+A single daisy-chained cable feeding a 285 W card with 500 W transients is a real
+and common cause of exactly this fault. The PSU is modular and the spare cables were
+kept, so fixing it costs nothing. **Run two independent cables from the PSU to the
+GPU.** Do this before spending money.
+
+Also confirm what the Gigabyte 4070 Ti GAMING OC actually takes — 2× 8-pin, or a
+12VHPWR/16-pin via adapter. If it is an adapter, that adapter is itself a known weak
+point and reseating it matters.
 
 ### If replacing it
 
-**The spec that matters is `ATX 3.1`, not the wattage.** ATX 3.1 / PCIe 5.1
-mandates that a PSU ride out **200 % transient excursions** — that standard exists
-*precisely* to solve the Ada/Blackwell spike problem that is the leading suspect
-here. An older ATX 2.x unit is not designed for these excursions **no matter how
-many watts it is rated for**, which is why "just buy bigger" is the wrong frame.
+**The spec that matters is `ATX 3.1`, not the wattage** — a 1200 W ATX 2.x unit
+could still trip on transients, while a 850 W ATX 3.1 unit is designed to ride them
+out. "Just buy bigger" is the wrong frame.
 
-Recommended, to be future-proof rather than barely-sufficient:
+To be future-proof rather than barely-sufficient:
 
 - **1000 W**, **ATX 3.1**, **native 12V-2x6** connector, 80+ Gold or better, from a
-  reputable OEM (Seasonic, Corsair RM/HX, be quiet! Dark Power / Straight Power,
+  reputable OEM (Seasonic, Corsair RM/HX, be quiet! Dark Power / Straight Power 12,
   Super Flower).
-- 1000 W is the sizing NVIDIA specifies for an **RTX 5090** (575 W TDP), so it
-  covers a future GPU upgrade with headroom while fixing today's problem.
-- **850 W would run a 5090 only marginally** — that is exactly the
-  "barely sufficient" trap to avoid.
-- Don't go past ~1000 W: beyond future-proofing into waste, and efficiency at
-  typical (low) load gets worse.
+- 1000 W is the sizing NVIDIA specifies for an **RTX 5090** (575 W TDP), so it covers
+  a future GPU upgrade with headroom while fixing today's problem.
+- **850 W would run a 5090 only marginally** — exactly the "barely sufficient" trap.
+- Don't go past ~1000 W: that is beyond future-proofing into waste, and low-load
+  efficiency gets worse.
 
 **But do not buy on a guess** — the free 250 W power-cap test is what tells you
 whether this is a power fault at all. See the troubleshooting note.
