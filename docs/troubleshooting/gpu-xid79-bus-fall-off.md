@@ -338,10 +338,10 @@ these settings never draws more than ~190 W, the 250 W cap never engages — and
 crash-free evening says *nothing* about it. You would have "confirmed" a fix that
 was never active.
 
-`bin/gpu-watch` answers this directly:
+`bin/hw-watch` answers this directly:
 
 ```bash
-gpu-watch          # start before launching the game; Ctrl-C after
+hw-watch          # start before launching the game; Ctrl-C after
 ```
 
 It logs power/clocks/temp to a CSV and reports peak, average, and **what fraction of

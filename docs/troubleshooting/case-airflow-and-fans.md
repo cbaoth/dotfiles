@@ -11,31 +11,57 @@ updated: 2026-07-13
 **Status: open — planned project, not yet started.** Findings and a plan; nothing
 has been changed yet.
 
+## ⚠️ Read this before spending any money: the room is 30 °C
+
+**Ambient in this room runs 28.5–31.5 °C** during summer (insulated room, PC on all
+day, little air circulation even with the balcony open).
+
+**Every thermal benchmark, review, and "is 70 °C normal?" forum answer assumes
+~21–22 °C ambient.** At 30 °C, *everything* reads ~8 °C hotter than the numbers
+being quoted at you — while being completely fine.
+
+> **The honest metric is delta-over-ambient, not the absolute number.**
+
+| | Measured @30 °C | Normalised to 22 °C |
+| --- | --- | --- |
+| CCD idle | 49–52 °C | **~41–44 °C** |
+| BIOS idle | >60 °C | ~52 °C |
+
+~20 °C over ambient at idle on a 9950X3D is *good*. There may be **no thermal
+problem here at all — just a hot room.**
+
+`bin/hw-watch --ambient 30` does this normalisation automatically and prints a
+verdict. **Measure under load with it before buying anything**, or you risk fixing a
+room with case parts.
+
+**And the real fix:** the preferred room temperature is 18–21 °C, and it currently
+sits at ~30 °C. Whatever cools the *room* fixes the PC *and* the human. That is a
+better investment than case fans, and it is the actual root cause.
+
 ## The measurement that matters
 
 > **Opening the case drops CPU temperature.**
 
-That is a direct measurement that **the case is the bottleneck, not the cooler**.
-An NH-D15 G2 is a huge air cooler; if it is heat-soaking, it is because it is
-recirculating warm air rather than because it is undersized. No amount of fan-curve
-tuning fixes a case that cannot exchange air.
+That is a direct measurement that **the case is a bottleneck, not the cooler**. An
+NH-D15 G2 is a huge air cooler; if it is heat-soaking, it is recirculating warm air,
+not undersized. No amount of fan-curve tuning fixes a case that cannot exchange air.
+
+But note the delta was only "a few degrees" — so the case is *a* constraint, not
+necessarily a *severe* one. Quantify it under load before acting.
 
 ### Don't panic on the BIOS number
 
 BIOS reported >60 °C at idle — but **BIOS idle temps read high by nature**: no
-C-states, no idle clocks, the CPU sits at fixed boost.
-
-On the desktop the honest numbers are:
+C-states, no idle clocks, the CPU sits at fixed boost. Desktop idle:
 
 ```
-Tctl:  62.1 °C     <- a CONTROL value, includes an offset. Not the die temp.
+Tctl:  62.1 °C     <- a CONTROL value, includes an offset. NOT the die temp.
 Tccd1: 49.1 °C     <- actual die
 Tccd2: 51.6 °C     <- actual die
 ```
 
-~50 °C idle on the CCDs of a 9950X3D is warm but not alarming. **The load numbers
-are what matter**, and they have not been measured yet. Do that before buying
-anything.
+**Quote `Tccd`, not `Tctl`.** Tctl is what fan curves consume; it is not what the
+silicon is at.
 
 ## Blocker: Linux cannot see or control any fan
 
@@ -75,17 +101,28 @@ They are also routed through the case's built-in **Nexus+ fan hub** (the little
 multi-fan pin board with a single cable to the motherboard), which further hides
 individual fans from the board.
 
-## The elephant: it is a *silence* case with a *solid* front
+## The elephant: it is a *silence* case with a *solid* top
 
 The **Define 7 Black Solid** is a sound-dampened case. It deliberately trades airflow
-for quiet: solid front panel, dense dust filters, foam lining.
+for quiet: solid top panel, dense dust filters, foam lining.
 
-That is a fine trade for an office box. It is a **bad trade for a 9950X3D + RTX 4070
-Ti**, which together dump 400–500 W into that sealed box under load.
+That is a fine trade for an office box, and a questionable one for a 9950X3D + RTX
+4070 Ti dumping 400–500 W into it.
 
-**Check whether a mesh front panel is available for the Define 7.** Swapping the
-front is likely to be the single biggest thermal win available, and it is cheaper
-than a set of fans.
+**A mesh top panel may already be in the box** — the Define 7 ships with a swappable
+top (the mesh one is nominally for top-mounted radiators, but it vents a *lot* better
+than the solid plate). **Check the accessory box before buying anything.** Free, if
+so.
+
+Hot air rises, so a vented top plus top exhaust is the orthodox layout. (One
+dissenting view online argues for pushing air *down* through the top; it is a small
+minority and not worth chasing.)
+
+The front is less of a worry than it looks: the Define 7's front intake draws through
+**broad side slits**, and with front fans pushing, that is more effective than the
+solid façade suggests. The likely best additions are a **bottom intake blowing past
+the GPU** and **top exhaust** — the single 120 mm rear fan is doing very little on its
+own.
 
 ## Plan
 
@@ -93,12 +130,17 @@ Ordered by value-per-euro. **Measure under load first** — do not buy on a hunc
 
 | # | Action | Cost |
 | - | ------ | ---- |
-| 0 | **Measure under load** (game + AI run): `gpu-watch` for the GPU, `watch -n2 sensors` for CPU/CCD | free |
+| 0 | **Measure under load**: `hw-watch --ambient <room C>` during a game and an AI run | free |
 | 1 | **Remove the Noctua Low-Noise Adapter** from the CPU fans (see below) | free |
 | 2 | Get `nct6775`/`nct6687d` working → fan RPM + PWM visible to Linux | free |
-| 3 | **Mesh front panel** (if available for the Define 7) | € |
-| 4 | Replace the 3 stock 3-pin fans with **PWM** fans | €€ |
-| 5 | Add top exhaust / bottom intake | € |
+| 3 | **Cool the room** — it is the actual root cause, and 30 °C is the real problem | €€€ |
+| 4 | **Mesh top panel** (already owned? check the bundle) | free–€ |
+| 5 | Replace the 3 stock 3-pin fans with **PWM** fans | €€ |
+| 6 | Bottom intake past the GPU + top exhaust | € |
+
+Step 0 gates everything below it. If `hw-watch` says *"[THERMAL] Fine. Nothing is
+close to throttling"* under a real gaming and AI load, then **the correct action is
+to buy nothing** and accept slightly higher fan noise.
 
 ### 1. Remove the Low-Noise Adapter — free, do it first
 
