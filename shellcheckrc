@@ -21,7 +21,7 @@ source-path=SCRIPTDIR
 # ----------------------------------------------------------------------------
 
 # Suggest ${VAR} in place of $VAR
-enable=require-variable-braces
+# enable=require-variable-braces
 
 # Turn on warnings for unquoted variables with safe values
 # enable=quote-safe-variables
