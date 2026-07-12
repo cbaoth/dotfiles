@@ -12,11 +12,39 @@ My core configuration (dot) files, shell functions and utility scripts.
 dotfiles/        Actual dotfiles symlinked to $HOME (zsh, bash, vim, X11, etc.)
 bin/             User utility scripts (added to PATH via ~/bin/)
 system-scripts/  System/admin scripts (some require root)
+setup/           Idempotent system setup modules (run via bin/system-setup)
 lib/             Shared shell libraries (commons.sh)
 tools/           Repo tooling: link.sh, fix-modelines.py, etc.
-docs/            Documentation and TODO
+docs/            Documentation, system notes, and TODO
 _archive/        Archived scripts pending review (not in PATH)
 ```
+
+### System Setup (`setup/`)
+
+`dotfiles-link` deploys config into `$HOME`. `setup/` covers what that *cannot*:
+apt packages, locales, flatpak apps, docker, fonts — the things that make a fresh
+machine usable in the first place.
+
+```bash
+system-setup --list                      # available modules
+system-setup --dry-run --profile desktop # print what would change; change nothing
+system-setup --profile auto              # detect desktop/server/wsl and apply
+```
+
+Modules are safe to re-run — a second run reports `0 changed`. Package sets live
+in `setup/packages/*.list` as plain data, so *"what gets installed on a fresh
+box"* is answerable without reading any shell. See
+[setup/README.md](setup/README.md).
+
+### Documentation & System Notes (`docs/`)
+
+Repo documentation lives at the root of `docs/`; **system notes** — knowledge
+about the machines rather than the repo — live in three buckets:
+[`docs/setup/`](docs/setup/) (how a machine got this way),
+[`docs/troubleshooting/`](docs/troubleshooting/) (problem journals — including
+the dead ends), and [`docs/reference/`](docs/reference/) (cheatsheets). Setup
+notes cross-link to the `setup/` module that automates them. See
+[docs/README.md](docs/README.md).
 
 - `ZSH` is the leading shell.
 - `Bash` configs exist for rare cases in which zsh is not available, they are

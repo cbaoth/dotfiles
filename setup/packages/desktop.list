@@ -1,0 +1,54 @@
+# Desktop-only apt packages (GUI session present).
+# Installed by: setup/modules/00-apt-base.sh (profile: desktop)
+# Docs:         docs/setup/ubuntu-base.md, docs/reference/package-managers.md
+#
+# apt vs flatpak: the deciding question is whether anything else has to INVOKE
+# it by name. A flatpak is not on $PATH — it is `flatpak run <app.id>` — so
+# scripts, aliases, and xdg-open handlers cannot reach it.
+# Self-contained GUI apps go in flatpak-desktop.list.
+
+# Terminal emulator & clipboard
+xfce4-terminal
+copyq
+wl-clipboard
+
+# Launcher
+rofi
+
+# FIDO2 / U2F hardware key auth
+libpam-u2f
+fido2-tools
+pcscd
+pcsc-tools
+libccid
+libpcsclite1
+
+# Firewall UI (ufw itself ships by default)
+gufw
+
+# Image/media CLI
+imagemagick
+# libimage-exiftool-perl, not exiftool: `exiftool` is only a virtual name that
+# this package Provides. See the 7zip note in base.list for why that matters.
+libimage-exiftool-perl
+mpg123
+
+# mpv — MUST be apt, not flatpak.
+# bin/mpv-find and the @MPV global alias in .zsh.d/aliases.zsh both pipe into
+# `xargs ... mpv`, which needs a real binary on $PATH. The flatpak build breaks
+# both silently. (This is why a past switch to the flatpak was reverted.)
+mpv
+
+# Encryption — needs PPA sebastian-stenzel/cryptomator.
+# Skipped with a warning if the PPA is not configured (see docs/setup/security.md).
+# The flatpak exists and is the same version, but apt is what is actually
+# installed here and the PPA is live — do not "clean up" that sources file.
+cryptomator
+
+# Filesystem / network mounts
+cifs-utils
+
+# Misc
+doublecmd-common
+gnome-shell-extension-gsconnect
+trash-cli

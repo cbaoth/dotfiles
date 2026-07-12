@@ -1,0 +1,59 @@
+# Base apt packages — every machine (desktop, server, wsl).
+# One package per line. Blank lines and # comments ignored.
+# Installed by: setup/modules/00-apt-base.sh
+# Docs:         docs/setup/ubuntu-base.md
+
+# Shell & editors
+zsh
+vim
+
+# Terminal multiplexing & monitoring
+tmux
+htop
+btop
+
+# Network
+iftop
+ngrep
+lsof
+
+# Version control
+git
+git-lfs
+
+# Transfer
+wget
+curl
+aria2
+rsync
+gnupg
+ca-certificates
+
+# Pagers & syntax highlighting
+less
+bat
+multitail
+python3-pygments
+
+# Search & find
+fd-find
+ripgrep
+
+# Data wrangling
+jq
+gawk
+parallel
+
+# Archives
+unzip
+zip
+# 7zip, not p7zip-full: the latter is now only a virtual name provided by 7zip.
+# dpkg-query never reports a virtual package as installed, so using it here
+# would make every run reinstall it and report a change forever. It happens to
+# work on machines that upgraded through the transitional package — i.e. it
+# would only break on a fresh box.
+7zip
+
+# Python
+python3-pip
+python3-venv

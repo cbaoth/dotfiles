@@ -1,0 +1,54 @@
+# Flatpak apps for the desktop profile (app IDs, one per line).
+# Installed by: setup/modules/20-flatpak.sh
+# Docs:         docs/setup/flatpak.md, docs/reference/package-managers.md
+#
+# Only self-contained GUI apps that nothing else needs to invoke by name.
+# Anything a script, alias, or xdg-open handler must reach goes in desktop.list
+# instead — a flatpak is not on $PATH.
+#
+# Filesystem overrides (e.g. access to /srv/saito) are NOT applied here; they
+# are host-specific and live in 20-flatpak.sh behind a host guard.
+
+# Secrets.
+# Flatpak deliberately, despite the sandbox: it tracks upstream far more closely
+# (2.7.12 vs 2.7.10 in apt at the time of writing), and the browser extension
+# complains when KeePassXC is too old. The sandbox is NOT the thing that breaks
+# browser integration — a sandboxed *browser* is. Keep browsers native and this
+# works fine, which is how motoko currently runs.
+org.keepassxc.KeePassXC
+
+# Image & design
+org.gimp.GIMP
+com.xnview.XnViewMP
+org.darktable.Darktable
+org.kde.krita
+
+# AV
+# NOTE: mpv is deliberately NOT here — it must be apt. See desktop.list.
+org.videolan.VLC
+io.github.quodlibet.QuodLibet
+io.github.quodlibet.ExFalso
+
+# Social
+org.signal.Signal
+
+# Utilities
+com.github.tchx84.Flatseal
+it.mijorus.gearlever
+
+# Math
+io.github.Qalculate
+org.speedcrunch.SpeedCrunch
+
+# Notes
+md.obsidian.Obsidian
+
+# Browser — ungoogled-chromium only.
+# The primary browsers stay native (apt): a sandboxed browser cannot reach
+# KeePassXC via native messaging. See docs/setup/browsers.md.
+io.github.ungoogled_software.ungoogled_chromium
+
+# Ebooks
+# On hold — the ebook reader is not currently in use. Kept here rather than
+# deleted so the tool is not forgotten. Uncomment to reinstate.
+#com.calibre_ebook.calibre

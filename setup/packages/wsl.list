@@ -1,0 +1,9 @@
+# WSL-only apt packages.
+# Installed by: setup/modules/00-apt-base.sh (profile: wsl)
+# Docs:         docs/setup/ubuntu-base.md
+#
+# Deliberately thin: WSL gets base.list plus these. No GUI packages, no
+# systemd-dependent services, no drivers — the Windows host owns all of that.
+
+# Clipboard bridge to the Windows host
+wslu

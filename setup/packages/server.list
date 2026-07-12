@@ -1,0 +1,12 @@
+# Server-only apt packages (headless).
+# Installed by: setup/modules/00-apt-base.sh (profile: server)
+# Docs:         docs/setup/ubuntu-base.md
+
+# Security
+fail2ban
+
+# Monitoring
+glances
+
+# Restart services after library upgrades (see docs/setup/unattended-upgrades.md)
+needrestart
