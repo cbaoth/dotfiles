@@ -445,9 +445,9 @@ mode "$mode_meta" {
 #       xsuspend → swaylock -f && systemctl suspend
 #       restart  → reload  (sway has no in-place restart equivalent)
 set $mode_system Sway: [l]ock, reload-[c]onfigure, e[X]it \
-        | Awake: keep-[a]wake (30min [A]uto-off) \
-        | System: [S]uspend, [H]ibernate, [R]eboot, shut[D]own
-#       | PulseAudio: switch card [p]rofile, restart [P]ipeWire
+      | Awake: keep-[a]wake (30min [A]uto-off) \
+      | System: [S]uspend, [H]ibernate, [R]eboot, shut[D]own
+#      | PulseAudio: switch card [p]rofile, restart [P]ipeWire
 bindsym $mod+Escape mode "$mode_system"; exec sway-mode-timeout $mode_timeout_secs
 mode "$mode_system" {
     # Sway:
@@ -457,8 +457,8 @@ mode "$mode_system" {
     bindsym c                reload, mode "default"
     # X: exit sway
     bindsym Shift+x          mode "default"; exec swaynag -t warning \
-                                 -m 'Do you really want to exit Sway?' \
-                                 -b 'Exit Sway' 'swaymsg exit'
+                               -m 'Do you really want to exit Sway?' \
+                               -b 'Exit Sway' 'swaymsg exit'
 
     # Awake:
     # a: toggle sway-awake (manual keep-awake)
@@ -474,17 +474,17 @@ mode "$mode_system" {
     bindsym Shift+h          mode "default"; exec swaylock -f -c 000000 && systemctl hibernate
     # Alt+r: reboot
     bindsym Shift+r          mode "default"; exec swaynag -t warning \
-                                 -m 'Do you really want to reboot the system?' \
-                                 -b 'Reboot' 'systemctl reboot'
+                               -m 'Do you really want to reboot the system?' \
+                               -b 'Reboot' 'systemctl reboot'
     # D: shut down
     bindsym Shift+d          mode "default"; exec swaynag -t warning \
-                                 -m 'Do you really want to shut down the system?' \
-                                 -b 'Shutdown' 'systemctl poweroff'
+                               -m 'Do you really want to shut down the system?' \
+                               -b 'Shutdown' 'systemctl poweroff'
 
     ## p: switch audio profile off/on (same pactl commands work via PipeWire compat)
     #bindsym p                mode "default"; \
-    #                             exec pactl set-card-profile 0 off; \
-    #                             exec sh -c 'sleep 1; pactl set-card-profile 0 output:hdmi-stereo-extra1'
+    #                            exec pactl set-card-profile 0 off; \
+    #                            exec sh -c 'sleep 1; pactl set-card-profile 0 output:hdmi-stereo-extra1'
     ## P: restart PipeWire/WirePlumber (replaces pkill pulseaudio)
     #bindsym Shift+p          mode "default"; exec systemctl --user restart wireplumber
 
@@ -686,8 +686,7 @@ for_window [window_role="^i3float$"]                       $FLOAT
 for_window [app_id="(?i)^swayfloat$"]                      $FLOAT
 
 # Web Browsers
-for_window [title="(?i)(^|[ ._-])(Task[ ._-]?Manager)([ ._-]|$)"] \
-                                                           $FLOAT
+for_window [title="(?i)(^|[ ._-])(Task[ ._-]?Manager)([ ._-]|$)"] $FLOAT
 
 # Gaming
 for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] $FLOAT
@@ -705,8 +704,7 @@ for_window [app_id="(?i)^org.gnome.settings$"]             $FLOAT
 for_window [app_id="(?i)^com.github.tchx84.Flatseal$"]     $FLOAT
 for_window [app_id="(?i)^ulauncher$"]                      $FLOAT
 for_window [app_id="(?i)^org.gnome.Software$"]             $FLOAT
-for_window [app_id="(?i)(^|[ ._-])(nvidia-settings|solaar)"] \
-                                                           $FLOAT
+for_window [app_id="(?i)(^|[ ._-])(nvidia-settings|solaar)"] $FLOAT
 
 # Communication and social apps
 for_window [app_id="(?i)^org\.signal\.Signal$"]            $FLOAT
@@ -714,7 +712,7 @@ for_window [app_id="(?i)^org\.signal\.Signal$"]            $FLOAT
 # Dialog windows
 # for_window [title="(?i)(^|[ ._-])(Preferences|Settings|Options)([ ._-]|$)"] \
 for_window [class="(?i)^Doublecmd$"] \
-           [title="(?i)^(Options|File operations)$"]       $FLOAT
+             [title="(?i)^(Options|File operations)$"]     $FLOAT
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
@@ -727,8 +725,7 @@ for_window [app_id="(?i)(^|[ ._-])keepassxc$"]             $STICK_AND_FLOAT
 for_window [class="(?i)(^|[ ._-])keepassxc$"]              $STICK_AND_FLOAT
 
 # Network manager windows
-for_window [app_id="(?i)(^|[ ._-])(nm-applet|nm-connection-editor)$"] \
-                                                           $STICK_AND_FLOAT
+for_window [app_id="(?i)(^|[ ._-])(nm-applet|nm-connection-editor)$"] $STICK_AND_FLOAT
 
 # NordVPN client UI (tray): app_id is plain "nordvpn-gui", Wayland-native, no
 # class (verified live via sway-winfo). class rule kept as a harmless no-op
@@ -753,20 +750,27 @@ for_window [app_id="^blueman-manager$"]                    $STICK_AND_FLOAT
 for_window [class="^blueman-manager$"]                     $STICK_AND_FLOAT
 
 # Firefox pip video player window (e.g. YouTube)
-for_window [title="(?i)^Picture.?in.?Picture$"]            $STICK_AND_FLOAT
+for_window [app_id="(?i)^firefox"] \
+             [title="(?i)^Picture.?in.?Picture$"]          $STICK_AND_FLOAT
+# Browser Extension: GlobalSpeed - https://github.com/polywock/globalSpeed
+# FIXME doesn't work (reliably), maybe the window title changes briefly after creating the window, since they end up with the same properties
+# for_window [app_id="(?i)^firefox"] \
+#               [title="(?i)^Extension: \(Global Speed - Video Speed Control\)"] $STICK_AND_FLOAT
+# Browser Extension: GlobalSpeed "into popup" feature (best effort, based on dynamic url specific title)
+# for_window [app_id="(?i)^firefox"] \
+#               [title="(?i)^https...www\.youtube\.com - "] $STICK_AND_FLOAT
 
 # JDownloader main window (Java app with no class/app_id)
 # class matches real launcher window "org-jdownloader-update-launcher-
 # JDLauncher" (verified live via sway-winfo, dash-bounded "jdownloader" token);
 # java-lang-Thread kept for older builds/dialogs that report a generic class.
 for_window [class="(?i)(^|[ ._-])(java-lang-Thread|jdownloader)([ ._-]|$)"] \
-           [title="(?i)(^|[ ._-])(JDownloader|INFODIALOG)"] \
-                                                           $STICK_AND_FLOAT
+             [title="(?i)(^|[ ._-])(JDownloader|INFODIALOG)"] $STICK_AND_FLOAT
 
 # Math apps
-for_window [app_id="(?i)(^|[ ._-])(calculator|qalculate-\w+|speedcrunch)$"] \
-                                                           $STICK_AND_FLOAT
+for_window [app_id="(?i)(^|[ ._-])(calculator|qalculate-\w+|speedcrunch)$"]  $STICK_AND_FLOAT
 for_window [class="(?i)(^|[ ._-])(galculator|qalculate)$"] $STICK_AND_FLOAT
+
 # }}} - Floating and Sticky --------------------------------------------------
 
 # }}} - Others ---------------------------------------------------------------
@@ -790,9 +794,8 @@ for_window [class=".*"]                                    inhibit_idle fullscre
 # instead park it fully off-screen (negative coords) and set opacity 0 so it is
 # invisible and cannot catch pointer clicks. inhibit_idle holds while it exists.
 no_focus   [app_id="^sway-awake-idle-inhibitor$"]
-for_window [app_id="^sway-awake-idle-inhibitor$"] \
-    floating enable, border none, opacity 0, \
-    move position -500 -500, inhibit_idle open
+for_window [app_id="^sway-awake-idle-inhibitor$"]          floating enable, border none, opacity 0, \
+                                                             move position -500 -500, inhibit_idle open
 # }}} - Others x---------------------------------------------------------------
 # }}} - Window Modes ---------------------------------------------------------
 # }}} = Window Rules =========================================================
@@ -812,7 +815,7 @@ for_window [app_id="^sway-awake-idle-inhibitor$"] \
 # Required so xdg-desktop-portal, pipewire, and other socket-activated services
 # inherit WAYLAND_DISPLAY and XDG_CURRENT_DESKTOP (set in sway-start).
 exec dbus-update-activation-environment --systemd \
-    WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DISPLAY
+       WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DISPLAY
 
 # xdg-desktop-portal backend is configured via ~/.config/xdg-desktop-portal/portals.conf.
 # No manual restart needed - the portal starts via socket activation and reads portals.conf.
@@ -823,11 +826,11 @@ exec dbus-update-activation-environment --systemd \
 # PAM auth (incl. U2F): sudo install -m 644 /dev/null /etc/pam.d/swaylock
 #   echo 'auth include common-auth' | sudo tee /etc/pam.d/swaylock
 exec swayidle -w \
-    timeout 900  'swaylock -f -c 000000' \
-    timeout 3600  'swaymsg "output * dpms off"' \
-    resume       'swaymsg "output * dpms on"' \
-    before-sleep 'swaylock -f -c 000000' \
-    after-resume '~/bin/conky-restart'
+       timeout 900  'swaylock -f -c 000000' \
+       timeout 3600  'swaymsg "output * dpms off"' \
+       resume       'swaymsg "output * dpms on"' \
+       before-sleep 'swaylock -f -c 000000' \
+       after-resume '~/bin/conky-restart'
 
 # Auto idle-inhibit while media/audio plays (PipeWire-aware). Filters short
 # notification sounds via `media_minimum_duration`, so a Discord/Steam ping does
