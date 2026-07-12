@@ -105,7 +105,7 @@ Options (in order of preference):
 - [ ] [S] Decide on approach (no-DM vs greetd vs LightDM)
 - [ ] [S] `sudo systemctl disable gdm` — stop GDM from starting at boot
 - [ ] [M] Configure chosen session startup method
-- [ ] [S] Update `docs/sway-setup.md` with chosen approach and steps
+- [ ] [S] Update `docs/setup/sway.md` with chosen approach and steps
 - [ ] [S] Verify YubiKey unlock still works (KeePassXC prompt visible at login)
 - [ ] [S] Verify GNOME remains usable if needed (`sudo systemctl enable gdm`)
 
