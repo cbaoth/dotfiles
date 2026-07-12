@@ -1,0 +1,23 @@
+[Unit]
+Description=Auto-commit and sync the private notes repo (~/notes)
+Documentation=file:%h/dotfiles/bin/notes-sync
+# Pointless (and noisy) to even try while offline; the timer will come back.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/notes-sync --quiet
+
+# The push needs an SSH agent. On motoko that is KeePassXC, which only exists
+# inside the graphical session — so this unit is only useful once that session
+# is up. A failed push is handled gracefully by the script (the commit is kept
+# locally and retried), so a missing agent degrades to "commit only" rather
+# than to data loss.
+Environment=GIT_TERMINAL_PROMPT=0
+
+# Never let a stuck network call pile up timer firings.
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

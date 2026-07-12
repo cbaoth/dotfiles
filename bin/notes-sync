@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# notes-sync: Auto-commit and sync the private notes repo (~/notes).
+
+# set options
+# -e omitted intentionally: a failed pull/push must still leave the local commit
+# in place — losing the commit would be the one unacceptable outcome here.
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+
+# {{{ = CONSTANTS =============================================================
+
+declare -r NOTES_DIR="${NOTES_DIR:-${HOME}/notes}"
+declare -r LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/notes-sync.lock"
+
+# }}} = CONSTANTS =============================================================
+
+# {{{ = ARGUMENTS =============================================================
+
+declare -i dry_run=0
+declare -i quiet=0
+declare -i no_push=0
+
+# }}} = ARGUMENTS =============================================================
+
+# {{{ = FUNCTIONS =============================================================
+
+usage() {
+  cat <<EOF
+Usage: notes-sync [OPTIONS]
+
+Commit any local changes in ${NOTES_DIR}, then pull --rebase and push.
+Does nothing when the working tree is clean, so it is safe to run on a timer.
+
+Options:
+  -n, --dry-run   Show what would happen; change nothing
+  -q, --quiet     Only print on error or on an actual commit (for timers)
+      --no-push   Commit locally, but do not pull or push
+  -h, --help      This help
+
+Environment:
+  NOTES_DIR       Override the repo path (default: \${HOME}/notes)
+
+Runs every 5 minutes via the notes-sync.timer systemd user unit:
+  systemctl --user status notes-sync.timer
+  journalctl --user -u notes-sync.service -n 50
+EOF
+}
+
+p_msg()  { (( quiet )) || printf '%s\n' "$*"; }
+p_err()  { printf 'ERROR: %s\n' "$*" >&2; }
+p_warn() { printf 'WARNING: %s\n' "$*" >&2; }
+
+parse_args() {
+  while (( $# > 0 )); do
+    case "$1" in
+      -n|--dry-run) dry_run=1; shift ;;
+      -q|--quiet)   quiet=1; shift ;;
+      --no-push)    no_push=1; shift ;;
+      -h|--help)    usage; exit 0 ;;
+      *)
+        p_err "unknown option: $1"
+        usage >&2
+        exit 1
+        ;;
+    esac
+  done
+}
+
+# }}} = FUNCTIONS =============================================================
+
+# {{{ = MAIN ==================================================================
+
+main() {
+  parse_args "$@"
+
+  if [[ ! -d "${NOTES_DIR}/.git" ]]; then
+    p_err "not a git repo: ${NOTES_DIR}"
+    exit 1
+  fi
+
+  cd "${NOTES_DIR}" || { p_err "cannot cd to ${NOTES_DIR}"; exit 1; }
+
+  # A timer firing every 5 minutes will eventually overlap a slow push. Two
+  # concurrent rebases in one worktree is how a notes repo gets corrupted.
+  exec 9>"${LOCK_FILE}"
+  if ! flock -n 9; then
+    p_msg "another notes-sync is running, skipping"
+    exit 0
+  fi
+
+  # {{{ - Commit --------------------------------------------------------------
+  if [[ -z "$(git status --porcelain)" ]]; then
+    p_msg "nothing to commit"
+  else
+    local -i n_files
+    n_files="$(git status --porcelain | wc -l)"
+    local -r msg="notes: autosave $(date -Is) (${n_files} file(s))"
+
+    if (( dry_run )); then
+      printf 'would commit %d file(s):\n' "${n_files}"
+      git status --short
+    else
+      git add -A || { p_err "git add failed"; exit 1; }
+      git commit -q -m "${msg}" || { p_err "git commit failed"; exit 1; }
+      # Not gated on --quiet: an actual commit is the one thing worth logging.
+      printf '%s\n' "${msg}"
+    fi
+  fi
+  # }}} - Commit --------------------------------------------------------------
+
+  (( no_push )) && return 0
+
+  # No remote yet (e.g. before the GitHub repo exists) is fine — commit and stop.
+  if ! git remote get-url origin >/dev/null 2>&1; then
+    p_msg "no 'origin' remote configured, skipping pull/push"
+    return 0
+  fi
+
+  if (( dry_run )); then
+    p_msg "would pull --rebase and push to $(git remote get-url origin)"
+    return 0
+  fi
+
+  # {{{ - Pull & push ---------------------------------------------------------
+  # A failed pull must not abort: the commit above is already safe locally, and
+  # the next timer tick will retry. Warn loudly, exit 0, do not lose data.
+  if ! git pull --rebase --autostash -q; then
+    p_warn "pull --rebase failed (conflict? offline?) — local commit is safe, not pushing"
+    p_warn "resolve manually in ${NOTES_DIR}: git status"
+    exit 0
+  fi
+
+  if ! git push -q; then
+    p_warn "push failed (offline?) — local commit is safe, will retry next run"
+    exit 0
+  fi
+
+  p_msg "synced with $(git remote get-url origin)"
+  # }}} - Pull & push ---------------------------------------------------------
+
+  return 0
+}
+
+main "$@"
+
+# }}} = MAIN ==================================================================

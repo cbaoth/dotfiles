@@ -1,0 +1,21 @@
+[Unit]
+Description=Auto-commit and sync ~/notes every 5 minutes
+Documentation=file:%h/dotfiles/bin/notes-sync
+
+[Timer]
+# Fire shortly after login, then every 5 minutes. Combined with VS Code's
+# files.autoSave, this is what makes "I forgot to save / commit" impossible:
+# the worst case is losing the last few minutes, and nothing is ever left
+# uncommitted overnight.
+OnStartupSec=2min
+OnUnitActiveSec=5min
+
+# Spread the load and avoid every timer on the system firing on the same tick.
+AccuracySec=30s
+RandomizedDelaySec=30s
+
+# Catch up after suspend/resume rather than silently waiting for the next tick.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
