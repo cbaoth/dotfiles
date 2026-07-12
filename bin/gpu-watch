@@ -95,7 +95,7 @@ summarise() {
   printf 'Log     : %s\n' "${log_file}"
   printf 'Cap     : %s W  (stock default: %s W)\n' "${limit}" "${default_limit}"
 
-  # power.draw is field 2 in the CSV
+  # CSV fields: 1=timestamp 2=power.draw 3=power.limit 4=util 5=temp 6=clocks.sm 7=pcie.gen
   awk -F', *' -v limit="${limit}" '
     NR > 1 && $2 ~ /^[0-9.]+$/ {
       p = $2 + 0
@@ -103,12 +103,22 @@ summarise() {
       if (p > max) max = p
       # "at the cap" = within 2% of it; the driver hovers rather than pinning
       if (p >= limit * 0.98) capped++
+
+      t = $5 + 0
+      tsum += t; tn++
+      if (t > tmax) tmax = t
     }
     END {
       if (n == 0) { print "\nNo valid power samples."; exit }
       printf "Peak    : %.1f W\n", max
       printf "Average : %.1f W\n", sum / n
       printf "At cap  : %d of %d samples (%.1f%%)\n", capped, n, (capped * 100.0) / n
+      if (tn > 0) {
+        printf "GPU temp: %.0f C peak, %.0f C avg", tmax, tsum / tn
+        # >83 C is where an Ada card starts thermal-throttling
+        if (tmax >= 83) printf "  <-- THROTTLING RANGE"
+        printf "\n"
+      }
       print "-------------------------------------------------------"
       if (capped == 0) {
         printf "\n>> The cap was NEVER reached (peak %.1f W < cap %.1f W).\n", max, limit
