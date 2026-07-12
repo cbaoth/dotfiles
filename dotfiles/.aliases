@@ -290,6 +290,7 @@ EOF
   fi
 
 }
+
 tmux-tpm-update() {
   if [[ -d ~/.tmux/plugins/tpm ]]; then
     echo "Updating TPM at ~/.tmux/plugins/tpm..."
@@ -302,6 +303,7 @@ tmux-tpm-update() {
     echo "TPM is not installed at ~/.tmux/plugins/tpm. Please run tmux-tpm-install first."
   fi
 }
+
 # alias `tmux` may may be defined later, so let's use a shorter name (e.g. `tmux=_zsh_tmux_plugin_run` via .zshrc)
 tm() {
   if [[ ! -d ~/.tmux/plugins/tpm ]]; then
@@ -310,6 +312,20 @@ tm() {
     echo "Starting tmux without TPM..."
   fi
   tmux "$@"
+}
+
+print-color256() {
+  local fg_color
+  for i in {0..255} ; do
+    if (( ( i > 0 && i < 16 ) || ( ((i-16) % 36 / 6) > 2 ) )); then
+      fg_color=30
+    else
+      fg_color=97
+    fi
+    printf "\e[%sm\x1b[48;5;%sm %3d \e[0m " "$fg_color" "$i" "$i"
+    (( i == 15 || i > 15 && (i - 15) % 18 == 0 )) && printf "\n"
+  done
+  echo
 }
 # }}} - DEV ------------------------------------------------------------------
 
