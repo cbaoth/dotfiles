@@ -133,7 +133,7 @@ Ordered by value-per-euro. **Measure under load first** — do not buy on a hunc
 | 0 | **Measure under load**: `hw-watch --ambient <room C>` during a game and an AI run | free |
 | 1 | **Remove the Noctua Low-Noise Adapter** from the CPU fans (see below) | free |
 | 2 | Get `nct6775`/`nct6687d` working → fan RPM + PWM visible to Linux | free |
-| 3 | **Cool the room** — it is the actual root cause, and 30 °C is the real problem | €€€ |
+| 3 | **Cool the room** — the actual root cause; see [Room cooling](#room-cooling-the-real-fix) | €€–€€€ |
 | 4 | **Mesh top panel** (already owned? check the bundle) | free–€ |
 | 5 | Replace the 3 stock 3-pin fans with **PWM** fans | €€ |
 | 6 | Bottom intake past the GPU + top exhaust | € |
@@ -183,6 +183,41 @@ Noctua's own bundled Y-cable is a splitter, and it is the intended configuration
 
 Positive pressure (slightly more intake than exhaust) keeps dust out of a filtered
 case. Roughly: **front intake ×2–3 (140 mm), rear exhaust ×1, top exhaust.**
+
+## Room cooling — the real fix
+
+Everything above moves heat from the CPU into *the room*. **None of it removes heat
+from the room.** At ~30 °C ambient in a room that should be 18–21 °C, the case is
+downstream of the actual problem — and the room is also where the human sits.
+
+Worth being blunt about the load: this PC dumps **400–500 W** into the room under
+gaming/AI load, the work notebook adds more during home office, and the room is
+insulated with poor air exchange even with the balcony open. That is a small
+electric radiator running all day.
+
+*(Minor but real: the 250 W GPU cap is also a ~35 W reduction in room heating.
+Undervolting/capping is a cooling measure as well as a stability one.)*
+
+### Options
+
+| Option | Verdict |
+| ------ | ------- |
+| **Dual-hose portable AC** (Monoblock, 2 Schläuche) | **The pragmatic choice.** No installation, no landlord permission, movable. Buy this if buying portable. |
+| **Single-hose portable AC** | ❌ **The common purchase and the worst value.** It exhausts *room* air outdoors, creating negative pressure that pulls hot air in through every gap in the flat. Effective capacity is roughly halved. Cheap, popular, and a trap. |
+| **Split AC** (indoor + outdoor unit) | Best efficiency and by far the quietest — the compressor is outside. But it needs installation, an outdoor unit, and **landlord permission** in a rented flat. |
+| **Monoblock with wall cores** (no outdoor unit) | Middle ground: fixed install, two small wall penetrations, no outdoor unit. Still needs permission, but far less visually intrusive than a split. |
+| **Evaporative cooler / "air cooler"** | ❌ Adds humidity and does very little in humid European summers. Not a real option. |
+| Free measures | Night purge (cross-ventilate when it is cooler outside), blackout the window during the day, and *do not* run heavy AI workloads at peak heat. |
+
+### If buying portable
+
+- **Dual-hose, not single-hose.** This is the single most important choice.
+- A proper **window seal** (Fensterabdichtung) is essential — without it the hot
+  exhaust air just comes straight back in.
+- **They are loud.** The compressor is in the room with you. Less of an issue behind
+  a noise-cancelling headset, but it is not a quiet-PC-friendly device.
+- Size it for the room's volume *plus* the ~500 W of PC. Standard room-size
+  calculators assume no space heater in the corner.
 
 ## Reference
 
