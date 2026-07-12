@@ -317,6 +317,62 @@ diagnostic that de-risks the purchase:
 The cap test is not an alternative to the PSU. It is how to find out whether the PSU
 is the answer.
 
+## Test protocol
+
+### Baseline (what a crash looked like)
+
+PoE2 crashed **within an hour of launch, probably 30–40 minutes of actual play**
+(Steam reports 2.6 h total, but much of that was tweaking settings under low load).
+So:
+
+- **< 40 min clean** → proves nothing.
+- **~2 h clean** → a strong hint, not proof.
+- **Several sessions across several days** → genuinely convincing.
+
+This fault is load-dependent and intermittent. **One good session is weak evidence.**
+
+### Measure, do not assume
+
+**A power cap only proves anything if the card actually REACHES it.** If PoE2 at
+these settings never draws more than ~190 W, the 250 W cap never engages — and a
+crash-free evening says *nothing* about it. You would have "confirmed" a fix that
+was never active.
+
+`bin/gpu-watch` answers this directly:
+
+```bash
+gpu-watch          # start before launching the game; Ctrl-C after
+```
+
+It logs power/clocks/temp to a CSV and reports peak, average, and **what fraction of
+samples sat at the cap**. Read the verdict at the end:
+
+- *"The cap was NEVER reached"* → the test is void. Raise graphics settings until the
+  GPU is genuinely power-limited, or the run tells you nothing.
+- *"The cap IS active (N% of samples at the limit)"* → the workload is genuinely
+  capped, so a crash-free session is meaningful evidence.
+
+### Then: de-confounding
+
+Doing the cap **and** the 12VHPWR reseat together means a clean session cannot say
+*which* fixed it. That is acceptable — both are free and reversible — but it can be
+untangled afterwards, and the ramp-up does exactly that:
+
+Once stable, **raise `NVIDIA_POWER_LIMIT_W` back toward 285 W** in
+`/etc/nvidia-power-limit.conf` (`systemctl restart nvidia-power-limit`), and keep
+playing:
+
+| Result at 285 W | Conclusion |
+| --------------- | ---------- |
+| **Crashes again** | The **cap** was the fix → it *is* a transient/power fault → the PSU (#6) is the correct permanent solution, now confirmed before spending. |
+| **Stays stable** | The **reseat** was the fix → it was a bad 12VHPWR contact → no PSU needed, and the cap can be removed entirely. |
+
+That is not just "see what happens" — it is the experiment that tells the two
+hypotheses apart, and it decides whether ~€200 of PSU is necessary or wasted.
+
+Ramp in steps (250 → 265 → 285) rather than jumping, so a crash localises the
+threshold — which is itself useful information about how much headroom is missing.
+
 ## After the next crash (if any)
 
 ```bash
