@@ -2,7 +2,7 @@
 title: Hard crash while gaming — Xid 79, GPU falls off the PCIe bus (motoko)
 hosts: [motoko]
 status: open
-revisit: after the next gaming session with the 250 W cap active
+revisit: after the next gaming session (rail rebalance + 250 W cap active)
 tags: [nvidia, gpu, xid, power, pcie, bios, crash]
 updated: 2026-07-12
 automated_by: system-scripts/nvidia-power-limit/
@@ -10,8 +10,11 @@ automated_by: system-scripts/nvidia-power-limit/
 
 # Xid 79 — "GPU has fallen off the bus"
 
-**Status: under test.** BIOS updated, PCIe forced to Gen4, and the 250 W power
-cap is now persistent. Next data point comes from the next gaming session.
+**Status: under test.** A likely culprit was found 2026-07-12: the GPU was wired
+onto a **single, overloaded 12V rail** (PCIe 3 = 12V4), against the PSU manual's
+explicit rail-balancing instruction. That is now corrected (GPU moved to its own
+rail), on top of the BIOS update, PCIe forced to Gen4, and the persistent 250 W cap.
+Next data point comes from the next gaming session.
 
 ## Symptom
 
@@ -41,6 +44,81 @@ when the fan controller loses its curve, the display engine is simply gone, and
 the driver itself told the kernel the only recovery is `OS Reboot` (Xid 154).
 
 This is a **power / PCIe-signal / hardware-stability** fault.
+
+## The likely culprit: the GPU sat on a single overloaded 12V rail
+
+Reading the Straight Power 11 manual (technical section, p.32–33) changes the
+diagnosis. **This PSU is multi-rail.** The 750 W model splits its +12 V output into
+four independent rails, each with its own over-current protection:
+
+| Rail | Feeds (PSU-side connectors) | Max current | Max power |
+| ---- | --------------------------- | ----------- | --------- |
+| 12V1 | SATA, HDD, FDD, 24-pin | 20 A | 240 W |
+| 12V2 | CPU (P4 / P8) | 20 A | 240 W |
+| 12V3 | **PCIe 1** (+ part of PCIe 2) | 24 A | **288 W** |
+| 12V4 | **PCIe 3** (+ part of PCIe 2) | 24 A | **288 W** |
+
+Combined 12 V is 62.5 A / 750 W. The connector→rail map (manual p.33 diagram):
+
+- **PCIe 1** → pure **12V3**
+- **PCIe 3** → pure **12V4**
+- **PCIe 2** → straddles **12V3 + 12V4**
+
+And the manual prints an explicit warning right next to that diagram:
+
+> Please make sure you balance the load across the 12 volt rails 12V3 and 12V4:
+> - When using **two** PCIe cables, connect **PCIe 1 and PCIe 3**
+> - When you only need **one** PCIe cable, connect **PCIe 2**
+
+**What was actually wired (inspected 2026-07-12):** the GPU's single feed cable — one
+PSU plug, daisy-chained out to the two VGA plugs of the card's Y-adapter — was in the
+**PCIe 3** socket. That is **pure 12V4**: a single 24 A / 288 W rail. The arithmetic is
+the whole story:
+
+| Load on that one rail | Current on 12V |
+| --------------------- | -------------- |
+| 4070 Ti @ 285 W stock | ~23.8 A — **already at the 24 A rail limit** |
+| 4070 Ti @ 250 W cap | ~20.8 A — comfortably under it |
+| 4070 Ti transient (450–500 W) | **37–42 A — far past any single-rail OCP** |
+
+So at stock the card sat *continuously* on the rail's ceiling, and every gaming
+transient blew clean through that rail's OCP. **That is exactly Xid 79**: the per-rail
+protection fires, the rail collapses for a few milliseconds, the card loses power and
+falls off the bus. It was never a total-wattage problem — 62.5 A combined was never
+approached — it was a **single-rail** problem, created by wiring the entire GPU onto
+one rail against the manual's instruction.
+
+This also **retro-explains the 250 W cap**: 250 W ≈ 20.8 A is precisely the level that
+brings the card back *under* the single rail's 24 A rating. The cap was never really
+about ATX-2.x transient ride-out in the abstract — it was keeping one specific,
+overloaded rail below its OCP threshold. (Both framings point the same way; this one is
+just more precise about the mechanism.)
+
+**The fix (free), done 2026-07-12:**
+
+- Moved the GPU cable **PCIe 3 → PCIe 1** — off 12V4, onto 12V3, on its own.
+- Moved a mainboard-aux cable **PCIe 2 → PCIe 3**, leaving **PCIe 2 empty**.
+- Reseated every connector in the GPU power path (PSU, adapter, and GPU ends) —
+  audible clicks, no corrosion or browning visible.
+
+That ends the original overload: the GPU no longer shares 12V4 with the board-aux
+load, and each now has its own rail.
+
+**But note the manual's finer point — this is not yet the optimal wiring.** For a
+*single* GPU cable the recommended socket is **PCIe 2**, not PCIe 1, because PCIe 2
+straddles 12V3 **and** 12V4 — giving the card ~48 A of combined rail headroom instead
+of one rail's 24 A. On PCIe 1 the GPU is still confined to a single 288 W rail, so an
+*uncapped* transient can still clip OCP. Two escalation levers if the rebalance + cap
+still crashes:
+
+1. **Move the GPU cable to PCIe 2** — the manual's single-cable recommendation
+   (dual-rail straddle).
+2. **Best: feed the card with two separate PCIe cables on PCIe 1 + PCIe 3** — the
+   manual's two-cable config, splitting the GPU across both rails *and* two physical
+   cables. This supersedes the current daisy-chained single cable entirely.
+
+For now, PCIe 1 + the 250 W cap is a clean, testable change — keep it and run the next
+session on it before touching anything else.
 
 ## The VRAM theory was wrong (and worth recording *why*)
 
@@ -111,10 +189,12 @@ bought *ohne Netzteil*; the GPU was carried over too).
 
 ### #2 — the 12VHPWR adapter (top free suspect)
 
-**Cabling topology confirmed OK** (checked 2026-07-12): the GPU has a **single**
-power socket, fed by a **Y-adapter** (shipped with the card) which is in turn fed by
-**two dedicated cables** from the modular PSU. Not daisy-chained. That suspect is
-cleared.
+**Cabling topology re-inspected 2026-07-12 — and the first reading was wrong.** The
+GPU has a **single** power socket, fed by a **Y-adapter** (shipped with the card). But
+that Y-adapter is fed by **one** PSU cable daisy-chaining out to two VGA plugs — *not*
+two dedicated cables as first recorded here. And that single cable was on the wrong
+rail (PCIe 3 = 12V4). See *The likely culprit* above: on this multi-rail PSU the
+reseat matters far less than **which rail** the cable is on.
 
 But the topology *identifies the card's connector*: a single socket fed by two
 8-pins via a Y-adapter means this is a **16-pin 12VHPWR** socket with the bundled
@@ -173,21 +253,25 @@ GPU is at full **x16** → those slots are empty. Not a factor. Lane map:
 
 | # | Change | Cost | Status |
 | - | ------ | ---- | ------ |
+| 0 | **Rebalance the GPU onto its own 12V rail** (PCIe 3 → PCIe 1; PCIe 2 freed) | **free** | ✅ **done 2026-07-12 — new prime suspect** |
 | 1 | **Power cap 285 → 250 W** | free | ✅ persistent — `system-scripts/nvidia-power-limit/` (needs `install.sh`) |
-| 2 | **Reseat the 12VHPWR adapter** (click!) + inspect pins for browning + reseat card | **free** | ⬜ **do at next physical access — top free suspect** |
+| 2 | **Reseat the 12VHPWR adapter** (click!) + inspect pins for browning + reseat card | free | ✅ done 2026-07-12 — reseated PSU/adapter/GPU ends, no browning |
 | 3 | **BIOS: PCIe slot Auto → Gen4** | free | ✅ done (`pcie.link.gen.max` = 4) |
-| 4 | Kernel `pcie_aspm=off` | free | ⬜ only if 1–3 fail |
+| 4 | Kernel `pcie_aspm=off` | free | ⬜ only if 0–3 fail |
 | 5 | **BIOS update** (1.A64 → 1.AA3) | free | ✅ done |
-| 6 | **PSU → 1000 W ATX 3.1** | €€ | ⬜ the likely real fix, but only after 1–4 |
+| 6 | **PSU → 1000 W ATX 3.1** | €€ | ⬜ maybe unnecessary now for the 4070 Ti (see below); still a 5090 prerequisite |
 | — | PCIe lane loss (2nd NVMe stealing GPU lanes) | — | ✅ **ruled out** — GPU at x16 |
 
 **Do them one at a time.** Changing several at once means learning nothing about
 which one mattered.
 
-### 1 + 3 are the current test
+### The current test: rail rebalance + cap + Gen4
 
-These two resolve the large majority of 40-series Xid 79 cases. Both are now
-active. The next gaming session is the experiment.
+The rail rebalance (#0) is the new prime suspect and is free; the 250 W cap (#1) and
+Gen4 (#3) are also active. All three are now in place — and rebalance + cap between
+them resolve the large majority of 40-series Xid 79 cases. The next gaming session is
+the experiment; see *de-confounding* below for how to tell the rebalance from the cap
+afterwards.
 
 > **The persistence trap:** `nvidia-smi -pl 250` is a *runtime driver setting*.
 > It is not written to hardware or BIOS and **does not survive a reboot**. Set the
@@ -299,7 +383,14 @@ Most likely the **Lutris runtime** shadowing the system libs. Reproduce with
 ## The PSU / GPU-upgrade decision
 
 A **PSU upgrade is a prerequisite for an RTX 5090** (575 W TDP; NVIDIA specifies
-~1000 W). The current be quiet! Pure Power 700–750 W cannot run one.
+~1000 W). The current be quiet! Straight Power 11 750 W cannot run one.
+
+**The 2026-07-12 rail-balance finding reframes this yet again.** If wiring the GPU
+onto its own rail (or PCIe 2 / two cables) is what fixes Xid 79, then the current
+750 W Straight Power 11 was never inadequate for the *4070 Ti* — it was simply
+miswired. The PSU purchase then reverts to what it always was underneath: a
+**prerequisite for the 5090**, bought when the 5090 is bought — not a fix to chase
+this crash with.
 
 This reframes the economics: buying a better PSU is **not "spending money to fix a
 bug"** — it is a purchase already required for the planned upgrade, made earlier. And
@@ -354,20 +445,20 @@ samples sat at the cap**. Read the verdict at the end:
 
 ### Then: de-confounding
 
-Doing the cap **and** the 12VHPWR reseat together means a clean session cannot say
-*which* fixed it. That is acceptable — both are free and reversible — but it can be
-untangled afterwards, and the ramp-up does exactly that:
+Three free changes landed together (rail rebalance, cap, reseat), so a clean session
+cannot say *which* fixed it. That is acceptable — all are free and reversible — and it
+can be untangled afterwards. The ramp-up does exactly that:
 
 Once stable, **raise `NVIDIA_POWER_LIMIT_W` back toward 285 W** in
 `/etc/nvidia-power-limit.conf` (`systemctl restart nvidia-power-limit`), and keep
 playing:
 
-| Result at 285 W | Conclusion |
-| --------------- | ---------- |
-| **Crashes again** | The **cap** was the fix → it *is* a transient/power fault → the PSU (#6) is the correct permanent solution, now confirmed before spending. |
-| **Stays stable** | The **reseat** was the fix → it was a bad 12VHPWR contact → no PSU needed, and the cap can be removed entirely. |
+| Result at 285 W (rebalanced, uncapped) | Conclusion |
+| -------------------------------------- | ---------- |
+| **Stays stable** | The **rail rebalance** (or the reseat) was the fix → the GPU was simply on an overloaded single rail → no cap and no new PSU needed for the 4070 Ti. |
+| **Crashes again** | Rebalance + reseat alone aren't enough → the lone PCIe 1 rail (12V3) still clips OCP on transients → escalate the *wiring* first (GPU to **PCIe 2**, or **two cables on PCIe 1 + 3**), *then* the cap, and only then the PSU (#6). |
 
-That is not just "see what happens" — it is the experiment that tells the two
+That is not just "see what happens" — it is the experiment that tells the
 hypotheses apart, and it decides whether ~€200 of PSU is necessary or wasted.
 
 Ramp in steps (250 → 265 → 285) rather than jumping, so a crash localises the
