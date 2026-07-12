@@ -109,20 +109,52 @@ Sizing and the ATX 3.1 requirement:
 It is also the **only component not refreshed** in the 2025-10 rebuild (the case was
 bought *ohne Netzteil*; the GPU was carried over too).
 
-### #2 got more important: check the GPU cabling — it is FREE
+### #2 — the 12VHPWR adapter (top free suspect)
 
-The PSU is **modular**, and the spare cables were kept. So:
+**Cabling topology confirmed OK** (checked 2026-07-12): the GPU has a **single**
+power socket, fed by a **Y-adapter** (shipped with the card) which is in turn fed by
+**two dedicated cables** from the modular PSU. Not daisy-chained. That suspect is
+cleared.
 
-> **Is the GPU fed by two separate PCIe cables from the PSU, or one cable with two
-> connectors (daisy-chain / pigtail)?**
+But the topology *identifies the card's connector*: a single socket fed by two
+8-pins via a Y-adapter means this is a **16-pin 12VHPWR** socket with the bundled
+**2× 8-pin → 12VHPWR adapter**. Which is a much better suspect than cable routing
+ever was.
 
-A single daisy-chained cable feeding a 285 W card with 500 W transients is a real
-and common cause of exactly this fault, and fixing it costs **nothing**. Run two
-independent cables. Do this before spending money on anything.
+**Why it fits Xid 79 better than anything else on this list:**
 
-While in there, also confirm what the Gigabyte 4070 Ti GAMING OC actually takes:
-2× 8-pin, or a 12VHPWR/16-pin via adapter. If it is an adapter, that adapter is
-itself a known weak point and reseating it matters.
+Xid 79 is not a slow degradation — it is the GPU *momentarily losing contact and
+dropping off the bus*. A **partially-seated 12VHPWR connector** produces exactly
+that, and the failure is nasty in three specific ways:
+
+- **It takes real force to click home.** A large fraction of people who believe
+  theirs is seated have it a millimetre proud. There is no visual difference.
+- **Contact resistance rises under load** — so it works fine at idle and on the
+  desktop, and fails only when the card pulls a 450–500 W transient. *That is
+  precisely the "only crashes in games" symptom profile.*
+- **It leaves no trace.** Unlike the famous melted connectors, an intermittent one
+  simply drops the card.
+
+**Action (free):**
+
+1. Reseat the 12VHPWR at the **GPU end** — push until it *audibly clicks*, with no
+   visible gap at the shroud.
+2. Reseat both 8-pins at the **adapter end** and the **PSU end**.
+3. **Inspect the pins for browning/discoloration.** That is direct evidence of
+   high-resistance contact and would essentially confirm the diagnosis.
+
+**PSU-end port check (low probability, 30 seconds):** on a fully modular PSU the
+PCIe/VGA ports share a rail and are interchangeable, so identical plugs in numbered
+ports deliver the same thing. The one mistake that *is* possible is plugging a PCIe
+cable into a **CPU/EPS** port — both are 8-pin and look similar, but the pinouts
+differ. Straight Power 11 labels them separately. Worth a glance, not worth worrying
+about.
+
+**This is also an argument for the ATX 3.1 PSU (#6):** a native **12V-2x6** cable
+removes the adapter from the chain entirely, and 12V-2x6's *shorter sense pins* are
+designed to fail safe on partial insertion (the card refuses to power up rather than
+running at high resistance). That is a second, independent reason to replace the
+PSU — separate from the transient-excursion argument.
 
 ### Ruled out: PCIe lane loss
 
@@ -142,7 +174,7 @@ GPU is at full **x16** → those slots are empty. Not a factor. Lane map:
 | # | Change | Cost | Status |
 | - | ------ | ---- | ------ |
 | 1 | **Power cap 285 → 250 W** | free | ✅ persistent — `system-scripts/nvidia-power-limit/` (needs `install.sh`) |
-| 2 | **Two separate PCIe cables to the GPU** (not daisy-chained) + reseat both ends + reseat card | **free** | ⬜ **do at next physical access — promoted** |
+| 2 | **Reseat the 12VHPWR adapter** (click!) + inspect pins for browning + reseat card | **free** | ⬜ **do at next physical access — top free suspect** |
 | 3 | **BIOS: PCIe slot Auto → Gen4** | free | ✅ done (`pcie.link.gen.max` = 4) |
 | 4 | Kernel `pcie_aspm=off` | free | ⬜ only if 1–3 fail |
 | 5 | **BIOS update** (1.A64 → 1.AA3) | free | ✅ done |

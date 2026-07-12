@@ -151,19 +151,27 @@ drops off the bus. Add ~6–7 years of capacitor aging (transient response degra
 and this is a strong suspect, not an afterthought. See
 [Xid 79](../troubleshooting/gpu-xid79-bus-fall-off.md).
 
-### Check the cabling first — it is free
+### GPU power delivery (checked 2026-07-12)
 
-**Is the GPU fed by two separate PCIe cables from the PSU, or one cable with two
-connectors (daisy-chain / pigtail)?**
+```
+PSU ──8-pin──┐
+             ├── Y-adapter ──16-pin 12VHPWR──> GPU (single socket)
+PSU ──8-pin──┘
+```
 
-A single daisy-chained cable feeding a 285 W card with 500 W transients is a real
-and common cause of exactly this fault. The PSU is modular and the spare cables were
-kept, so fixing it costs nothing. **Run two independent cables from the PSU to the
-GPU.** Do this before spending money.
+**Two dedicated cables from the modular PSU** into the Y-adapter that shipped with
+the card — **not** daisy-chained/pigtailed, which is correct.
 
-Also confirm what the Gigabyte 4070 Ti GAMING OC actually takes — 2× 8-pin, or a
-12VHPWR/16-pin via adapter. If it is an adapter, that adapter is itself a known weak
-point and reseating it matters.
+But this tells us the card uses a **12VHPWR (16-pin)** socket via the bundled
+**2× 8-pin adapter** — and *that adapter is the single most notorious failure point
+in modern GPUs*. A partially-seated 12VHPWR raises contact resistance under load, so
+it works at idle and drops the card only during transients. That is a textbook
+mechanism for [Xid 79](../troubleshooting/gpu-xid79-bus-fall-off.md), and it matches
+the "only crashes in games" symptom exactly.
+
+It also gives a **second, independent reason** to move to an ATX 3.1 PSU: a native
+**12V-2x6** cable removes the adapter from the chain entirely, and 12V-2x6's shorter
+sense pins fail safe on partial insertion.
 
 ### If replacing it
 
