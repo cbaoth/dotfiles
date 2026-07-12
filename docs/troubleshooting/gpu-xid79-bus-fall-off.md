@@ -158,6 +158,76 @@ globally.
 at idle because the PCIe link no longer enters low-power states. No stability,
 performance, or data-integrity downside.
 
+## Later: scope the cap to games only (do NOT do this yet)
+
+If the crash only ever happens in games, the cap only needs to be active in games —
+reclaiming the 2–4 % cost on AI workloads.
+
+The physics supports it: **transient spikes come from rapid load *changes*.** Games
+swing GPU load frame-to-frame; sustained AI compute pegs the GPU at a steady high
+draw with far fewer transients. So "games trigger Xid 79, AI does not" is plausible,
+not just wishful.
+
+But the evidence is weaker than it looks: the ComfyUI/SageAttention crashes were a
+**different bug** (app-level VRAM). So there is no clean "AI never triggers Xid 79"
+datapoint — only "AI crashed for another reason, which masked whether it also does
+this."
+
+**Sequence matters. Do not build this before the global cap is proven.** If the cap
+is scoped to games and a crash still happens, there are two unknowns instead of one:
+did the cap fail, or did the hook never fire? That is debugging your own plumbing
+instead of the GPU.
+
+When the time comes:
+
+- **gamemode** (`~/.config/gamemode.ini`, currently absent — running on defaults):
+  ```ini
+  [custom]
+  start=/usr/bin/sudo -n /opt/bin/nvidia-power-limit.sh --apply
+  end=/usr/bin/sudo -n /opt/bin/nvidia-power-limit.sh --reset
+  ```
+  `[custom]` hooks run **as the user, not root**, and `nvidia-smi -pl` needs root —
+  so this needs a narrow `NOPASSWD` entry for exactly those two fixed commands, same
+  pattern as `/etc/sudoers.d/power-states` (see [../setup/power-management.md](../setup/power-management.md)).
+  The script already has `--reset` for this.
+- **Lutris** has per-game pre-launch/post-exit scripts as an alternative path.
+
+### Also worth knowing: `[cpu] pin_cores`
+
+gamemode 1.8 supports `pin_cores` / `park_cores`. **This is the right answer to the
+X3D question** — pin a CPU-bound game to the V-cache cores per-game, rather than
+globally disabling CCD1 in BIOS (which costs half the cores for AI and multitasking,
+all the time). Gaming's best case without the permanent amputation.
+
+### Lutris "Enable Feral GameMode" fails
+
+Currently has to be disabled or games break (some i386-related lib error). **Not** a
+missing 32-bit lib — `libgamemode0:i386` and `libgamemodeauto0:i386` are both
+installed, and Lutris is apt (0.5.22), not a flatpak, so it is not sandboxing either.
+Most likely the **Lutris runtime** shadowing the system libs. Reproduce with
+`lutris -d` from a terminal and capture the actual error. Independent of the crash.
+
+## The PSU / GPU-upgrade decision
+
+A **PSU upgrade is a prerequisite for an RTX 5090** (575 W TDP; NVIDIA specifies
+~1000 W). The current be quiet! Pure Power 700–750 W cannot run one.
+
+This reframes the economics: buying a better PSU is **not "spending money to fix a
+bug"** — it is a purchase already required for the planned upgrade, made earlier. And
+a quality high-headroom unit plausibly fixes Xid 79 outright (transient response, OCP
+headroom, native 12V-2x6), which means **no cap and no gamemode plumbing at all** —
+strictly better than any scripted workaround.
+
+**But do not buy on a guess.** The 250 W cap test is free and is precisely the
+diagnostic that de-risks the purchase:
+
+- **Cap fixes the crash** → confirmed transient/power fault → the PSU is the correct
+  permanent fix, and it is known to work *before* spending.
+- **Cap does not fix it** → not a power fault → a new PSU would be wasted money.
+
+The cap test is not an alternative to the PSU. It is how to find out whether the PSU
+is the answer.
+
 ## After the next crash (if any)
 
 ```bash
