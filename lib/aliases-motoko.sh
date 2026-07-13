@@ -25,4 +25,12 @@ alias mount-all='mount-win; mount-saito'
 alias umount-all='umount-win; umount-saito'
 # }}} - MOUNT ----------------------------------------------------------------
 
+# {{{ - GAMES ----------------------------------------------------------------
+alias pob='wine "C:/users/$USER/AppData/Roaming/Path of Building Community/Path of Building.exe"'
+alias pob2='wine "C:/users/$USER/AppData/Roaming/Path of Building Community (PoE2)/Path of Building-PoE2.exe"'
+alias poeb=pob
+alias poe2b=pob2
+alias bg3mm='protontricks-launch --appid 1086940 "$HOME/Documents/Games/Baldurs Gate 3/BG3ModManager/BG3ModManager.exe"'
+# }}} - GAMES ----------------------------------------------------------------
+
 return 0
