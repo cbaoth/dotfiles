@@ -76,18 +76,32 @@ PSU plug, daisy-chained out to the two VGA plugs of the card's Y-adapter — was
 **PCIe 3** socket. That is **pure 12V4**: a single 24 A / 288 W rail. The arithmetic is
 the whole story:
 
-| Load on that one rail | Current on 12V |
-| --------------------- | -------------- |
-| 4070 Ti @ 285 W stock | ~23.8 A — **already at the 24 A rail limit** |
-| 4070 Ti @ 250 W cap | ~20.8 A — comfortably under it |
-| 4070 Ti transient (450–500 W) | **37–42 A — far past any single-rail OCP** |
+Not all of the card's draw crosses the connector — the **PCIe slot** supplies some of
+it (75 W by spec; typically 20–50 W measured on a 4070 Ti). So the current *on the
+rail* is roughly:
 
-So at stock the card sat *continuously* on the rail's ceiling, and every gaming
-transient blew clean through that rail's OCP. **That is exactly Xid 79**: the per-rail
-protection fires, the rail collapses for a few milliseconds, the card loses power and
-falls off the bus. It was never a total-wattage problem — 62.5 A combined was never
-approached — it was a **single-rail** problem, created by wiring the entire GPU onto
-one rail against the manual's instruction.
+| Load on that one rail | Current on 12V (via connector) |
+| --------------------- | ------------------------------ |
+| 4070 Ti @ 285 W stock | **~19–21 A** — under the 24 A OCP, but with only ~3–5 A of margin |
+| 4070 Ti @ 250 W cap | ~17–19 A — comfortably under it |
+| 4070 Ti **transient** (450–500 W) | **~31–35 A — far past the 24 A rail OCP** |
+
+**And that margin is the whole story — because it explains the symptom pattern
+exactly:**
+
+- At stock the rail sat *below* OCP → **stable at idle, on the desktop, under light
+  load.** Which is precisely what was observed.
+- Gaming transients blew clean through it → **crashes only under load.** Also
+  precisely what was observed.
+
+A rail sitting *continuously* at its ceiling would have crashed at the desktop too.
+It didn't. A rail with a few amps of headroom that gets hit by 30 A+ microsecond
+spikes crashes *only when gaming* — which is the actual behaviour.
+
+**That is exactly Xid 79**: the per-rail protection fires, the rail collapses for a few
+milliseconds, the card loses power and falls off the bus. It was never a total-wattage
+problem — 62.5 A combined was never approached — it was a **single-rail** problem,
+created by wiring the entire GPU onto one rail against the manual's instruction.
 
 This also **retro-explains the 250 W cap**: 250 W ≈ 20.8 A is precisely the level that
 brings the card back *under* the single rail's 24 A rating. The cap was never really
@@ -126,6 +140,28 @@ suspenders rather than the load-bearing fix.
 > (EPS) 8-pin is electrically **inverted** vs. PCIe — pins 1–4 `Ground`, 5–8 `+12V` —
 > so despite both being 8-pin, swapping the cable types dumps +12 V onto ground. Cable
 > discipline (PCIe cable ↔ PCIe port/PCIE_PWR1; EPS cable ↔ CPU_PWR1/2) is mandatory.
+
+### How this was missed for so long (the actual lesson)
+
+Two reasoning failures, both worth remembering because they are generic:
+
+**1. A confident general prior beat the specific manual.** The working assumption
+was *"on a fully modular PSU the PCIe ports share a rail and are interchangeable."*
+That is true of most modern **single-rail** units — and **exactly backwards** for this
+one. The socket check was explicitly written off as *"low probability, worth a glance,
+not worth worrying about."* It was the answer.
+
+**2. A verbal description was accepted instead of the wiring.** Asked about
+daisy-chaining, the answer came back as *"two dedicated cables from the PSU"* — and
+the suspect was marked **cleared**. In reality it was **one** cable, daisy-chained
+(one PSU plug → two GPU plugs). Daisy-chaining had been the #2 hypothesis, and it was
+dropped on a description rather than a photo or a manual.
+
+> **Read the manual for the specific hardware. A prior about "PSUs in general" is not
+> evidence about *this* PSU.**
+
+The fix took an evening of reading three manuals (GPU, board, PSU) and cost nothing.
+Weeks of crashes preceded it.
 
 ## The VRAM theory was wrong (and worth recording *why*)
 
@@ -470,6 +506,36 @@ hypotheses apart, and it decides whether ~€200 of PSU is necessary or wasted.
 
 Ramp in steps (250 → 265 → 285) rather than jumping, so a crash localises the
 threshold — which is itself useful information about how much headroom is missing.
+
+### The rail math makes a falsifiable prediction
+
+This is the useful part: the single-rail theory is not just a story that fits, it
+**predicts a specific outcome**, and the ramp-up tests it.
+
+With the load split across two rails, and the PCIe slot carrying its share:
+
+| | Per-rail current |
+| --- | --- |
+| 285 W stock, split over 12V3 + 12V4 | ~**10–11 A each** |
+| 450–500 W transient, split | ~**17–19 A each** |
+| Rail OCP | **24 A** |
+
+> **Prediction: at 285 W stock, with the two-cable split, the card should now be
+> STABLE — because even worst-case transients land ~5–7 A below each rail's OCP.**
+
+That is a real prediction and it can be wrong. Which is what makes the test worth
+running:
+
+- **Stable at 285 W** → the theory is confirmed. The fault was *wiring*, full stop.
+  Remove the cap entirely, keep the stock 285 W, and **buy no PSU** (the ATX 3.1 unit
+  reverts to being purely a future-5090 prerequisite, not a bugfix).
+- **Still crashes at 285 W** → the single-rail theory is *insufficient*, even though
+  the wiring was genuinely wrong. Something else is also in play (ATX 2.x transient
+  ride-out, aging caps, `pcie_aspm`). Re-apply the cap and continue down the list.
+
+Note the asymmetry: a clean run at 285 W is *strong* evidence, because the theory
+predicted it quantitatively in advance. A clean run at 250 W proves much less — the
+cap alone would explain it.
 
 ## After the next crash (if any)
 
