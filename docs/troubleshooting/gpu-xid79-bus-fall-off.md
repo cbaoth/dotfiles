@@ -504,8 +504,40 @@ playing:
 That is not just "see what happens" — it is the experiment that tells the
 hypotheses apart, and it decides whether ~€200 of PSU is necessary or wasted.
 
-Ramp in steps (250 → 265 → 285) rather than jumping, so a crash localises the
-threshold — which is itself useful information about how much headroom is missing.
+### Go straight to 285 W. Do not bother testing at 250 W first.
+
+Tempting to "test cautiously at 250 W, then raise it". **That wastes the only
+informative run.**
+
+| Test | If stable | Value |
+| ---- | --------- | ----- |
+| 250 W (capped) | Could be the wiring. Could be the cap. **Cannot tell.** | ~nothing |
+| **285 W (stock)** | The rail math predicted exactly this, in advance. | **decisive** |
+
+A clean run at 250 W is confounded — and you would still have to run the 285 W test
+afterwards. It costs an evening and answers nothing.
+
+And the framing matters: **285 W with correct wiring is not the risky configuration —
+it is the *intended* one.** 285 W is the card's design spec and the wiring now matches
+the PSU manual. *The cap was the workaround for broken wiring*, holding the card under
+24 A on a single overloaded rail. With the load split across two rails there is
+nothing left to protect against.
+
+```bash
+sudo $EDITOR /etc/nvidia-power-limit.conf     # NVIDIA_POWER_LIMIT_W=285
+sudo systemctl restart nvidia-power-limit
+nvidia-power-limit.sh --show                  # confirm 250 -> 285
+hw-watch --ambient 30                         # then play
+```
+
+(Setting 285 rather than disabling the unit keeps the machinery in place, so falling
+back is a one-line edit.)
+
+*The earlier advice here was to ramp 250 → 265 → 285 to localise a threshold. That
+made sense while the hypothesis was "transients marginally exceed the PSU's
+capability", where the exact threshold is informative. It does not survive the rail
+discovery: the hypothesis is now binary — the wiring was wrong and is now right — so
+there is no threshold to find, only a prediction to test.*
 
 ### The rail math makes a falsifiable prediction
 
