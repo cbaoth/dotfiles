@@ -341,7 +341,22 @@
       "Bash(swaymsg -t get_tree:*)",
       "Bash(swaymsg reload)",
       "Bash(./tools/link.sh)",
-      "Bash(systemctl --user status:*)"
+      "Read(//home/cbaoth/.config/systemd/user/**)",
+      "Bash(system-setup *)",
+      "Bash(link.sh *)",
+      "Bash(notes-sync *)",
+      "Bash(git -C ~/notes log *)",
+      "Bash(git -C ~/notes status *)",
+      "Bash(systemctl --user daemon-reload)",
+      "Bash(systemctl --user status:*)",
+      "Bash(systemctl --user list-timers *)",
+      "Bash(systemctl --user enable --now notes-sync.timer)",
+      "Bash(flatpak info *)",
+      "Bash(apt-cache show *)",
+      "Bash(apt-cache policy *)",
+      "Bash(apt-cache showpkg *)",
+      "Bash(system-setup --yes 30-docker 40-fonts)",
+      "Bash(set -e)"
     ],
     "deny": [
       "Bash(sudo:*)",
@@ -408,6 +423,8 @@
       "Bash(.:*)"
     ],
     "additionalDirectories": [
+      "/home/cbaoth/dotfiles/**",
+      "/home/cbaoth/notes/**",
       "/home/cbaoth/git/cb-voice-lab",
       "/home/cbaoth/git/userscripts"
     ]
