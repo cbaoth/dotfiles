@@ -108,6 +108,18 @@ main() {
     exit 1
   fi
 
+  # A cap set to the stock default is a no-op wearing a cap's clothes. Worse, it
+  # makes re-arming silently fail: `systemctl enable --now` would report "nothing
+  # to do" while the user believes a cap is active. Say so loudly.
+  local -i default_i
+  default_i="$(gpu_query power.default_limit | cut -d. -f1)"
+  if (( NVIDIA_POWER_LIMIT_W == default_i )); then
+    p_war "configured limit (${NVIDIA_POWER_LIMIT_W} W) IS the stock default — this caps nothing."
+    p_war "To run uncapped, disable the service instead of setting the stock value:"
+    p_war "  sudo systemctl disable --now nvidia-power-limit"
+    p_war "Leave ${CONFIG_FILE} armed at the value you would want if you needed it."
+  fi
+
   local -r current_w="$(gpu_query power.limit | cut -d. -f1)"
   if [[ "${current_w}" == "${NVIDIA_POWER_LIMIT_W}" ]]; then
     p_msg "power limit already ${NVIDIA_POWER_LIMIT_W} W, nothing to do"

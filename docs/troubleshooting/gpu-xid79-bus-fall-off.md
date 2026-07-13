@@ -523,15 +523,25 @@ the PSU manual. *The cap was the workaround for broken wiring*, holding the card
 24 A on a single overloaded rail. With the load split across two rails there is
 nothing left to protect against.
 
+**Disable the service — do NOT set the config to 285.**
+
 ```bash
-sudo $EDITOR /etc/nvidia-power-limit.conf     # NVIDIA_POWER_LIMIT_W=285
-sudo systemctl restart nvidia-power-limit
-nvidia-power-limit.sh --show                  # confirm 250 -> 285
-hw-watch --ambient 30                         # then play
+sudo systemctl disable --now nvidia-power-limit   # run uncapped
+nvidia-smi --query-gpu=power.limit --format=csv   # confirm 285 W
+hw-watch --ambient 30                             # then play
 ```
 
-(Setting 285 rather than disabling the unit keeps the machinery in place, so falling
-back is a one-line edit.)
+Leave `/etc/nvidia-power-limit.conf` **armed at 250**. Setting it to the stock 285
+*looks* like disabling the cap, but it leaves a no-op service running — and it makes
+re-arming **silently fail**: `systemctl enable --now` would report *"already 285 W,
+nothing to do"* while you believe a cap is active. You would then crash, blame the
+cap, and draw the wrong conclusion.
+
+Config armed + service disabled means re-arming is one honest command:
+
+```bash
+sudo systemctl enable --now nvidia-power-limit    # applies 250 W, survives reboots
+```
 
 *The earlier advice here was to ramp 250 → 265 → 285 to localise a threshold. That
 made sense while the hypothesis was "transients marginally exceed the PSU's

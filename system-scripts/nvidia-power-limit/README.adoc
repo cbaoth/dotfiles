@@ -53,7 +53,25 @@ nvidia-power-limit.sh --show
 Ladder: *250 W* first (~1–2% loss in games, ~2–4% on sustained AI compute), then
 *240*, then *220*. If 220 W still crashes, transient spikes are probably *not* the
 cause — stop lowering it and work down the rest of the list in the troubleshooting
-note (reseat connectors, `pcie_aspm=off`, PSU).
+note (rail balance, reseat connectors, `pcie_aspm=off`, PSU).
+
+== Running uncapped
+
+*Disable the service. Do not set the config to the stock value.*
+
+[source,bash]
+----
+sudo systemctl disable --now nvidia-power-limit
+----
+
+Setting `NVIDIA_POWER_LIMIT_W` to the card's stock default (285 W here) _looks_ like
+disabling the cap, but it leaves a live service whose only job is a no-op — and it
+turns re-arming into a *silent failure*: `systemctl enable --now` would report
+"already 285 W, nothing to do" while you believe a cap is active.
+
+Keep the config *armed* at whatever value you would want if you needed it, and let
+the service's enabled/disabled state decide whether it applies. The script warns if
+you get this wrong.
 
 == Usage
 
