@@ -576,7 +576,7 @@ zt; zinit snippet OMZP::jsontools      # *_json
 zt; zinit snippet OMZP::mvn            # maven completion
 zt; zinit snippet OMZP::sudo           # add sudo via 2xESC
 zt; zinit snippet OMZP::systemd        # systemd sc-* aliases
-zt; zinit snippet OMZP::tmux
+#zt; zinit snippet OMZP::tmux           # FIXME bugged, error when starting zsh in tmux: /home/cbaoth/.local/share/zinit/snippets/OMZP::tmux/tmux.extra.conf: No such file or directory
 zt; zinit snippet OMZP::urltools       # urlencode/-decode
 zt; zinit snippet OMZP::vagrant
 zt; zinit snippet OMZP::vscode         # vs* aliases
