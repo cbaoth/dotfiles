@@ -1,0 +1,20 @@
+# yt-dlp configuration file
+
+# Default arguments for yt-dlp
+# --ignore-errors  # simply append -i if needed
+--js-runtimes node
+--mtime
+
+# Debug
+# -v
+
+# TODO look into aliases, e.g. (format presumably wrong, but along those lines)
+# --alias my-yt-output-full '--output "%(uploader)s (%(uploader_id)s)/%(upload_date)s - %(title)s - (%(duration)ss) [%(resolution)s] [%(id)s].%(ext)s"'
+# --alias my-yt-output-audio-full '--output "%(uploader)s (%(uploader_id)s)/%(upload_date)s - %(title)s - (%(duration)ss) [%(id)s].%(ext)s"'
+# --alias my-yt-output '--output "%(upload_date)s - %(title)s - (%(duration)ss) [%(resolution)s] [%(id)s].%(ext)s"'
+# --alias my-yt-output-audio '--output "%(upload_date)s - %(title)s - (%(duration)ss) [%(id)s].%(ext)s"'
+# --alias my-subs '--write-subs --sub-langs en.*,de.*,live-chat --write-auto-subs --convert-subs srt'
+# --alias my-meta '--add-metadata --embed-thumbnail --write-description --write-thumbnail --mtime'
+# --alias my-commons '--my-subs --my-meta --ignore-errors --js-runtimes node'
+# --alias my-yt-archive,-A '--my-commons --my-yt-output-full --merge-output-format mkv'
+# --alias my-yt-archive-audio '--my-commons --my-yt-output-audio-full -x'
