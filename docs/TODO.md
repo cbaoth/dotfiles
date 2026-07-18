@@ -154,3 +154,41 @@ Scripts in `_archive/` awaiting individual evaluation: keep as-is, update/rewrit
 - [ ] [S] `backup2ftp.sh` — Copy backups to FTP server (2010). Consider replacing with rsync/sftp/rclone if FTP backup is still needed.
 - [ ] [S] `wget-mp.py` — Parallel wget in Python 2 (2010). Evaluate against `bin/wget-p` and modern alternatives (aria2c).
 - [ ] [S] `clear-cache.sh` — Clear local caches and temp files (2011). Cache paths likely stale; review and update or delete.
+
+# 6. Git & Cross-Host Workflow
+
+## Auth: move own repos to SSH with dedicated per-host keys
+
+Current state: the dotfiles remote (and other own repos) use **HTTPS with a
+shared "saito" PAT**, copied by hand to saito, the vserver, and sometimes work,
+and left in plaintext via a repo-local `store` helper (`~/.git-credentials`).
+The credential *cache* was an ad-hoc "stop asking me" workaround. One token
+reused everywhere = large blast radius; manual copying; plaintext at rest.
+
+Target: **SSH for own repos, with a dedicated key _file_ per host** — not agent
+forwarding, which keeps breaking on WSL/dev-containers and depends on a
+long-lived setup that never quite stays working. Each host's public key added
+to the GitHub account (or a per-repo deploy key). Then: no PAT, nothing to copy,
+per-host revocation, works headless.
+
+- [ ] [M] Generate a dedicated ed25519 key per remote host (saito, vserver,
+      WSL@work); add each to GitHub; retire the shared PAT.
+- [ ] [S] Switch own-repo remotes from HTTPS to SSH
+      (`git remote set-url origin git@github.com:cbaoth/<repo>.git`).
+- [ ] [S] vserver: account-key vs. a write **deploy key** scoped to only the
+      repos it needs (it may push notes back). Narrower is better.
+- [ ] [S] Remove the plaintext `~/.git-credentials` / repo-local `store` helper
+      once SSH is in place.
+- [ ] [S] WSL: local key file over agent forwarding (the fragile path). Real
+      work identity/paths live in `~/notes`, not in this public repo — the
+      `includeIf` template in `dotfiles/.gitconfig.local.example` is ready.
+
+## Automated cross-host file sync (deferred)
+
+For now, cross-host coordination = git (dotfiles + `~/notes`) as the bus, plus
+`bin/hsync` (rsync wrapper) for blobs. That is likely sufficient.
+
+- [ ] [S] Evaluate **Syncthing** for continuous, bidirectional saito<->vserver
+      (and maybe desktop) sync of a shared working dir. It sidesteps the
+      NordVPN-inbound problem via relays and needs no manual trigger, but wants
+      install + device pairing on both ends. Revisit if `hsync` proves too manual.
