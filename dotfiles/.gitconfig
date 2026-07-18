@@ -1,0 +1,29 @@
+# ~/.gitconfig — universal git configuration, tracked in cbaoth/dotfiles.
+#
+# Machine-specific settings (credential helper, work identity, OS quirks) do
+# NOT belong here — this repo is public. They live in the untracked
+# ~/.gitconfig.local; see .gitconfig.local.example for the template.
+
+[user]
+	name = Andreas Weyer
+	email = dev@cbaoth.de
+
+[init]
+	defaultBranch = main
+
+[pull]
+	# Rebase local commits onto fetched ones instead of a merge commit. Set
+	# globally so every repo behaves the same, with no per-clone step (and no
+	# "you have divergent branches" hint after the fact).
+	rebase = true
+
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+
+# Loaded last, so machine-local settings win over the defaults above. A missing
+# file is silently ignored, so this is safe on a host that has no local config.
+[include]
+	path = ~/.gitconfig.local

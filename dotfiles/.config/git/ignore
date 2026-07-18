@@ -1,0 +1,6 @@
+# ~/.config/git/ignore — global gitignore, tracked in cbaoth/dotfiles.
+# Patterns here apply to every repo on the machine. Keep to things that are
+# never wanted in any repo.
+
+# Claude Code writes per-directory local settings we never commit.
+**/.claude/settings.local.json

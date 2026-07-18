@@ -3,3 +3,6 @@
 # Most repo-level files (README, docs, bin, tools, etc.) are already excluded
 # by being outside the dotfiles/ subdirectory — only add entries here for
 # things inside dotfiles/ that should NOT be symlinked to $HOME.
+
+# Template for the untracked, per-machine ~/.gitconfig.local — reference only.
+\.gitconfig\.local\.example$
