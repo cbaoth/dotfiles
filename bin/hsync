@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# hsync — rsync a path to/from a remote host, mirroring the same path on both.
+#
+# A thin, safe wrapper for shuffling files between hosts that share a home
+# layout (e.g. saito <-> the vserver) without hand-writing rsync/scp each time.
+# Always locally initiated (outbound), so it is unaffected by the inbound VPN/
+# NAT issues on saito. SSH port and identity come from ~/.ssh/config.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+# {{{ = CONFIG ===============================================================
+
+# Override with $HSYNC_HOST, or pass a host as the third argument.
+declare -r DEFAULT_HOST="${HSYNC_HOST:-11001001.org}"
+
+# }}} = CONFIG ===============================================================
+
+# {{{ = STATE ================================================================
+
+declare DRY_RUN=false
+declare DELETE=false
+declare VERBOSE=false
+
+# }}} = STATE ================================================================
+
+# {{{ = HELPERS ==============================================================
+
+p_msg() { printf '\033[0;32m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
+p_err() { printf '\033[0;31mERROR:\033[0m %s\n' "$*" >&2; }
+die()   { p_err "$*"; exit 1; }
+
+usage() {
+  cat <<'HELP'
+Usage: hsync {push|pull} PATH [HOST] [OPTION..]
+
+Mirror PATH between this host and HOST (same path on both), via rsync over ssh.
+
+  push PATH [HOST]   copy local PATH  ->  HOST:PATH
+  pull PATH [HOST]   copy HOST:PATH   ->  local PATH
+
+HOST defaults to $HSYNC_HOST or 11001001.org. Port/identity come from
+~/.ssh/config. Trailing slashes follow normal rsync semantics.
+
+Options:
+  -n, --dry-run   show what rsync would transfer; change nothing
+      --delete    delete extraneous files at the destination (true mirror)
+  -v, --verbose   list each file transferred (default: a progress summary)
+  -h, --help      this help
+
+Examples:
+  hsync pull ~/bootstrap.log             # fetch a log from the vserver
+  hsync push ~/notes/ saito --dry-run    # preview mirroring ~/notes to 'saito'
+HELP
+}
+
+# }}} = HELPERS ==============================================================
+
+# {{{ = MAIN =================================================================
+
+main() {
+  local host="${DEFAULT_HOST}"
+  local -a positional=()
+
+  while [[ -n "${1:-}" ]]; do
+    case "$1" in
+      -n|--dry-run) DRY_RUN=true; shift ;;
+      --delete)     DELETE=true; shift ;;
+      -v|--verbose) VERBOSE=true; shift ;;
+      -h|--help)    usage; exit 0 ;;
+      --)           shift; positional+=("$@"); break ;;
+      -*)           usage; die "Unknown option [$1]" ;;
+      *)            positional+=("$1"); shift ;;
+    esac
+  done
+
+  (( ${#positional[@]} >= 2 )) || { usage; die "Need a direction and a PATH."; }
+  local -r direction="${positional[0]}"
+  local -r path="${positional[1]}"
+  [[ -n "${positional[2]:-}" ]] && host="${positional[2]}"
+
+  command -v rsync >/dev/null || die "rsync not found on this host."
+
+  local -a opts=(-az --human-readable)
+  if ${VERBOSE}; then opts+=(-v); else opts+=(--info=progress2); fi
+  ${DRY_RUN} && opts+=(--dry-run)
+  ${DELETE}  && opts+=(--delete)
+
+  local src dst
+  case "${direction}" in
+    push)
+      [[ -e "${path}" ]] || die "Local path does not exist: ${path}"
+      src="${path}"; dst="${host}:${path}" ;;
+    pull)
+      src="${host}:${path}"; dst="${path}" ;;
+    *)
+      usage; die "Direction must be 'push' or 'pull', got [${direction}]." ;;
+  esac
+
+  p_msg "rsync ${direction}: ${src} -> ${dst}"
+  ${DELETE} && ! ${DRY_RUN} \
+    && p_msg "(--delete: extraneous files at the destination will be removed)"
+  rsync "${opts[@]}" -e ssh -- "${src}" "${dst}"
+}
+
+main "$@"
+
+exit 0
+
+# }}} = MAIN =================================================================
