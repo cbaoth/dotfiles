@@ -3,7 +3,7 @@ title: Vserver rebuild & migration plan (Contabo VPS → Ubuntu 26.04 LTS)
 hosts: [vserver]
 status: open
 tags: [migration, vserver, contabo, ubuntu, docker, monitoring, planning]
-updated: 2026-07-17
+updated: 2026-07-18
 ---
 
 # Vserver rebuild & migration plan
@@ -16,6 +16,45 @@ current hand-grown Debian install to a clean, mostly-reproducible Ubuntu box wit
 > pointers, and the "run these on the old box" checklist) is in the gitignored
 > `_local/vserver-inventory.md` — this repo is public, so real values stay there.
 > This file is the sanitized plan.
+
+## Execution log / status (for a session picking this up cold)
+
+**As of 2026-07-18 ~14:35 — data is staged, box is frozen, ready to reinstall.**
+
+Done:
+- **Bulk + delta pull complete**, staged on **saito** at
+  `/media/backup/vserver-migration/2026-07-18/`:
+  `nextcloud/` 164 G (data minus regenerable previews/updater),
+  `home/` 44 G (all users), `db-mysql/` 39 G (fresh `owncloud` dump taken 13:20
+  *after* Apache stop → consistent), `db-postgres/` 140 K, `etc/` 80 M
+  (pi-hole excluded), `opt/` 141 M.
+- Everything else (`/var/www` sites, full `/etc` with correct ownership) is in the
+  **nightly tar mirror** `/media/backup/11001001.org/` (last good full 2026-07-06
+  + weekly incrementals). NB the 2025-10-06 full silently failed — see Monitoring.
+- **Cutover freeze:** Apache stopped 12:37; Nextcloud `maintenance:mode --on`.
+- **Verified:** the actual KeePass `.kdbx` opens from the staged copy; `owncloud`
+  dump is a valid MariaDB dump.
+- **Safety:** Tor is a local-only SOCKS client (no `ORPort`, 0 circuits) — not a
+  relay; Squid is ACL-locked to localhost. **Finding:** no host packet filter was
+  ever active (`iptables INPUT` empty) — services self-protected, but the new box
+  must have ufw + the Contabo panel firewall from the start.
+- **Contabo snapshot** `debian-migration` taken 2026-07-18 14:02 (auto-del 17.08).
+- Plan pushed to GitHub; scripts + `vserver-inventory.md` copied to saito
+  (`~/dotfiles/_local/` and `_local/11001001.org/`).
+
+Staging caveats:
+- Staged files are **cbaoth-owned** (pulled as cbaoth) — fine: Nextcloud data gets
+  `chown -R www-data:www-data` on restore; `/etc` with real ownership comes from
+  the tar mirror, not the staged `etc/`.
+- The `/var/www` sites were **not** freshly staged (a `www_sites` vs `www-sites`
+  typo); they're static + in the tar mirror. Re-run `--phase www-sites` only if a
+  fresh copy is wanted.
+
+**Next (new session):** reinstall Ubuntu 26.04 LTS via Contabo panel → run
+`bootstrap-new-server.sh` (on saito: `~/dotfiles/_local/vserver-migration/`; scp
+or paste to the fresh box; **read it first — it touches sshd**) → then Phase 2
+(Docker, Caddy, Netdata, msmtp) and Phase 3 restore. Restore is saito→new-vserver
+(reverse rsync + chown + DB import); no restore script exists yet.
 
 ## Why now
 
