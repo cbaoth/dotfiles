@@ -258,8 +258,14 @@ st::apt_install_list() {
 # leans on.
 declare -i ST_APT_UPDATED=0
 declare -ri ST_APT_MAX_AGE=3600
+# --force refreshes even on a fresh cache: use it right after changing the apt
+# sources (a new mirror), where the on-disk index no longer matches reality and
+# the age heuristic would wrongly declare it fresh.
 st::apt_update() {
-  (( ST_APT_UPDATED )) && return 0
+  local -i force=0
+  [[ "${1:-}" == "--force" ]] && force=1
+
+  (( ST_APT_UPDATED && ! force )) && return 0
   ST_APT_UPDATED=1
 
   local -r stamp="/var/lib/apt/periodic/update-success-stamp"
@@ -272,16 +278,18 @@ st::apt_update() {
     age=$(( $(date +%s) - $(stat -c %Y "${lists}" 2>/dev/null || echo 0) ))
   fi
 
-  if (( age < ST_APT_MAX_AGE )); then
+  if (( ! force && age < ST_APT_MAX_AGE )); then
     st::skip "apt cache is fresh (${age}s old)"
     return 0
   fi
 
+  local -r why="$( (( force )) && printf 'forced after sources change' \
+                                || printf '%ss stale' "${age}" )"
   if (( ST_DRY_RUN )); then
-    st::skip "apt cache is ${age}s stale [dry-run: would apt-get update]"
+    st::skip "apt cache ${why} [dry-run: would apt-get update]"
     return 0
   fi
-  st::skip "refreshing apt cache (${age}s stale)"
+  st::skip "refreshing apt cache (${why})"
   sudo apt-get update
 }
 

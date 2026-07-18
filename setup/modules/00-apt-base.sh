@@ -23,6 +23,7 @@ module_run() {
   # Ubuntu 24.04+ moved sources to deb822 (.sources); older releases still use
   # sources.list. Rewrite whichever is present.
   local sources_file=""
+  local -i force_refresh=0
   if [[ -f /etc/apt/sources.list.d/ubuntu.sources ]]; then
     sources_file="/etc/apt/sources.list.d/ubuntu.sources"
   elif [[ -f /etc/apt/sources.list ]]; then
@@ -38,12 +39,14 @@ module_run() {
   else
     st::run "switch apt mirror to ${APT_MIRROR_TO} in ${sources_file}" -- \
       sudo sed -i "s|${APT_MIRROR_FROM}|${APT_MIRROR_TO}|g" "${sources_file}"
-    ST_APT_UPDATED=0   # sources changed, force a refresh below
+    force_refresh=1   # index no longer matches the new mirror — must re-fetch
   fi
   # }}} - Regional mirror -----------------------------------------------------
 
   # {{{ - Upgrade -------------------------------------------------------------
-  st::apt_update
+  # A mirror switch must re-fetch regardless of cache age; otherwise package
+  # availability is judged against the old mirror's stale index.
+  if (( force_refresh )); then st::apt_update --force; else st::apt_update; fi
 
   # Always counts as a change: we cannot know if anything is upgradable without
   # asking, and asking is the expensive part anyway.
