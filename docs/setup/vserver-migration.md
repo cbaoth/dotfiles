@@ -19,6 +19,50 @@ current hand-grown Debian install to a clean, mostly-reproducible Ubuntu box wit
 
 ## Execution log / status (for a session picking this up cold)
 
+**As of 2026-07-18 ~17:15 — Phase 1 complete. Fresh Ubuntu 26.04 box is
+hardened and ready; next is Phase 2 (Docker/Caddy/Netdata/msmtp) + Phase 3
+restore, driven by Claude Code on the box.**
+
+Phase 1 done (2026-07-18):
+- Reinstalled Ubuntu 26.04 LTS via Contabo panel; escaped the VNC console fast
+  by pulling the saito key onto root with `curl https://github.com/cbaoth.keys`
+  (no key-typing into VNC).
+- `bootstrap-new-server.sh` ran but **died at step 3** — the Ubuntu cloud image
+  ships a `ubuntu` user at **uid/gid 1000**, colliding with the script's
+  `--uid 1000`. Recovered by **renaming** the stock user instead of creating a
+  new one: `usermod -l cbaoth ubuntu` → `passwd` → `groupmod -n cbaoth ubuntu`
+  → `usermod -d /home/cbaoth -m cbaoth` → `chfn -f "…"` → `chsh -s /bin/zsh`.
+  Also removed the now-dangling `/etc/sudoers.d/90-cloud-init-users` (it granted
+  the old `ubuntu` NOPASSWD) — cbaoth uses password sudo via the `sudo` group,
+  as intended.
+- Re-ran the (idempotent) bootstrap: sshd hardened to **key-only on 8090, root
+  off**; `ufw` deny-in (8090/80/443); fail2ban; unattended-upgrades; dotfiles
+  deployed; Node LTS + Claude Code installed. Contabo **panel firewall** active
+  as the out-of-host layer (temp port-22 rule to be deleted once 8090 is proven).
+- Rebooted onto the pending kernel; `claude` runs as cbaoth in `~/dotfiles`.
+
+Two script bugs found & fixed (so the next rebuild is clean):
+- **`system-setup` mirror switch didn't force an apt refresh** — `00-apt-base`
+  set `ST_APT_UPDATED=0`, but `st::apt_update` had no force path and skipped the
+  update because the fresh image's cache was <1 h old. Availability was then
+  judged against the *old* mirror's index, so `btop`/`ripgrep`/`containerd`/
+  `runc`/`docker-buildx` looked "not available" and `docker.io` couldn't resolve
+  deps. A manual `sudo apt update` fixed the run; the durable fix adds
+  `st::apt_update --force` on any sources change (commit alongside this doc).
+- **`bootstrap-new-server.sh` step 7 aborted `system-setup`** — it's invoked
+  inside a `sudo -u cbaoth bash <<EOSU` heredoc, so the interactive "Continue?"
+  prompt read from the heredoc and aborted. Fix: pass `--yes` there. (Script
+  lives in gitignored `_local/`; fix applied on saito only.)
+- **nvm installed to the wrong dir and polluted `.zshrc`** — the installer
+  defaults to `~/.nvm` and appends source lines to `.zshrc`, but `.common_env`
+  already sources nvm from `~/.config/nvm` (for both bash and zsh), and `.zshrc`
+  is a symlink into the repo — so the append dirtied the working tree *and* left
+  nvm unsourced (wrong dir). Fix: install with `NVM_DIR=~/.config/nvm
+  PROFILE=/dev/null`. On the live box, undo with: `cd ~/dotfiles && git restore
+  dotfiles/.zshrc`, then `mkdir -p ~/.config && mv ~/.nvm ~/.config/nvm` (the
+  whole tree relocates cleanly — Node + the global `claude-code` come with it),
+  then restart the shell/claude session so `.common_env` picks it up.
+
 **As of 2026-07-18 ~14:35 — data is staged, box is frozen, ready to reinstall.**
 
 Done:
