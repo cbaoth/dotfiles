@@ -60,3 +60,5 @@ Obsidian_Example/
 # Local config overrides — may contain sensitive data (e.g., credentials, API keys)
 # Convention: foo.local or foo.local.conf overrides the tracked foo config (not committed)
 *.local.*
+# ...but *.local.example templates ARE tracked — they document the local file.
+!*.local.example

@@ -1,0 +1,35 @@
+# ~/.gitconfig.local — per-machine git settings. NOT tracked (this repo is
+# public). Copy to ~/.gitconfig.local and edit; it is loaded last by
+# ~/.gitconfig, so anything here overrides the tracked defaults.
+#
+# dotfiles-link does not symlink this .example (see tools/.linkignore).
+
+# ── Credential helper (pick per OS) ─────────────────────────────────────────
+# Only needed for HTTPS remotes. Prefer SSH for your own repos (see docs/TODO.md
+# "Git & Cross-Host Workflow") — with SSH you need none of these.
+#[credential]
+#   helper = cache --timeout=3600   # Linux, in-memory (ephemeral)
+#   helper = libsecret              # Linux, GNOME keyring (persistent)
+#   helper = osxkeychain            # macOS
+#   helper = manager                # Windows / Git Credential Manager
+
+# ── Work identity by directory (WSL example) ────────────────────────────────
+# Repos under the work roots use the work email automatically. `gitdir/i:` is
+# case-insensitive; the trailing slash means "everything under here". On WSL the
+# Windows drive is /mnt/c, so C:\BIS and C:\DEV become /mnt/c/BIS, /mnt/c/DEV.
+# Keep the REAL work email OUT of this public repo: put it in ~/.gitconfig-work
+# (untracked) and record the concrete values in ~/notes.
+#[includeIf "gitdir/i:/mnt/c/BIS/"]
+#   path = ~/.gitconfig-work
+#[includeIf "gitdir/i:/mnt/c/DEV/"]
+#   path = ~/.gitconfig-work
+#
+# ~/.gitconfig-work then contains only:
+#   [user]
+#       email = you@work.example
+
+# ── Windows / WSL quirks (only if you actually hit them) ─────────────────────
+#[core]
+#   autocrlf = input       # 'true' on a native-Windows checkout
+#   longpaths = true       # allow paths longer than 260 chars
+#   symlinks = false       # if the filesystem can't do real symlinks
