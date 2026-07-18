@@ -106,6 +106,19 @@ the rest, and — practically — some work/other networks block outbound SSH to
 hoster IP ranges (Contabo) on 22 but allow the high port. No good reason to
 change; carry it over. (gitea's separate SSH port goes away with gitea.)
 
+**`AllowAgentForwarding no`** (as on the old box). OpenSSH defaults it to `yes`,
+so the bootstrap sets it back off explicitly. On an internet-facing host a
+forwarded agent is a standing risk: whoever controls the box while you're
+connected can use your keys as you. Instead:
+
+- **Git on the box:** a **dedicated ed25519 key generated on the vserver**, added
+  to GitHub (deploy key for read-only; account key if push is needed). No agent
+  forwarding, no PATs typed into the shell — set this up early so repo pulls work.
+- **Reaching another host through it:** `ProxyJump` (`ssh -J`), not `ssh -A` —
+  auth stays end-to-end; the jump host never sees your keys.
+
+(saito is a different calculus: LAN-only and trusted, so `-A` there is fine.)
+
 ## Users & home directories
 
 Only **`cbaoth`** is recreated. Everyone else is **backed up but not restored**
