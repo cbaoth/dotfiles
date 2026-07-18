@@ -429,7 +429,8 @@
       "/home/cbaoth/git/userscripts"
     ]
   },
-  "model": "opus",
+  "model": "opus[1m]",
   "effortLevel": "high",
-  "tui": "fullscreen"
+  "tui": "fullscreen",
+  "theme": "dark"
 }
