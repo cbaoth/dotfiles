@@ -202,7 +202,7 @@ _export_to_first_cmd() {
 # Default apps, if available
 _export_to_first_cmd MPLAYER mpv
 # In X11/Wayland? Then use GUI apps as default, otherwise terminal apps
-_export_to_first_cmd EDITOR 'emacs -nw' 'vim -N' vi nano
+_export_to_first_cmd EDITOR 'vim -N' vi 'emacs -nw' nano
 
 if ${IS_X:-false}; then
   _export_to_first_cmd VISUAL 'code --wait'
