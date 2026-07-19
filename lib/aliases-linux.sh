@@ -265,9 +265,10 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
   ZSH_AUTO_REHASH_CMDS+=(apug)
 
   # search
-  alias aps="apt search"
-  apsg() { apt search "$@" | grep -iE --color "$@"; }
+  aps() { apt search "$@" | grep --color -vE '^$' | sed -E ':a;N;$!ba;s/\n\s+/    /g'; }
+  apsg() { aps "$@" | grep -iE --color "$@"; }
   alias apsn='apt search --names-only' # search package names only
+  apsnx() { apt search --names-only "^$*$"; } # search package names for an exact match only
   alias apsf='apt search --full' # search full text
   #alias apsB='apt -t buster-backports search' # search back
 
