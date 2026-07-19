@@ -61,10 +61,10 @@ usage() {
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
-  -c, --upgrade-comfy-cli       Upgrade comfy-cli (pip)
   -u, --update-comfyui          Update ComfyUI
-  -n, --update-custom-nodes     Update ComfyUI Custom Nodes (all)
-  -a, --update-all              Upgrade comfy-cli, update ComfyUI and Custom Nodes
+      --update-custom-nodes     Update ComfyUI Custom Nodes (all)
+      --upgrade-comfy-cli       Upgrade comfy-cli (pip)
+  -U, --upgrade                 Upgrade comfy-cli, update ComfyUI and Custom Nodes
   -i, --ignore-update-errors    Ignore errors during upgrade/update processes
   -v, --verbose                 Enable verbose output (debug mode)
   -h, --help                    Show this help message and exit
@@ -79,10 +79,10 @@ parse_args() {
   # Parse command-line arguments
   for arg in "$@"; do
     case $arg in
-      -c|--upgrade-comfy-cli) UPGRADE_COMFY="true";;
       -u|--update-comfyui) UPDATE_COMFYUI="true";;
-      -n|--update-custom-nodes) UPDATE_CUSTOM_NODES="true";;
-      -a|--update-all)
+      --update-custom-nodes) UPDATE_CUSTOM_NODES="true";;
+      --upgrade-comfy-cli) UPGRADE_COMFY="true";;
+      -U|--upgrade)
         UPGRADE_COMFY="true"
         UPDATE_COMFYUI="true"
         UPDATE_CUSTOM_NODES="true"
