@@ -1,3 +1,11 @@
+---
+title: zsh notes (options, globbing, keybindings)
+hosts: [all]
+status: resolved
+tags: [zsh, shell, keybindings, vi-mode, glob, foot, fzf]
+updated: 2026-07-17
+---
+
 Some random notes on zsh, mostly for my own reference.
 
 # Options
@@ -158,27 +166,125 @@ rm ./*(Om[1,-11])
 
 # Keyboard Shortcuts
 
-You can use the `bindkey` command to display all key bindings in zsh.
+Inspect bindings with `bindkey` (current keymap) or `bindkey -M <keymap>`
+(`viins`, `vicmd`, `command`, …); `bindkey -l` lists keymaps. All bindings live
+in the `ZSH KEYBINDINGS` section of `~/.zshrc`.
 
-## Special Characters
+## Editing model: vi mode
 
-`M-(^M|^J|^I)` as well as `ESC, (ENTER|...)` insert the literal character. For example, `Alt-RETURN` and `ESC, RETURN` both insert a literal newline instead of executing the command, and `ESC, TAB` insearts a literal tab `\t` character instead of triggering `completion`.
+Switched from **emacs** (`bindkey -e`) to **vi** mode (`bindkey -v`) in 2026-07,
+to get modal motions plus visual selection/yank that match vim muscle memory.
+The main keymap is now `viins` (insert). Highlights of the setup:
 
-```shell
-"^[^I" self-insert-unmeta
-"^[^J" self-insert-unmeta
-"^[^M" self-insert-unmeta
-"!"-"~" self-insert
-"\M-^@"-"\M-^?" self-insert
-```
+- **Cursor shape signals the mode** (independent of the prompt): a **beam** `|`
+  while typing (insert), a solid **block** in command mode. Press `ESC` to enter
+  command mode.
+- The single-press emacs editing keys (below) are kept bound in insert mode, so
+  nothing is lost for quick edits — modal motions are strictly *added on top*.
+- `KEYTIMEOUT=20` (0.2 s) balances snappy `ESC` against multi-key `Alt`-chords
+  (e.g. the zaw git binds). Lower it toward `1` for a faster `ESC` if those
+  chords are unused.
 
-## Expansion, Completion, History
+## Insert mode — single-press editing (no mode switch)
 
-- `C-x, r`: `"^Xr" history-incremental-search-backward` → Incrementally search backward through command history.
+These are the emacs-style keys retained in `viins`; use them while typing.
 
-- `C-r`: `"^R" zaw-history` → Search/filter command history with `zaw` fuzzy finder.
+| Key | Widget | Action |
+| --- | --- | --- |
+| `Ctrl-A` | `beginning-of-line` | jump to start of line |
+| `Ctrl-E` | `end-of-line` | jump to end of line |
+| `Alt-B` / `Alt-F` | `backward-word` / `forward-word` | move one word left / right |
+| `Ctrl-W` | `backward-kill-word` | delete word to the **left** |
+| `Alt-D` | `kill-word` | delete word to the **right** |
+| `Ctrl-K` | `kill-line` | delete everything **right** of cursor |
+| `Ctrl-U` | `backward-kill-line` | delete everything **left** of cursor |
+| `Ctrl-Y` | `yank` | paste the last kill (`Alt-Y` cycles the kill-ring) |
+| `Alt-.` | `insert-last-word` | insert **last arg of previous command** (repeat to cycle back) |
+| `Ctrl-Space` | `autosuggest-accept` | accept the zsh-autosuggestions ghost text |
+| `Ctrl-X Ctrl-E` | `edit-command-line` | open the current line in **`$EDITOR`** |
+| `Ctrl-X a` | `_expand_alias` | expand the alias under the cursor **on demand** |
 
-- `C-x a`: `"^Xa" _expand_alias` → Expand aliases in the current command line.
+> **`Alt-.` is the path-reuse trick.** After `ll /long/path`, type e.g. `vim `
+> then `Alt-.` → `vim /long/path`, without ever editing the long expanded alias.
+> Related history word designators also work: `!$` (last arg), `!^` (first arg),
+> `!*` (all args), `!!` (whole previous command).
+
+> **`Ctrl-X Ctrl-E` needs a usable `$EDITOR`.** It silently did nothing while
+> `$EDITOR` was `emacs -nw` (no exit reflex left…); it is now `vim -N` (see the
+> `_export_to_first_cmd EDITOR …` line in `.common_env`).
+
+## Command mode (`ESC`) — motions, selection, editing
+
+Standard vim command-mode keys apply to the command line:
+
+| Key(s) | Action |
+| --- | --- |
+| `h` `l`, `w` `b` `e`, `0` `^` `$` | char / word / line-position motions |
+| `v` / `V` | **visual** selection (char-wise / line-wise) |
+| `y` / `d` / `x` | yank / delete / cut (the selection, or with a motion) |
+| `d$` / `d^` | delete to end / start of line |
+| `dw` `daw` `ciw` `cc` | delete-word / delete-a-word / change-inner-word / change-line |
+| `/` … `?` … | search history backward / forward |
+| `Ctrl-V` | `edit-command-line` — open the line in `$EDITOR` |
+
+`v` is intentionally left at its vim default (visual mode); `Ctrl-V` (not `v`)
+opens the editor.
+
+## On-demand alias expansion (vs. auto-expand)
+
+The `zsh-expand` plugin used to expand aliases inline on space/enter. It was
+**disabled** (2026-07) because auto-expanding `ll` into its full
+`LC_COLLATE=C ls --color=auto …` made every copy/paste and edit tedious. Expand
+**only when wanted** instead:
+
+- `Ctrl-X a` (`_expand_alias`) — expand the alias under the cursor, e.g. right
+  before copying a command into docs or a message so the full detail is kept.
+- Or recall the executed command from history and expand that copy separately,
+  leaving what you type untouched.
+
+## Special characters (insert a literal)
+
+Prefix a key with **`Ctrl-V`** (`vi-quoted-insert`, also on `Ctrl-Q`) to insert
+it literally instead of acting on it:
+
+| Sequence | Inserts |
+| --- | --- |
+| `Ctrl-V` `Tab` | literal tab `\t` (instead of completion) |
+| `Ctrl-V` `Enter` | literal carriage return — multi-line command (instead of executing) |
+| `Ctrl-V` `Ctrl-J` | literal newline (LF) |
+| `Ctrl-V` `Esc` | literal `ESC` byte |
+
+> The old **`ESC, <key>`** / `Alt-Enter` method (via `self-insert-unmeta`) no
+> longer works: under vi mode `ESC` enters command mode, so those meta bindings
+> are not in the `viins` keymap. `Ctrl-V` is the replacement. (In emacs mode the
+> meta form did work — kept here for reference:
+> `"^[^I"/"^[^J"/"^[^M" self-insert-unmeta`.)
+
+## History & completion widgets
+
+| Key | Widget | Action |
+| --- | --- | --- |
+| `Ctrl-R` | `zaw-history` | fuzzy-filter command history (`zaw`) |
+| `Ctrl-X r` | `history-incremental-search-backward` | plain incremental reverse search |
+| `Alt-R` | `zaw` | open the `zaw` source menu |
+| `Alt-V Alt-L/R/S` | `zaw-git-log` / `-reflog` / `-status` | git pickers via `zaw` |
+
+## Terminal (foot): grab text from output above the prompt
+
+zsh/zle cannot touch the scrollback — that is the terminal's buffer. foot pipes
+it to a picker instead (`~/.config/foot/foot.ini` → `bin/foot-fzf-pick`):
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+Shift+g` | pick line/token from the **visible screen** via fzf → clipboard |
+| `Ctrl+Shift+b` | pick line/token from the **whole scrollback** via fzf → clipboard |
+| `Ctrl+Shift+v` | paste the clipboard (also middle-click) |
+| `Ctrl+Shift+c` | copy the mouse selection |
+| `Ctrl+Shift+r` | foot's built-in scrollback search |
+
+`foot-fzf-pick` offers each non-blank line **and** each whitespace token (paths,
+hashes, words), deduped — so a full `ls` line or a single `/etc/hosts` path can
+be grabbed with the keyboard alone. Multi-select with `Tab`.
 
 # External Resources
 

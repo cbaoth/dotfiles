@@ -619,8 +619,12 @@ zt; zinit light djui/alias-tips
 # Inline expansion of aliases/globs/history on space/enter:
 # https://github.com/MenkeTechnologies/zsh-expand
 # NOTE: takes over the SPACE key widget — it replaces the old `magic-space` bind
-# (removed in the keybindings section). Disable by commenting this out.
-zt nocompile; zinit load MenkeTechnologies/zsh-expand
+# (removed in the keybindings section).
+# DISABLED 2026-07: auto-expanding `ll` into its full command (e.g. the long
+# `LC_COLLATE=C ls ...`) made every copy/paste and edit tedious. Prefer the
+# on-demand expander instead: `Ctrl-X a` (_expand_alias) expands only when you
+# want the full command for docs/sharing. Re-enable by uncommenting.
+#zt nocompile; zinit load MenkeTechnologies/zsh-expand
 # }}} - OTHER PLUGINS --------------------------------------------------------
 
 # syntax highlighting: declared LAST so it highlights everything loaded before.
@@ -780,14 +784,65 @@ zstyle ':completion:*' group-name ''
 # }}} - MISC -----------------------------------------------------------------
 # }}} = ZSH SETTINGS =========================================================
 # {{{ = ZSH KEYBINDINGS ======================================================
-# zsh-autosuggestions
-bindkey '^ ' autosuggest-accept
+# http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Standard-Widgets
+# Editing model: vi mode (main keymap = viins). Was emacs (`bindkey -e`) for
+# years; switched 2026-07 to get modal motions + visual selection/yank that
+# match muscle memory from vim. See docs/reference/zsh.md ("Editing model").
+#
+# IMPORTANT: `bindkey -v` RESETS the main keymap to vi defaults, so every custom
+# `bindkey` without -M MUST come after this line, or it is silently dropped.
+bindkey -v
+#bindkey -e   # emacs key bindings (previous default)
 
-#http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Standard-Widgets
-# emacs key bindings
-bindkey -e
-# vi key bindings
-#bindkey -v
+# ESC latency in vi mode. Default is 40 (0.4s), which feels laggy when leaving
+# insert mode. Lowering it speeds up ESC, but multi-key Alt-chords typed with a
+# human pause (e.g. the zaw git binds `Alt-v Alt-l` below) need enough time
+# between chords — 20 (0.2s) is a good compromise; drop toward 1 for snappier
+# ESC if you don't use those chords. (Alt-<key> itself is unaffected: terminals
+# send it as one atomic ESC+key burst.)
+KEYTIMEOUT=20
+
+# register the edit-command-line widget before binding it (here and in vicmd,
+# below), otherwise fast-syntax-highlighting warns "unhandled ZLE widget".
+autoload -Uz edit-command-line
+zle -N edit-command-line
+
+# {{{ - EMACS KEYS IN INSERT MODE --------------------------------------------
+# Keep the single-press, no-mode-switch editing keys from the old emacs setup
+# available while typing (viins) — switching to vi mode should lose nothing for
+# quick edits. Press ESC to enter command mode for vim motions/text-objects and
+# `v` for visual selection. Documented in docs/reference/zsh.md.
+bindkey -M viins '^ '   autosuggest-accept      # ctrl-space: accept suggestion
+bindkey -M viins '^A'   beginning-of-line       # ctrl-a:  start of line
+bindkey -M viins '^E'   end-of-line             # ctrl-e:  end of line
+bindkey -M viins '^K'   kill-line               # ctrl-k:  delete to end of line
+bindkey -M viins '^U'   backward-kill-line      # ctrl-u:  delete to start of line
+bindkey -M viins '^W'   backward-kill-word      # ctrl-w:  delete word left
+bindkey -M viins '^Y'   yank                    # ctrl-y:  paste last kill
+bindkey -M viins '\eb'  backward-word           # alt-b:   word left
+bindkey -M viins '\ef'  forward-word            # alt-f:   word right
+bindkey -M viins '\ed'  kill-word               # alt-d:   delete word right
+bindkey -M viins '\e.'  insert-last-word        # alt-.:   last arg of prev cmd
+bindkey -M viins '^H'   backward-delete-char    # ctrl-h:  backspace
+bindkey -M viins '^X^E' edit-command-line       # ctrl-x ctrl-e: edit in $EDITOR
+bindkey -M viins '^Xa'  _expand_alias           # ctrl-x a: expand alias on demand
+# }}} - EMACS KEYS IN INSERT MODE --------------------------------------------
+
+# {{{ - CURSOR SHAPE = MODE INDICATOR ----------------------------------------
+# Visible mode indicator independent of the prompt: beam bar while typing
+# (insert), solid block in command mode. Uses add-zle-hook-widget so it
+# coexists with powerlevel10k's own zle-line-init / keymap-select hooks
+# (a raw `zle -N zle-line-init` would clobber them and break transient prompt).
+autoload -Uz add-zle-hook-widget
+_cb_cursor_shape() {
+  case ${KEYMAP:-main} in
+    vicmd) printf '\e[2 q' ;;  # command mode -> solid block
+    *)     printf '\e[6 q' ;;  # insert mode  -> beam bar
+  esac
+}
+add-zle-hook-widget keymap-select _cb_cursor_shape
+add-zle-hook-widget line-init     _cb_cursor_shape
+# }}} - CURSOR SHAPE = MODE INDICATOR ----------------------------------------
 
 bindkey '^x^x' execute-named-cmd # in addition to alt-x (if alt not working)
 bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working)
@@ -841,19 +896,15 @@ if [[ "$TERM" = *xterm* ]]; then
   bindkey '^?' backward-delete-char # BS (also: ctrl-h and ctrl-w -> word)
 fi
 # }}} - CURSOR NAVIGATON -----------------------------------------------------
-# {{{ - VI MODE --------------------------------------------------------------
-# vi mode
-# open command line in vim
-# register the edit-command-line widget before binding it, otherwise
-# fast-syntax-highlighting warns "unhandled ZLE widget 'edit-command-line'"
-autoload -Uz edit-command-line
-zle -N edit-command-line
-bindkey -M vicmd '^v' edit-command-line
+# {{{ - VI MODE (command-mode binds) -----------------------------------------
+# edit-command-line widget is registered in the keybindings header (above).
+# Open the current command line in $EDITOR (vim -N) from command mode:
+bindkey -M vicmd '^v' edit-command-line   # ctrl-v: edit line in $EDITOR
 
-# search histor using / and ?
-#bindkey -M vicmd '?' history-incremental-search-backward
-#bindkey -M vicmd '/' history-incremental-search-forward
-# }}} - VI MODE --------------------------------------------------------------
+# NOTE: `v` is intentionally left at its default (visual-mode) — enters visual
+# selection; `V` selects line-wise. Then `y` yank / `d` delete / `x` cut work
+# natively. History search from command mode (/ and ?) is on by default.
+# }}} - VI MODE (command-mode binds) -----------------------------------------
 # {{{ - ZAW ------------------------------------------------------------------
 # https://github.com/zsh-users/zaw (loaded immediately, so its widgets exist here)
 if $IS_ZINIT; then
