@@ -3,7 +3,7 @@ title: Vserver rebuild & migration plan (Contabo VPS → Ubuntu 26.04 LTS)
 hosts: [vserver]
 status: open
 tags: [migration, vserver, contabo, ubuntu, docker, monitoring, planning]
-updated: 2026-07-18
+updated: 2026-07-20
 ---
 
 # Vserver rebuild & migration plan
@@ -18,6 +18,43 @@ current hand-grown Debian install to a clean, mostly-reproducible Ubuntu box wit
 > This file is the sanitized plan.
 
 ## Execution log / status (for a session picking this up cold)
+
+**As of 2026-07-20 ~20:00 — Phases 2 and 3 are essentially done. Nextcloud is
+live and can send mail. Remaining, in agreed order: backup (restic → saito) →
+monitoring (Netdata) → everything else.**
+
+Nextcloud outgoing mail (2026-07-20) — the last open Nextcloud item, now closed.
+`mail_smtpmode` was still `sendmail`, which cannot work in a container. It took
+**three** changes, and any one alone leaves it broken in a way that looks fine:
+
+1. Postfix listens on the compose gateway `172.19.0.1` in addition to loopback,
+   with that subnet in `mynetworks`.
+2. **ufw** must allow `172.19.0.0/16 → 172.19.0.1:25`. Container→host traffic
+   traverses the INPUT chain, so default-deny silently drops it. Symptom:
+   port 8090 answers from inside the container, port 25 times out.
+3. **opendkim `InternalHosts`** must include the container subnet. It defaults to
+   `127.0.0.1` and decides *sign vs. verify* by SMTP client IP — so container
+   mail would have gone out **unsigned**, and with `p=reject` DMARC that is worse
+   than not sending: it is rejected at the far end while the local log says
+   `status=sent`.
+
+Applied by `_local/vserver-migration/nextcloud-mail-relay.sh` (idempotent).
+Nextcloud side: `mail_smtpmode=smtp`, host `172.19.0.1`, port 25, no auth; the
+stale `mail_smtpname`/`mail_smtppassword`/`mail_smtpauthtype` keys inherited from
+the bare-metal install were deleted. Verified end to end: DKIM-Signature added
+(`s=mail, d=11001001.org`), delivered to `mx00.udag.de` over TLS with `250 Ok`.
+
+The `internal` network subnet is now **pinned** in `/srv/nextcloud/compose.yaml`.
+Unpinned, Docker assigns it at network-create time and a recreate can move the
+gateway — silently breaking mail long after anyone remembers this section.
+
+Open mail question: **`11001001.org` has no MX record.** Sending works (SPF/DKIM
+/DMARC are on the domain, not the MX), but bounces to `nextcloud@11001001.org`
+are undeliverable. Decide between a real MX, a forward, or an explicit null MX.
+
+Also on 2026-07-20: `occ` aliases and `system-scripts/nextcloud-maintenance` were
+rewritten for the container (both still pointed at `/var/www/nextcloud/occ` and
+had been failing silently); the dead `wallabag-console` alias was removed.
 
 **As of 2026-07-18 ~17:15 — Phase 1 complete. Fresh Ubuntu 26.04 box is
 hardened and ready; next is Phase 2 (Docker/Caddy/Netdata/msmtp) + Phase 3
