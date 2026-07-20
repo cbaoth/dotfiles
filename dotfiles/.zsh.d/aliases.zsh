@@ -51,52 +51,58 @@ alias zplugup='zinit self-update && zinit update --all --parallel'
 # }}} - SUFFIX ALIASES -------------------------------------------------------
 
 # {{{ - GLOBAL ALIASES -------------------------------------------------------
-# Global aliases are expanded anywhere on the command line (zsh only).
-# Naming convention: @PREFIX to avoid conflicts with normal commands.
+# Global aliases expand anywhere on the command line (zsh only): a bare token
+# mid-line becomes its expansion, so `ls ,g foo` -> `ls | grep -E foo`.
+#
+# Convention: a ',' (comma) prefix. Unshifted and fast to type, and collision-
+# proof — a bare ',g' token can never be a real filename or command, unlike a
+# bare `G`. fast-syntax-highlighting highlights them so they stay discoverable.
+# Documented in docs/reference/zsh.md.
+#
+# Pattern:  ,<x> = '| <cmd>';  leading e = include stderr (|&);  i = -i (nocase).
 
+# directory walk-up (no prefix; universal, unambiguous)
 alias -g ...='../..'
 alias -g ....='../../..'
 alias -g .....='../../../..'
 
-alias -g @N='> /dev/null 2>&1'
-alias -g @eN='2> /dev/null'
+# redirect to /dev/null
+alias -g ,n='> /dev/null 2>&1'      # silence stdout + stderr
+alias -g ,en='2> /dev/null'         # silence stderr only
 
-alias -g @@='|'
-alias -g @G='| egrep'
-alias -g @eG='|& egrep'
-alias -g @Gi='| egrep -i'
-alias -g @eGi='|& egrep -i'
-alias -g @H='| head'
-alias -g @eH='|& head'
-alias -g @T='| tail'
-alias -g @eT='|& tail'
-alias -g @Tf='| tail -f'
-alias -g @eTf='|& tail -f'
+# grep (extended regex; i = case-insensitive, e = include stderr)
+alias -g ,g='| grep -E'
+alias -g ,gi='| grep -Ei'
+alias -g ,eg='|& grep -E'
 
+# head / tail
+alias -g ,h='| head'
+alias -g ,t='| tail'
+alias -g ,tf='| tail -f'
+
+# pager (most if available, else less)
 if command -v most >/dev/null; then
-  alias -g @L="| most"
-  alias -g @eL='|& most'
+  alias -g ,l='| most'
 else
-  alias -g @L="| less"
-  alias -g @eL='|& less'
+  alias -g ,l='| less'
 fi
 
-alias -g @S='| sort'
-alias -g @Su='| sort -u'
-alias -g @X='| xargs'
-alias -g @X0='| xargs -0'
-alias -g @Xl='| tr '\n' '\0' | xargs -0 -n 10000'
-alias -g @Cl='| wc -l'
+# sort / count / xargs
+alias -g ,s='| sort'
+alias -g ,su='| sort -u'
+alias -g ,c='| wc -l'
+alias -g ,x='| xargs'
+alias -g ,x0='| xargs -0'
+alias -g ,xl='| tr "\n" "\0" | xargs -0 -n 10000'   # NUL-split, batched xargs
 
-alias -g @MPV="| tr '\n' '\0' | xargs -0 -n 10000 mpv --no-resume-playback"
+# text transforms
+alias -g ,lower="| tr '[:upper:]' '[:lower:]'"
+alias -g ,upper="| tr '[:lower:]' '[:upper:]'"
+alias -g ,sum="| awk '{s+=\$1} END {print s}'"      # sum first column
 
-alias -g @to_lower="| tr '[A-Z]' '[a-z]'"
-alias -g @to_upper="| tr '[a-z]' '[A-Z]'"
-alias -g @url_clean="| sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi;
-                            s/%3d/:/gi; s/%3f/?/gi'"
-alias -g @url_clean2="| sed 's/%3a/:/gi; s/%2f/\//gi; s/%26/&/gi; s/%3d/:/gi;
-                             s/%3f/?/gi'"
-alias -g @sum="| awk '{s+=\$1} END {print s}'"
+# misc pipelines
+alias -g ,mpv='| tr "\n" "\0" | xargs -0 -n 10000 mpv --no-resume-playback'
+alias -g ,urlclean="| sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/gi'"
 
 # }}} - GLOBAL ALIASES -------------------------------------------------------
 

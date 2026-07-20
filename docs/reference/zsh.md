@@ -286,6 +286,38 @@ it to a picker instead (`~/.config/foot/foot.ini` → `bin/foot-fzf-pick`):
 hashes, words), deduped — so a full `ls` line or a single `/etc/hosts` path can
 be grabbed with the keyboard alone. Multi-select with `Tab`.
 
+# Global aliases (typing shortcuts)
+
+Global aliases (`alias -g`) expand **anywhere** on the line, not just in command
+position — so a bare token mid-command becomes its expansion:
+
+```zsh
+ls -la ,g conf ,l      # -> ls -la | grep -E conf | less
+journalctl -b ,gi fail ,t   # -> journalctl -b | grep -Ei fail | tail
+find . -name '*.md' ,c      # -> find . -name '*.md' | wc -l
+```
+
+Defined in [`.zsh.d/aliases.zsh`](../../dotfiles/.zsh.d/aliases.zsh). Convention:
+a **`,` (comma) prefix** — unshifted, fast, and collision-proof (a bare `,g`
+can't be a filename/command, unlike a bare `G`). fast-syntax-highlighting
+highlights them as you type. Pattern: `,<x>` = `| <cmd>`; leading `e` = include
+stderr (`|&`); `i` = case-insensitive (`-i`).
+
+| Alias | Expands to | | Alias | Expands to |
+| --- | --- | --- | --- | --- |
+| `,g` | `\| grep -E` | | `,n` | `> /dev/null 2>&1` |
+| `,gi` | `\| grep -Ei` | | `,en` | `2> /dev/null` |
+| `,eg` | `\|& grep -E` | | `,s` | `\| sort` |
+| `,h` | `\| head` | | `,su` | `\| sort -u` |
+| `,t` | `\| tail` | | `,c` | `\| wc -l` |
+| `,tf` | `\| tail -f` | | `,x` | `\| xargs` |
+| `,l` | `\| less` / `most` | | `,x0` | `\| xargs -0` |
+| `,lower` / `,upper` | case fold via `tr` | | `,xl` | NUL-split batched `xargs` |
+| `,sum` | sum first column (`awk`) | | `,mpv` | pipe file list into `mpv` |
+| `,urlclean` | URL-decode + strip query (`sed`) | | | |
+
+Add more as you find repetition — keep the `,` prefix and lowercase letters.
+
 # External Resources
 
 ## Official
