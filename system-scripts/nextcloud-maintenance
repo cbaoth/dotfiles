@@ -6,12 +6,17 @@
 #
 # Run routine Nextcloud maintenance tasks with safety checks.
 #
-# contrab example:
+# Nextcloud runs in Docker since the 2026-07 rebuild, so every occ call goes
+# through `docker compose exec` instead of `sudo -u www-data php occ`.
+#
+# crontab example:
 # # Nextcloud Maintenance
-# @weekly     root    cronic /opt/bin/nextcloud-maintenance.sh
+# @weekly     root    cronic /opt/bin/nextcloud-maintenance
 
 # === Root Only Check ===
-[ "$EUID" -ne 0 ] && echo "ERROR: Please run as root!" >&2 && exit 1
+# Root because the logfile lives in /var/log and this runs from the system
+# crontab. (Docker group membership would be enough for the occ calls.)
+[[ "${EUID}" -ne 0 ]] && { echo "ERROR: Please run as root!" >&2; exit 1; }
 
 # === Core Options ===
 # set options
@@ -27,47 +32,65 @@ IFS=$'\t\n\0'
 trap '_rc=$?; \
       printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${_rc}" \
              "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-             c"${BASH_COMMAND:-N/A}"; \
+             "${BASH_COMMAND:-N/A}"; \
       exit $_rc' ERR
 # exit on int/term signal (e.g. ctrl-c)
 trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 
 # === Configuration ===
-NC_ROOT="/var/www/nextcloud"
-OCC="$NC_ROOT/occ"
-PHP_BIN="/bin/php"
-WWW_USER="www-data"
-LOGFILE="/var/log/nextcloud-maintenance.log"
-MAX_RUNTIME=900  # Timout in seconds for the individual steps
+declare -r NC_COMPOSE="${NEXTCLOUD_COMPOSE:-/srv/nextcloud/compose.yaml}"
+declare -r NC_SERVICE="app"
+declare -r WWW_USER="www-data"
+# Both app dirs: bundled apps ship in the image, third-party ones come from the
+# custom_apps bind mount. Only bundled apps carry a signature.json.
+declare -r NC_APP_DIRS="/var/www/html/apps /var/www/html/custom_apps"
+declare -r LOGFILE="/var/log/nextcloud-maintenance.log"
+declare -r MAX_RUNTIME=900  # Timeout in seconds for the individual steps
 
 # === Helper Functions ===
 log_line() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $*" | tee -a "$LOGFILE"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') $*" | tee -a "${LOGFILE}"
 }
 
+# -T: no TTY. Without it docker injects control characters that corrupt both
+# the logfile and the app-list parsing below.
 run_occ() {
-    # $* = occ-Parameters
-    timeout $MAX_RUNTIME sudo -u $WWW_USER $PHP_BIN $OCC "$@" 2> >(tee -a "$LOGFILE" >&2) \
-      || ( log_line "ERROR: run_occ $* failed" && return 1 )  # return error, exit script if trap ERR is set
+  # $* = occ parameters
+  timeout "${MAX_RUNTIME}" \
+    docker compose -f "${NC_COMPOSE}" exec -T -u "${WWW_USER}" "${NC_SERVICE}" \
+      php occ "$@" 2> >(tee -a "${LOGFILE}" >&2) \
+    || { log_line "ERROR: run_occ $* failed"; return 1; }
 }
 
 run_occ_integrity_check_for_app() {
-    local app="$1"
-    local app_path="$NC_ROOT/apps/$app"
-    if [ -f "$app_path/appinfo/signature.json" ]; then
-       log_line "Running integrity:check-app $app"
-       run_occ integrity:check-app "$app"
-    else
-       log_line "Skipping integrity:check-app $app (no signature)"
-    fi
+  local -r app="$1"
+  # The signature test has to run inside the container — the app tree is not on
+  # the host for image-bundled apps.
+  if docker compose -f "${NC_COMPOSE}" exec -T "${NC_SERVICE}" bash -c \
+       'for d in '"${NC_APP_DIRS}"'; do
+          [[ -f "$d/'"${app}"'/appinfo/signature.json" ]] && exit 0
+        done
+        exit 1'; then
+    log_line "Running integrity:check-app ${app}"
+    run_occ integrity:check-app "${app}"
+  else
+    log_line "Skipping integrity:check-app ${app} (no signature)"
+  fi
 }
+
+# === Preflight ===
+if ! docker compose -f "${NC_COMPOSE}" ps --status running --services 2>/dev/null \
+     | grep -qx "${NC_SERVICE}"; then
+  echo "ERROR: Nextcloud service '${NC_SERVICE}' is not running (${NC_COMPOSE})" >&2
+  exit 1
+fi
 
 # === Start ===
 log_line "== Nextcloud Maintenance Start =="
 
 # 1) Rotate logfile if it is already larger than 10MB using only a single .old
-[ -f "$LOGFILE" ] && [ $(stat -c%s "$LOGFILE") -gt $((10*1024*1024)) ] \
-  && mv "$LOGFILE" "$LOGFILE.old" && echo "" > "$LOGFILE"
+[[ -f "${LOGFILE}" ]] && (( $(stat -c%s "${LOGFILE}") > 10*1024*1024 )) \
+  && mv "${LOGFILE}" "${LOGFILE}.old" && : > "${LOGFILE}"
 
 # 2) Perform maintenance and add missing indices if any
 log_line "Running db:add-missing-indices"
@@ -81,11 +104,14 @@ log_line "Running integrity:check-core"
 run_occ integrity:check-core
 
 log_line "Running integrity:check-app for all enabled ..."
-# Some versions may support --all (all apps), if not use the loop instaed
-for app in $(run_occ app:list | grep -E 'Enabled:' -A1000 | tail -n +2 \
-  | awk '/^Disabled:/ { exit } { sub(/:.*/, "", $2); print $2 }'); do
-    run_occ_integrity_check_for_app "$app"
-done
+# `occ app:list` prints an "Enabled:"/"Disabled:" YAML-ish list; take the names
+# between the two headings.
+while read -r app; do
+  [[ -n "${app}" ]] && run_occ_integrity_check_for_app "${app}"
+done < <(run_occ app:list \
+           | awk '/^Enabled:/ {e=1; next}
+                  /^Disabled:/ {exit}
+                  e && /^ *- / {sub(/:.*/, "", $2); print $2}')
 log_line "... done"
 
 # 4) Check if any updates are available (check only, no auto update)
@@ -97,9 +123,9 @@ run_occ update:check
 
 # 5) (Optional) Cleanup log
 #log_line "Truncating nextcloud.log"
-#truncate -s 0 "$NC_ROOT/data/nextcloud.log"
+#truncate -s 0 /srv/nextcloud/data/nextcloud.log
 
-# 6) (Optional) DB opimizations / tuning, if needed
+# 6) (Optional) DB optimizations / tuning, if needed
 # e.g. run_occ db:convert-filecache-bigint
 # e.g. run_occ app:update --all  # should not be automated, only under supervision
 
