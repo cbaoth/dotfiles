@@ -569,7 +569,6 @@ occsh() {
   docker compose -f "$NEXTCLOUD_COMPOSE" exec -u www-data app bash
 }
 
-alias wallabag-console='sudo -u www-data php /var/www/wallabag.11001001.org/bin/console -e prod'
 # }}} - MISC -----------------------------------------------------------------
 
 # {{{ - DOTFILES MANAGEMENT --------------------------------------------------
