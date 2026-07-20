@@ -14,7 +14,10 @@ MODULE_PROFILES=(desktop server)
 MODULE_DOC="docs/setup/docker.md"
 
 module_run() {
-  st::apt_install docker.io docker-buildx
+  # docker-compose-v2 is listed explicitly: docker.io does NOT pull it in, so
+  # `docker compose` silently does not exist — which reads like a broken Docker
+  # rather than a missing package. Cost real time during the 2026-07 rebuild.
+  st::apt_install docker.io docker-buildx docker-compose-v2
 
   # Membership in 'docker' is effectively root on the host — deliberate, and
   # the reason this module is not in the wsl profile (Docker Desktop owns that).
