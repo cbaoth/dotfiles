@@ -17,6 +17,18 @@
 	# "you have divergent branches" hint after the fact).
 	rebase = true
 
+[rebase]
+	# Auto-stash a dirty working tree before a rebase (incl. `pull --rebase`)
+	# and re-apply it after — no more "cannot rebase: you have unstaged
+	# changes". The stash is restored even if the rebase is aborted.
+	autoStash = true
+
+[merge]
+	# 3-way conflict markers: also show the original (merge-base) text between
+	# ||||||| and =======, not just ours vs theirs. Makes "both sides changed
+	# this" conflicts actually resolvable instead of a guessing game.
+	conflictStyle = zdiff3
+
 [filter "lfs"]
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
