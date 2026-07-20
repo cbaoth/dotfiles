@@ -48,9 +48,48 @@ The `internal` network subnet is now **pinned** in `/srv/nextcloud/compose.yaml`
 Unpinned, Docker assigns it at network-create time and a recreate can move the
 gateway — silently breaking mail long after anyone remembers this section.
 
-Open mail question: **`11001001.org` has no MX record.** Sending works (SPF/DKIM
-/DMARC are on the domain, not the MX), but bounces to `nextcloud@11001001.org`
-are undeliverable. Decide between a real MX, a forward, or an explicit null MX.
+A **fourth** change was needed before the admin UI test passed: Postfix must not
+advertise STARTTLS (`smtpd_tls_security_level = none`). Nextcloud's Symfony
+Mailer upgrades opportunistically whenever it is offered and then *verifies* the
+certificate — Postfix presents the Debian snakeoil cert, so the handshake dies
+with `tlsv1 alert unknown ca` and the UI shows a bare `400`. `mail_smtpsecure=""`
+does not prevent this; it only means "do not require TLS". Safe to disable: this
+smtpd listens only on loopback and the Docker bridge, so the session never
+leaves the host. **Outbound TLS is unaffected** (`smtp_tls_security_level = may`).
+
+Lesson for testing: a hand-rolled SMTP session proves the path *you* speak, not
+the one the application speaks. The raw test passed while the app was still
+broken.
+
+### Mail is verified end to end (2026-07-20)
+
+Microsoft accepted a direct message from `173.249.38.121` with
+`spf=pass`, `dkim=pass`, `dmarc=pass`, `compauth=pass reason=100`, `SCL:1`,
+delivered to the inbox. The sending identity is in good standing.
+
+**But `cbaoth.de` → Outlook forwarding is not.** A test to `weyer@cbaoth.de`
+passed every check at united-domains and was then rejected by Microsoft with
+`550 5.7.1 ... S3150` against **`62.146.106.26`** (`atlantis-out.udag.de`, udag's
+outbound relay) — a blocklisting of *the forwarder*, nothing to do with this box.
+
+Consequence, and it matters beyond Nextcloud: **anything reaching Outlook via the
+`cbaoth.de` catch-all can be dropped silently**, including DMARC `rua` reports
+and bounces — the very messages that exist to report failures. Therefore:
+
+> **Machine-generated mail (Nextcloud, Netdata, cron) goes DIRECT to
+> `andreasweyer@outlook.com`, never through the `cbaoth.de` forward.**
+
+`11001001.org` MX records now exist (added 2026-07-20), so `dmarc@11001001.org`
+resolves; it still lands in Outlook via the same forward, so treat DMARC reports
+as best-effort until either udag is delisted or this box receives its own mail.
+
+Deferred idea (not scheduled): point `11001001.org`'s MX at `mail.11001001.org`
+and accept mail here for a **fixed list** of addresses with
+`reject_unlisted_recipient` and no catch-all — no IMAP, no webmail, no rspamd.
+Far smaller than the old stack and it removes udag from the alerting path. Two
+caveats: reading a local Maildir needs `mutt`-over-SSH (wanting it on a phone
+re-grows the whole stack), and forwarding onward to Outlook would inherit exactly
+udag's problem, SRS included. Does **not** help `cbaoth.de`, whose MX is at udag.
 
 Also on 2026-07-20: `occ` aliases and `system-scripts/nextcloud-maintenance` were
 rewritten for the container (both still pointed at `/var/www/nextcloud/occ` and
