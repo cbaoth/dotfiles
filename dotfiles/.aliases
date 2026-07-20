@@ -553,8 +553,21 @@ alias nice-java='ionice -n 19 `pgrep java`; renice -n 19 -p `pgrep java`'
 alias sleep-usb='sudo ~/bin/scsi-idle 900&'
 rpm-extract() { rpm2cpio "$1" | cpio -ivd; }
 
-alias occ='sudo -u www-data php --define apc.enable_cli=1 /var/www/nextcloud/occ'
-alias occd='cd /var/www/nextcloud; sudo -u www-data php --define apc.enable_cli=1 occ'
+# Nextcloud CLI. Runs inside the container since the 2026-07 rebuild; the old
+# bare-metal form (sudo -u www-data php /var/www/nextcloud/occ) no longer exists.
+# Function, not alias: -f makes it cwd-independent, and "$@" keeps occ's own
+# flags (--no-interaction, --output=json) from being eaten by the shell.
+NEXTCLOUD_COMPOSE="${NEXTCLOUD_COMPOSE:-/srv/nextcloud/compose.yaml}"
+occ() {
+  local _tty=()
+  # No TTY when piping/redirecting, else docker exec mangles the output.
+  [[ -t 0 && -t 1 ]] || _tty=(-T)
+  docker compose -f "$NEXTCLOUD_COMPOSE" exec "${_tty[@]}" -u www-data app php occ "$@"
+}
+# Shell inside the Nextcloud app container (replaces the old 'occd' cd-alias).
+occsh() {
+  docker compose -f "$NEXTCLOUD_COMPOSE" exec -u www-data app bash
+}
 
 alias wallabag-console='sudo -u www-data php /var/www/wallabag.11001001.org/bin/console -e prod'
 # }}} - MISC -----------------------------------------------------------------
