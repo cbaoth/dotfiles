@@ -119,16 +119,17 @@ Rules that prevent lost work:
 ## Conflict resolution ("a file changed on both sides")
 
 When a merge/rebase stops on a conflict, git writes markers into the file. With
-`zdiff3` they look like:
+`zdiff3` they look like this (indented by two spaces here so editors don't treat
+this doc as a real conflict — in an actual file they start at column 0):
 
-```
-<<<<<<< ours
-your version
-||||||| base
-the original both sides started from
-=======
-their version
->>>>>>> theirs
+```text
+  <<<<<<< ours
+  your version
+  ||||||| base
+  the original both sides started from
+  =======
+  their version
+  >>>>>>> theirs
 ```
 
 Edit the file to the intended final result (delete the markers), then:
