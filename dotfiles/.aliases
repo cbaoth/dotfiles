@@ -191,6 +191,47 @@ alias mount-saito-data='sudo mount -t cifs -o username=cbaoth,credentials=/etc/s
 # }}} - MOUNT ----------------------------------------------------------------
 
 # {{{ - SECURITY -------------------------------------------------------------
+ssh-kg() {
+  if [[ -z "${1:-}" ]]; then
+    cat <<EOF
+Usage: ssh-kg [-h|--help] <purpose> [username[@hostname]] [ssh-keygen-option...]
+
+  purpose              Service name or purpose of the key (used in the filename and comment).
+  username[@hostname]  Optional username or email address for the key comment (defaults to the current user).
+  ssh-keygen-option    Additional options to pass to ssh-keygen (e.g., -N for passphrase).
+
+Examples:
+  # interactive prompt for passphrase
+  # ~/.ssh/id_ed25519_git, comment: "$USER git $(date +%Y-%m)"
+  ssh-kg git
+
+  # interactive prompt for passphrase
+  # ~/.ssh/id_ed25519_git, comment: "j.smith@local git $(date +%Y-%m)"
+  ssh-kg git j.smith@local
+
+  # quiet, empty passphrase
+  # ~/.ssh/id_ed25519_insecure, comment: "$USER insecure $(date +%Y-%m)"
+  ssh-kg insecure -P "" -q
+EOF
+    return 0
+  fi
+  local purpose="$1"
+  shift
+  local user
+  if [[ -n "$1" && "$1" != -* ]]; then
+    user="$1"
+    shift
+  else
+    user="$USER"
+  fi
+  local ssh_keygen_options=("$@")
+  while [[ "$1" == -* ]]; do
+    shift
+  done
+
+  ssh-keygen -t ed25519 -C "${user} ${purpose} $(date +%Y-%m)" -f ~/.ssh/id_ed25519_"${purpose}" "${ssh_keygen_options[@]}"
+}
+
 alias authlog-ssh-ip='sudo grep "Failed" /var/log/auth.log \
   | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" \
   | grep -v sudo: | sort | uniq -c | sort -n'
