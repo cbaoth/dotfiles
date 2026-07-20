@@ -66,6 +66,10 @@ alias -g ...='../..'
 alias -g ....='../../..'
 alias -g .....='../../../..'
 
+# pipe to another command
+alias -g ,p='|'
+alias -g ,ep='|&'  # include stderr
+
 # redirect to /dev/null
 alias -g ,n='> /dev/null 2>&1'      # silence stdout + stderr
 alias -g ,en='2> /dev/null'         # silence stderr only
@@ -74,6 +78,7 @@ alias -g ,en='2> /dev/null'         # silence stderr only
 alias -g ,g='| grep -E'
 alias -g ,gi='| grep -Ei'
 alias -g ,eg='|& grep -E'
+alias -g ,egi='|& grep -E'
 
 # head / tail
 alias -g ,h='| head'
@@ -94,6 +99,9 @@ alias -g ,c='| wc -l'
 alias -g ,x='| xargs'
 alias -g ,x0='| xargs -0'
 alias -g ,xl='| tr "\n" "\0" | xargs -0 -n 10000'   # NUL-split, batched xargs
+
+# sed / awk / tr
+alias -g ,sed='| sed'
 
 # text transforms
 alias -g ,lower="| tr '[:upper:]' '[:lower:]'"
