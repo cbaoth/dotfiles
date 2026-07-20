@@ -116,7 +116,9 @@ VS Code must be told explicitly to use gnome-libsecret. File at `~/.config/Code/
 }
 ```
 
-### VS Code in Sway: XDG_CURRENT_DESKTOP workaround
+### Electron apps in Sway: XDG_CURRENT_DESKTOP workaround
+
+This affects **every Electron app**, not just VS Code — the symptom differs per app, the cause and fix do not. Known affected: VS Code, Claude Desktop.
 
 Even with `password-store=gnome-libsecret` set, VS Code shows *"OS keyring couldn’t be identified for storing the encryption related data"* and falls back to basic-text storage when launched in Sway.
 
@@ -125,6 +127,24 @@ Root cause: Electron calls `safeStorage.isEncryptionAvailable()`, which in turn 
 The fix is `~/bin/code` (symlinked from `dotfiles/bin/code`), a wrapper that sets `XDG_CURRENT_DESKTOP=GNOME` before exec-ing the real binary. It only overrides the variable when not already in a recognised desktop, so the wrapper is a no-op in GNOME sessions. `portals.conf` statically selects the `wlr` portal backend, so changing `XDG_CURRENT_DESKTOP` inside VS Code does not affect file pickers or screen sharing.
 
 `~/.local/share/applications/code.desktop` (symlinked from dotfiles) overrides the system `.desktop` to call `code` (the wrapper, found via PATH) instead of `/usr/share/code/code` directly, so both terminal and rofi drun invocations go through the wrapper.
+
+#### Claude Desktop
+
+Installed from Anthropic’s apt repo (`downloads.claude.ai/claude-desktop/apt`). Symptom: *"Your sign-in won't be saved on this device. Install and unlock a system keyring (such as GNOME Keyring), then restart the app."* — shown even while `gnome-keyring-daemon` owns `org.freedesktop.secrets` and `Default_keyring` is unlocked. The login has to be redone on every start.
+
+Same fix, one step shorter: `~/bin/claude-desktop` (symlinked from `dotfiles/bin/claude-desktop`) wraps `/usr/bin/claude-desktop`. **No `.desktop` override is needed** — unlike VS Code, the packaged entry (`/usr/share/applications/com.anthropic.Claude.desktop`) already uses a PATH-relative `Exec=claude-desktop %U`, and `~/bin` precedes `/usr/bin`, so rofi drun and terminal launches both pick up the wrapper. An apt upgrade replaces `/usr/bin/claude-desktop` but never the wrapper, so the fix survives updates.
+
+Verify the keyring itself before blaming it — these commands should show the daemon owning the name and the collection unlocked:
+
+``` bash
+busctl --user call org.freedesktop.DBus /org/freedesktop/DBus \
+  org.freedesktop.DBus GetConnectionUnixProcessID s org.freedesktop.secrets
+busctl --user get-property org.freedesktop.secrets \
+  /org/freedesktop/secrets/collection/Default_5fkeyring \
+  org.freedesktop.Secret.Collection Locked   # expect: b false
+```
+
+Note the D-Bus path escaping: `Default_keyring` appears as `Default_5fkeyring` (`_` → `_5f`); using the unescaped name returns a confusing "Object does not exist" that looks like a missing keyring.
 
 ## Cloud file services (GNOME Online Accounts)
 

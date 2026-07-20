@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Claude Desktop wrapper: overrides XDG_CURRENT_DESKTOP to include GNOME when
+# running outside a recognised desktop (e.g. Sway). Electron's safeStorage
+# checks this variable; unrecognised desktops cause
+# safeStorage.isEncryptionAvailable() to return false, so the app cannot store
+# the sign-in token ("Your sign-in won't be saved on this device") even though
+# gnome-keyring is running and unlocked. Same root cause as bin/code.
+# portals.conf handles backend selection, so changing XDG_CURRENT_DESKTOP here
+# does not affect file picker or screen share.
+#
+# The packaged .desktop entry uses a PATH-relative `Exec=claude-desktop`, so
+# this wrapper (~/bin precedes /usr/bin) covers rofi and terminal launches
+# alike -- no .desktop override needed, unlike VS Code.
+
+case "${XDG_CURRENT_DESKTOP:-}" in
+  *GNOME*|*KDE*) ;;
+  *) export XDG_CURRENT_DESKTOP="GNOME" ;;
+esac
+
+exec /usr/bin/claude-desktop "$@"
