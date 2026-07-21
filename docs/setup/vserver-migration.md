@@ -19,6 +19,56 @@ current hand-grown Debian install to a clean, mostly-reproducible Ubuntu box wit
 
 ## Execution log / status (for a session picking this up cold)
 
+**As of 2026-07-21 ~22:00 — Nextcloud done. Offsite backup: vserver side live,
+saito side scripted, retention chosen; pending a first seed pull + automation +
+alerting. Then monitoring (Netdata) → everything else.**
+
+### Backup — pull-based restic to saito (2026-07-21)
+
+Architecture **A** (locked): saito's root pulls the vserver filesystem READ-ONLY
+and snapshots it with restic *locally on saito*. The vserver holds no repo, no
+repo password, and no write path to the backup — ransomware there cannot reach
+the history. Chosen over push+append-only because every credential and byte stays
+on the machine physically at home.
+
+Vserver side — **done and verified**:
+- Dedicated `pull-backup` user (NOT the stock `backup` uid-34 account). Its ssh
+  key is pinned to a forced command `sudo /usr/bin/rrsync -ro /` (`restrict`), so
+  it can only run rsync, read-only, whole FS. `rrsync -ro` refuses writes at the
+  restrictor. sudo is scoped to that one command, NOPASSWD.
+- `env_keep += "SSH_ORIGINAL_COMMAND SSH_CONNECTION"` is REQUIRED (rrsync reads
+  the command from the env; sudo strips env otherwise). Ubuntu 26.04 runs
+  **sudo-rs**, which honors env_keep but rejects `requiretty` as unknown.
+- `pull-backup` added to sshd `AllowUsers` (the bootstrap pins `AllowUsers
+  cbaoth`; a missing entry shows as a password prompt on a key-only server).
+- Consistent DB dump: `system-scripts/nextcloud-db-dump` + timer (nightly 01:30),
+  atomically-replaced `/var/backups/nextcloud/nextcloud-db.sql.zst`.
+- Verified from saito: bare ssh → rrsync "not invoked via sshd" (forced cmd
+  runs as root); read dry-run works; write refused (rc=12).
+- Setup script (manual, edits sudoers/sshd): `_local/vserver-migration/
+  setup-pull-backup-user.sh`. Key on saito: `/root/.ssh/id_ed25519_pull_backup_11001001`,
+  ssh alias `backup-11001001`.
+
+Saito side — **scripted, not yet run** (`_local/saito-backup/`, sync to saito):
+- `saito-restic-init.sh` — one-time repo init; generates the password to
+  `/root/.config/restic/vserver.pass` and **blocks until you confirm it is in
+  KeePass** (losing it = losing every backup).
+- `saito-vserver-backup` — pull (`rsync -aHAX --numeric-ids --delete
+  --delete-excluded`, root, to preserve ownership) → `restic backup` → `restic
+  forget`. Retention: **`--keep-daily 30 --keep-weekly 12 --keep-monthly 24`**.
+- `vserver-backup.exclude` — kernel FS, caches, regenerable Docker layers, the
+  raw `nextcloud_db` volume (dump covers it), and `/home/cbaoth/backup` (87 G of
+  old-box residue already on saito). KEEPS the `caddy_data` volume (certs + ACME
+  key).
+- Repo `/media/backup/vserver/restic`, mirror `/media/backup/vserver/mirror`.
+
+Pending: first seed pull (~161 G, run in tmux) → automation (systemd timers) →
+`prune`+`check --read-data-subset` weekly → alerting DIRECT to Outlook (saito's
+mail path is an open question) + a success heartbeat. The old `backup-11001001`
+rsync-only cron on saito was removed (redundant, inferior).
+
+---
+
 **As of 2026-07-20 ~20:00 — Phases 2 and 3 are essentially done. Nextcloud is
 live and can send mail. Remaining, in agreed order: backup (restic → saito) →
 monitoring (Netdata) → everything else.**
