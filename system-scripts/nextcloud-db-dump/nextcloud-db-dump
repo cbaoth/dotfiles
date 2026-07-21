@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Produce a consistent, compressed logical dump of the Nextcloud database.
+#
+# Why this exists: the MariaDB data lives in a Docker named volume. Copying that
+# volume's files while the server runs yields a torn, unrestorable InnoDB state.
+# The offsite backup (saito pulls the whole FS read-only) must therefore find a
+# *logical* dump on disk instead. `mariadb-dump --single-transaction` gives a
+# point-in-time consistent snapshot of InnoDB tables without locking writers, so
+# Nextcloud keeps serving during the dump — no maintenance mode needed.
+#
+# The output file is replaced ATOMICALLY (write temp, fsync, rename). saito can
+# pull at any moment and will always see a complete, valid dump — never a
+# half-written one. A single rolling file is kept on purpose: restic on saito
+# provides the history, so there is no point accumulating dated dumps here.
+#
+# The DB password is never in this script or in the process args on the host: it
+# is read from the db container's own environment (MARIADB_PASSWORD), inside the
+# container, via `sh -c`.
+#
+# Runs as root (needs Docker). Driven by nextcloud-db-dump.timer.
+
+# === Root Only Check ===
+[[ "${EUID}" -ne 0 ]] && { echo "ERROR: run as root" >&2; exit 1; }
+
+# === Core Options ===
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+trap '_rc=$?; [[ -n "${TMP:-}" && -e "${TMP}" ]] && rm -f "${TMP}"
+      (( _rc != 0 )) && printf "ERROR(%s) at line %s: %s\n" \
+        "${_rc}" "${LINENO:-N/A}" "${BASH_COMMAND:-N/A}" >&2
+      exit "${_rc}"' ERR
+
+# === Configuration ===
+declare -r NC_COMPOSE="${NEXTCLOUD_COMPOSE:-/srv/nextcloud/compose.yaml}"
+declare -r NC_DB_SERVICE="db"
+declare -r DB_NAME="nextcloud"
+declare -r DB_USER="nextcloud"          # owns the schema — sufficient for a dump
+declare -r OUT_DIR="/var/backups/nextcloud"
+declare -r OUT="${OUT_DIR}/nextcloud-db.sql.zst"
+declare TMP=""                          # set in main once OUT_DIR exists
+# A valid dump of this instance is tens of MB compressed; anything tiny means the
+# dump aborted early (bad password, server gone) and must not replace a good file.
+declare -ri MIN_BYTES=$((1 * 1024 * 1024))
+
+log() { printf '%s nextcloud-db-dump: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+
+main() {
+  install -d -m 700 -o root -g root "${OUT_DIR}"
+  TMP="$(mktemp "${OUT}.XXXXXX.tmp")"
+
+  log "starting dump of '${DB_NAME}'"
+
+  # -T on exec: no TTY, so the stream is byte-clean. --quick streams row-by-row
+  # instead of buffering the (large) filecache table in RAM.
+  docker compose -f "${NC_COMPOSE}" exec -T "${NC_DB_SERVICE}" \
+    sh -c 'exec mariadb-dump --single-transaction --quick \
+             --default-character-set=utf8mb4 \
+             -u"'"${DB_USER}"'" -p"${MARIADB_PASSWORD}" "'"${DB_NAME}"'"' \
+    | zstd -q -T0 -9 -o "${TMP}" -f
+
+  # zstd -o leaves the temp file; verify it before it becomes the live backup.
+  local -i bytes
+  bytes="$(stat -c%s "${TMP}")"
+  if (( bytes < MIN_BYTES )); then
+    log "ERROR: dump only ${bytes} bytes (< ${MIN_BYTES}); refusing to replace ${OUT}"
+    exit 1
+  fi
+  if ! zstd -q -t "${TMP}"; then
+    log "ERROR: compressed dump failed integrity check; keeping previous ${OUT}"
+    exit 1
+  fi
+
+  chmod 600 "${TMP}"
+  # Atomic within the same filesystem: the pull sees either old or new, never torn.
+  mv -f "${TMP}" "${OUT}"
+  TMP=""
+  log "wrote ${OUT} (${bytes} bytes)"
+}
+
+main "$@"

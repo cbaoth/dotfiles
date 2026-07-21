@@ -1,0 +1,13 @@
+[Unit]
+Description=Nightly Nextcloud database dump, ahead of the saito pull
+Documentation=file:/opt/system-scripts/nextcloud-db-dump/README.adoc
+
+[Timer]
+# 01:30 — comfortably before saito pulls (~02:15), so each pull picks up a dump
+# taken the same night. Persistent so a missed run (host down) fires on boot.
+OnCalendar=*-*-* 01:30:00
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

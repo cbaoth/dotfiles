@@ -1,0 +1,78 @@
+= nextcloud-db-dump
+:toc: macro
+:icons: font
+
+Consistent, compressed logical dump of the Nextcloud database, written to a
+single atomically-replaced file for the offsite backup to pull.
+
+toc::[]
+
+== Why
+
+The MariaDB data lives in a Docker named volume (`nextcloud_db`). A file-level
+copy of that volume taken while the server runs is a torn, unrestorable InnoDB
+state. The offsite backup (saito pulls the whole filesystem read-only, then
+snapshots it with restic) must therefore find a *logical* dump on disk.
+
+`mariadb-dump --single-transaction` snapshots all InnoDB tables at one point in
+time without blocking writers, so Nextcloud keeps serving during the dump — no
+maintenance mode, no downtime.
+
+== How it stays safe to pull at any moment
+
+* The dump is written to a temp file, integrity-checked (`zstd -t`) and
+  size-checked, then `mv`-renamed over the live file. Rename is atomic within a
+  filesystem, so a concurrent pull sees either the old or the new dump, never a
+  half-written one.
+* A single rolling file is kept (`/var/backups/nextcloud/nextcloud-db.sql.zst`).
+  History is restic's job on saito; dated dumps here would just waste space.
+* The DB password is read from the container's own `MARIADB_PASSWORD` env inside
+  the container. It never appears in this repo, in the script, or in host
+  process arguments.
+
+== Files
+
+[cols="1,3"]
+|===
+| `nextcloud-db-dump`         | the dump script (root; needs Docker)
+| `nextcloud-db-dump.service` | oneshot unit that runs it
+| `nextcloud-db-dump.timer`   | nightly at 01:30, ahead of the saito pull
+|===
+
+== Deploy (manual — outside `$HOME`, not covered by dotfiles-link)
+
+[source,sh]
+----
+sudo install -D -m 755 nextcloud-db-dump \
+  /opt/system-scripts/nextcloud-db-dump/nextcloud-db-dump
+sudo install -D -m 644 nextcloud-db-dump.service \
+  /etc/systemd/system/nextcloud-db-dump.service
+sudo install -D -m 644 nextcloud-db-dump.timer \
+  /etc/systemd/system/nextcloud-db-dump.timer
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now nextcloud-db-dump.timer
+
+# force one run and inspect
+sudo systemctl start nextcloud-db-dump.service
+sudo journalctl -u nextcloud-db-dump.service -n 20 --no-pager
+ls -l /var/backups/nextcloud/
+----
+
+== Restore
+
+[source,sh]
+----
+zstd -dc /var/backups/nextcloud/nextcloud-db.sql.zst \
+  | docker compose -f /srv/nextcloud/compose.yaml exec -T db \
+      sh -c 'exec mariadb -unextcloud -p"$MARIADB_PASSWORD" nextcloud'
+----
+
+Then bring Nextcloud out of maintenance mode if it was set, and run
+`occ maintenance:repair`.
+
+== Related
+
+* Offsite pull + restic: see `docs/setup/vserver-migration.md` (Backup section).
+* `NEXTCLOUD_COMPOSE` env var overrides the compose file path (default
+  `/srv/nextcloud/compose.yaml`), same as the `occ` shell function.
