@@ -69,10 +69,25 @@ Saito side — scripts (`_local/saito-backup/`, sync to saito):
   key).
 - Repo `/media/backup/vserver/restic`, mirror `/media/backup/vserver/mirror`.
 
-Pending: first seed pull (~161 G, run in tmux) → automation (systemd timers) →
-`prune`+`check --read-data-subset` weekly → alerting DIRECT to Outlook (saito's
-mail path is an open question) + a success heartbeat. The old `backup-11001001`
-rsync-only cron on saito was removed (redundant, inferior).
+First snapshot verified restorable (2026-07-22): `restic check` clean, the DB
+dump restores + decompresses. **Automation scripted** (`_local/saito-backup/`,
+deploy to `/opt/saito-backup/` per its `README.adoc`):
+- `saito-vserver-backup` + `.timer` — daily 02:15 (after the 01:30 DB dump).
+- `saito-vserver-maintenance` + `.timer` — Sun 04:30: `prune` + `check
+  --read-data-subset=N/10`, N rotating by ISO week so all data is deep-read
+  over ~10 weeks (catches backup-drive bit-rot; stateless).
+- Alerting = **ntfy** (chosen over mail: saito is on a residential IP and cannot
+  send direct — `sendmail`/`mail` exist but no relay). Low-priority success
+  heartbeat after every run (so silence is a signal), high-priority failure via
+  systemd `OnFailure=` (fires even if the script is killed mid-run). Topic secret
+  lives in `/etc/saito-backup/notify.conf`, never the repo.
+
+**Saito outbound mail is a separate deferred topic** — residential IP needs an
+authenticated relay (Outlook SMTP app-password) or smarthost; best done in a
+session on saito. Not required for backups (ntfy covers alerting).
+
+Pending: deploy the units on saito + enable timers + confirm the first ntfy
+heartbeat. The old `backup-11001001` rsync-only cron on saito was removed.
 
 ---
 
