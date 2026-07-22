@@ -587,7 +587,7 @@ bindsym Scroll_Lock          exec kbd-layout-toggle
 # {{{ - Run Apps: Mod Key ----------------------------------------------------
 # core apps only, otherwise use Hyper (see next section)
 
-# mod-return: run terminal (+shift for floating)
+# mod-return: run terminal (+Alt for floating terminal)
 bindsym $mod+Return          exec $term
 bindsym $mod+Alt+Return      exec $termfloat
 
@@ -599,9 +599,12 @@ bindsym $mod+Shift+F8        exec sway-winfo --blocklist-toggle
 # mod-space: rofi run launcher
 bindsym $mod+space           exec rofi -show combi
 
-# mod-F1 to F2: open ssh session in floating terminal
-bindsym $mod+F1              exec $termfloat -e ssh -X -A 11001001.org -p 8090
-bindsym $mod+F2              exec $termfloat -e ssh -X -A saito-lan
+# mod-F1 to F3: connect to remote hosts/devices using ssh/scrcpy (+Alt for floating terminal)
+bindsym $mod+F1              exec $term      -e ssh -X 11001001.org -p 8090
+bindsym $mod+Alt+F1          exec $termfloat -e ssh -X 11001001.org -p 8090
+bindsym $mod+F2              exec $term      -e ssh -X -A saito-lan
+bindsym $mod+Alt+F2          exec $termfloat -e ssh -X -A saito-lan
+bindsym $mod+F3              exec sway-app -m scrcpy -A toggle scrcpy-connect
 
 # mod-Shift-Ctrl-F12: run gnome control center (GNOME Settings) floating
 bindsym $mod+Shift+Ctrl+F12  exec DISPLAY=:0 XDG_CURRENT_DESKTOP=GNOME gnome-control-center
@@ -773,6 +776,10 @@ for_window [class="(?i)^Ssvnc$"] \
 for_window [app_id="^term\.top$"]                          $pop_sheer
 for_window [app_id="^io.missioncenter.MissionCenter$"]     $pop_sheer
 for_window [app_id="^net.nokyan.Resources$"]               $pop
+
+# Remote desktop windwos
+for_window [app_id="vncviewer$"]                           $pop
+for_window [app_id="^scrcpy$"]                             $pop
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
