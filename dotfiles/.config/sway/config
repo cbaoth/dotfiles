@@ -553,10 +553,11 @@ bindsym XF86AudioPlay        exec playerctl play-pause
 bindsym XF86AudioPrev        exec playerctl previous
 bindsym XF86AudioNext        exec playerctl next
 
-# mod-Alt-Space/,/.: alt. media player keys
-bindsym $mod+Alt+space       exec playerctl play-pause
-bindsym $mod+Alt+comma       exec playerctl previous
-bindsym $mod+Alt+period      exec playerctl next
+# mod-Alt-Space/Slash/,/.: alt. media player keys
+bindsym $mod+Alt+Space       exec playerctl play-pause
+bindsym $mod+Alt+Slash       exec playerctl play-pause
+bindsym $mod+Alt+Comma       exec playerctl previous
+bindsym $mod+Alt+Period      exec playerctl next
 
 # SWAY: xbacklight → brightnessctl (works natively on Wayland)
 bindsym XF86MonBrightnessUp  exec brightnessctl set +20%
