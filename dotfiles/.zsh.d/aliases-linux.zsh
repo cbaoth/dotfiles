@@ -8,8 +8,6 @@
 # Shell-agnostic aliases live in ~/lib/aliases-linux.sh (sourced first).
 # This file contains only zsh-specific additions.
 
-# {{{ = ZSH SPECIFIC =========================================================
-
 # {{{ - Flatpak app functions -------------------------------------------------
 # Auto-generate shell functions for all installed flatpak apps.
 # Zsh-specific: uses ${(q)}, whence -p, compdef, unfunction.
@@ -162,7 +160,5 @@ EOF
 }
 
 # }}} - Gaming / Steam / Wine ------------------------------------------------
-
-# }}} = ZSH SPECIFIC =========================================================
 
 return 0

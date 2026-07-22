@@ -71,7 +71,7 @@ source_ifex_custom "$HOME/lib/aliases"
 # Disabled e.g. in favor of KeePassXC (Secret Service Integration)
 #
 # are we in a x-windows session?
-# if [[ -n "${DESKTOP_SESSION-}" ]]; then
+# if [[ -n "${XDG_CURRENT_DESKTOP-}" ]]; then
 #     # is gnome-keyring-daemon availlable? use it as ssh agent
 #     if command -v gnome-keyring-daemon 2>&1 > /dev/null; then
 #         # start unless already running

@@ -124,7 +124,14 @@ Even with `password-store=gnome-libsecret` set, VS Code shows *"OS keyring could
 
 Root cause: Electron calls `safeStorage.isEncryptionAvailable()`, which in turn calls into Chromium’s `OSCrypt::IsEncryptionAvailable()`. Chromium checks `XDG_CURRENT_DESKTOP` and returns `false` for any desktop it does not recognise (GNOME, KDE, MATE, Cinnamon are recognised; `sway` is not). This `false` result short-circuits the `password-store` setting — VS Code never attempts to use gnome-libsecret.
 
-The fix is `~/bin/code` (symlinked from `dotfiles/bin/code`), a wrapper that sets `XDG_CURRENT_DESKTOP=GNOME` before exec-ing the real binary. It only overrides the variable when not already in a recognised desktop, so the wrapper is a no-op in GNOME sessions. `portals.conf` statically selects the `wlr` portal backend, so changing `XDG_CURRENT_DESKTOP` inside VS Code does not affect file pickers or screen sharing.
+The fix is `~/bin/code` (symlinked from `dotfiles/bin/code`), a wrapper that **appends** `GNOME` to `XDG_CURRENT_DESKTOP` before exec-ing the real binary (`sway` → `sway:GNOME`). It only does so when the list does not already contain a recognised desktop, so the wrapper is a no-op in GNOME sessions and idempotent if re-entered.
+
+`XDG_CURRENT_DESKTOP` is a **colon-separated list, most specific first** (per the `portals.conf(5)` spec) — not a single value. Appending rather than replacing matters:
+
+- The real desktop stays first, so child processes still see `sway`. In particular the VS Code integrated terminal exports `sway:GNOME`, and the shell's `source_ifex_custom` (see `~/.common_rc`) splits the list and still loads `~/.zsh.d/aliases-sway.zsh`. A bare `GNOME` broke this — the terminal saw no `sway` and skipped the sway aliases.
+- `portals.conf` is matched **last** (after `sway-portals.conf`, `gnome-portals.conf`, neither of which exists here), so it still statically selects the `wlr` backend; file pickers and screen sharing are unaffected.
+
+Chromium's `OSCrypt` scans the whole list for a recognised name, so `GNOME` anywhere in it enables libsecret — verified that both `sway:GNOME` and `GNOME:sway` unlock the keyring for Claude Desktop.
 
 `~/.local/share/applications/code.desktop` (symlinked from dotfiles) overrides the system `.desktop` to call `code` (the wrapper, found via PATH) instead of `/usr/share/code/code` directly, so both terminal and rofi drun invocations go through the wrapper.
 

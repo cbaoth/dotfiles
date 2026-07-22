@@ -44,7 +44,7 @@ source_ifex() {
 # Source OS/host/environment-specific files matching the given base prefix(es).
 #
 # Requires: $OS, $HOST (normalized lowercase by .common_env), $IS_WSL,
-#           $IS_ANDROID, $DESKTOP_SESSION.
+#           $IS_ANDROID, $XDG_CURRENT_DESKTOP.
 #
 # Options:
 #   -e EXT   File extension to append (default: .sh; pass -e .zsh for zsh-specific files)
@@ -59,7 +59,14 @@ source_ifex() {
 #               PREFIX-{host}-{os}{EXT}
 #               PREFIX-{host}-{os}_wsl{EXT}     (only when IS_WSL=true)
 #               PREFIX-{host}-{os}_android{EXT} (only when IS_ANDROID=true)
-#               PREFIX-{os}_desktop{EXT} (only when DESKTOP_SESSION is set)
+#             The following are added only when XDG_CURRENT_DESKTOP is set. It
+#             is a colon-separated list (e.g. "sway:GNOME"); {desktop} expands
+#             once per entry, so a "sway:GNOME" session loads both -sway and
+#             -GNOME files. The literal "desktop" marker matches any desktop:
+#               PREFIX-desktop{EXT}
+#               PREFIX-{os}_desktop{EXT}
+#               PREFIX-{desktop}{EXT}          (once per XDG_CURRENT_DESKTOP entry)
+#               PREFIX-{os}_{desktop}{EXT}     (once per XDG_CURRENT_DESKTOP entry)
 source_ifex_custom() {
   local ext=".sh"
   if [[ "${1-}" == "-e" ]]; then
@@ -83,7 +90,21 @@ source_ifex_custom() {
     [[ -n "$os" && -n "$host" ]]                         && candidates+=("${base_file}-${host}-${os}${ext}")
     ${IS_WSL:-false}     && [[ -n "$os" && -n "$host" ]] && candidates+=("${base_file}-${host}-${os}_wsl${ext}")
     ${IS_ANDROID:-false} && [[ -n "$os" && -n "$host" ]] && candidates+=("${base_file}-${host}-${os}_android${ext}")
-    [[ -n "${DESKTOP_SESSION:-}" && -n "$os" ]]          && candidates+=("${base_file}-${os}_desktop${ext}")
+    [[ -n "${XDG_CURRENT_DESKTOP:-}" ]]                  && candidates+=("${base_file}-desktop${ext}")
+    [[ -n "${XDG_CURRENT_DESKTOP:-}" && -n "$os" ]]      && candidates+=("${base_file}-${os}_desktop${ext}")
+    if [[ -n "${XDG_CURRENT_DESKTOP:-}" ]]; then
+      # XDG_CURRENT_DESKTOP is a colon-separated list (most specific first, e.g.
+      # "sway:GNOME"). Split it portably: bash's `read -ra` and zsh's `read -rA`
+      # differ, and a single-var `read` does not split at all, so walk the list
+      # with parameter expansion instead (works identically in bash and zsh).
+      local rest="${XDG_CURRENT_DESKTOP}" desktop
+      while [[ -n "$rest" ]]; do
+        desktop="${rest%%:*}"
+        [[ "$rest" == *:* ]] && rest="${rest#*:}" || rest=""
+        [[ -n "$desktop" ]]             && candidates+=("${base_file}-${desktop}${ext}")
+        [[ -n "$desktop" && -n "$os" ]] && candidates+=("${base_file}-${os}_${desktop}${ext}")
+      done
+    fi
 
     (( ${#candidates[@]} > 0 )) && source_ifex "${candidates[@]}"
     shift

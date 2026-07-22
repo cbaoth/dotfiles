@@ -8,15 +8,18 @@
 #   --disable-features=Vulkan  incompatible with --ozone-platform=wayland on
 #                              Nvidia proprietary drivers. Remove when switching
 #                              to nvidia-open or Nouveau.
-#   XDG_CURRENT_DESKTOP=GNOME  Electron's safeStorage.isEncryptionAvailable()
+#   XDG_CURRENT_DESKTOP        Electron's safeStorage.isEncryptionAvailable()
 #                              returns false for unrecognised desktops (sway),
 #                              causing credential storage to fall back to
-#                              basic-text. portals.conf handles portal backend
-#                              selection, so this does not affect file pickers.
+#                              basic-text. We append ":GNOME" (a colon-separated
+#                              list, most specific first) rather than replacing,
+#                              so the real desktop stays first and portals.conf
+#                              still picks wlr for file pickers. Same fix as
+#                              bin/code and bin/claude-desktop.
 
-case "${XDG_CURRENT_DESKTOP:-}" in
-  *GNOME*|*KDE*) ;;
-  *) export XDG_CURRENT_DESKTOP="GNOME" ;;
+case ":${XDG_CURRENT_DESKTOP:-}:" in
+  *:GNOME:*|*:KDE:*) ;;   # already lists a recognised desktop, leave as-is
+  *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+${XDG_CURRENT_DESKTOP}:}GNOME" ;;
 esac
 
 exec /usr/bin/vivaldi-stable --disable-features=Vulkan "$@"

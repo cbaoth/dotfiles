@@ -4,16 +4,21 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# VS Code wrapper: overrides XDG_CURRENT_DESKTOP to include GNOME when running
-# outside a recognised desktop (e.g. Sway). Electron's safeStorage checks this
-# variable; unrecognised desktops cause safeStorage.isEncryptionAvailable() to
-# return false, so VS Code falls back to basic-text secret storage and loses
-# access to stored credentials. portals.conf handles backend selection, so
-# changing XDG_CURRENT_DESKTOP here does not affect file picker or screen share.
+# VS Code wrapper: appends GNOME to XDG_CURRENT_DESKTOP when running outside a
+# recognised desktop (e.g. Sway). Electron's safeStorage checks this variable;
+# unrecognised desktops cause safeStorage.isEncryptionAvailable() to return
+# false, so VS Code falls back to basic-text secret storage and loses access to
+# stored credentials. Same root cause as bin/vivaldi and bin/claude-desktop.
+#
+# XDG_CURRENT_DESKTOP is a colon-separated list (most specific first). We append
+# ":GNOME" rather than replacing, so the real desktop stays first: the VS Code
+# integrated terminal still loads its sway aliases (see source_ifex_custom in
+# ~/.common_rc), and portal backend selection is unaffected -- portals.conf,
+# matched last, still picks wlr, so file pickers and screen share still work.
 
-case "${XDG_CURRENT_DESKTOP:-}" in
-  *GNOME*|*KDE*) ;;
-  *) export XDG_CURRENT_DESKTOP="GNOME" ;;
+case ":${XDG_CURRENT_DESKTOP:-}:" in
+  *:GNOME:*|*:KDE:*) ;;   # already lists a recognised desktop, leave as-is
+  *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+${XDG_CURRENT_DESKTOP}:}GNOME" ;;
 esac
 
 exec /usr/share/code/code "$@"

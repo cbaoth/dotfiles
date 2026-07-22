@@ -4,22 +4,23 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# Claude Desktop wrapper: overrides XDG_CURRENT_DESKTOP to include GNOME when
-# running outside a recognised desktop (e.g. Sway). Electron's safeStorage
-# checks this variable; unrecognised desktops cause
-# safeStorage.isEncryptionAvailable() to return false, so the app cannot store
-# the sign-in token ("Your sign-in won't be saved on this device") even though
-# gnome-keyring is running and unlocked. Same root cause as bin/code.
-# portals.conf handles backend selection, so changing XDG_CURRENT_DESKTOP here
-# does not affect file picker or screen share.
+# Claude Desktop wrapper: appends GNOME to XDG_CURRENT_DESKTOP when running
+# outside a recognised desktop (e.g. Sway). Electron's safeStorage checks this
+# variable; unrecognised desktops cause safeStorage.isEncryptionAvailable() to
+# return false, so the app cannot store the sign-in token ("Your sign-in won't
+# be saved on this device") even though gnome-keyring is running and unlocked.
+# Same root cause as bin/code and bin/vivaldi.
 #
-# The packaged .desktop entry uses a PATH-relative `Exec=claude-desktop`, so
-# this wrapper (~/bin precedes /usr/bin) covers rofi and terminal launches
-# alike -- no .desktop override needed, unlike VS Code.
+# XDG_CURRENT_DESKTOP is a colon-separated list (most specific first). We append
+# ":GNOME" rather than replacing, so the real desktop stays first: child shells
+# still load their sway aliases (see source_ifex_custom in ~/.common_rc), and
+# portal backend selection is unaffected -- portals.conf, matched last, still
+# picks wlr. Chromium's OSCrypt scans the whole list, finds GNOME, and enables
+# libsecret (verified: both "sway:GNOME" and "GNOME:sway" unlock the keyring).
 
-case "${XDG_CURRENT_DESKTOP:-}" in
-  *GNOME*|*KDE*) ;;
-  *) export XDG_CURRENT_DESKTOP="GNOME" ;;
+case ":${XDG_CURRENT_DESKTOP:-}:" in
+  *:GNOME:*|*:KDE:*) ;;   # already lists a recognised desktop, leave as-is
+  *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+${XDG_CURRENT_DESKTOP}:}GNOME" ;;
 esac
 
 exec /usr/bin/claude-desktop "$@"
