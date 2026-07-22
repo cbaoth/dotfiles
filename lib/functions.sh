@@ -43,9 +43,10 @@ Usage: $(cl::func_caller) DIR ${usage_args}
     return 1
   fi
   cl::file_p -ERR -e -d "${dir}" || return 1
+  # shellcheck disable=SC2016
   local -a cmd=("$(echo "$@" | sed -r 's/"\$\{DIR\}"/"${dir}"/g')")
-  echo "> ${cmd[@]}"
-  eval "${cmd[@]}"
+  echo "> ${cmd[*]}"
+  eval "${cmd[*]}"
 }
 # }}} = INTERNAL =============================================================
 
@@ -60,10 +61,10 @@ string_repeat() {
     cl::p_usg "$(cl::func_name) COUNT STRING"
     return 1
   fi
-  cl::is_int -ERR $1 || return 1
+  cl::is_int -ERR "$1" || return 1
   #echo $(printf "%0$1d" | sed "s/0/$2/g")
   #printf "$2.0s" {1..$1}
-  awk 'BEGIN{$'$1'=OFS="'$2'";print}'
+  awk 'BEGIN{$'"$1"'=OFS="'"$2"'";print}'
 }
 
 
@@ -185,6 +186,11 @@ calcSum() {
 
 # {{{ = FILE OPERATIONS ======================================================
 # {{{ - Find / Bulk Update ---------------------------------------------------
+# TODO allow optional find args at the end of the command (eg. -maxdepth 1, start at -* if any)
+lf() {
+  local -a cmd=(find \"\${DIR}\" -ls)
+  _exec_dir "$#" "${1:-1}" "" "${cmd[@]}"
+}
 
 # find files larger than given size
 find_greater_than() {
