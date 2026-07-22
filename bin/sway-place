@@ -1,0 +1,282 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Place the focused (or given) floating Sway window at a screen anchor
+# (corner, edge, or center) with optional offsets, clamped to the viewport.
+#
+# Anchoring is relative to the workspace's usable area, which Sway already
+# insets by every bar's exclusive zone (waybar &c.) -- so a bar on any edge,
+# multiple bars, or none, are all handled automatically with no bar-config
+# parsing. Coordinates for `move position` are workspace-relative, with (0,0)
+# at the top-left of that usable area (verified live: a top bar of height H
+# puts the usable origin at global y=H). Use --ignore-bars to anchor against
+# the full output instead, covering any bars (via `move absolute position`).
+#
+# Typical use is from a Sway `for_window` rule on a just-mapped, focused
+# floating window, or from a keybind acting on the focused window.
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="${0##*/}"
+
+# -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# Trap state for the hide/reveal flow (see --opacity). When a for_window rule
+# spawns a window at `opacity 0` to hide the placement flash, a failure here
+# must never leave it stuck invisible -- so on exit, if we hid it but never
+# placed it, restore its opacity.
+_reveal_on_exit=""   # opacity to restore on failure; empty disables the failsafe
+_reveal_criteria=""  # swaymsg criteria for the reveal ("" = focused window)
+_placed=0            # set to 1 once the move (or dry-run) has run
+
+# {{{ = HELPERS ===============================================================
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+_on_exit() {
+  (( _placed )) && return 0
+  [[ -n "${_reveal_on_exit}" ]] || return 0
+  swaymsg "${_reveal_criteria}opacity ${_reveal_on_exit}" > /dev/null 2>&1 || true
+}
+
+_is_int() { [[ "$1" =~ ^-?[0-9]+$ ]]; }
+
+# clamp <val> <lo> <hi> -> echo the value confined to [lo, hi]
+clamp() {
+  local -i v=$1 lo=$2 hi=$3
+  (( v < lo )) && v=$lo
+  (( v > hi )) && v=$hi
+  printf '%d' "$v"
+}
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] ANCHOR
+
+Move the focused (or --con-id) floating window to ANCHOR on its output,
+relative to the usable area. Bars (waybar &c.) are accounted for
+automatically; pass --ignore-bars to anchor to the full output instead.
+
+Anchors (aliases accepted):
+  tl|top-left      t|top       tr|top-right
+  l|left           c|center    r|right
+  bl|bottom-left   b|bottom     br|bottom-right
+
+Options:
+  -x, --x-offset N    horizontal offset in px (+ = right)        [0]
+  -y, --y-offset N    vertical offset in px   (+ = down)         [0]
+  -g, --gap N         inset from each anchored edge in px        [0]
+  -c, --con-id ID     target this container instead of focused
+  -o, --opacity V     after placing, set opacity to V (0.0-1.0), applied
+                      atomically with the move; pair with a for_window
+                      \`opacity 0\` to hide the window's spawn-point flash
+      --ignore-bars   anchor to the full output, covering bars
+      --no-clamp      allow placement outside the viewport
+      --min-visible N keep >= N px on-screen (partial clamp)     [32]
+  -n, --dry-run       print the swaymsg command instead of running it
+  -h, --help          show this help and exit
+
+Clamping: by default the window is kept fully inside the usable area, so an
+over-large offset just pins it to the edge (never off-screen). --min-visible
+relaxes that to "keep at least N px grabbable"; --no-clamp disables it.
+
+Examples:
+  ${SCRIPT_FILE} top-right              # flush under a top-right tray/clock
+  ${SCRIPT_FILE} tr -x -220             # nudge left (e.g. clock+volume width)
+  ${SCRIPT_FILE} center
+  ${SCRIPT_FILE} br --gap 12            # bottom-right with a 12px margin
+EOF
+}
+
+# Emit (tab-separated): tid tw th ww wh ox oy ow oh
+#   tid        target container id
+#   tw th      target rect size
+#   ww wh      workspace usable-area size (bars excluded)
+#   ox oy ...  output rect (origin + size), for --ignore-bars
+# Fields are empty when the target/workspace/output cannot be resolved.
+resolve_geometry() {
+  local -r want="$1"   # container id, or -1 for the focused window
+  swaymsg -t get_tree | jq -r --argjson id "${want}" '
+    ( if $id == -1
+        then ( [ .. | objects | select(.focused? == true) ] | first | .id )
+        else $id
+      end ) as $tid
+    | ( [ .. | objects | select(.type? == "workspace")
+            | select([ .. | .id? // empty ] | index($tid)) ] | first ) as $ws
+    | ( [ .. | objects | select(.type? == "output")
+            | select([ .. | .id? // empty ] | index($tid)) ] | first ) as $o
+    | ( [ ($ws // {}) | .. | objects | select(.id? == $tid) ] | first ) as $t
+    | [ ($tid // ""), ($t.rect.width // ""), ($t.rect.height // ""),
+        ($ws.rect.width // ""), ($ws.rect.height // ""),
+        ($o.rect.x // ""), ($o.rect.y // ""),
+        ($o.rect.width // ""), ($o.rect.height // "") ] | @tsv
+  '
+}
+
+# }}} = HELPERS ===============================================================
+
+# {{{ = MAIN ==================================================================
+
+parse_args() {
+  anchor=""
+  con_id="-1"
+  ignore_bars=0
+  clamp_mode="full"
+  dry_run=0
+  x_off=0
+  y_off=0
+  gap=0
+  min_visible=32
+  opacity_val=""
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -x|--x-offset)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        x_off="$2"; shift 2 ;;
+      -y|--y-offset)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        y_off="$2"; shift 2 ;;
+      -g|--gap)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        gap="$2"; shift 2 ;;
+      -c|--con-id)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        con_id="$2"; _reveal_criteria="[con_id=$2] "; shift 2 ;;
+      --min-visible)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        min_visible="$2"; clamp_mode="partial"; shift 2 ;;
+      -o|--opacity)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        opacity_val="$2"; _reveal_on_exit="$2"; shift 2 ;;
+      --ignore-bars) ignore_bars=1; shift ;;
+      --no-clamp)    clamp_mode="none"; shift ;;
+      -n|--dry-run)  dry_run=1; shift ;;
+      -h|--help)     p_usg; exit 0 ;;
+      --)            shift; break ;;
+      -*)
+        p_err "unknown option: $1"
+        p_usg >&2
+        exit 1 ;;
+      *)
+        [[ -z "$anchor" ]] || { p_err "unexpected extra argument: $1"; p_usg >&2; exit 1; }
+        anchor="$1"; shift ;;
+    esac
+  done
+  [[ -n "$anchor" || $# -eq 0 ]] || anchor="$1"
+
+  case "$anchor" in
+    tl|top-left)     anchor="tl" ;;
+    tr|top-right)    anchor="tr" ;;
+    bl|bottom-left)  anchor="bl" ;;
+    br|bottom-right) anchor="br" ;;
+    t|top)           anchor="t" ;;
+    b|bottom)        anchor="b" ;;
+    l|left)          anchor="l" ;;
+    r|right)         anchor="r" ;;
+    c|center|centre) anchor="c" ;;
+    "")  p_err "ANCHOR is required"; p_usg >&2; exit 1 ;;
+    *)   p_err "invalid anchor: '${anchor}'"; p_usg >&2; exit 1 ;;
+  esac
+
+  local key val
+  for key in x-offset:"$x_off" y-offset:"$y_off" gap:"$gap" \
+             min-visible:"$min_visible" con-id:"$con_id"; do
+    val="${key#*:}"
+    _is_int "$val" || { p_err "--${key%%:*} must be an integer (got '${val}')"; exit 1; }
+  done
+
+  if [[ -n "$opacity_val" ]]; then
+    [[ "$opacity_val" =~ ^(0(\.[0-9]+)?|1(\.0+)?|\.[0-9]+)$ ]] \
+      || { p_err "--opacity must be a float in [0,1] (got '${opacity_val}')"; exit 1; }
+  fi
+}
+
+main() {
+  # Numeric args stay plain strings until parse_args validates them; declaring
+  # them -i here would arithmetic-evaluate bad input (e.g. "abc") on assignment
+  # and, under `set -u`, fail before validation can report a clean error.
+  local anchor con_id clamp_mode x_off y_off gap min_visible opacity_val
+  local -i ignore_bars dry_run
+  parse_args "$@"
+
+  local tid tw th ww wh ox oy ow oh
+  IFS=$'\t' read -r tid tw th ww wh ox oy ow oh \
+    < <(resolve_geometry "${con_id}") || true
+
+  if [[ -z "${tid}" || -z "${tw}" || -z "${ww}" ]]; then
+    p_err "could not resolve target window geometry" \
+      "(need a focused floating window, or a valid --con-id on a workspace)"
+    exit 1
+  fi
+
+  # Base dimensions to anchor within: usable area, or the full output.
+  local -i base_w base_h
+  if (( ignore_bars )); then
+    base_w=$ow; base_h=$oh
+  else
+    base_w=$ww; base_h=$wh
+  fi
+
+  local -i maxx=$(( base_w - tw )) maxy=$(( base_h - th ))
+  local -i px py
+  case "$anchor" in
+    tl) px=$gap;              py=$gap ;;
+    tr) px=$(( maxx - gap )); py=$gap ;;
+    bl) px=$gap;              py=$(( maxy - gap )) ;;
+    br) px=$(( maxx - gap )); py=$(( maxy - gap )) ;;
+    t)  px=$(( maxx / 2 ));   py=$gap ;;
+    b)  px=$(( maxx / 2 ));   py=$(( maxy - gap )) ;;
+    l)  px=$gap;              py=$(( maxy / 2 )) ;;
+    r)  px=$(( maxx - gap )); py=$(( maxy / 2 )) ;;
+    c)  px=$(( maxx / 2 ));   py=$(( maxy / 2 )) ;;
+  esac
+
+  px=$(( px + x_off ))
+  py=$(( py + y_off ))
+
+  case "$clamp_mode" in
+    full)
+      local -i hix=$maxx hiy=$maxy
+      (( hix < 0 )) && hix=0
+      (( hiy < 0 )) && hiy=0
+      px=$(clamp "$px" 0 "$hix")
+      py=$(clamp "$py" 0 "$hiy")
+      ;;
+    partial)
+      # keep at least min_visible px on-screen on each axis
+      px=$(clamp "$px" "$(( min_visible - tw ))" "$(( base_w - min_visible ))")
+      py=$(clamp "$py" "$(( min_visible - th ))" "$(( base_h - min_visible ))")
+      ;;
+    none) : ;;
+  esac
+
+  local cmd
+  if (( ignore_bars )); then
+    cmd="[con_id=${tid}] move absolute position $(( ox + px )) px $(( oy + py )) px"
+  else
+    cmd="[con_id=${tid}] move position ${px} px ${py} px"
+  fi
+  # Reveal a spawned-hidden window (for_window `opacity 0`) atomically with the
+  # move, so it appears already positioned -- never a flash at its spawn point.
+  [[ -n "${opacity_val}" ]] && cmd+=", opacity ${opacity_val}"
+
+  if (( dry_run )); then
+    _placed=1
+    printf 'swaymsg %s\n' "${cmd}"
+  else
+    swaymsg "${cmd}" > /dev/null
+    _placed=1
+  fi
+}
+
+trap _on_exit EXIT
+main "$@"
+
+# }}} = MAIN ==================================================================
