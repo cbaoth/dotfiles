@@ -17,6 +17,10 @@
 # Usage: sway-wstate <command>
 #   float   Toggle floating state of the focused window
 #   sticky  Toggle sticky state; auto-floats the window when enabling sticky
+#   sheer [OPACITY]
+#           Toggle translucency of the focused window: opaque -> OPACITY
+#           (default 0.85), translucent -> opaque. Bind with the config's
+#           $opacity so a window auto-set to $sheer can be made readable.
 
 # -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
 set -euo pipefail
@@ -63,13 +67,41 @@ cmd_sticky() {
   fi
 }
 
-p_usg() { printf 'Usage: %s <float|sticky>\n' "$(basename "$0")"; }
+cmd_sheer() {
+  local -r target="${1:-0.85}"
+  # Sanity: target must be a float in [0,1] (sway rejects the rest anyway).
+  [[ "$target" =~ ^(0(\.[0-9]+)?|1(\.0+)?|\.[0-9]+)$ ]] \
+    || { p_err "opacity must be a float in [0,1] (got '${target}')"; exit 1; }
+
+  # sway (1.11) exposes no window opacity via IPC, so we cannot read the current
+  # value to toggle against it. Track "is sheer" with a mark instead (marks ARE
+  # reported, and underscore-prefixed ones are never drawn). Windows auto-set to
+  # $sheer via for_window carry a plain `_sheer` mark; a user toggle adds a
+  # con_id-scoped `_sheer_<id>` so multiple windows stay independent (a shared
+  # mark would jump to the last-marked window).
+  local cid smark
+  read -r cid smark < <(swaymsg -t get_tree | jq -r '
+    [ recurse(.nodes[]?, .floating_nodes[]?) | select(.focused == true) ] | first
+    | if . == null then empty
+      else "\(.id) \((((.marks // []) | map(select(startswith("_sheer"))) | first)) // "-")"
+      end')
+  [[ -n "${cid:-}" ]] || { p_err "no focused window"; exit 1; }
+
+  if [[ "$smark" != "-" ]]; then
+    swaymsg "[con_id=$cid] unmark $smark, opacity 1" > /dev/null       # sheer -> opaque
+  else
+    swaymsg "[con_id=$cid] mark --add _sheer_$cid, opacity $target" > /dev/null  # opaque -> sheer
+  fi
+}
+
+p_usg() { printf 'Usage: %s <float|sticky|sheer [OPACITY]>\n' "$(basename "$0")"; }
 
 main() {
   local cmd="${1:-}"
   case "$cmd" in
     float)  cmd_float ;;
     sticky) cmd_sticky ;;
+    sheer)  cmd_sheer "${2:-}" ;;
     -h|--help) p_usg; exit 0 ;;
     *)
       p_err "unknown command: '${cmd}'"

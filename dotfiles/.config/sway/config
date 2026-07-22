@@ -261,6 +261,14 @@ set $down            p
 #set $up             k
 #set $right          l
 
+# mode timeout in seconds (used by sway-mode-timeout for all meta modes)
+set $mode_timeout_secs 5
+
+# default opacity levels (0.0=transparent, 1.0=opaque, high=default)
+set $opacity_high     0.85
+set $opacity_mid      0.5
+set $opacity_low      0.35
+
 # SWAY: preferred Wayland-native terminal (foot is lightweight and native)
 # Alternatives: alacritty, kitty, wezterm, gnome-terminal
 set $term            foot
@@ -282,11 +290,11 @@ set $pop             floating enable, border none, move position center
 # under the actual tray with e.g. `sway-place top-right -x -220` if the tray is
 # not the right-most bar module. $poptray_sheer reveals translucent instead.
 set $poptray         sticky enable, floating enable, opacity 0, exec sway-place top-right --opacity 1
-set $poptray_sheer   sticky enable, floating enable, opacity 0, exec sway-place top-right --opacity 0.85
-set $sheer           opacity 0.85
-
-# mode timeout in seconds (used by sway-mode-timeout for all meta modes)
-set $mode_timeout_secs 5
+set $poptray_sheer   sticky enable, floating enable, opacity 0, exec sway-place top-right --opacity $opacity_high, mark --add _sheer
+# $sheer: translucency for auto-dimmed windows. The `_sheer` mark lets
+# `sway-wstate sheer` (mod+Alt+o) toggle them back to opaque in one press.
+# (sway 1.11 exposes no opacity over IPC, so the mark is the state, not opacity.)
+set $sheer           opacity $opacity_high, mark --add _sheer
 
 # workspace numbers and names
 set $ws1             "1:#1 Main"
@@ -368,6 +376,11 @@ bindsym $mod+t               layout tabbed
 bindsym $mod+Shift+s         layout stacking
 # mod-Alt-t: toggle floating (border 0 = floating, border 2 = tiling/sticky)
 bindsym $mod+Alt+t           exec sway-wstate float
+# mod-Alt-o: toggle translucency ($opacity_high <-> opaque); makes auto-$sheer
+# windows (e.g. nordvpn) readable when low-contrast
+bindsym $mod+Alt+o           exec sway-wstate sheer $opacity_high
+bindsym $mod+Alt+Shift+o     exec sway-wstate sheer $opacity_mid
+bindsym $mod+Alt+Ctrl+o      exec sway-wstate sheer $opacity_low
 # mod-p: focus between tiling / floating windows
 bindsym $mod+p               focus mode_toggle
 # mod-P: switch border style
