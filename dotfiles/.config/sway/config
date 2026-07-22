@@ -632,7 +632,8 @@ bindsym $hyper+Ctrl+n        exec sway-app -A toggle nordvpn-gui
 
 # {{{ - Run Apps: Other ------------------------------------------------------
 # Ctrl-Shift-ESC: run htop in floating terminal
-bindsym Ctrl+Shift+Escape    exec $term --window-size-chars=180x50 --app-id=swayfloat -e htop
+bindsym Ctrl+Shift+Escape    exec sway-app -A toggle resources \
+                                      || $term --window-size-chars=180x50 --app-id=swayfloat -e htop
 # }}} - Run Apps: Other ------------------------------------------------------
 # }}} = Key Bindings =========================================================
 
@@ -757,6 +758,9 @@ for_window [class="(?i)^Doublecmd$"] \
              [title="(?i)^(Options|File operations)$"]     $pop
 for_window [class="(?i)^Ssvnc$"] \
              [instance="(?i)^popup$"]                      $pop
+
+# System info/resources/monitoring windows
+for_window [app_id="^net.nokyan.Resources$"]               $pop
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
