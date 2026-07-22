@@ -282,7 +282,6 @@ set $float           floating enable, border normal 0
 # sticky floating windows get border normal 2 to distinguish them visually
 set $stick           sticky enable, floating enable, border normal 2
 set $unstick         sticky disable, floating enable, border normal 0
-set $pop             floating enable, border none, move position center
 # $poptray: right-aligned, flush below the top-right bar (tray) via sway-place.
 # Spawned at `opacity 0` and revealed (--opacity) atomically at the destination,
 # so it never flashes at screen-center first. No gap, so the pointer never
@@ -290,7 +289,11 @@ set $pop             floating enable, border none, move position center
 # under the actual tray with e.g. `sway-place top-right -x -220` if the tray is
 # not the right-most bar module. $poptray_sheer reveals translucent instead.
 set $poptray         sticky enable, floating enable, opacity 0, exec sway-place top-right --opacity 1
-set $poptray_sheer   sticky enable, floating enable, opacity 0, exec sway-place top-right --opacity $opacity_high, mark --add _sheer
+set $poptray_sheer   sticky enable, floating enable, opacity 0, exec sway-place top-right --opacity $opacity_high \
+                       , mark --add _sheer
+# Pop: floating windows that are centered on the screen (e.g. dialogs, modals, etc.)
+set $pop             floating enable, border none, move position center
+set $pop_sheer       $pop, opacity $opacity_high, mark --add _sheer
 # $sheer: translucency for auto-dimmed windows. The `_sheer` mark lets
 # `sway-wstate sheer` (mod+Alt+o) toggle them back to opaque in one press.
 # (sway 1.11 exposes no opacity over IPC, so the mark is the state, not opacity.)
@@ -436,7 +439,8 @@ bindsym $mod+b bar       mode toggle
 
 # {{{ - Meta Modes -----------------------------------------------------------
 # mod-x: window/container mode
-set $mode_meta           Window mode | General: (c)lose window | Resize: $left/$right/$down/$up or Left/Right/Down/Up arrow keys
+set $mode_meta           Window mode | General: (c)lose window | Resize: $left/$right/$down/$up or \
+                           Left/Right/Down/Up arrow keys
 bindsym $mod+x           mode "$mode_meta"; exec sway-mode-timeout $mode_timeout_secs
 mode "$mode_meta" {
     bindsym c            kill, mode "default"
@@ -621,6 +625,10 @@ bindsym $hyper+Shift+e       exec doublecmd
 bindsym $hyper+Ctrl+e        exec sway-app nautilus
 bindsym $hyper+Ctrl+Shift+e  exec nautilus
 
+# hyper-Ctrl-t: run *top in floating terminal (alternative binding)
+bindsym $hyper+Ctrl+t        exec sway-app -m term.top -A toggle $term --window-size-chars=180x50 \
+                                    --app-id=term.top -e htop
+
 # hyper-o: Obsidian, toggle visibility -- focus if hidden/elsewhere, hide to
 # scratchpad if already visible, launch if not running. Deterministic
 # show/hide for this one app, unlike the FIFO-queue-based scratchpad bindings.
@@ -632,8 +640,10 @@ bindsym $hyper+Ctrl+n        exec sway-app -A toggle nordvpn-gui
 
 # {{{ - Run Apps: Other ------------------------------------------------------
 # Ctrl-Shift-ESC: run htop in floating terminal
-bindsym Ctrl+Shift+Escape    exec sway-app -A toggle resources \
-                                      || $term --window-size-chars=180x50 --app-id=swayfloat -e htop
+bindsym Ctrl+Shift+Escape    exec Xsway-app -m io\.missioncenter\.MissionCenter -A toggle -- flatpak run io.missioncenter.MissionCenter \
+                                    || Xsway-app -A toggle resources \
+                                    || sway-app -m term.top -A toggle $term --window-size-chars=180x50 \
+                                         --app-id=term.top -e htop
 # }}} - Run Apps: Other ------------------------------------------------------
 # }}} = Key Bindings =========================================================
 
@@ -760,6 +770,8 @@ for_window [class="(?i)^Ssvnc$"] \
              [instance="(?i)^popup$"]                      $pop
 
 # System info/resources/monitoring windows
+for_window [app_id="^term\.top$"]                          $pop_sheer
+for_window [app_id="^io.missioncenter.MissionCenter$"]     $pop_sheer
 for_window [app_id="^net.nokyan.Resources$"]               $pop
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
