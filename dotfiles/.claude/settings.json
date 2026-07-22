@@ -409,7 +409,11 @@
       "Bash(apt-cache showpkg *)",
       "Bash(system-setup --yes 30-docker 40-fonts)",
       "Bash(set -e)",
-      "Bash(./tools/link.sh --dry-run)"
+      "Bash(./tools/link.sh --dry-run)",
+      "Read(//home/cbaoth/dotfiles/**)",
+      "Read(//home/cbaoth/notes/**)",
+      "Read(//home/cbaoth/git/**)",
+      "Read(//home/cbaoth/.*)"
     ],
     "deny": [
       "Bash(sudo *)",
