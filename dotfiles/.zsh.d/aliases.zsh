@@ -68,45 +68,55 @@ alias -g .....='../../../..'
 
 # pipe to another command
 alias -g ,p='|'
-alias -g ,ep='|&'  # include stderr
+alias -g ,ep='|&'                   # include stderr
 
 # redirect to /dev/null
 alias -g ,n='> /dev/null 2>&1'      # silence stdout + stderr
 alias -g ,en='2> /dev/null'         # silence stderr only
 
-# grep (extended regex; i = case-insensitive, e = include stderr)
+# pipe to stdout + file
+alias -g ,t='| tee'
+alias -g ,ta='| tee -a'             # append to file (no replace)
+alias -g ,et='|& tee'               # include stderr
+alias -g ,eta='|& tee -a'           # include stderr and append to file
+
+# page / trim
+alias -g ,l='| less'
+alias -g ,el='| less'
+alias -g ,h='| head'
+alias -g ,t='| tail'
+
+# filter
 alias -g ,g='| grep -E'
 alias -g ,gi='| grep -Ei'
 alias -g ,eg='|& grep -E'
-alias -g ,egi='|& grep -E'
+alias -g ,egi='|& grep -Ei'
+alias -g ,u='| LC_ALL=C  uniq'      # unique lines by byte value (more efficient and predictable)
+alias -g ,uc='| LC_ALL=C  uniq -c'  # count unique lines
 
-# head / tail
-alias -g ,h='| head'
-alias -g ,t='| tail'
-alias -g ,tf='| tail -f'
+# sort, count
+alias -g ,so='| LC_ALL=C sort'      # sort by byte value (more efficient and predictable)
+alias -g ,sor='| LC_ALL=C sort -r'  # reverse sort
+alias -g ,sou='| LC_ALL=C sort -u'  # sort unique lines
+alias -g ,wc='| wc'
+alias -g ,wcl='| wc -l'             # count lines
 
-# pager (most if available, else less)
-if command -v most >/dev/null; then
-  alias -g ,l='| most'
-else
-  alias -g ,l='| less'
-fi
-
-# sort / count / xargs
-alias -g ,s='| sort'
-alias -g ,su='| sort -u'
-alias -g ,c='| wc -l'
+# xargs
 alias -g ,x='| xargs'
 alias -g ,x0='| xargs -0'
 alias -g ,xl='| tr "\n" "\0" | xargs -0 -n 10000'   # NUL-split, batched xargs
 
-# sed / awk / tr
-alias -g ,sed='| sed'
-
 # text transforms
-alias -g ,lower="| tr '[:upper:]' '[:lower:]'"
-alias -g ,upper="| tr '[:lower:]' '[:upper:]'"
+alias -g ,s='| sed -E'
+alias -g ,tr='| tr'
+alias -g ,tlo="| tr '[:upper:]' '[:lower:]'"
+alias -g ,tup="| tr '[:lower:]' '[:upper:]'"
+alias -g ,aw='| awk'
 alias -g ,sum="| awk '{s+=\$1} END {print s}'"      # sum first column
+
+# code/data processing
+alias -g ,j='| jq'                  # jq (default: pretty-print JSON)
+alias -g ,pp='| pygmentize'         # pretty-print code
 
 # misc pipelines
 alias -g ,mpv='| tr "\n" "\0" | xargs -0 -n 10000 mpv --no-resume-playback'
