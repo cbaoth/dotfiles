@@ -266,14 +266,24 @@ set $down            p
 set $term            foot
 set $termfloat       foot --window-size-chars=120x50 --app-id=swayfloat
 
-# $FLOAT: used in for_window rules for windows that should always be floating+borderless
+# $float: used in for_window rules for windows that should always be floating+borderless
 # (not for interactive toggle - use `sway-wstate float` for that via $mod+Alt+t)
-set $FLOAT           floating enable, border normal 0
+set $float           floating enable, border normal 0
 
 # commands to enable/disable sticky with border indicator
 # sticky floating windows get border normal 2 to distinguish them visually
-set $STICK_AND_FLOAT sticky enable,  floating enable, border normal 2 #
-set $UNSTICK         sticky disable, floating enable, border normal 0
+set $stick           sticky enable, floating enable, border normal 2
+set $unstick         sticky disable, floating enable, border normal 0
+set $pop             floating enable, border none, move position center
+# $poptray: right-aligned, flush below the top-right bar (tray) via sway-place.
+# Spawned at `opacity 0` and revealed (--opacity) atomically at the destination,
+# so it never flashes at screen-center first. No gap, so the pointer never
+# crosses another window on the way down (avoids focus-loss auto-close). Nudge
+# under the actual tray with e.g. `sway-place top-right -x -220` if the tray is
+# not the right-most bar module. $poptray_sheer reveals translucent instead.
+set $poptray         sticky enable, floating enable, opacity 0, exec sway-place top-right --opacity 1
+set $poptray_sheer   sticky enable, floating enable, opacity 0, exec sway-place top-right --opacity 0.85
+set $sheer           opacity 0.85
 
 # mode timeout in seconds (used by sway-mode-timeout for all meta modes)
 set $mode_timeout_secs 5
@@ -601,6 +611,9 @@ bindsym $hyper+Ctrl+Shift+e  exec nautilus
 # scratchpad if already visible, launch if not running. Deterministic
 # show/hide for this one app, unlike the FIFO-queue-based scratchpad bindings.
 bindsym $hyper+o             exec sway-app -m obsidian -A toggle -- flatpak run md.obsidian.Obsidian
+
+# hyper-Ctrl-n: nordvpn gui, toggle visibility or start single instance
+bindsym $hyper+Ctrl+n        exec sway-app -A toggle nordvpn-gui
 # }}} - Run Apps: Hyper Key --------------------------------------------------
 
 # {{{ - Run Apps: Other ------------------------------------------------------
@@ -695,100 +708,92 @@ for_window [class="(?i)^steam_app_"]                       move container to wor
 
 # {{{ - Floating -------------------------------------------------------------
 # Float by custom window_role=i3float (XWayland apps only, for i3 backward compatibility)
-for_window [window_role="^i3float$"]                       $FLOAT
+for_window [window_role="^i3float$"]                       $float
 
 # Float by custom app_id=swayfloat (e.g. `exec {app} --app-id=swayfloat`)
-for_window [app_id="(?i)^swayfloat$"]                      $FLOAT
+for_window [app_id="(?i)^swayfloat$"]                      $float
 
 # Web Browsers
-for_window [title="(?i)(^|[ ._-])(Task[ ._-]?Manager)([ ._-]|$)"] $FLOAT
-
-# Gaming
-for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] $FLOAT
-for_window [class="(?i)(^|[ ._-])(steam|PortProton)$"]     $FLOAT
-for_window [title="(?i)(Games Launcher|battle\.net)$"]     $FLOAT
-# }}} - Floating -------------------------------------------------------------
-
-# {{{ - Floating and Sticky --------------------------------------------------
-# Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
-for_window [app_id="(?i)^mpv|spotify"]                     $FLOAT
-for_window [class="(?i)^(mpv|vlc|spotify)$"]               $FLOAT
-
-# Various system settings and related windows
-for_window [app_id="(?i)^org.gnome.settings$"]             $FLOAT
-for_window [app_id="(?i)^com.github.tchx84.Flatseal$"]     $FLOAT
-for_window [app_id="(?i)^ulauncher$"]                      $FLOAT
-for_window [app_id="(?i)^org.gnome.Software$"]             $FLOAT
-for_window [app_id="(?i)(^|[ ._-])(nvidia-settings|solaar)"] $FLOAT
+for_window [title="(?i)(^|[ ._-])(Task[ ._-]?Manager)([ ._-]|$)"] $float
 
 # Communication and social apps
-for_window [app_id="(?i)^org\.signal\.Signal$"]            $FLOAT
+for_window [app_id="(?i)^org\.signal\.Signal$"]            $float
+
+# Gaming
+for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] $float
+for_window [class="(?i)(^|[ ._-])(steam|PortProton)$"]     $float
+for_window [title="(?i)(Games Launcher|battle\.net)$"]     $float
+# }}} - Floating -------------------------------------------------------------
+
+# {{{ - Popups, Dialogs, Small -----------------------------------------------
+# Media player (note: avoid || in regex — empty alternative matches Wayland apps with no class)
+for_window [app_id="(?i)^mpv|spotify"]                     $pop
+for_window [class="(?i)^(mpv|vlc|spotify)$"]               $pop
+
+# Various system settings and related windows
+for_window [app_id="(?i)^org.gnome.settings$"]             $pop
+for_window [app_id="(?i)^com.github.tchx84.Flatseal$"]     $pop
+for_window [app_id="(?i)^ulauncher$"]                      $pop
+for_window [app_id="(?i)^org.gnome.Software$"]             $pop
+for_window [app_id="(?i)(^|[ ._-])(nvidia-settings|solaar)"] $pop
 
 # Dialog windows
 # for_window [title="(?i)(^|[ ._-])(Preferences|Settings|Options)([ ._-]|$)"] \
 for_window [class="(?i)^Doublecmd$"] \
-             [title="(?i)^(Options|File operations)$"]     $FLOAT, move position cursor
+             [title="(?i)^(Options|File operations)$"]     $pop
 for_window [class="(?i)^Ssvnc$"] \
-             [instance="(?i)^popup$"]   $FLOAT, move position cursor
+             [instance="(?i)^popup$"]                      $pop
 
 # sway-winfo: floating window info monitor (top-left corner, sticky)
 # no_focus: prevent the monitor window from stealing focus when it opens,
 #   which would otherwise fight focus_follows_mouse and cause erratic behavior.
 no_focus   [app_id="^sway-winfo$"]
-for_window [app_id="^sway-winfo$"]                         $STICK_AND_FLOAT, resize set 560 340, move position 10 10
+for_window [app_id="^sway-winfo$"]                         $stick, resize set 560 340, move position 10 10
 
 # KeePassXC (tray)
-for_window [app_id="(?i)(^|[ ._-])keepassxc$"]             $STICK_AND_FLOAT
-for_window [class="(?i)(^|[ ._-])keepassxc$"]              $STICK_AND_FLOAT
+for_window [app_id="(?i)(^|[ ._-])keepassxc$"]             $poptray, $stick
+for_window [class="(?i)(^|[ ._-])keepassxc$"]              $poptray, $stick
 
 # Network manager windows
-for_window [app_id="(?i)(^|[ ._-])(nm-applet|nm-connection-editor)$"] $STICK_AND_FLOAT
+for_window [app_id="(?i)(^|[ ._-])(nm-applet|nm-connection-editor)$"] $stick
 
-# NordVPN client UI (tray): app_id is plain "nordvpn-gui", Wayland-native, no
-# class (verified live via sway-winfo). class rule kept as a harmless no-op
-# fallback in case a future build adds an XWayland path.
-for_window [app_id="(?i)^nordvpn-gui$"]                    $STICK_AND_FLOAT
-for_window [class="(?i)^nordvpn-gui$"]                     $STICK_AND_FLOAT
+# NordVPN client UI (tray)
+for_window [app_id="(?i)^nordvpn-gui$"]                    $poptray_sheer
 
 # Nextcloud client (tray)
-# move position cursor: open centered on the mouse (right where the tray
-# icon was clicked) so reaching it never crosses another window and steals
-# focus via focus_follows_mouse -- the client itself closes on focus loss
-# (upstream limitation, no client-side setting: nextcloud/desktop#8065)
-for_window [app_id="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]  $STICK_AND_FLOAT, move position cursor
-for_window [class="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]   $STICK_AND_FLOAT, move position cursor
+for_window [app_id="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]  $poptray, $stick
+for_window [class="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]   $poptray, $stick
 
 # PulseAudio volume control
-for_window [app_id="(?i)^pavucontrol$"]                    $STICK_AND_FLOAT
-for_window [class="(?i)^pavucontrol$"]                     $STICK_AND_FLOAT
+for_window [app_id="(?i)^pavucontrol$"]                    $pop, $sheer
+for_window [class="(?i)^pavucontrol$"]                     $pop, $sheer
 
 # Blueman bluetooth manager (tray)
-for_window [app_id="^blueman-manager$"]                    $STICK_AND_FLOAT
-for_window [class="^blueman-manager$"]                     $STICK_AND_FLOAT
+for_window [app_id="^blueman-manager$"]                    $pop, $sheer
+for_window [class="^blueman-manager$"]                     $pop, $sheer
 
 # Firefox pip video player window (e.g. YouTube)
 for_window [app_id="(?i)^firefox"] \
-             [title="(?i)^Picture.?in.?Picture$"]          $STICK_AND_FLOAT
+             [title="(?i)^Picture.?in.?Picture$"]          $pop, $stick
 # Browser Extension: GlobalSpeed - https://github.com/polywock/globalSpeed
 # FIXME doesn't work (reliably), maybe the window title changes briefly after creating the window, since they end up with the same properties
 # for_window [app_id="(?i)^firefox"] \
-#               [title="(?i)^Extension: \(Global Speed - Video Speed Control\)"] $STICK_AND_FLOAT
+#               [title="(?i)^Extension: \(Global Speed - Video Speed Control\)"] $stick
 # Browser Extension: GlobalSpeed "into popup" feature (best effort, based on dynamic url specific title)
 # for_window [app_id="(?i)^firefox"] \
-#               [title="(?i)^https...www\.youtube\.com - "] $STICK_AND_FLOAT
+#               [title="(?i)^https...www\.youtube\.com - "] $stick
 
 # JDownloader main window (Java app with no class/app_id)
 # class matches real launcher window "org-jdownloader-update-launcher-
 # JDLauncher" (verified live via sway-winfo, dash-bounded "jdownloader" token);
 # java-lang-Thread kept for older builds/dialogs that report a generic class.
 for_window [class="(?i)(^|[ ._-])(java-lang-Thread|jdownloader)([ ._-]|$)"] \
-             [title="(?i)(^|[ ._-])(JDownloader|INFODIALOG)"] $STICK_AND_FLOAT
+             [title="(?i)(^|[ ._-])(JDownloader|INFODIALOG)"] $pop, $stick
 
 # Math apps
-for_window [app_id="(?i)(^|[ ._-])(calculator|qalculate-\w+|speedcrunch)$"]  $STICK_AND_FLOAT
-for_window [class="(?i)(^|[ ._-])(galculator|qalculate)$"] $STICK_AND_FLOAT
-
-# }}} - Floating and Sticky --------------------------------------------------
+for_window [app_id="(?i)(^|[ ._-])(calculator|qalculate-\w+|speedcrunch)$"]  $stick
+for_window [class="(?i)(^|[ ._-])(galculator|qalculate)$"] $pop
+# }}} - Popups, Dialogs, Small -----------------------------------------------
 
 # }}} - Others ---------------------------------------------------------------
 # Full screen
