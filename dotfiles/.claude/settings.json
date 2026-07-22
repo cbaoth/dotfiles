@@ -476,7 +476,7 @@
       "/home/cbaoth/.*/**"
     ]
   },
-  "model": "opus[1m]",
+  "model": "opus",
   "worktree": {
     "baseRef": "fresh"
   },
