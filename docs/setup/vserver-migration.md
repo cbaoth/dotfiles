@@ -49,7 +49,14 @@ Vserver side — **done and verified**:
   setup-pull-backup-user.sh`. Key on saito: `/root/.ssh/id_ed25519_pull_backup_11001001`,
   ssh alias `backup-11001001`.
 
-Saito side — **scripted, not yet run** (`_local/saito-backup/`, sync to saito):
+**First backup succeeded 2026-07-22 15:40** — snapshot `587533fa`, 549,359
+files / 174.5 GiB → 137 GiB stored; `forget` kept it as daily+weekly+monthly.
+(The staging seed did NOT match — structure differed from live
+`/srv/nextcloud/data`, so it re-pulled the full ~186 GB. One-time cost; future
+pulls are true deltas.) Pending: verify a test restore, then automation +
+alerting.
+
+Saito side — scripts (`_local/saito-backup/`, sync to saito):
 - `saito-restic-init.sh` — one-time repo init; generates the password to
   `/root/.config/restic/vserver.pass` and **blocks until you confirm it is in
   KeePass** (losing it = losing every backup).
