@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(keepassxc --version)",
+      "Bash(busctl --user list *)",
+      "Bash(busctl --user introspect *)",
+      "Bash(busctl --system list *)",
+      "Bash(busctl --user call org.freedesktop.secrets /org/freedesktop/secrets org.freedesktop.DBus.Properties Get ss org.freedesktop.Secret.Service Collections)",
+      "Read(//etc/pam.d/**)",
+      "Read(//etc/systemd/**)",
+      "Read(//usr/sbin/**)",
+      "Bash(busctl get-property *)",
+      "Bash(systemctl --version)",
+      "Bash(systemd-inhibit --list *)",
+      "Bash(command -v *)",
+      "Bash(whence *)",
+      "Bash(./bin/system-setup --list *)",
+      "Bash(./bin/system-setup --dry-run *)"
+    ]
+  }
+}
