@@ -592,6 +592,13 @@ bindsym $mod+Shift+r         exec grimshot --notify savecopy output && $camerafx
 bindsym $mod+Shift+Ctrl+r    exec grimshot --notify savecopy anything && $camerafx
 # bindsym $mod+Shift+Ctrl+r    exec flameshot gui && $camerafx
 
+# Hyper key: screenshots (alternative to Print)
+bindsym $hyper+p             exec grimshot --notify savecopy output && $camerafx
+# bindsym $hyper+p             exec flameshot screen && $camerafx
+bindsym $hyper+Ctrl+p        exec grimshot --notify savecopy anything && $camerafx
+# bindsym $hyper+Ctrl+p        exec flameshot gui && $camerafx
+
+
 # mod-l: lock screen (mirrors Windows/GNOME Mod4+L)
 bindsym $mod+l               exec swaylock -f -c 000000
 
