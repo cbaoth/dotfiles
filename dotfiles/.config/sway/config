@@ -1,11 +1,14 @@
 # ~/.config/sway/config: Sway window manager configuration
 # see https://swaywm.org/
 #
-# Install:
+# Install (canonical package set: setup/packages/desktop.list):
 #   sudo apt install sway swaylock swaynag swayidle foot brightnessctl \
-#     waybar rofi mako-notifier grim slurp flameshot playerctl \
+#     waybar rofi mako-notifier grim slurp grimshot flameshot playerctl \
 #     network-manager-applet xdg-desktop-portal-wlr fonts-font-awesome \
-#     jq wl-clipboard libnotify-bin pulseaudio-utils
+#     jq wl-clipboard libnotify-bin pulseaudio-utils \
+#     gnome-session-canberra sound-theme-freedesktop
+# grimshot --notify needs a notification daemon (mako-notifier); the shutter
+# sound needs canberra-gtk-play (gnome-session-canberra) + sound-theme-freedesktop.
 
 # {{{ = Nvidia Workarounds ====================================================
 # Proprietary Nvidia drivers require --unsupported-gpu to start sway.

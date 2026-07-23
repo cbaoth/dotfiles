@@ -46,9 +46,16 @@ swaylock
 swayosd
 foot
 grimshot
+# Notification daemon — grimshot --notify posts here.
+mako-notifier
 
-# Wayland releated tools
+# Wayland related tools
 flameshot
+
+# Screenshot shutter sound: canberra-gtk-play (the binary lives in
+# gnome-session-canberra) plays the freedesktop "screen-capture" event.
+gnome-session-canberra
+sound-theme-freedesktop
 
 
 # Encryption — needs PPA sebastian-stenzel/cryptomator.
