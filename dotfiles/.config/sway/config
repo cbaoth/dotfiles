@@ -884,11 +884,19 @@ exec dbus-update-activation-environment --systemd \
 # -w: wait for lock command to finish before sleeping (critical for before-sleep)
 # PAM auth (incl. U2F): sudo install -m 644 /dev/null /etc/pam.d/swaylock
 #   echo 'auth include common-auth' | sudo tee /etc/pam.d/swaylock
+#
+# Secret stores (KeePassXC, GNOME keyring) do not observe swaylock or suspend,
+# so they stay unlocked behind the lock screen — including the SSH keys that
+# KeePassXC's agent integration pushes into gcr. `lock-secrets` closes that gap.
+# Tiered on purpose: the screen locks after 15min (cheap to undo, a password),
+# secrets only after 30min of idle (expensive to undo, the master password) —
+# but always before suspend, where the machine is left unattended by intent.
 exec swayidle -w \
        timeout 900  'swaylock -f -c 000000' \
+       timeout 1800 '~/bin/lock-secrets' \
        timeout 3600  'swaymsg "output * dpms off"' \
        resume       'swaymsg "output * dpms on"' \
-       before-sleep 'swaylock -f -c 000000' \
+       before-sleep 'swaylock -f -c 000000; ~/bin/lock-secrets' \
        after-resume '~/bin/conky-restart'
 
 # Auto idle-inhibit while media/audio plays (PipeWire-aware). Filters short

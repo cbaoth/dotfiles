@@ -247,7 +247,7 @@ systemctl --user restart swayosd.service       # re-register cleanly
 
 # Idle Inhibit & Keep-Awake
 
-`swayidle` locks after 15 min and blanks the display after 60 min (see the `exec swayidle` line in the Sway config). Two mechanisms suppress this when appropriate, and a waybar module shows the current state at a glance.
+`swayidle` locks after 15 min, locks the secret stores at 30 min (`bin/lock-secrets` — see [security.md](security.md#locking-secrets-on-screen-lock-and-suspend)), and blanks the display after 60 min (see the `exec swayidle` line in the Sway config). Two mechanisms suppress this when appropriate, and a waybar module shows the current state at a glance.
 
 **Automatic (media/games)** — `wayland-pipewire-idle-inhibit` keeps the screen awake whenever audio plays through PipeWire, filtering short notification sounds via `media_minimum_duration` (config: `~/.config/wayland-pipewire-idle-inhibit/config.toml`). Apps that set their own inhibitor (Firefox video, mpv) and any fullscreen window (`inhibit_idle fullscreen` catch-all) are covered too. These register as **application** inhibitors.
 

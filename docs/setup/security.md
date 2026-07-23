@@ -2,8 +2,8 @@
 title: Security — KeePassXC, FIDO2/U2F, firewall
 hosts: [motoko]
 status: workaround
-tags: [security, pam, u2f, fido2, keepassxc, ufw]
-updated: 2026-07-12
+tags: [security, pam, u2f, fido2, keepassxc, ufw, keyring, swayidle, sleep]
+updated: 2026-07-23
 ---
 
 # Security
@@ -29,6 +29,107 @@ not what breaks it. Full rule:
 KeePassXC also manages the SSH agent (`SSH_AUTH_SOCK`) on motoko. Note this
 interacts badly with agent forwarding: if an intermediate host runs its own
 KeePassXC or gnome-keyring, it shadows `SSH_AUTH_SOCK` and breaks `ssh -A`.
+
+## Locking secrets on screen lock and suspend
+
+**Automated:** [`bin/lock-secrets`](../../bin/lock-secrets), wired into the
+swayidle hooks in `dotfiles/.config/sway/config`.
+
+### The problem
+
+Locking the screen did **not** lock anything else. After `swaylock` engaged, the
+KeePassXC database was still unlocked, the gnome-keyring `Default_keyring` was
+still unlocked, and — the part that is easy to miss — the SSH agent still held
+usable keys:
+
+```shell
+ls ~/.ssh/          # no private keys at all
+ssh-add -l          # ...yet two identities loaded
+```
+
+There are no key files on disk. Both identities come from KeePassXC's agent
+integration (`[SSHAgent] Enabled=true`), pushed into the gcr agent at
+`$XDG_RUNTIME_DIR/gcr/ssh`. So an unlocked KeePassXC is not merely "passwords
+readable" — it is **live SSH access to every host those keys reach**.
+
+### Why the KeePassXC checkbox does not fix it
+
+KeePassXC's *"Lock databases when session is locked or the screen saver starts"*
+is enabled by default and **never fires under Sway**. It waits for the
+logind / `org.freedesktop.ScreenSaver` **Lock** signal, and `swaylock` does not
+emit it — swaylock is a plain Wayland surface plus a PAM check, it does not talk
+to logind at all. The signal flows the *other* way: `swayidle` listens for that
+signal so `loginctl lock-session` works.
+
+*"Lock databases after inactivity"* (`Security/LockDatabaseIdle`) has the same
+root problem: its idle detection has no Wayland path.
+
+So this needs an explicit push, not a setting.
+
+### The fix
+
+`lock-secrets` locks each store over D-Bus, best effort and independent — an
+absent or already-locked store is skipped, and it always exits 0 so it can be
+chained after `swaylock` without breaking the caller:
+
+| Store | Method |
+| ----- | ------ |
+| KeePassXC | `org.keepassxc.KeePassXC.MainWindow.lockAllDatabases` on `/keepassxc` |
+| gnome-keyring | `org.freedesktop.Secret.Service.Lock` per collection |
+| SSH agent | `ssh-add -D` — opt-in via `--ssh` (see below) |
+
+The KeePassXC call works against the **flatpak** build unchanged: its bus name is
+proxied onto the session bus by `xdg-dbus-proxy`.
+
+```shell
+lock-secrets --dry-run     # show what would be locked
+lock-secrets -v            # lock, and say what happened
+```
+
+Wiring, in `dotfiles/.config/sway/config`:
+
+```
+exec swayidle -w \
+       timeout 900  'swaylock -f -c 000000' \
+       timeout 1800 '~/bin/lock-secrets' \
+       ...
+       before-sleep 'swaylock -f -c 000000; ~/bin/lock-secrets' \
+```
+
+**The tiering is deliberate.** The screen locks at 15min — cheap to undo, one
+password. Secrets lock at 30min — expensive to undo, the master password. But
+always before sleep, where the machine is left unattended by intent.
+
+### `--ssh` is opt-in
+
+KeePassXC removes its own keys from the agent when the database locks, provided
+the entry has *"Remove key from agent when database is closed or locked"*
+checked. Verify rather than assume:
+
+```shell
+lock-secrets -v && ssh-add -l     # want: "The agent has no identities."
+```
+
+If keys survive, either tick that box per entry or add `--ssh` to the swayidle
+hooks. `--ssh` is not the default because it would also flush identities added
+by other means, which no longer applies here but might on another host.
+
+### What this is and is not worth
+
+Be clear-eyed. Against an attacker **already executing code as your user**, this
+is not a boundary — they can keylog the master password, hook the prompt, or
+simply wait for the next unlock. What it does buy:
+
+- **Smash-and-grab payloads.** Most infostealers dump once and leave. Locked
+  stores at that moment yield nothing.
+- **Suspend with keys in RAM.** A suspended machine holds the unlocked database
+  and the agent keys in memory; whoever walks off with it has them. This is the
+  strongest argument for the `before-sleep` hook — and for preferring
+  **hibernate** when leaving for real, given encrypted swap.
+- Core dumps, crash reports, memory scrapes.
+
+The bigger lever, if going further, is not more locking but shrinking what a live
+agent can do — per-use confirmation on the SSH keys.
 
 ## FIDO2 / U2F hardware key
 
@@ -141,3 +242,5 @@ private notes repo.
 ## See also
 
 - [power-management.md](power-management.md) — `pam_time` and the sudoers escape hatch
+- [power-management.md](power-management.md#every-sleep-path-goes-through-logind--which-is-what-makes-locking-work)
+  — why `before-sleep` catches *every* suspend route, including the power button
