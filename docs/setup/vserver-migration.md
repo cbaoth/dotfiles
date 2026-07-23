@@ -41,6 +41,8 @@ Vserver side — **done and verified**:
   **sudo-rs**, which honors env_keep but rejects `requiretty` as unknown.
 - `pull-backup` added to sshd `AllowUsers` (the bootstrap pins `AllowUsers
   cbaoth`; a missing entry shows as a password prompt on a key-only server).
+  Note the drop-in is now `01-hardening.conf`, not `99-` — see
+  `docs/troubleshooting/sshd-dropin-ordering-cloud-init.md` for why.
 - Consistent DB dump: `system-scripts/nextcloud-db-dump` + timer (nightly 01:30),
   atomically-replaced `/var/backups/nextcloud/nextcloud-db.sql.zst`.
 - Verified from saito: bare ssh → rrsync "not invoked via sshd" (forced cmd
@@ -187,6 +189,12 @@ Phase 1 done (2026-07-18):
   off**; `ufw` deny-in (8090/80/443); fail2ban; unattended-upgrades; dotfiles
   deployed; Node LTS + Claude Code installed. Contabo **panel firewall** active
   as the out-of-host layer (temp port-22 rule to be deleted once 8090 is proven).
+  **Correction (2026-07-23): "key-only" was not true.** Password auth stayed on
+  until 2026-07-23 — the bootstrap's `99-hardening.conf` was shadowed by
+  cloud-init's `50-cloud-init.conf`, because sshd drop-ins are *first*-wins.
+  Port, root-off and `AllowUsers` were in force; `PasswordAuthentication` was
+  not. Fixed by renaming to `01-hardening.conf` + `ssh_pwauth: 0`:
+  `docs/troubleshooting/sshd-dropin-ordering-cloud-init.md`.
 - Rebooted onto the pending kernel; `claude` runs as cbaoth in `~/dotfiles`.
 
 Two script bugs found & fixed (so the next rebuild is clean):
