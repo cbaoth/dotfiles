@@ -592,6 +592,7 @@ dotfiles-link() {
     hash -r 2>/dev/null || rehash 2>/dev/null
   }
 }
+alias dotl='dotfiles-link'
 
 # Pull latest dotfiles from remote repository and apply linking.
 # Shell-agnostic: uses same path resolution as dotfiles-link.
@@ -606,6 +607,7 @@ dotfiles-update() {
 
   git -C "${_df_root}" pull "$@" && dotfiles-link
 }
+alias dotu='dotfiles-update'
 # }}} - DOTFILES MANAGEMENT --------------------------------------------------
 
 # {{{ - SHELL NAVIGATION -----------------------------------------------------
