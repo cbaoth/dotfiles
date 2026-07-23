@@ -158,6 +158,39 @@ belongs in the **separate private notes repo at `~/notes`**, not here. When in
 doubt, it goes there. Migration status and remaining hazards:
 `docs/setup/MIGRATION.md`.
 
+### `_local/` is scratch — it is NOT storage
+
+`_local/` is gitignored, per-machine, and **synced by nothing**. Work written
+there is invisible to every other machine and to git. Treat it as a temporary
+scratchpad only, not a storage area.
+
+> **If it would hurt to lose it, it does not belong in `_local/`.**
+
+This has already bitten once (2026-07-23): bootstrap scripts, migration
+runbooks and the whole restic backup automation existed *only* in `_local/` on
+two boxes, hand-rsynced one-way, and the copies had silently diverged —
+saito's `bootstrap-new-server.sh` was five days behind the vserver's, and the
+newer one held a security fix. Recovered into `~/notes/systems/`.
+
+| Content | Home |
+| ------- | ---- |
+| Host-specific infra: runbooks, deploy scripts, units, inventories | `~/notes/systems/<host>/` — private, has a remote, auto-commits **and pushes** every 5 min (`notes-sync.timer`) |
+| Generic, sanitized machine setup | this repo: `docs/setup/` + a `setup/` module |
+| Genuinely disposable: one-off dumps, pasted output, temp files | `_local/` |
+| Real secrets (topics, passwords, keys) | KeePassXC, or root-only files under `/etc` — **never** either repo |
+| Third-party personal data, live tokens, large binaries | **no git repo at all** |
+
+That last row is not hypothetical: a Nextcloud migration dump under
+`_local/` contained another person's calendar export *including a live Todoist
+iCal token*. Scan before moving anything out of `_local/` into a repo — private
+does not mean safe.
+
+**Do not hand-rsync `_local/` or `~/notes` between machines.** `~/notes` is a
+git repo with a remote; use `git pull` / `git push`. The old
+`rsync … $d host:$d` habit is what created the divergence above, and its
+trailing-slash semantics also produced nested `_local/_local/` and
+`notes/notes/` directories on both remote hosts.
+
 ## Documentation
 
 - `README.md` holds the high-level overview and links into `docs/`; `docs/TODO.md`
