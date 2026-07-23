@@ -2,20 +2,86 @@
 title: Power management, sleep, and digital detox
 hosts: [motoko]
 status: workaround
-tags: [power, sleep, systemd, pam, sudoers]
-updated: 2026-07-12
+tags: [power, sleep, systemd, pam, sudoers, logind]
+updated: 2026-07-23
+automated_by: setup/modules/50-power.sh
 ---
 
 # Power management & sleep
 
-**Not automated, on purpose.** This note touches `sudoers` and `pam.d` — a script
-that edits those unattended can lock you out of your own machine. A typo in
-`/etc/pam.d/common-account` means no login and no `sudo`. Read, understand, apply
-by hand.
+**Mostly not automated, on purpose.** Most of this note touches `sudoers` and
+`pam.d` — a script that edits those unattended can lock you out of your own
+machine. A typo in `/etc/pam.d/common-account` means no login and no `sudo`.
+Read, understand, apply by hand.
+
+The one exception is the **power key policy** below: a logind drop-in is safe and
+idempotent, so it *is* automated by
+[`setup/modules/50-power.sh`](../../setup/modules/50-power.sh).
 
 Hibernate itself does **not** work on motoko — see
 [../troubleshooting/hibernate-nvidia.md](../troubleshooting/hibernate-nvidia.md).
 What follows is the sleep/shutdown machinery that *is* in place.
+
+## Power button suspends, it does not power off
+
+**Automated:** [`setup/modules/50-power.sh`](../../setup/modules/50-power.sh)
+(`system-setup 50-power`).
+
+logind's default is `HandlePowerKey=poweroff` — a stray press kills the session
+with everything open. Check what is actually in force (the shipped
+`/etc/systemd/logind.conf` has every setting commented out, so grepping it tells
+you nothing — ask logind itself):
+
+```shell
+busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+  org.freedesktop.login1.Manager HandlePowerKey HandlePowerKeyLongPress
+```
+
+The module writes a drop-in — never an edit of the package-managed
+`logind.conf` — at `/etc/systemd/logind.conf.d/50-power-key.conf`:
+
+```ini
+[Login]
+HandlePowerKey=suspend
+HandlePowerKeyLongPress=poweroff
+```
+
+**Keep the long-press line.** Its default is `ignore`, so without it there is no
+way to force a hard power-off from the button on a machine too wedged to suspend.
+
+Apply with `systemctl reload systemd-logind` — **reload, never restart**;
+restarting `systemd-logind` tears down the session. Sway does not grab the power
+key, so logind handles it.
+
+## Every sleep path goes through logind — which is what makes locking work
+
+Worth writing down, because it is the reason
+[security.md](security.md#locking-secrets-on-screen-lock-and-suspend) works at
+all: `swayidle -w`'s `before-sleep` hook fires on logind's `PrepareForSleep`
+signal, which is emitted **no matter who initiates the sleep**. Confirmed paths:
+
+| Trigger | Route |
+| ------- | ----- |
+| `suspend` typed in a shell | alias → `pm-suspend` → `systemctl suspend` ([`lib/aliases-linux.sh`](../../lib/aliases-linux.sh)) |
+| `$mod+Escape` → `Shift+s` / `Shift+h` | `swaylock -f && systemctl suspend`/`hibernate` |
+| Power button | logind `HandlePowerKey=suspend` (above) |
+| Idle timeout | swayidle |
+
+The `suspend` alias is a **compatibility shim, not pm-utils**: `pm-utils` is long
+dead and not installed (`dpkg -l pm-utils` finds nothing). The chain is
+`suspend` → `pm-suspend` → `systemctl suspend`, kept only so decades of muscle
+memory keep working. This matters — a *real* `pm-suspend` would write to
+`/sys/power/state` directly, bypass logind, never emit `PrepareForSleep`, and
+silently skip both the screen lock and the secret lock.
+
+Verify swayidle is actually registered before trusting any of this:
+
+```shell
+systemd-inhibit --list | grep swayidle
+# swayidle  1000  cbaoth  ...  sleep  Swayidle is preventing sleep  delay
+```
+
+No `delay` inhibitor listed means the hooks will not run before sleep.
 
 ## Inhibitors
 
@@ -124,3 +190,5 @@ hard for a tired, motivated version of yourself to undo.
 
 - [../troubleshooting/hibernate-nvidia.md](../troubleshooting/hibernate-nvidia.md)
 - [unattended-upgrades.md](unattended-upgrades.md) — the other thing that fights shutdown
+- [security.md](security.md#locking-secrets-on-screen-lock-and-suspend) — what
+  `before-sleep` actually locks (KeePassXC, keyring, SSH agent)
