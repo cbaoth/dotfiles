@@ -571,9 +571,23 @@ bindsym XF86MonBrightnessDown exec brightnessctl set 20%-
 bindsym XF86HomePage         exec $browser
 
 # print button: screenshot
-# SWAY: flameshot works on Wayland; grimshot (sway-contrib) is a native alternative:
-#   exec grimshot copy area
-bindsym Print                exec flameshot gui
+# A subtle shutter sound (freedesktop "screen-capture" event) confirms a
+# successful screenshot. In fullscreen gamescope, notifications can be occluded,
+# but audio always mixes in.
+set $camerafx  canberra-gtk-play -i screen-capture
+# No visual OSD: in fullscreen gamescope an OSD can be occluded, but audio
+# always mixes in.
+bindsym Print                exec grimshot --notify savecopy output && $camerafx
+# bindsym Print                exec flameshot screen && $camerafx
+bindsym Ctrl+Print           exec grimshot --notify savecopy anything && $camerafx
+# bindsym Ctrl+Print           exec flameshot gui && $camerafx
+
+# Logitech MX Mechanical screenshot key (fn+F8) sends a hardcoded Super+Shift+R
+# macro, not Print — bind that combo to the same full-output screenshot action.
+bindsym $mod+Shift+r         exec grimshot --notify savecopy output && $camerafx
+# bindsym $mod+Shift+r         exec flameshot screen && $camerafx
+bindsym $mod+Shift+Ctrl+r    exec grimshot --notify savecopy anything && $camerafx
+# bindsym $mod+Shift+Ctrl+r    exec flameshot gui && $camerafx
 
 # mod-l: lock screen (mirrors Windows/GNOME Mod4+L)
 bindsym $mod+l               exec swaylock -f -c 000000
@@ -772,10 +786,11 @@ for_window [class="(?i)^Doublecmd$"] \
 for_window [class="(?i)^Ssvnc$"] \
              [instance="(?i)^popup$"]                      $pop
 
-# System info/resources/monitoring windows
+# System info/resources/monitoring/debug windows
 for_window [app_id="^term\.top$"]                          $pop_sheer
 for_window [app_id="^io.missioncenter.MissionCenter$"]     $pop_sheer
 for_window [app_id="^net.nokyan.Resources$"]               $pop
+for_window [app_id="^wev$"]                                $pop_sheer, move position cursor
 
 # Remote desktop windwos
 for_window [app_id="vncviewer$"]                           $pop
@@ -800,6 +815,9 @@ for_window [app_id="(?i)^nordvpn-gui$"]                    $poptray_sheer
 # Nextcloud client (tray)
 for_window [app_id="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]  $poptray, $stick
 for_window [class="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]   $poptray, $stick
+
+# Flameshot screenshot tool (tray)
+for_window [app_id="(?i)^flameshot$"]                      $poptray, $stick
 
 # PulseAudio volume control
 for_window [app_id="(?i)^pavucontrol$"]                    $pop, $sheer

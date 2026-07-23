@@ -39,6 +39,18 @@ mpg123
 # both silently. (This is why a past switch to the flatpak was reverted.)
 mpv
 
+# Sway WM and related tools (sway-contrib)
+sway
+swayidle
+swaylock
+swayosd
+foot
+grimshot
+
+# Wayland releated tools
+flameshot
+
+
 # Encryption — needs PPA sebastian-stenzel/cryptomator.
 # Skipped with a warning if the PPA is not configured (see docs/setup/security.md).
 # The flatpak exists and is the same version, but apt is what is actually
