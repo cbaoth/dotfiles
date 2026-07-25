@@ -16,6 +16,16 @@ set -euo pipefail  # Fail if any command in a pipeline fails
 # Global constants
 declare -ri VERBOSITY_DEFAULT=0
 
+# Minimum required width of the sleep window (BSS_SLEEP_END - BSS_SLEEP_START),
+# in minutes. This is a FIXED, self-contained sanity floor — deliberately NOT
+# derived from the systemd timer interval. The script cannot see the .timer's
+# OnCalendar cadence (it lives in the unit, not this config), so coupling the
+# two would be a footgun. Keep it a plain constant.
+declare -ri MIN_SLEEP_WINDOW_MIN=15
+
+# File descriptor for the flock guard (assigned by _acquire_lock).
+declare LOCK_FD=""
+
 # Global variables
 declare CONFIG_FILE="/etc/bedtime-shutdown.conf"
 declare DRY_RUN=false
@@ -230,20 +240,144 @@ _log_debug "DRY_RUN: $DRY_RUN, VERBOSITY: $VERBOSITY"
 if [[ "$DRY_RUN" == "true" ]]; then
   _log "DRY RUN MODE: Shutdown commands will be logged but not executed"
 fi
+
+# Sleep phase is opt-in: enabled only when start, end, and mode are all set.
+# With any of them unset the sleep path stays inert (behaviour as before).
+declare SLEEP_ENABLED=false
+if [[ -n "${BSS_SLEEP_START:-}" && -n "${BSS_SLEEP_END:-}" && -n "${BSS_SLEEP_MODE:-}" ]]; then
+  SLEEP_ENABLED=true
+fi
+declare -r SLEEP_ENABLED
+declare -i BSS_SLEEP_GRACE=${BSS_SLEEP_GRACE:-900}
+_log_debug "SLEEP_ENABLED: $SLEEP_ENABLED (mode=${BSS_SLEEP_MODE:-<unset>}, grace=${BSS_SLEEP_GRACE}s)"
 # }}} = INITIALIZATION =======================================================
 
 # {{{ = FUNCTIONS ============================================================
-# Safe wrapper for systemctl poweroff - respects DRY_RUN mode
-_poweroff() {
-  local -r args=("$@")
+# Safe wrapper for `systemctl <verb> [args...]` - respects DRY_RUN mode.
+# The verb (poweroff, suspend, hibernate, ...) and its flags are chosen by the
+# caller; flag differences (poweroff --ignore-inhibitors vs sleep -i) are not
+# baked in here.
+_power_action() {
+  local -r verb=$1; shift
+  local -ra args=("$@")
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    _log "[DRY-RUN] Would execute: systemctl poweroff ${args[*]}"
+    _log "[DRY-RUN] Would execute: systemctl ${verb} ${args[*]}"
     return 0
   fi
 
-  _log "Executing: systemctl poweroff ${args[*]}"
-  systemctl poweroff "${args[@]}"
+  _log "Executing: systemctl ${verb} ${args[*]}"
+  systemctl "$verb" "${args[@]}"
+}
+
+# Converts an HHMM / HH:MM time string to minutes since midnight (0-1439).
+_hhmm_to_min() {
+  local -r t="${1//:/}"
+  printf "%d" "$(( 10#${t:0:2} * 60 + 10#${t:2:2} ))"
+}
+
+# Returns 0 (true) if `now` is within the half-open window [start, end),
+# handling windows that wrap over midnight. All args in HHMM / HH:MM form.
+_in_window() {
+  local -r now=$((10#${1//:/}))
+  local -r start=$((10#${2//:/}))
+  local -r end=$((10#${3//:/}))
+
+  if (( start <= end )); then
+    # Non-wrapping window (same day), e.g. [05:00, 21:30)
+    (( now >= start && now < end ))
+  else
+    # Wrapping window (spans midnight), e.g. [21:30, 05:00)
+    (( now >= start || now < end ))
+  fi
+}
+
+# Resolves the current phase, echoing one of: shutdown | sleep | safe.
+# Bedtime-first precedence: the shutdown window wins wherever it is active,
+# so it can never be shadowed by a mis-set sleep window.
+_current_phase() {
+  local -r now=$(date +%H%M)
+  if _in_window "$now" "$BSS_SHUTDOWN_START" "$BSS_SHUTDOWN_END"; then
+    echo "shutdown"
+  elif [[ "$SLEEP_ENABLED" == "true" ]] && _in_window "$now" "$BSS_SLEEP_START" "$BSS_SLEEP_END"; then
+    echo "sleep"
+  else
+    echo "safe"
+  fi
+}
+
+# Validates the sleep-phase configuration; hard-fails on an unusable setup so
+# problems surface immediately during --dry-run testing. No-op when sleep is
+# disabled. Arithmetic is done in minutes-since-midnight, normalised so that
+# sleep_start = 0, which collapses the midnight-wrap handling into one place.
+_validate_sleep_config() {
+  [[ "$SLEEP_ENABLED" == "true" ]] || return 0
+  _log_debug "Validating sleep-phase configuration..."
+
+  case "$BSS_SLEEP_MODE" in
+    suspend|hibernate|hybrid-sleep|suspend-then-hibernate) ;;
+    *)
+      _log_error "Invalid BSS_SLEEP_MODE ['$BSS_SLEEP_MODE'] - must be one of: suspend, hibernate, hybrid-sleep, suspend-then-hibernate. Exiting ..."
+      exit 1
+      ;;
+  esac
+
+  local -i s_start s_end d_start d_end
+  s_start=$(_hhmm_to_min "$BSS_SLEEP_START")
+  s_end=$(_hhmm_to_min "$BSS_SLEEP_END")
+  d_start=$(_hhmm_to_min "$BSS_SHUTDOWN_START")
+  d_end=$(_hhmm_to_min "$BSS_SHUTDOWN_END")
+
+  # Normalise every boundary onto a linear axis anchored at sleep_start (= 0).
+  local -ri se=$(( ( s_end   - s_start + 1440 ) % 1440 ))
+  local -ri ds=$(( ( d_start - s_start + 1440 ) % 1440 ))
+  local -ri de=$(( ( d_end   - s_start + 1440 ) % 1440 ))
+  # Sleep grace expressed in whole minutes (rounded up).
+  local -ri grace_min=$(( ( BSS_SLEEP_GRACE + 59 ) / 60 ))
+
+  _log_debug "Normalised (min, sleep_start=0): sleep_end=$se, shutdown_start=$ds, shutdown_end=$de, grace_min=$grace_min"
+
+  # Ordering + non-overlap: 0 = sleep_start < sleep_end <= shutdown_start < shutdown_end
+  if (( se <= 0 || se > ds || ds >= de )); then
+    _log_error "Invalid sleep window: require sleep_start < sleep_end <= shutdown_start < shutdown_end (no overlap, all within one <24h arc). Got sleep=[$BSS_SLEEP_START,$BSS_SLEEP_END) shutdown=[$BSS_SHUTDOWN_START,$BSS_SHUTDOWN_END). Exiting ..."
+    exit 1
+  fi
+
+  # Sleep phase, grace included, must complete before the sleep window closes.
+  if (( grace_min > se )); then
+    _log_error "Invalid sleep window: BSS_SLEEP_GRACE (${BSS_SLEEP_GRACE}s ≈ ${grace_min}m) does not fit inside the sleep window (${se}m). Exiting ..."
+    exit 1
+  fi
+
+  # Reject a pointlessly narrow sleep window.
+  if (( se < MIN_SLEEP_WINDOW_MIN )); then
+    _log_error "Invalid sleep window: width ${se}m is below the minimum of ${MIN_SLEEP_WINDOW_MIN}m. Exiting ..."
+    exit 1
+  fi
+
+  _log_info "Sleep-phase configuration valid: sleep=[$BSS_SLEEP_START,$BSS_SLEEP_END) mode=$BSS_SLEEP_MODE grace=${BSS_SLEEP_GRACE}s"
+}
+
+# Acquires a non-blocking flock so overlapping timer ticks (e.g. while a grace
+# countdown or a suspend is in flight) become safe no-ops instead of stacking.
+_acquire_lock() {
+  local lockfile="/run/bedtime-shutdown.lock"
+  # Fall back to a user-writable path when /run is not writable (dry-run as
+  # non-root), so lock behaviour can still be tested.
+  if [[ ! -w "$(dirname "$lockfile")" ]]; then
+    lockfile="${TMPDIR:-/tmp}/bedtime-shutdown.${SCRIPT_USER}.lock"
+  fi
+
+  if ! exec {LOCK_FD}>"$lockfile"; then
+    _log_warn "Could not open lock file '$lockfile'; proceeding without lock."
+    return 0
+  fi
+
+  if ! flock -n "$LOCK_FD"; then
+    _log "Another instance is already running (lock '$lockfile' held). Skipping this run."
+    exit 0
+  fi
+  _log_debug "Acquired lock: $lockfile (fd $LOCK_FD)"
 }
 
 # Sends a BEDTIME GUI notification to BSS_USER_NAME and broadcasts a message to all terminals.
@@ -266,46 +400,16 @@ _notify_user() {
     _log_warn "wall broadcast failed (no terminal sessions available)"
   }
 }
-# Exits the script if we are in the "Safe Zone" (no shutdown allowed)
+# Exits the script if we are in the "Safe Zone" (neither shutdown nor sleep).
+# Used both for the initial gate and to re-check after a grace period (e.g. a
+# time jump across a resume) - we abort only once fully in the safe zone.
 _exit_if_safe_zone() {
-  # Get current time as a number (e.g. 2130 for 21:30 or 9:30 PM)
-  local -r current_time=$(date +%H%M)
-
-  # Force base-10 ((10#...)) to prevent bash from thinking "0800" is an octal number and crashing.
-  # Also strip any colons from time values to support both HHMM and HH:MM formats
-  local -r now=$((10#$current_time))
-  local -r start=$((10#${BSS_SHUTDOWN_START//:/}))  # Strip colons for HH:MM format support
-  local -r end=$((10#${BSS_SHUTDOWN_END//:/}))      # Strip colons for HH:MM format support
-
-  local -i is_safe=0
-
-  _log_debug "Checking if current time is within safe zone..."
-  _log_debug "Time boundaries: [now=$now,end=$end, start=$start]"
-  _log_debug "Time check - NOW: $now ($(date '+%H:%M')), start: $start ($(_format_time "${BSS_SHUTDOWN_START//:/}")), end: $end ($(_format_time "${BSS_SHUTDOWN_END//:/}"))"
-
-  # Case 1: Standard day `START > END` (e.g. 05:00 to 21:30)
-  if (( start > end )); then
-    _log_debug "Standard schedule mode (start > end): Safe zone is [end=$end, start=$start]"
-    if (( now >= end && now < start )); then
-      is_safe=1
-      _log_debug "Current time $now is within safe zone"
-    fi
-  # Case 2: Wrapping over midnight `START < END` (e.g. 21:30 to 05:00)
-  else
-    _log_debug "Wrapping schedule mode (start < end): Safe zone is [END=$end or NOW < START=$start)"
-    # Safe if it's AFTER morning start OR BEFORE night shutdown
-    if (( now >= end || now < start )); then
-      is_safe=1
-      _log_debug "Current time $now is within safe zone"
-    fi
+  if [[ "$(_current_phase)" == "safe" ]]; then
+    local -r current_time=$(date +%H%M)
+    _log "Current time ($(_format_time "$current_time")) is within the safe window [$(_format_time "${BSS_SHUTDOWN_END//:/}") to $(_format_time "${BSS_SHUTDOWN_START//:/}")]. Skipping."
+    exit 0
   fi
-
-  if (( is_safe == 1 )); then
-      _log "Current time ($(_format_time "$current_time")) is within the safe window [$(_format_time "${BSS_SHUTDOWN_END//:/}") to $(_format_time "${BSS_SHUTDOWN_START//:/}")]. Skipping shutdown."
-      exit 0
-  else
-    _log_debug "Current time is within shutdown window. Proceeding with checks."
-  fi
+  _log_debug "Current time is within an active (shutdown/sleep) window. Proceeding with checks."
 }
 
 # Exits the script if one of the emergency overrides is enabled
@@ -542,18 +646,42 @@ _cleanup_mounts() {
   _log_info "Mount cleanup completed"
 }
 
-# Main function
-main() {
-  _log_info "Starting bedtime shutdown sequence..."
-  _log_debug "Configuration: User=$BSS_USER_NAME, Grace periods: user=${BSS_GRACE_PERIOD_USER}s, system=${BSS_GRACE_PERIOD_SYSTEM}s"
+# Sleep sequence: notify, wait out the sleep grace, then put the machine into
+# BSS_SLEEP_MODE. There is intentionally NO force fallback - a failed sleep just
+# retries on the next timer tick, and self-escalates to the shutdown phase by
+# time once the shutdown window opens.
+_run_sleep_sequence() {
+  _log "Entering SLEEP phase (mode: $BSS_SLEEP_MODE)."
+  _exit_if_emergency_override
 
-  # 1. Run all checks
-  _exit_if_safe_zone
+  _log "Notifying user. Sleep grace period: ${BSS_SLEEP_GRACE} seconds"
+  _notify_user "Going to sleep in ${BSS_SLEEP_GRACE} seconds (${BSS_SLEEP_MODE}). Save your work."
+
+  if [[ "$BSS_SLEEP_GRACE" -gt 0 ]]; then
+    _log_info "Waiting ${BSS_SLEEP_GRACE} seconds before sleeping..."
+    sleep "$BSS_SLEEP_GRACE"
+    # Re-check: abort only if we have reached the safe zone; otherwise honour
+    # the promised sleep (a mid-grace time jump is handled by the next tick).
+    _exit_if_safe_zone
+    _exit_if_emergency_override
+  fi
+
+  _log "Sleep grace period complete. Initiating ${BSS_SLEEP_MODE}."
+  _notify_user "Going to sleep now (${BSS_SLEEP_MODE})!"
+
+  # -i | --check-inhibitors=no: sleep despite inhibitors (e.g. Caffeine).
+  _power_action "$BSS_SLEEP_MODE" -i || \
+    _log_warn "systemctl ${BSS_SLEEP_MODE} returned non-zero; will retry next tick, or the shutdown phase takes over by time."
+}
+
+# Shutdown sequence: the original hard-shutdown ladder (graceful -> optional
+# mount cleanup -> forced poweroff). Unchanged behaviour.
+_run_shutdown_sequence() {
   _exit_if_emergency_override
 
   _log "All safety checks passed. Proceeding with shutdown sequence."
 
-  # 2. Notifications & User Grace Period
+  # 1. Notifications & User Grace Period
   _log "Notifying user. Grace period: ${BSS_GRACE_PERIOD_USER} seconds"
   _notify_user "Shutting down in ${BSS_GRACE_PERIOD_USER} seconds. Save your work."
 
@@ -565,7 +693,7 @@ main() {
     _exit_if_emergency_override
   fi
 
-  # 3. Shutdown Sequence
+  # 2. Shutdown Sequence
   _log "User grace period complete. Proceeding to shutdown."
   _notify_user "Shutting down now!"
 
@@ -573,7 +701,7 @@ main() {
   # -i | --ignore-inhibitors: Ignore inhibitors (e.g. "stay awake" apps like Caffeine)
   # --no-block: Send the command and returns IMMEDIATELY (asynchronous), don't wait for response.
   _log_info "Stage 1 (Polite): Initiating graceful shutdown..."
-  _poweroff --ignore-inhibitors --no-block
+  _power_action poweroff --ignore-inhibitors --no-block
 
   # Stage 2: System Grace Period (Wait for graceful shutdown)
   # Skip if BSS_GRACE_PERIOD_SYSTEM is set to 0 or less.
@@ -593,10 +721,33 @@ main() {
     # -ff | --force --force (doubled): Tell the kernel to "power off" immediately
     # This bypasses all systemd shutdown scripts, unmounting, etc.
     _log "Stage 4 (Force): Forcing immediate shutdown..."
-    _poweroff --force --force
+    _power_action poweroff --force --force
   else
     _log_info "System grace period is <= 0. Force fallback disabled."
   fi
+}
+
+# Main function: acquire the lock, validate, resolve the current phase, dispatch.
+main() {
+  _acquire_lock
+  _log_info "Starting bedtime sequence..."
+  _log_debug "Configuration: User=$BSS_USER_NAME, Grace periods: user=${BSS_GRACE_PERIOD_USER}s, system=${BSS_GRACE_PERIOD_SYSTEM}s, sleep=${BSS_SLEEP_GRACE}s"
+
+  _validate_sleep_config
+
+  local -r phase="$(_current_phase)"
+  _log_debug "Resolved phase: $phase"
+  case "$phase" in
+    safe)
+      _exit_if_safe_zone  # logs and exits 0
+      ;;
+    sleep)
+      _run_sleep_sequence
+      ;;
+    shutdown)
+      _run_shutdown_sequence
+      ;;
+  esac
 }
 # }}} = FUNCTIONS ============================================================
 

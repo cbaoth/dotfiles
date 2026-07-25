@@ -30,7 +30,75 @@ If you find yourself doom-scrolling or debugging at 02:00 (2 AM), this script is
 
       4.  Unmount the filesystems to prevent potential corruption.
 
-      5.  Final buffer flush with another sync before the forced shutdown. == 🛠️ Installation & Setup
+      5.  Final buffer flush with another sync before the forced shutdown.
+
+# 💤 Sleep Phase (optional)
+
+By default the script only ever **powers off**. You can optionally add a
+**softer, earlier phase** that first puts the machine to *sleep* (suspend,
+hibernate, …) and only escalates to the hard shutdown later in the night. It is
+**opt-in and off unless configured** — with the `BSS_SLEEP_*` settings unset the
+behaviour is exactly as described above.
+
+**The staged model:**
+
+1.  **Sleep window (soft):** during the earlier part of the night the machine is
+    put to sleep. If you wake it — on purpose, or by a stray USB-mouse
+    twitch — the next timer tick simply re-sleeps it. No in-script loop is
+    needed; the timer *is* the loop.
+
+2.  **Shutdown window (hard):** later, the unchanged shutdown ladder above takes
+    over (graceful → optional mount cleanup → forced poweroff). This is the
+    guaranteed backstop.
+
+**Key properties:**
+
+- **Bedtime-first precedence.** At runtime the shutdown window is checked
+  *first* and always wins where it is active, so a mis-set sleep window can never
+  shadow (and thereby defeat) the hard shutdown.
+
+- **No overlap, validated at startup.** The sleep window must sit strictly
+  before the shutdown window: `sleep_start < sleep_end <= shutdown_start <
+  shutdown_end`, the sleep grace must fit inside the sleep window, and the sleep
+  window must be at least 15 minutes wide. An invalid setup **fails hard** — so
+  you catch it during `--dry-run`, not at 3 AM.
+
+- **Sleep has no force fallback.** There is no meaningful "force suspend"; a
+  failed sleep just retries on the next tick and, once the shutdown window opens,
+  self-escalates to a real shutdown *by time*. The force/cleanup ladder stays
+  shutdown-only.
+
+- **Separate, asymmetric grace periods.** `BSS_SLEEP_GRACE` (sleep) is meant to
+  be generous; keep `BSS_GRACE_PERIOD_USER` (shutdown) short — by the time the
+  hard window opens, repeated wakes are "hacking for extra time", so the short
+  grace is the point.
+
+**Sleep modes** (`BSS_SLEEP_MODE`): `suspend`, `hibernate`, `hybrid-sleep`,
+`suspend-then-hibernate`. The script runs `systemctl <mode> -i` (the `-i` /
+`--check-inhibitors=no` flag ignores inhibitors like Caffeine; requires a
+systemd version that supports it — symmetric with the shutdown path's
+`--ignore-inhibitors`).
+
+> [!NOTE]
+> `suspend` needs no special setup. `hibernate` and friends require working
+> swap/resume (and, on Nvidia, VRAM-preservation) that **you** must set up first
+> — that is out of scope here. The mode keyword is accepted; the prerequisites
+> are your responsibility.
+
+**Example** — sleep 21:30 → 01:00, then hard shutdown 01:00 → 05:00:
+
+```ini
+BSS_SLEEP_START="21:30"
+BSS_SLEEP_END="01:00"
+BSS_SLEEP_MODE="suspend"
+BSS_SLEEP_GRACE=900          # 15 min, generous
+
+BSS_SHUTDOWN_START="01:00"   # hard shutdown takes over here
+BSS_SHUTDOWN_END="05:00"
+BSS_GRACE_PERIOD_USER=60     # short: "your time is up"
+```
+
+# 🛠️ Installation & Setup
 
 Since this script handles system power, we need to set it up with root permissions and a systemd timer.
 
@@ -63,6 +131,8 @@ Key settings to customize:
 
 - **`BSS_GRACE_PERIOD_SYSTEM`**: Time to gracefully shutdown before forced power-off (default: `180` seconds / 3 min)
 
+- **`BSS_SLEEP_START` / `BSS_SLEEP_END` / `BSS_SLEEP_MODE` / `BSS_SLEEP_GRACE`**: Optional sleep phase (all off unless set). See [Sleep Phase (optional)](#-sleep-phase-optional).
+
 > [!IMPORTANT]
 > Make sure that the time window between `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` is your preferred "Bedtime Zone", otherwise the script may lock you out of your system during unexpected times. Both HHMM (e.g., `2130`) and HH:MM (e.g., `21:30`) time formats are supported.
 
@@ -88,14 +158,14 @@ EOF
 
 sudo tee /etc/systemd/system/bedtime.timer <<'EOF'
 [Unit]
-Description=Run Bedtime Script every 10 min (10:00 - 04:50)
+Description=Run Bedtime Script every 5 min (10:00 - 04:55)
 
 [Timer]
-# Cover 10:00 to 23:50 in 10 min intervals, time ranges can't span midnight
-OnCalendar=*-*-* 10..23:00/10
+# Cover 10:00 to 23:55 in 5 min intervals, time ranges can't span midnight
+OnCalendar=*-*-* 10..23:00/5
 
-# Cover 00:00 to 04:50 in 10 min intervals
-OnCalendar=*-*-* 00..04:00/10
+# Cover 00:00 to 04:55 in 5 min intervals
+OnCalendar=*-*-* 00..04:00/5
 
 # Keep Persistent=true (catches missed runs on boot)
 Persistent=true
@@ -107,7 +177,7 @@ EOF
 # Verify the timer configuration and see the next trigger times:
 systemd-analyze verify /etc/systemd/system/bedtime.timer
 # Validate the calendar syntax, and see the next 5 trigger times:
-# systemd-analyze calendar --iterations=5 "*-*-* 00..04:0/10"
+# systemd-analyze calendar --iterations=5 "*-*-* 00..04:00/5"
 
 # Enable and start the timer
 sudo systemctl daemon-reload
@@ -139,7 +209,8 @@ Add the following line:
 
 ``` cron
 # Bedtime Backup: Run every 15 minutes from hour 21 through 05
-*/15 21-05 * * * /opt/bin/bedtime-shutdown.sh
+# (cron hour ranges cannot wrap past midnight, so list both sides explicitly)
+*/15 21-23,0-5 * * * /opt/bin/bedtime-shutdown.sh
 ```
 
 ## Testing Before Live Deployment
@@ -186,6 +257,12 @@ The script uses a configuration file (default: `/etc/bedtime-shutdown.conf`) wit
 - `BSS_GRACE_PERIOD_USER`: Grace period in seconds between user notification and shutdown (default: 180)
 
 - `BSS_GRACE_PERIOD_SYSTEM`: Grace period in seconds between graceful and forced poweroff (default: 180, set to 0 to disable forced fallback)
+
+- `BSS_SLEEP_START` / `BSS_SLEEP_END`: Optional sleep window (HHMM or HH:MM). Must sit strictly before the shutdown window. Unset = sleep phase disabled.
+
+- `BSS_SLEEP_MODE`: Sleep mode — `suspend` | `hibernate` | `hybrid-sleep` | `suspend-then-hibernate`. Required to enable the sleep phase.
+
+- `BSS_SLEEP_GRACE`: Grace period in seconds before sleeping (default: 900 / 15 min). See [Sleep Phase (optional)](#-sleep-phase-optional).
 
 - `BSS_SHUTDOWN_START`: Time when "Bedtime Zone" begins, in HHMM or HH:MM format (default: 2130 or 21:30)
 

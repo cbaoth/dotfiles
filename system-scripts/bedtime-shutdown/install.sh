@@ -111,10 +111,12 @@ SEOF
 
     sudo tee /etc/systemd/system/bedtime.timer > /dev/null <<TEOF
 [Unit]
-Description=Run Bedtime Script at 21:30 (repeat every 10 min until 05:00)
+Description=Run Bedtime Script every 5 min (10:00-04:55)
 [Timer]
-OnCalendar=*-*-* 21:30:00
-OnCalendar=*-*-* 21..04:00/10:00
+# Wide range on purpose (the script self-checks the actual window and exits in
+# the safe zone). Calendar specs cannot span midnight, so use two ranges.
+OnCalendar=*-*-* 10..23:00/5
+OnCalendar=*-*-* 00..04:00/5
 Persistent=true
 [Install]
 WantedBy=timers.target
