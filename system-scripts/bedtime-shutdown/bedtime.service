@@ -1,0 +1,10 @@
+[Unit]
+Description=Bedtime Shutdown Script
+
+[Service]
+# Triggered by bedtime.timer; do NOT enable this unit on its own.
+# Type=simple: systemd considers it started once ExecStart forks, so there is
+# no start timeout that could kill it during a grace countdown or while
+# suspended. Overlapping runs are made safe by the script's own flock guard.
+Type=simple
+ExecStart=/opt/bin/bedtime-shutdown.sh

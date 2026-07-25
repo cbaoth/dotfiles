@@ -1,0 +1,16 @@
+[Unit]
+Description=Run Bedtime Script every 5 min (10:00 - 04:55)
+
+[Timer]
+# Wide range on purpose: the script self-checks the actual sleep/shutdown
+# windows and exits in the safe zone, so firing early is harmless. This means
+# the timer rarely needs retuning when the configured windows change.
+# Calendar specs cannot span midnight, so the range is split in two.
+OnCalendar=*-*-* 10..23:00/5
+OnCalendar=*-*-* 00..04:00/5
+
+# Persistent=true catches missed runs (e.g. on boot / after resume).
+Persistent=true
+
+[Install]
+WantedBy=timers.target

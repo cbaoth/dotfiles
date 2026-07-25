@@ -109,93 +109,94 @@ cd bedtime-shutdown
 sudo ./install.sh
 ```
 
-The install script will: \* Copy the script to `/opt/bin/bedtime-shutdown.sh` (with proper permissions) \* Copy the config template to `/etc/bedtime-shutdown.conf` (if it doesn’t already exist) \* Show you the systemd service and timer units to create \* Provide next steps for setup
+This repo is the **single source of truth**: edit the files here, then deploy
+them with `install.sh`. The default (no arguments) is safe and non-destructive —
+it updates the script and installs the config + systemd units *only if missing*.
+
+`install.sh` takes an optional **target** plus options:
+
+| Target | Action |
+| ------ | ------ |
+| *(none)* | Update the script; install config/units **only if missing**. |
+| `script` | Deploy the script to `/opt/bin/bedtime-shutdown.sh`. |
+| `config` | Deploy the config to `/etc/bedtime-shutdown.conf` (diff + confirm). |
+| `units`  | Deploy `bedtime.service` + `bedtime.timer`, then `daemon-reload`, enable and restart the timer. |
+| `all`    | Deploy script + config + units. |
+
+| Option | Effect |
+| ------ | ------ |
+| `-f`, `--force` | Overwrite existing files without prompting. |
+| `-n`, `--dry-run` | Show what would change; write nothing (no root needed). |
+| `--diff` | Show diffs between repo and system; write nothing. |
+| `-h`, `--help` | Show help. |
+
+``` shell
+sudo ./install.sh                # first install / safe update
+./install.sh --diff all          # preview every change (no root, no writes)
+sudo ./install.sh config         # push config changes (diff, then confirm)
+sudo ./install.sh units --force  # replace units, reload + restart the timer
+```
+
+Existing `/etc` files are never clobbered silently: `install.sh` shows a diff and
+asks first (unless `--force`), and backs up the previous version to `<file>.bak`.
+Because the repo is authoritative, **edit here and redeploy** rather than editing
+`/etc` directly.
 
 ## Configuration
 
-After installation, edit the config file to match your needs:
-
-``` shell
-sudo editor /etc/bedtime-shutdown.conf
-```
+Edit the config **in this repo** (`bedtime-shutdown.conf`), then deploy it with
+`sudo ./install.sh config`. You *can* still edit `/etc/bedtime-shutdown.conf`
+directly, but the next deploy will offer to overwrite it — the repo wins.
 
 Key settings to customize:
 
 - **`BSS_USER_NAME`**: Set to your actual username (default: first non-root user)
 
-- **`BSS_SHUTDOWN_START`**: When the shutdown window opens (default: `21:30`)
+- **`BSS_SHUTDOWN_START`**: When the hard-shutdown window opens (shipped: `22:30`)
 
-- **`BSS_SHUTDOWN_END`**: When the shutdown window closes (default: `05:00`)
+- **`BSS_SHUTDOWN_END`**: When the safe zone begins (shipped: `05:00`)
 
-- **`BSS_GRACE_PERIOD_USER`**: Time to save work before shutdown (default: `180` seconds / 3 min)
+- **`BSS_GRACE_PERIOD_USER`**: Time to save work before shutdown (shipped: `30` s — kept short because a sleep phase precedes it)
 
-- **`BSS_GRACE_PERIOD_SYSTEM`**: Time to gracefully shutdown before forced power-off (default: `180` seconds / 3 min)
+- **`BSS_GRACE_PERIOD_SYSTEM`**: Time to gracefully shutdown before forced power-off (shipped: `300` s / 5 min)
 
-- **`BSS_SLEEP_START` / `BSS_SLEEP_END` / `BSS_SLEEP_MODE` / `BSS_SLEEP_GRACE`**: Optional sleep phase (all off unless set). See [Sleep Phase (optional)](#-sleep-phase-optional).
+- **`BSS_SLEEP_START` / `BSS_SLEEP_END` / `BSS_SLEEP_MODE` / `BSS_SLEEP_GRACE`**: Sleep phase (shipped: suspend `22:00`→`22:30`). Opt-in — unset START/END/MODE to disable. See [Sleep Phase (optional)](#-sleep-phase-optional).
 
 > [!IMPORTANT]
 > Make sure that the time window between `BSS_SHUTDOWN_START` and `BSS_SHUTDOWN_END` is your preferred "Bedtime Zone", otherwise the script may lock you out of your system during unexpected times. Both HHMM (e.g., `2130`) and HH:MM (e.g., `21:30`) time formats are supported.
 
-## Creating Systemd Units
+## Systemd Units
 
-The install script outputs a snippet to create the systemd service and timer. You can either:
-
-**Option A: Copy-paste the output**
-
-The install script shows ready-to-use systemd unit definitions. Simply copy and paste them into the appropriate files:
+The `bedtime.service` and `bedtime.timer` units are tracked in this repo. Deploy
+them with:
 
 ``` shell
-sudo tee /etc/systemd/system/bedtime.service <<'EOF'
-[Unit]
-Description=Bedtime Shutdown Script
-[Service]
-Type=simple
-ExecStart=/opt/bin/bedtime-shutdown.sh
+sudo ./install.sh units
+```
 
-[Install]
-WantedBy=multi-user.target
-EOF
+This copies both units to `/etc/systemd/system/`, runs `daemon-reload`, and
+enables + restarts the timer. Edit the unit files **in the repo**, never in
+`/etc`, then redeploy.
 
-sudo tee /etc/systemd/system/bedtime.timer <<'EOF'
-[Unit]
-Description=Run Bedtime Script every 5 min (10:00 - 04:55)
+The timer fires every 5 minutes over a deliberately **wide** range
+(10:00–04:55), not just the bedtime window. This is intentional: the script
+self-checks the actual sleep/shutdown windows and exits in the safe zone, so
+firing early is harmless — and you rarely need to retune the timer when the
+configured windows change. The window between 05:00 and 10:00 is always safe.
+(Calendar specs cannot span midnight, hence the two `OnCalendar` ranges.)
 
-[Timer]
-# Cover 10:00 to 23:55 in 5 min intervals, time ranges can't span midnight
-OnCalendar=*-*-* 10..23:00/5
+Verify after deploying:
 
-# Cover 00:00 to 04:55 in 5 min intervals
-OnCalendar=*-*-* 00..04:00/5
-
-# Keep Persistent=true (catches missed runs on boot)
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
-# Verify the timer configuration and see the next trigger times:
+``` shell
 systemd-analyze verify /etc/systemd/system/bedtime.timer
-# Validate the calendar syntax, and see the next 5 trigger times:
-# systemd-analyze calendar --iterations=5 "*-*-* 00..04:00/5"
-
-# Enable and start the timer
-sudo systemctl daemon-reload
-sudo systemctl enable --now bedtime.timer
+systemctl list-timers bedtime.timer
+# Preview the next 5 fire times for a calendar spec:
+systemd-analyze calendar --iterations=5 "*-*-* 00..04:00/5"
 ```
 
-The suggested timer shown above is set to start much earlier (10:00) than the actual bedtime start in the script configuration file (default: 21:30), but does not cover 24 hours. This is intentional, for the following reasons: \* In case you configure the "Bedtime Zone" to start earlier than before, this way there is usually no need to remember and update the timer configuration as well, since the timer already covers a wide time range (10:00 to 05:00). \*\* Note that the script itself will check the actual time and exit early if it’s not within the "Bedtime Zone", so there is no risk of it shutting down your system at 10:00. \* In case your configuration accidentally covers the entire 24 hours, or the script has a bug, the time range between 05:00 and 10:00 will always be safe.
-
-**Option B: Manual systemd setup**
-
-Alternatively, create the files manually with your preferred editor:
-
-``` shell
-sudo editor /etc/systemd/system/bedtime.service
-sudo editor /etc/systemd/system/bedtime.timer
-sudo systemctl daemon-reload
-sudo systemctl enable --now bedtime.timer
-```
+**Manual alternative** (without `install.sh`): copy `bedtime.service` and
+`bedtime.timer` to `/etc/systemd/system/`, then `sudo systemctl daemon-reload &&
+sudo systemctl enable --now bedtime.timer`.
 
 ## Fallback: Cron Job
 
@@ -227,24 +228,20 @@ editor /tmp/test-bedtime.conf
 /opt/bin/bedtime-shutdown.sh --config /tmp/test-bedtime.conf --dry-run -vv
 ```
 
-## Updating the Script
+## Updating
 
-To update to a newer version, simply run the install script again from the git repository:
+Pull the repo, then redeploy what changed:
 
 ``` shell
 cd bedtime-shutdown
-sudo ./install.sh
+git pull
+./install.sh --diff all      # see what changed vs. the system (no writes)
+sudo ./install.sh script     # update just the script, or:
+sudo ./install.sh all        # script + config + units (config/units diff + confirm)
 ```
 
-The install script will detect if a newer version is available and update it. It will NOT overwrite your existing config file.
-
-## 4. Fire it up
-
-Enable and start the timer:
-
-``` shell
-sudo systemctl enable --now bedtime.timer
-```
+The default `sudo ./install.sh` updates the script and leaves an existing config
+and units untouched — use the explicit `config` / `units` targets to push those.
 
 # ⚙️ Configuration
 
