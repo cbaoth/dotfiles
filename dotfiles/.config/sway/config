@@ -771,6 +771,9 @@ for_window [title="(?i)(^|[ ._-])(Task[ ._-]?Manager)([ ._-]|$)"] $float
 # Communication and social apps
 for_window [app_id="(?i)^org\.signal\.Signal$"]            $float
 
+# File tools
+for_window [app_id="(?i)^peazip$"]                         $float
+
 # Gaming
 for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] $float
 for_window [class="(?i)(^|[ ._-])(steam|PortProton)$"]     $float
@@ -858,6 +861,7 @@ for_window [class="(?i)(^|[ ._-])(java-lang-Thread|jdownloader)([ ._-]|$)"] \
 # Math apps
 for_window [app_id="(?i)(^|[ ._-])(calculator|qalculate-\w+|speedcrunch)$"]  $stick
 for_window [class="(?i)(^|[ ._-])(galculator|qalculate)$"] $pop
+
 # }}} - Popups, Dialogs, Small -----------------------------------------------
 
 # }}} - Others ---------------------------------------------------------------
