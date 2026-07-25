@@ -604,6 +604,13 @@ protected, auto-patching, with the dotfiles + tooling deployed. Safe to continue
 
 ## Monitoring — the actual goal
 
+> **Execution moved to its own note (2026-07-25):**
+> [monitoring.md](monitoring.md) is now the how-to and steady state — install
+> module (`system-setup 60-netdata`), the standalone-first→streaming sequence,
+> per-host roles, and ntfy alerting. This section stays as the *why* and the
+> original reasoning. Started on **motoko** (child) as the reference; saito reuses
+> the same kit; the vserver is the parent.
+
 ### Exhibit A: the backup that silently didn't happen
 
 On **2025-10-06** the full backup failed completely — all 11 tars errored with
