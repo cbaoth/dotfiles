@@ -572,6 +572,24 @@ occsh() {
 # }}} - MISC -----------------------------------------------------------------
 
 # {{{ - DOTFILES MANAGEMENT --------------------------------------------------
+# Run dotfiles adopt.sh and refresh shell command cache.
+dotfiles-adopt() {
+  local _aliases_path _df_root
+
+  # Resolve repo root by following the .aliases symlink
+  # (.aliases is at dotfiles/dotfiles/.aliases, so go up 2 levels)
+  if _aliases_path=$(readlink -f "${HOME}/.aliases" 2>/dev/null); then
+    _df_root="$(dirname "$(dirname "${_aliases_path}")")"
+  else
+    # Fallback if readlink fails (e.g., not symlinked yet)
+    _df_root="${HOME}/dotfiles"
+  fi
+
+  # Run adopt to dotfiles repo
+  "${_df_root}/tools/adopt.sh" "$@"
+}
+alias doad='dotfiles-adopt'
+
 # Run dotfiles link.sh and refresh shell command cache.
 # Shell-agnostic: resolves repo root by following .aliases symlink.
 # shellcheck disable=SC2120  # arguments optional, function for cli use only
