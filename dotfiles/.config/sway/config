@@ -833,12 +833,15 @@ for_window [class="(?i)(^|[ ._-])nextcloud([ ._-].*|$)"]   $poptray, $stick
 for_window [app_id="(?i)^flameshot$"]                      $poptray, $stick
 
 # PulseAudio volume control
-for_window [app_id="(?i)^pavucontrol$"]                    $pop, $sheer
-for_window [class="(?i)^pavucontrol$"]                     $pop, $sheer
+for_window [app_id="(?i)pavucontrol$"]                     $poptray, $sheer
+for_window [class="(?i)pavucontrol$"]                      $poptray, $sheer
 
 # Blueman bluetooth manager (tray)
-for_window [app_id="^blueman-manager$"]                    $pop, $sheer
-for_window [class="^blueman-manager$"]                     $pop, $sheer
+for_window [app_id="^blueman-manager$"]                    $poptray, $sheer
+for_window [class="^blueman-manager$"]                     $poptray, $sheer
+
+# CopyQ clipboard manager (tray)
+for_window [app_id="^com.github.hluk.copyq$"]              $poptray, $sheer
 
 # Firefox pip video player window (e.g. YouTube)
 for_window [app_id="(?i)^firefox"] \
@@ -986,6 +989,9 @@ exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; bluema
 
 # Solaar - tray icon for Logitech devices (mice, keyboards, etc.)
 exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; solaar -w hide'
+
+# CopyQ - clipboard manager
+exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; copyq'
 
 # }}} - Launch Apps after waybar ---------------------------------------------
 # }}} = Launch Apps ==========================================================
