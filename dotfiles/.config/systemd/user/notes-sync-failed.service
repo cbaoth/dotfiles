@@ -1,0 +1,13 @@
+[Unit]
+Description=Alert (ntfy) that notes-sync could not sync ~/notes
+Documentation=file:%h/dotfiles/bin/notes-sync
+# Started via OnFailure=notes-sync-failed.service in notes-sync.service — no
+# timer, no [Install]; systemd pulls it in on demand when notes-sync fails.
+
+[Service]
+Type=oneshot
+# ntfy-send throttles by title, so a persistent failure firing every 5 minutes
+# still pushes at most once per hour. Topic lives in ~/.config/ntfy-send/config.
+ExecStart=%h/bin/ntfy-send --priority high --tags floppy_disk,warning --throttle 3600 \
+  "notes-sync FAILED" \
+  "~/notes is not syncing. Inspect: journalctl --user -u notes-sync -n 40"

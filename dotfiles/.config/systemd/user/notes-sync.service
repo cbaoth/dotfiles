@@ -5,15 +5,21 @@ Documentation=file:%h/dotfiles/bin/notes-sync
 After=network-online.target
 Wants=network-online.target
 
+# A *transient* failure (offline, agent not up) exits 0 and just retries. This
+# only fires when notes-sync exits non-zero — a *persistent* failure (no
+# upstream, stuck rebase, a growing backlog of unpushed commits). See the ntfy
+# escalation in bin/notes-sync.
+OnFailure=notes-sync-failed.service
+
 [Service]
 Type=oneshot
 ExecStart=%h/bin/notes-sync --quiet
 
 # The push needs an SSH agent. On motoko that is KeePassXC, which only exists
 # inside the graphical session — so this unit is only useful once that session
-# is up. A failed push is handled gracefully by the script (the commit is kept
-# locally and retried), so a missing agent degrades to "commit only" rather
-# than to data loss.
+# is up. A *transient* failed push degrades to "commit only" (kept locally,
+# retried next tick) rather than data loss; only a *persistent* failure escalates
+# to a non-zero exit and the OnFailure= alert above.
 Environment=GIT_TERMINAL_PROMPT=0
 
 # Never let a stuck network call pile up timer firings.

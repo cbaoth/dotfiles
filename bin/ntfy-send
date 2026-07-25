@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# ntfy-send: send a push notification to ntfy, topic read from a host-local
+# config. The shell counterpart to Netdata's native ntfy — for scripts/units
+# (e.g. notes-sync's OnFailure= alert). Best-effort: never fails the caller.
+
+# -e omitted intentionally: a notification is best-effort, and must never turn a
+# working caller (an OnFailure= unit, a cron job) into a failed one.
+set -o nounset
+set -o pipefail
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = CONSTANTS ============================================================
+
+# Topic (and optional token) live outside this public repo — the topic name is
+# the only access control on a public ntfy.sh topic. mode 600, per host.
+#   NTFY_URL="https://ntfy.sh/<long-random-topic>"
+#   # NTFY_TOKEN="tk_..."   # optional, for access-protected/self-hosted topics
+declare -r CONFIG="${NTFY_SEND_CONFIG:-${XDG_CONFIG_HOME:-${HOME}/.config}/ntfy-send/config}"
+declare -r STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/ntfy-send"
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = ARGUMENTS ============================================================
+
+declare priority="default"
+declare tags=""
+declare -i throttle=0
+
+# }}} = ARGUMENTS ============================================================
+
+# {{{ = FUNCTIONS ============================================================
+
+usage() {
+  cat <<EOF
+Usage: ntfy-send [OPTIONS] TITLE MESSAGE...
+
+Send a push notification to the ntfy topic in ${CONFIG}.
+
+Options:
+  -p, --priority P     min|low|default|high|urgent (default: default)
+  -t, --tags T         comma-separated ntfy tags (e.g. warning,floppy_disk)
+      --throttle SECS   send at most once per SECS for this TITLE (dedup spam)
+  -h, --help           This help
+
+Best-effort: a topic that is missing or unreachable is logged loudly to stderr
+(→ journal) but the exit status stays 0, so a caller is never failed by it.
+EOF
+}
+
+p_msg()  { printf '%s ntfy-send: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; }
+p_err()  { printf '%s ntfy-send: ERROR: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; }
+
+parse_args() {
+  while [[ "${1:-}" == -* ]]; do
+    case "$1" in
+      -p|--priority) priority="$2"; shift 2 ;;
+      -t|--tags)     tags="$2"; shift 2 ;;
+      --throttle)    throttle="$2"; shift 2 ;;
+      -h|--help)     usage; exit 0 ;;
+      --)            shift; break ;;
+      *)             p_err "unknown option: $1"; usage >&2; exit 2 ;;
+    esac
+  done
+  args=("$@")
+}
+
+# True (and records the attempt) if this TITLE may be sent now; false if a send
+# happened within the throttle window. Stateless callers pass throttle=0.
+throttle_ok() {
+  local -r title="$1"
+  (( throttle > 0 )) || return 0
+
+  local key stamp now last
+  key="$(printf '%s' "${title}" | cksum | cut -d' ' -f1)"
+  stamp="${STATE_DIR}/${key}.stamp"
+  now="$(date +%s)"
+
+  if [[ -f "${stamp}" ]]; then
+    last="$(cat "${stamp}" 2>/dev/null || printf '0')"
+    if (( now - last < throttle )); then
+      p_msg "throttled (last sent $(( now - last ))s ago < ${throttle}s), skipping"
+      return 1
+    fi
+  fi
+  # Record the attempt up front: a persistent failure re-fires the caller every
+  # few minutes, and we want at most one push per window even if curl fails.
+  mkdir -p "${STATE_DIR}" && printf '%s' "${now}" > "${stamp}"
+  return 0
+}
+
+# }}} = FUNCTIONS ============================================================
+
+# {{{ = MAIN =================================================================
+
+main() {
+  local -a args=()
+  parse_args "$@"
+
+  if (( ${#args[@]} < 1 )); then
+    p_err "need a TITLE (and ideally a MESSAGE)"; usage >&2; exit 2
+  fi
+  local -r title="${args[0]}"
+  local -r message="${args[*]:1}"
+
+  # Always leave a journal trail regardless of whether the push gets out.
+  p_msg "[${priority}] ${title}: ${message:-(no message)}"
+
+  if [[ ! -r "${CONFIG}" ]]; then
+    p_err "config ${CONFIG} missing/unreadable — push NOT sent (journal only)"
+    exit 0
+  fi
+  # shellcheck source=/dev/null
+  source "${CONFIG}"
+  if [[ -z "${NTFY_URL:-}" ]]; then
+    p_err "NTFY_URL not set in ${CONFIG} — push NOT sent"
+    exit 0
+  fi
+
+  throttle_ok "${title}" || exit 0
+
+  local -r host="$(hostname -s 2>/dev/null || printf 'host')"
+  if curl -fsS -m 20 \
+       -H "Title: ${title}" \
+       -H "Priority: ${priority}" \
+       ${tags:+-H "Tags: ${tags}"} \
+       ${NTFY_TOKEN:+-H "Authorization: Bearer ${NTFY_TOKEN}"} \
+       -d "[${host}] ${message}" \
+       "${NTFY_URL}" >/dev/null; then
+    p_msg "push sent"
+  else
+    p_err "ntfy push failed (curl exit $?) — NOT failing caller"
+  fi
+  exit 0
+}
+
+main "$@"
+
+# }}} = MAIN =================================================================

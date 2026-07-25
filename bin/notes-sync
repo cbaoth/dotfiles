@@ -20,6 +20,13 @@ trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 declare -r NOTES_DIR="${NOTES_DIR:-${HOME}/notes}"
 declare -r LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/notes-sync.lock"
 
+# Unpushed-commit count that flips a *tolerated* transient failure (offline, ssh
+# agent not up yet) into a *hard, alertable* one (exit non-zero → the systemd
+# unit fails → OnFailure= pushes an ntfy). At the 5-minute timer cadence, 3 ≈
+# 15 min of failing while the machine is up — long enough to rule out a blip,
+# short enough to catch the silent-drift-for-two-days failure mode early.
+declare -ri MAX_UNPUSHED="${NOTES_SYNC_MAX_UNPUSHED:-3}"
+
 # }}} = CONSTANTS =============================================================
 
 # {{{ = ARGUMENTS =============================================================
@@ -74,6 +81,31 @@ parse_args() {
   done
 }
 
+# Decide whether the pull/push failure that just happened is transient (retry on
+# the next tick, exit 0, keep the local commit) or persistent (alert now, exit
+# non-zero). "$1" = a human-readable reason for the log.
+fail_or_tolerate() {
+  local -r reason="$1"
+  local upstream ahead
+
+  # No upstream at all → a push can *never* succeed; this is a config bug, not a
+  # network blip (it is the exact fault that hid two days of drift). Alert now.
+  if ! upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)"; then
+    p_err "${reason}; no upstream configured for '$(git branch --show-current)'"
+    p_err "fix: git -C ${NOTES_DIR} branch --set-upstream-to=origin/<branch>"
+    exit 1
+  fi
+
+  ahead="$(git rev-list --count "${upstream}..HEAD" 2>/dev/null)" || ahead=0
+  if (( ahead > MAX_UNPUSHED )); then
+    p_err "${reason}; ${ahead} commits unpushed (> ${MAX_UNPUSHED}) — notes have not synced for a while"
+    exit 1
+  fi
+
+  p_warn "${reason} — local commit is safe (${ahead} unpushed), will retry next run"
+  exit 0
+}
+
 # }}} = FUNCTIONS =============================================================
 
 # {{{ = MAIN ==================================================================
@@ -94,6 +126,16 @@ main() {
   if ! flock -n 9; then
     p_msg "another notes-sync is running, skipping"
     exit 0
+  fi
+
+  # A rebase left in progress by a previous failed run is a stuck state only a
+  # human can clear — alert, and do NOT commit on top of it (that compounds the
+  # mess). Checked before the commit block for exactly that reason.
+  if [[ -d "$(git rev-parse --git-path rebase-merge 2>/dev/null)" \
+     || -d "$(git rev-parse --git-path rebase-apply 2>/dev/null)" ]]; then
+    p_err "a rebase is in progress in ${NOTES_DIR} — resolve manually"
+    p_err "  git -C ${NOTES_DIR} status   # then: git rebase --continue | --abort"
+    exit 1
   fi
 
   # {{{ - Commit --------------------------------------------------------------
@@ -133,14 +175,11 @@ main() {
   # A failed pull must not abort: the commit above is already safe locally, and
   # the next timer tick will retry. Warn loudly, exit 0, do not lose data.
   if ! git pull --rebase --autostash -q; then
-    p_warn "pull --rebase failed (conflict? offline?) — local commit is safe, not pushing"
-    p_warn "resolve manually in ${NOTES_DIR}: git status"
-    exit 0
+    fail_or_tolerate "pull --rebase failed (conflict? offline?)"
   fi
 
   if ! git push -q; then
-    p_warn "push failed (offline?) — local commit is safe, will retry next run"
-    exit 0
+    fail_or_tolerate "push failed (offline? auth?)"
   fi
 
   p_msg "synced with $(git remote get-url origin)"
