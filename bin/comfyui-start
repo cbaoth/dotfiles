@@ -29,8 +29,8 @@ declare -r COMFYUI_LAUNCH_ARGS=(
   --disable-smart-memory
   #--force-fp16
   #--cache-lru 10
-  #--use-flash-attention
-  --use-sage-attention
+  --use-flash-attention
+  #--use-sage-attention
   #--fast
   --output-dir "$BASE_OUT_DIR/AI/ComfyUI/output/"
   --input-dir "$BASE_OUT_DIR/AI/ComfyUI/input/"
