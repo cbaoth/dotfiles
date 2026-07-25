@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# ntfy-setup: provision this host's per-host ntfy topic and propagate it to every
+# config that consumes it, in one shot. The scheme is one topic per host
+# (host-<name>-<rand>) carrying that host's netdata alarms AND script alerts.
+#
+#   1. Reuse the existing topic (single source of truth = ~/.config/ntfy-send/
+#      config), or GENERATE host-<hostname>-<rand> if absent / --regenerate.
+#   2. Create/update ~/.config/ntfy-send/config — owned by the invoking user even
+#      when run under sudo (so root does not end up owning it).
+#   3. Set DEFAULT_RECIPIENT_NTFY in each consumer config (see CONSUMER_CONFIGS):
+#      replace the first uncommented line, drop any redundant duplicates, append
+#      if none exists. Comments are left untouched.
+#
+# Add a path to CONSUMER_CONFIGS when another tool needs the same address — that
+# is the one place to change, instead of re-discussing it each time.
+#
+# netdata's alarm-notify.sh sources its config live, so no netdata restart is
+# needed. SEND_NTFY="YES" / SEND_EMAIL="NO" are a separate one-time wire-up (the
+# monitoring runbook), deliberately out of scope here.
+
+set -o nounset
+set -o pipefail
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+trap 'p_err "interrupted"; exit 1' SIGINT SIGTERM
+
+# {{{ = CONSTANTS ============================================================
+
+# Files that must carry this host's topic in a `DEFAULT_RECIPIENT_NTFY=` line.
+declare -ra CONSUMER_CONFIGS=(
+  /etc/netdata/health_alarm_notify.conf
+)
+# Seed source when a netdata consumer file does not exist yet.
+declare -r STOCK_HEALTH="/usr/lib/netdata/conf.d/health_alarm_notify.conf"
+
+# Replace the first uncommented `KEY=` line with KEY="VAL", drop later duplicates,
+# append if none existed. A leading `#` (comment) never matches, so examples in
+# the stock config are preserved. `key`/`val` are awk variables (set via -v), not
+# shell — the single quotes are deliberate.
+# shellcheck disable=SC2016
+declare -r DEDUP_AWK='
+  $0 ~ ("^" key "=") { if (!seen) { print key "=\"" val "\""; seen = 1 } next }
+  { print }
+  END { if (!seen) print key "=\"" val "\"" }
+'
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = ARGUMENTS ============================================================
+
+declare -i regenerate=0
+declare -i dry_run=0
+
+# }}} = ARGUMENTS ============================================================
+
+# {{{ = FUNCTIONS ============================================================
+
+usage() {
+  cat <<EOF
+Usage: ntfy-setup [OPTIONS]
+
+Provision this host's per-host ntfy topic (host-$(hostname -s)-<rand>) and write it
+into ~/.config/ntfy-send/config and every consumer config.
+
+Options:
+  -r, --regenerate   Mint a NEW topic even if one exists (rotate; re-subscribe)
+  -n, --dry-run      Show what would change; write nothing
+  -h, --help         This help
+
+Consumers updated (edit CONSUMER_CONFIGS in this script to add more):
+$(printf '  %s\n' "${CONSUMER_CONFIGS[@]}")
+EOF
+}
+
+p_msg()  { printf '%s\n' "$*"; }
+p_err()  { printf 'ERROR: %s\n' "$*" >&2; }
+p_warn() { printf 'WARNING: %s\n' "$*" >&2; }
+
+# Run privileged: directly if already root, else via sudo.
+as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
+
+parse_args() {
+  while (( $# > 0 )); do
+    case "$1" in
+      -r|--regenerate) regenerate=1; shift ;;
+      -n|--dry-run)    dry_run=1; shift ;;
+      -h|--help)       usage; exit 0 ;;
+      *) p_err "unknown option: $1"; usage >&2; exit 1 ;;
+    esac
+  done
+}
+
+# The user who should own ~/.config — the human invoker even under sudo.
+target_user() { printf '%s' "${SUDO_USER:-${USER:-$(id -un)}}"; }
+
+target_home() {
+  local home
+  home="$(getent passwd "$1" | cut -d: -f6)"
+  [[ -n "${home}" ]] || { p_err "cannot resolve home for user '$1'"; exit 1; }
+  printf '%s' "${home}"
+}
+
+gen_hex() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 16
+  else
+    head -c16 /dev/urandom | od -An -tx1 | tr -d ' \n'
+  fi
+}
+
+ntfy_send_config_path() { printf '%s/.config/ntfy-send/config' "$(target_home "$1")"; }
+
+# Current NTFY_URL from the ntfy-send config (empty if unset/missing). Read
+# directly when possible, else via sudo (config may be another user's, mode 600).
+read_existing_url() {
+  local -r cfg="$1" content
+  if [[ -r "${cfg}" ]]; then
+    content="$(cat "${cfg}")"
+  elif as_root test -e "${cfg}"; then
+    content="$(as_root cat "${cfg}")"
+  else
+    return 0
+  fi
+  printf '%s' "${content}" | sed -nE 's|^NTFY_URL="?([^"]*)"?.*|\1|p'
+}
+
+# Write ~/.config/ntfy-send/config, setting NTFY_URL and preserving any other
+# lines (e.g. NTFY_TOKEN). Owned by ${user}:600 even when we run as root.
+ensure_ntfy_send_config() {
+  local -r url="$1" user="$2"
+  local -r cfg="$(ntfy_send_config_path "${user}")" dir="$(dirname "$(ntfy_send_config_path "${user}")")"
+  local grp new content=""
+  grp="$(id -gn "${user}")"
+
+  [[ -e "${cfg}" ]] && content="$(read_existing_url_file "${cfg}")"
+  if [[ -z "${content}" ]]; then
+    new="NTFY_URL=\"${url}\""
+  else
+    new="$(printf '%s\n' "${content}" | awk -v key=NTFY_URL -v val="${url}" "${DEDUP_AWK}")"
+  fi
+
+  if (( dry_run )); then
+    p_msg "would write ${cfg} (owner ${user}, mode 600) with NTFY_URL=${url}"
+    return 0
+  fi
+
+  if (( EUID == 0 )); then
+    install -d -m 700 -o "${user}" -g "${grp}" "${dir}"
+    printf '%s\n' "${new}" > "${cfg}"
+    chown "${user}:${grp}" "${cfg}"
+  else
+    install -d -m 700 "${dir}"
+    printf '%s\n' "${new}" > "${cfg}"
+  fi
+  chmod 600 "${cfg}"
+  p_msg "wrote ${cfg}"
+}
+
+# Full contents of a file, via sudo if we cannot read it directly.
+read_existing_url_file() {
+  if [[ -r "$1" ]]; then cat "$1"; else as_root cat "$1"; fi
+}
+
+# Set DEFAULT_RECIPIENT_NTFY in a (root-owned) consumer config, seeding from the
+# stock netdata config if the file does not exist yet.
+wire_consumer() {
+  local -r file="$1" url="$2"
+  local base
+
+  if as_root test -e "${file}"; then
+    base="${file}"
+  elif as_root test -e "${STOCK_HEALTH}"; then
+    base="${STOCK_HEALTH}"
+    p_msg "seeding ${file} from stock config"
+    (( dry_run )) || { as_root cp -- "${STOCK_HEALTH}" "${file}"; base="${file}"; }
+  else
+    p_warn "skipping ${file}: missing and no stock config (netdata not installed here?)"
+    return 0
+  fi
+
+  local tmp; tmp="$(mktemp)"
+  as_root cat "${base}" | awk -v key=DEFAULT_RECIPIENT_NTFY -v val="${url}" "${DEDUP_AWK}" > "${tmp}"
+
+  if (( dry_run )); then
+    p_msg "would set DEFAULT_RECIPIENT_NTFY in ${file}:"
+    diff <(as_root cat "${base}") "${tmp}" | sed 's/^/    /' || true
+    rm -f "${tmp}"
+    return 0
+  fi
+
+  as_root cp -- "${tmp}" "${file}"   # cp over an existing file keeps its owner+mode
+  rm -f "${tmp}"
+  p_msg "set DEFAULT_RECIPIENT_NTFY in ${file}"
+}
+
+# }}} = FUNCTIONS ============================================================
+
+# {{{ = MAIN =================================================================
+
+main() {
+  parse_args "$@"
+
+  local -r user="$(target_user)"
+  local url existing
+  existing="$(read_existing_url "$(ntfy_send_config_path "${user}")")"
+
+  if [[ -n "${existing}" && "${existing}" == https://ntfy.sh/host-* ]] && (( ! regenerate )); then
+    url="${existing}"
+    p_msg "reusing existing topic: ${url}"
+  else
+    url="https://ntfy.sh/host-$(hostname -s)-$(gen_hex)"
+    if (( regenerate )) && [[ -n "${existing}" ]]; then
+      p_warn "regenerating — the old topic is retired; re-subscribe on your phone"
+    fi
+    p_msg "new topic: ${url}"
+    p_warn "record it in KeePass and subscribe on your phone"
+  fi
+
+  ensure_ntfy_send_config "${url}" "${user}"
+
+  local f
+  for f in "${CONSUMER_CONFIGS[@]}"; do
+    wire_consumer "${f}" "${url}"
+  done
+
+  if (( ! dry_run )); then
+    p_msg "done."
+    p_msg "test netdata:  sudo -u netdata /usr/libexec/netdata/plugins.d/alarm-notify.sh test"
+    p_msg "test scripts:  ntfy-send 'test' 'hello'"
+  fi
+}
+
+main "$@"
+
+# }}} = MAIN =================================================================

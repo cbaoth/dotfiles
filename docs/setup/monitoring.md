@@ -57,11 +57,18 @@ Netdata runs standalone out of the box. On each host, independently:
 2. Apply the **lean child config** (`[ml] enabled = no`, local-only dashboard).
    Anomaly ML is the biggest CPU cost — off by default, especially on saito's
    i3-3240. motoko *may* re-enable it (desktop has headroom).
-3. Wire **ntfy** into `health_alarm_notify.conf` (`SEND_NTFY="YES"`,
-   `DEFAULT_RECIPIENT_NTFY=https://ntfy.sh/host-<name>-<rand>`) — this host's own
-   topic. Combined *alerting* lands immediately (subscribe to every host's topic),
-   before the combined *dashboard* exists. On servers, `edit-config` is broken
-   (see below) — edit `health_alarm_notify.conf` directly.
+3. Wire **ntfy** with **`ntfy-setup`** (bin/) — one command per host: it
+   generates/reuses this host's topic (`host-<name>-<rand>`), writes
+   `~/.config/ntfy-send/config` (owned by you even under sudo), and sets
+   `DEFAULT_RECIPIENT_NTFY` in every consumer config (netdata's
+   `health_alarm_notify.conf`; extend `CONSUMER_CONFIGS` for more). It replaces
+   the first match, drops redundant duplicates, and seeds from the stock config —
+   sidestepping the broken `edit-config` (below). The per-host topic is the single
+   source of truth in `ntfy-send/config`. **Still a one-time toggle:** set
+   `SEND_NTFY="YES"` + `SEND_EMAIL="NO"` in `health_alarm_notify.conf` (netdata
+   defaults `SEND_NTFY=YES`, so usually only `SEND_EMAIL=NO` is needed).
+   Combined *alerting* lands immediately (subscribe to every host's topic), before
+   the combined *dashboard* exists.
 
 Result after Phase 1: three local dashboards + default alarms + per-host ntfy
 streams carrying every host's alerts (and its script alerts).
