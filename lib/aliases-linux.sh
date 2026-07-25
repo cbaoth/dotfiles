@@ -241,6 +241,8 @@ if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
   alias atsog='aptitude search \?obsolete | grep -iE --color'
 fi
 
+# TODO finally decide if this is the prefered way, or if it should be removed (again)
+# TODO if kept, extend to cover the scenarios above
 # apt
 if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
   alias ap="sudo apt"
