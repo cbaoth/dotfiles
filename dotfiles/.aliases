@@ -226,14 +226,13 @@ Examples:
   # ~/.ssh/id_ed25519_sftp-client, comment: "myphone sftp-client $(date +%Y-%m)"
   ssh-kg sftp-client myphone
 
-  # Tier 3 - privilege-scoped special case (e.g. a read-only backup-pull key
-  # held by one server): one key per purpose, holder = the box that holds it.
+  # Tier 3 - privilege-scoped, unattended key (e.g. the read-only backup-pull
+  # key a nightly restic timer uses on one server). No human to type a
+  # passphrase, so make it passphraseless with -N '' and lock it down on the
+  # server side instead (restrict + command= in authorized_keys). Any extra
+  # ssh-keygen option goes after the identity; holder = the box that holds it.
   # ~/.ssh/id_ed25519_backup-ro, comment: "myserver backup-ro $(date +%Y-%m)"
-  ssh-kg backup-ro myserver
-
-  # Extra args after the identity go straight to ssh-keygen (quiet, no passphrase)
-  # ~/.ssh/id_ed25519_insecure, comment: "$USER insecure $(date +%Y-%m)"
-  ssh-kg insecure -P "" -q
+  ssh-kg backup-ro myserver -N '' -q
 EOF
     return 0
   fi
