@@ -191,6 +191,18 @@ alias mount-saito-data='sudo mount -t cifs -o username=cbaoth,credentials=/etc/s
 # }}} - MOUNT ----------------------------------------------------------------
 
 # {{{ - SECURITY -------------------------------------------------------------
+# ssh-kg — create an ed25519 SSH key with a consistent name and comment, so a
+# key's purpose and holder stay self-evident years later (memory-as-code).
+#
+# Naming rule: one key per independently-revocable thing ("blast radius"), and
+# put as much identifying info in the comment as the key is narrow:
+#   - broad, agent-backed key (fanned out by KeePassXC/ssh-agent) -> just "main"
+#   - narrow key living raw on one device/app -> name the holder, so losing the
+#     device means grepping its name in a host's authorized_keys and deleting
+#     that line (audit with ssh-ka)
+#
+# All keys here are for authentication. If signing keys are ever added, give
+# THEM a "sign-" prefix and treat every unprefixed key as auth by definition.
 ssh-kg() {
   if [[ -z "${1:-}" ]]; then
     cat <<EOF
@@ -204,19 +216,22 @@ Usage: ssh-kg [-h|--help] <purpose> [identity] [ssh-keygen-option...]
   ssh-keygen-option  Additional options to pass to ssh-keygen (e.g., -N for passphrase).
 
 Examples:
-  # interactive prompt for passphrase
-  # ~/.ssh/id_ed25519_git, comment: "$USER git $(date +%Y-%m)"
-  ssh-kg git
-
-  # broadly-shared agent key: minimal identity is enough
+  # Tier 1 - broad, agent-backed key (KeePassXC/ssh-agent fans it out across
+  # many hosts): the key is your identity, so minimal info is enough.
   # ~/.ssh/id_ed25519_main, comment: "$USER main $(date +%Y-%m)"
   ssh-kg main
 
-  # narrow device-bound key: name the holder so it's revocable by device
-  # ~/.ssh/id_ed25519_xplore-saito, comment: "pixi xplore-saito $(date +%Y-%m)"
-  ssh-kg xplore-saito pixi
+  # Tier 2 - narrow key living raw on one device/app with no agent: name the
+  # holder, so losing it means grep the name in authorized_keys, delete, done.
+  # ~/.ssh/id_ed25519_sftp-client, comment: "myphone sftp-client $(date +%Y-%m)"
+  ssh-kg sftp-client myphone
 
-  # quiet, empty passphrase
+  # Tier 3 - privilege-scoped special case (e.g. a read-only backup-pull key
+  # held by one server): one key per purpose, holder = the box that holds it.
+  # ~/.ssh/id_ed25519_backup-ro, comment: "myserver backup-ro $(date +%Y-%m)"
+  ssh-kg backup-ro myserver
+
+  # Extra args after the identity go straight to ssh-keygen (quiet, no passphrase)
   # ~/.ssh/id_ed25519_insecure, comment: "$USER insecure $(date +%Y-%m)"
   ssh-kg insecure -P "" -q
 EOF
@@ -231,12 +246,81 @@ EOF
   else
     user="$USER"
   fi
+  # Everything after the optional identity is forwarded to ssh-keygen verbatim
+  # (e.g. -N '' for no passphrase, -C to override the comment, -q for quiet).
   local ssh_keygen_options=("$@")
-  while [[ "$1" == -* ]]; do
-    shift
+
+  # File:    ~/.ssh/id_ed25519_<purpose>
+  # Comment: "<holder> <purpose> <YYYY-MM>" — lands in the target host's
+  #          authorized_keys and is your revocation index (audit it with ssh-ka).
+  ssh-keygen -t ed25519 -C "${user} ${purpose} $(date +%Y-%m)" -f ~/.ssh/id_ed25519_"${purpose}" "${ssh_keygen_options[@]}"
+}
+
+# ssh-ka — audit SSH keys by fingerprint + comment. The comment is your
+# revocation index: it shows which key a host trusts (and which line to delete
+# to revoke it), or which private keys still live on this machine. Companion
+# to ssh-kg.
+ssh-ka() {
+  local mode="authkeys" target="${HOME}/.ssh/authorized_keys"
+  while (( $# )); do
+    case "$1" in
+      -h|--help)
+        cat <<EOF
+Usage: ssh-ka [-h|--help] [-l|--local] [authorized_keys_file]
+
+Audit SSH keys by fingerprint + comment (the comment is your revocation index).
+
+  (no args)             List keys trusted in ~/.ssh/authorized_keys, each
+                        prefixed with its file line number — delete that line
+                        to revoke the key.
+  authorized_keys_file  Audit a specific authorized_keys file instead.
+  -l, --local           List the private keys on THIS machine (~/.ssh/*.pub):
+                        fingerprint + comment for each pair.
+
+Companion to ssh-kg, which creates keys with a matching name and comment.
+EOF
+        return 0 ;;
+      -l|--local) mode="local"; shift ;;
+      --) shift; break ;;
+      -*) printf 'ssh-ka: unknown option: %s\n' "$1" >&2; return 1 ;;
+      *)  target="$1"; shift ;;
+    esac
   done
 
-  ssh-keygen -t ed25519 -C "${user} ${purpose} $(date +%Y-%m)" -f ~/.ssh/id_ed25519_"${purpose}" "${ssh_keygen_options[@]}"
+  # Local mode: fingerprint every public key sitting in ~/.ssh on this box.
+  if [[ "${mode}" == "local" ]]; then
+    # zsh aborts on a glob with no match; fall back to bash-like behaviour so
+    # the -e guard below handles "no keys" gracefully in both shells.
+    [[ -n "${ZSH_VERSION:-}" ]] && setopt local_options no_nomatch 2>/dev/null
+    local pub
+    local -i found=0
+    for pub in "${HOME}"/.ssh/*.pub; do
+      [[ -e "${pub}" ]] || continue
+      found=1
+      printf '%-32s %s\n' "${pub##*/}" "$(ssh-keygen -lf "${pub}" 2>/dev/null)"
+    done
+    (( found )) || printf 'No public keys found in ~/.ssh\n' >&2
+    return 0
+  fi
+
+  # Default mode: fingerprint each key an authorized_keys file trusts, tagged
+  # with the source line number so revoking is simply "delete line N".
+  if [[ ! -r "${target}" ]]; then
+    printf 'ssh-ka: cannot read %s\n' "${target}" >&2
+    return 1
+  fi
+  printf '# %s\n' "${target}"
+  local line fp
+  local -i lineno=0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    (( ++lineno ))
+    [[ -z "${line//[[:space:]]/}" || "${line}" == \#* ]] && continue
+    if fp="$(ssh-keygen -lf /dev/stdin <<<"${line}" 2>/dev/null)"; then
+      printf 'L%-4d %s\n' "${lineno}" "${fp}"
+    else
+      printf 'L%-4d (unparseable) %.50s\n' "${lineno}" "${line}"
+    fi
+  done < "${target}"
 }
 
 alias authlog-ssh-ip='sudo grep "Failed" /var/log/auth.log \
