@@ -194,20 +194,27 @@ alias mount-saito-data='sudo mount -t cifs -o username=cbaoth,credentials=/etc/s
 ssh-kg() {
   if [[ -z "${1:-}" ]]; then
     cat <<EOF
-Usage: ssh-kg [-h|--help] <purpose> [username[@hostname]] [ssh-keygen-option...]
+Usage: ssh-kg [-h|--help] <purpose> [identity] [ssh-keygen-option...]
 
-  purpose              Service name or purpose of the key (used in the filename and comment).
-  username[@hostname]  Optional username or email address for the key comment (defaults to the current user).
-  ssh-keygen-option    Additional options to pass to ssh-keygen (e.g., -N for passphrase).
+  purpose            Service or purpose of the key (used in the filename and comment).
+  identity           Holder placed in the comment: a user, user@host, or a
+                     device/app name (defaults to the current user). The broader
+                     a key's use, the less it needs here; name the holder for
+                     narrow device-bound keys so they can be revoked by device.
+  ssh-keygen-option  Additional options to pass to ssh-keygen (e.g., -N for passphrase).
 
 Examples:
   # interactive prompt for passphrase
   # ~/.ssh/id_ed25519_git, comment: "$USER git $(date +%Y-%m)"
   ssh-kg git
 
-  # interactive prompt for passphrase
-  # ~/.ssh/id_ed25519_git, comment: "j.smith@local git $(date +%Y-%m)"
-  ssh-kg git j.smith@local
+  # broadly-shared agent key: minimal identity is enough
+  # ~/.ssh/id_ed25519_main, comment: "$USER main $(date +%Y-%m)"
+  ssh-kg main
+
+  # narrow device-bound key: name the holder so it's revocable by device
+  # ~/.ssh/id_ed25519_xplore-saito, comment: "pixi xplore-saito $(date +%Y-%m)"
+  ssh-kg xplore-saito pixi
 
   # quiet, empty passphrase
   # ~/.ssh/id_ed25519_insecure, comment: "$USER insecure $(date +%Y-%m)"
