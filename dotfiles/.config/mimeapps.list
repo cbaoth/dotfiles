@@ -17,6 +17,7 @@ text/xml=code.desktop
 application/xhtml+xml=code.desktop
 application/x-desktop=code.desktop
 application/x-wonderswan-rom=code.desktop
+text/csv=code.desktop
 
 x-scheme-handler/claude-cli=claude-code-url-handler.desktop
 x-scheme-handler/claude=com.anthropic.Claude.desktop
