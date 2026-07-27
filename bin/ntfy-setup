@@ -118,7 +118,8 @@ ntfy_send_config_path() { printf '%s/.config/ntfy-send/config' "$(target_home "$
 # Current NTFY_URL from the ntfy-send config (empty if unset/missing). Read
 # directly when possible, else via sudo (config may be another user's, mode 600).
 read_existing_url() {
-  local -r cfg="$1" content
+  local -r cfg="$1"
+  local content
   if [[ -r "${cfg}" ]]; then
     content="$(cat "${cfg}")"
   elif as_root test -e "${cfg}"; then
