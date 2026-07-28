@@ -32,7 +32,7 @@ already know we'll mute.
 | **Install form** | **Native** (kickstart/static), **not a container** | Netdata's own recommendation for host monitoring: the container needs a pile of host mounts (`/proc`, `/sys`, `docker.sock`, host `/etc`) to see the host at all, and partial mounts = partial visibility. Native still monitors Docker containers (cgroups + docker socket). Also keeps all three hosts *identical* (one module, one `edit-config` workflow). saito's earlier container attempt (now removed) is exactly the path we're not taking. |
 | **Topology** | **vserver = parent, saito + motoko = children** | Children initiate the stream (outbound). vserver is the always-on aggregator. |
 | **Stream transport** | **Tailscale** (WireGuard mesh) | Children stream to the parent over the tailnet — private, encrypted, no public netdata port, no reverse-proxy nuance. Solves NAT traversal (saito) and key management for free. saito has NordVPN disabled (it captured the tailnet route); motoko streams only while its NordVPN is off (a dashboard gap, never an alerting gap — see below). |
-| **Combined dashboard** | Over the **tailnet** (`http://11001001:19999`), no public exposure | 19999 is gated by ufw to `tailscale0`; view it with Tailscale on your phone/laptop. Strictly more private than a public vhost. A `netdata.<domain>` + Caddy basic-auth vhost stays **optional**, only for non-tailnet devices. |
+| **Combined dashboard** | Over the **tailnet** (`http://<parent-fqdn>:19999`), no public exposure | 19999 is gated by ufw to `tailscale0`; view it with Tailscale on your phone/laptop. Strictly more private than a public vhost. A `netdata.<domain>` + Caddy basic-auth vhost stays **optional**, only for non-tailnet devices. **Use the parent's MagicDNS FQDN, not a numeric short name** — see the gotcha below. |
 | **Alerting** | **ntfy, one topic per host** (`host-<name>-<rand>`) | Reuses the *already-watched* channel the restic backups use ([../../notes → saito/backup](vserver-migration.md)). Native in Netdata (`SEND_NTFY`), no custom script. A topic per host — carrying that host's netdata alarms **and** its script alerts (e.g. notes-sync) — so a noisy host (the desktop asleep) can be muted without silencing the servers, and each ping's source is unambiguous. Separate from the backup topic so backup ≠ monitoring noise. |
 | **Cloud** | **No Netdata Cloud** | Self-hosted, no account, metrics stay on own infra. Streaming gives the same one-pane result. |
 
@@ -89,9 +89,17 @@ Full runbook + config templates: `~/notes/systems/11001001/monitoring/`.
    child, with its own alarms); apply `netdata.conf.parent` (19999 tailnet-only,
    not localhost); `ufw allow in on tailscale0 to any port 19999`; generate an
    API key (`uuidgen`); enable receiving in `stream.conf`.
-2. On each **child** (saito, motoko): `stream.conf` → `destination = 11001001:19999`
-   (the tailnet), the same API key, enable sending. No TLS (tailnet is already
+2. On each **child** (saito, motoko): `stream.conf` → `destination =
+   <parent-fqdn>:19999` (the tailnet MagicDNS FQDN — **not** a bare numeric name;
+   see gotcha), the same API key, enable sending. No TLS (tailnet is already
    encrypted).
+
+> **Gotcha — numeric hostnames parse as integer IPs.** The parent's short name
+> `11001001` is read as a 32-bit integer IP (`= 0.167.220.169`) by browsers *and*
+> netdata's resolver, so `destination = 11001001:19999` / `http://11001001:19999`
+> silently hit the wrong address, and even the raw tailnet IP failed for streaming.
+> Always use the full MagicDNS FQDN (`11001001.bone-shade.ts.net`). Same reason the
+> box's hostname is `11001001.org`.
 3. **Dedup — but keep child health LOCAL.** The parent is told *not* to evaluate
    streamed children (`stream.conf: health enabled by default = no`); children keep
    `[health] enabled = yes`. Children self-alarm to their own ntfy topics, which
