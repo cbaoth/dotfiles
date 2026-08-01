@@ -13,6 +13,15 @@
       "Bash(./bin/system-setup --list *)",
       "Bash(./bin/system-setup --dry-run *)",
       "Read(//sys/power/**)"
+    ],
+    "additionalDirectories": [
+      "/home/cbaoth/notes/",
+      "/home/cbaoth/notes/systems/",
+      "/home/cbaoth/notes/systems/11001001",
+      "/home/cbaoth/notes/systems/saito",
+      "/home/cbaoth/notes/systems/motoko",
+      "/home/cbaoth/notes/systems/puppet",
+      "/home/cbaoth/notes/systems/pixi"
     ]
   }
 }
