@@ -12,7 +12,18 @@
       "Bash(whence *)",
       "Bash(./bin/system-setup --list *)",
       "Bash(./bin/system-setup --dry-run *)",
-      "Read(//sys/power/**)"
+      "Read(//sys/power/**)",
+      "Bash(getent hosts *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \" *)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/ *)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/ *)",
+      "Bash(curl -s \"https://api.github.com/repos/ *)",
+      "Bash(curl -sL \"https://api.github.com/repos/ *)",
+      "Bash(curl -s \"https://codeberg.org/api/v1/repos/ *)",
+      "Bash(curl -sL \"https://codeberg.org/api/v1/repos/ *)",
+      "Bash(curl -s \"https://forgejo.org/ *)",
+      "Bash(curl -sL \"https://forgejo.org/ *)"
     ],
     "additionalDirectories": [
       "/home/cbaoth/notes/",
