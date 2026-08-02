@@ -57,3 +57,10 @@ zip
 # Python
 python3-pip
 python3-venv
+
+# Development tools
+shellcheck
+
+# System tools
+# https://github.com/dundee/gdu/tree/master - A fast disk usage analyzer written in Go
+gdu
