@@ -1,0 +1,14 @@
+[Unit]
+Description=Nightly Forgejo dump, ahead of the saito pull
+Documentation=file:/opt/system-scripts/forgejo-dump/README.adoc
+
+[Timer]
+# 01:40 — after the nextcloud-db-dump (01:30) so the two don't hammer Docker at
+# once, and comfortably before saito pulls (~02:15), so each pull picks up a dump
+# taken the same night. Persistent so a missed run (host down) fires on boot.
+OnCalendar=*-*-* 01:40:00
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

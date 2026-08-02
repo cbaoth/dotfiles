@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Produce a consistent, self-contained dump of the Forgejo instance, written to a
+# single atomically-replaced file for the offsite backup to pull.
+#
+# Why this exists: Forgejo's data is bind-mounted under /srv/forgejo/data, so the
+# saito pull already copies it. But the metadata store is an SQLite file
+# (data/gitea.db); a hot file-copy taken mid-write is a torn, unrestorable state.
+# `forgejo dump` builds a point-in-time archive — repos, config, attachments, LFS,
+# and a *logical* SQL dump of the database (forgejo-db.sql) — so the restore path
+# is consistent regardless of what the live SQLite file looked like at pull time.
+#
+# The output file is replaced ATOMICALLY (stream to temp, verify, rename). saito
+# can pull at any moment and will always see a complete, valid zip — never a
+# half-written one. A single rolling file is kept on purpose: restic on saito
+# provides the history, so there is no point accumulating dated dumps here (same
+# rationale as nextcloud-db-dump).
+#
+# The dump runs as the in-container `git` user (uid 1000, owns /data) via
+# `docker compose exec -u git`; run as root it would refuse. Nothing secret is on
+# the command line — Forgejo reads its own config from $GITEA_CUSTOM in the image.
+#
+# Runs as root on the host (needs Docker). Driven by forgejo-dump.timer.
+
+# === Root Only Check ===
+[[ "${EUID}" -ne 0 ]] && { echo "ERROR: run as root" >&2; exit 1; }
+
+# === Core Options ===
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+trap '_rc=$?; [[ -n "${TMP:-}" && -e "${TMP}" ]] && rm -f "${TMP}"
+      (( _rc != 0 )) && printf "ERROR(%s) at line %s: %s\n" \
+        "${_rc}" "${LINENO:-N/A}" "${BASH_COMMAND:-N/A}" >&2
+      exit "${_rc}"' ERR
+
+# === Configuration ===
+declare -r FJ_COMPOSE="${FORGEJO_COMPOSE:-/srv/forgejo/compose.yaml}"
+declare -r FJ_SERVICE="forgejo"
+declare -r OUT_DIR="/var/backups/forgejo"
+declare -r OUT="${OUT_DIR}/forgejo-dump.zip"
+declare TMP=""                          # set in main once OUT_DIR exists
+# A real dump is always multiple MB (SQL dump + bleve index alone exceed this even
+# with zero repos). Anything tiny means the dump aborted early (e.g. a missing
+# repositories dir) and must not replace a good file.
+declare -ri MIN_BYTES=$((512 * 1024))
+
+log() { printf '%s forgejo-dump: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+
+main() {
+  install -d -m 700 -o root -g root "${OUT_DIR}"
+  TMP="$(mktemp "${OUT}.XXXXXX.tmp")"
+
+  log "starting dump via ${FJ_COMPOSE}"
+
+  # -T: no TTY, so the zip stream is byte-clean. -u git: dump refuses to run as
+  # root and needs to read the uid-1000-owned /data. --skip-log drops the app's
+  # own log files (regenerable, noisy); everything needed to restore stays in.
+  # --file - streams the (already-compressed) zip to stdout.
+  docker compose -f "${FJ_COMPOSE}" exec -T -u git "${FJ_SERVICE}" \
+    forgejo dump --type zip --quiet --skip-log --file - > "${TMP}"
+
+  # Verify the temp file before it becomes the live backup.
+  local -i bytes
+  bytes="$(stat -c%s "${TMP}")"
+  if (( bytes < MIN_BYTES )); then
+    log "ERROR: dump only ${bytes} bytes (< ${MIN_BYTES}); refusing to replace ${OUT}"
+    exit 1
+  fi
+  if ! unzip -qt "${TMP}" >/dev/null; then
+    log "ERROR: dump failed zip integrity check; keeping previous ${OUT}"
+    exit 1
+  fi
+
+  chmod 600 "${TMP}"
+  # Atomic within the same filesystem: the pull sees either old or new, never torn.
+  mv -f "${TMP}" "${OUT}"
+  TMP=""
+  log "wrote ${OUT} (${bytes} bytes)"
+}
+
+main "$@"

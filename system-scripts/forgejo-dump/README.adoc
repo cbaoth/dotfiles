@@ -1,0 +1,103 @@
+= forgejo-dump
+:toc: macro
+:icons: font
+
+Consistent, self-contained dump of the Forgejo instance, written to a single
+atomically-replaced zip for the offsite backup to pull.
+
+toc::[]
+
+== Why
+
+Forgejo's data is bind-mounted under `/srv/forgejo/data`, so the saito pull
+already copies it file-for-file. But the metadata store is an SQLite file
+(`data/gitea.db`); copied while Forgejo is writing, it is a torn, unrestorable
+state — the same hazard that made `nextcloud-db-dump` necessary for MariaDB.
+
+`forgejo dump` builds a point-in-time archive containing the repositories, the
+config (`app.ini`), attachments, LFS objects, packages, **and** a logical SQL
+dump of the database (`forgejo-db.sql`). Restoring from it does not depend on
+what the live SQLite file happened to look like at pull time.
+
+== How it stays safe to pull at any moment
+
+* The zip is streamed to a temp file, size-checked and integrity-checked
+  (`unzip -t`), then `mv`-renamed over the live file. Rename is atomic within a
+  filesystem, so a concurrent pull sees either the old or the new dump, never a
+  half-written one.
+* A single rolling file is kept (`/var/backups/forgejo/forgejo-dump.zip`).
+  History is restic's job on saito; dated dumps here would just waste space.
+* The dump runs as the in-container `git` user (uid 1000, owns `/data`) via
+  `docker compose exec -u git` — run as root it refuses. Forgejo reads its own
+  config from `$GITEA_CUSTOM` in the image, so nothing secret is on the host
+  command line.
+
+== Files
+
+[cols="1,3"]
+|===
+| `forgejo-dump`         | the dump script (root; needs Docker)
+| `forgejo-dump.service` | oneshot unit that runs it
+| `forgejo-dump.timer`   | nightly at 01:40, ahead of the saito pull
+|===
+
+== Deploy (manual — outside `$HOME`, not covered by dotfiles-link)
+
+[source,sh]
+----
+sudo install -D -m 755 forgejo-dump \
+  /opt/system-scripts/forgejo-dump/forgejo-dump
+sudo install -D -m 644 forgejo-dump.service \
+  /etc/systemd/system/forgejo-dump.service
+sudo install -D -m 644 forgejo-dump.timer \
+  /etc/systemd/system/forgejo-dump.timer
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now forgejo-dump.timer
+
+# force one run and inspect
+sudo systemctl start forgejo-dump.service
+sudo journalctl -u forgejo-dump.service -n 20 --no-pager
+ls -l /var/backups/forgejo/
+----
+
+== Restore
+
+Stop the stack, unpack the dump into a fresh `/srv/forgejo/data`, and load the
+SQL dump back into a new SQLite file. Outline (adjust paths on the target host):
+
+[source,sh]
+----
+cd /srv/forgejo && docker compose down
+
+# unpack the archive
+mkdir -p restore && cd restore
+unzip /var/backups/forgejo/forgejo-dump.zip
+
+# repositories + data + config go back under data/
+#   ./repositories/*   -> /srv/forgejo/data/git/repositories/
+#   ./data/*           -> /srv/forgejo/data/gitea/    (attachments, lfs, avatars…)
+#   ./app.ini          -> /srv/forgejo/data/gitea/conf/app.ini
+# rebuild the SQLite DB from the logical dump
+rm -f /srv/forgejo/data/gitea/gitea.db
+sqlite3 /srv/forgejo/data/gitea/gitea.db < ./forgejo-db.sql
+
+# fix ownership to uid/gid 1000, then start
+chown -R 1000:1000 /srv/forgejo/data
+docker compose -f /srv/forgejo/compose.yaml up -d
+docker compose -f /srv/forgejo/compose.yaml exec -u git forgejo forgejo doctor check --all
+----
+
+NOTE: the archive layout has repos at the top level and the app data under
+`data/`; verify with `unzip -l` before copying — Forgejo's dump layout can shift
+between major versions.
+
+== Related
+
+* Offsite pull + restic excludes: `~/notes/systems/saito/backup/` (the exclude
+  list keeps `/srv` and `/var/backups`, drops only regenerable Docker internals
+  and the raw `nextcloud_db` volume).
+* Same pattern for the database next door: `../nextcloud-db-dump/`.
+* Instance notes: `~/notes/systems/11001001/forgejo.md`.
+* `FORGEJO_COMPOSE` env var overrides the compose file path (default
+  `/srv/forgejo/compose.yaml`).

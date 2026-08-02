@@ -1,0 +1,18 @@
+[Unit]
+Description=Consistent dump of the Forgejo instance (for offsite backup)
+Documentation=file:/opt/system-scripts/forgejo-dump/README.adoc
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/system-scripts/forgejo-dump/forgejo-dump
+# Harmless if it overruns; the atomic rename means a slow dump never yields a
+# torn file. Cap it so a hung instance does not wedge the unit forever.
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+
+[Install]
+WantedBy=multi-user.target
