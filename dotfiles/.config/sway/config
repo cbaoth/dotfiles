@@ -778,6 +778,7 @@ for_window [app_id="(?i)^peazip$"]                         $float
 for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] $float
 for_window [class="(?i)(^|[ ._-])(steam|PortProton)$"]     $float
 for_window [title="(?i)(Games Launcher|battle\.net)$"]     $float
+for_window [app_id="yad"][title="Protontricks"]            $float
 # }}} - Floating -------------------------------------------------------------
 
 # {{{ - Popups, Dialogs, Small -----------------------------------------------
