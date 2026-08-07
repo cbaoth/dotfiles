@@ -7,6 +7,9 @@
 # scripts, aliases, and xdg-open handlers cannot reach it.
 # Self-contained GUI apps go in flatpak-desktop.list.
 
+# System & hardware
+nvtop
+
 # Terminal emulator & clipboard
 xfce4-terminal
 copyq
