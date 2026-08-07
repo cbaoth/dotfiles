@@ -4,22 +4,37 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# Move files/directories from $HOME into repo dotfiles/ and relink via tools/link.sh.
+# Move files/directories from $HOME into the repo (flat-sync dirs like bin/ and
+# lib/, else dotfiles/) and relink via tools/link.sh, sanitizing names on the way.
 
 set -u
 
 # constants
-declare SCRIPT_NAME SCRIPT_FILE TOOLS_DIR REPO_ROOT DOTFILES_DIR LINK_SCRIPT
+declare SCRIPT_NAME SCRIPT_FILE TOOLS_DIR REPO_ROOT DOTFILES_DIR LINK_SCRIPT LINK_CONFIG
 SCRIPT_NAME="$(basename "$0")"
 SCRIPT_FILE="$(realpath "$0")"
 TOOLS_DIR="$(dirname "$SCRIPT_FILE")"
 REPO_ROOT="$(dirname "$TOOLS_DIR")"
 DOTFILES_DIR="${REPO_ROOT}/dotfiles"
 LINK_SCRIPT="${TOOLS_DIR}/link.sh"
-declare -r SCRIPT_NAME SCRIPT_FILE TOOLS_DIR REPO_ROOT DOTFILES_DIR LINK_SCRIPT
+LINK_CONFIG="${TOOLS_DIR}/link-config.conf"
+declare -r SCRIPT_NAME SCRIPT_FILE TOOLS_DIR REPO_ROOT DOTFILES_DIR LINK_SCRIPT LINK_CONFIG
+
+# SYNC_DIRS (flat-sync repo→home pairs, e.g. bin/ and lib/). Sourced at top
+# level so `declare -A` inside link-config.conf stays global (a `source` inside
+# a function would make it a function-local and lose it).
+declare -A SYNC_DIRS=()
+if [[ -f "${LINK_CONFIG}" ]]; then
+  # shellcheck source=/dev/null
+  source "${LINK_CONFIG}" || {
+    echo "error: failed to source link config: ${LINK_CONFIG}" >&2
+    exit 1
+  }
+fi
 
 # variables
 declare DRY_RUN=false
+declare SANITIZE=true
 declare -i VERBOSE=0
 declare -a WARNINGS=()
 declare -a ERRORS=()
@@ -28,13 +43,28 @@ declare -a MOVED=()
 
 usage() {
   cat >&2 <<EOF
-Usage: $SCRIPT_NAME [--dry-run|-n] [-v|-vv|--verbose[=N]] <path> [<path> ...]
+Usage: $SCRIPT_NAME [--dry-run|-n] [--no-sanitize] [-v|-vv|--verbose[=N]] <path> [<path> ...]
 
-Move each source path (must be inside \$HOME) into repo dotfiles/ at the same
-relative location, then run tools/link.sh to create symlinks back.
+Move each source path (must be inside \$HOME) into the repository, then run
+tools/link.sh to create symlinks back. Direct children of a flat-sync home dir
+(e.g. ~/bin, ~/lib) land in the matching repo dir (bin/, lib/); everything else
+mirrors under dotfiles/ at the same relative location.
+
+By default the destination name is sanitized to match repo conventions (e.g. a
+.sh/.bash extension is stripped from executables adopted into bin/). Pass
+--no-sanitize to keep the original name verbatim.
+
+Options:
+  -n, --dry-run        print changes; move and link nothing
+      --no-sanitize    keep the original filename/location verbatim
+  -v, -vv, --verbose[=N]
+                       increase verbosity (0=quiet, 1=info, 2=debug)
+  -h, --help           show this help and exit
 
 Examples:
   $SCRIPT_NAME ~/.config/mimeapps.list
+  $SCRIPT_NAME ~/bin/watch-reaction.sh          # → repo bin/watch-reaction
+  $SCRIPT_NAME --no-sanitize ~/bin/keep-name.sh # → repo bin/keep-name.sh
   $SCRIPT_NAME -n ~/.config/foo ~/.local/share/bar
 EOF
 }
@@ -43,6 +73,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -n|--dry-run)
       DRY_RUN=true
+      shift
+      ;;
+    --no-sanitize)
+      SANITIZE=false
       shift
       ;;
     -vv)
@@ -151,7 +185,49 @@ validate_basics() {
     echo "error: link script not executable: ${LINK_SCRIPT}" >&2
     return 1
   }
+  [[ -f "${LINK_CONFIG}" ]] || {
+    echo "error: link config not found: ${LINK_CONFIG}" >&2
+    return 1
+  }
+  [[ ${#SYNC_DIRS[@]} -gt 0 ]] || {
+    echo "error: SYNC_DIRS not populated (link config sourcing failed)" >&2
+    return 1
+  }
   return 0
+}
+
+# Echo the repo flat-sync dir a source path maps to, or nothing. A source maps
+# only when it is a direct child of a configured home dir (~/bin, ~/lib), since
+# link.sh flat-syncs those non-recursively; nested paths fall through to the
+# dotfiles/ mirror.
+sync_dir_for() {
+  local abs_path="$1"
+  local src_dir repo_dir
+  src_dir="$(dirname -- "$abs_path")"
+  for repo_dir in "${!SYNC_DIRS[@]}"; do
+    if [[ "$src_dir" == "${SYNC_DIRS[$repo_dir]}" ]]; then
+      printf '%s' "$repo_dir"
+      return 0
+    fi
+  done
+  return 0
+}
+
+# Sanitize a destination basename to match repo conventions. Currently strips a
+# .sh/.bash extension from executables adopted into bin/ (scripts there carry no
+# extension by convention). Add future rules here. A no-op under --no-sanitize.
+sanitize_name() {
+  local repo_dir="$1"
+  local name="$2"
+
+  if $SANITIZE && [[ "$(basename -- "$repo_dir")" == "bin" ]]; then
+    case "$name" in
+      *.sh)   name="${name%.sh}" ;;
+      *.bash) name="${name%.bash}" ;;
+    esac
+  fi
+
+  printf '%s' "$name"
 }
 
 adopt_one() {
@@ -183,12 +259,26 @@ adopt_one() {
     return 1
   fi
 
-  rel_path="${src_abs#"${HOME}"/}"
-  dst_abs="${DOTFILES_DIR}/${rel_path}"
+  local base_name sync_repo_dir dst_name
+  base_name="$(basename -- "$src_abs")"
+  sync_repo_dir="$(sync_dir_for "$src_abs")"
+
+  if [[ -n "$sync_repo_dir" ]]; then
+    # Flat-sync dir (bin/, lib/): route into the repo dir, sanitizing the name.
+    dst_name="$(sanitize_name "$sync_repo_dir" "$base_name")"
+    dst_abs="${sync_repo_dir}/${dst_name}"
+  else
+    # Everything else mirrors under dotfiles/ at the same relative location.
+    rel_path="${src_abs#"${HOME}"/}"
+    dst_abs="${DOTFILES_DIR}/${rel_path}"
+  fi
   dst_dir="$(dirname -- "$dst_abs")"
 
   debug "source: ${src_abs}"
   debug "dest:   ${dst_abs}"
+  if [[ "$base_name" != "$(basename -- "$dst_abs")" ]]; then
+    info "Sanitized name: ${base_name} -> $(basename -- "$dst_abs")"
+  fi
 
   if [[ "$src_abs" == "$dst_abs" ]]; then
     WARNINGS+=("WARNING: source already inside repo path, skipping: ${src_abs}")
@@ -203,7 +293,7 @@ adopt_one() {
   run_and_report mkdir -p -- "$dst_dir" || return 1
   run_and_report mv -- "$src_abs" "$dst_abs" || return 1
 
-  MOVED+=("${rel_path}")
+  MOVED+=("${dst_abs#"${REPO_ROOT}"/}")
   return 0
 }
 
