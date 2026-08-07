@@ -1,0 +1,467 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Watch a reaction alongside the show in two paused, IPC-controlled mpv windows:
+# the show large (windowed, full usable height), the reaction a small overlay in
+# the show's bottom-right corner. Placement is done via Sway (falls back to mpv
+# geometry when not under Sway).
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="$(basename "$0")"
+
+# -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# {{{ = CONSTANTS =============================================================
+
+declare -r SHOW_SOCKET="/tmp/mpv-show.sock"
+declare -r REACTION_SOCKET="/tmp/mpv-reaction.sock"
+
+declare -ri REACTION_W=480                       # default reaction overlay size
+declare -ri REACTION_H=270
+declare -ri REACTION_MARGIN=20                   # px inset from the show's corner
+# mpv-geometry fallback used when not under Sway: bottom-right, margin inset.
+declare -r REACTION_FALLBACK_GEOMETRY="${REACTION_W}x${REACTION_H}-${REACTION_MARGIN}-${REACTION_MARGIN}"
+
+declare -ri SHOW_ASPECT_W=16                     # show aspect fallback if unprobed
+declare -ri SHOW_ASPECT_H=9
+
+declare -ri WINDOW_WAIT_TRIES=30                 # ~3s at 0.1s/try for a window to map
+declare -r WINDOW_WAIT_INTERVAL="0.1"
+
+# }}} = CONSTANTS =============================================================
+
+# {{{ = HELPERS ===============================================================
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_war() { printf '\033[33mWARNING\033[0m: %s\n' "$*" >&2; }
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] REACTION SHOW [SHOW...]
+   or: ${SCRIPT_FILE} [OPTIONS] --reaction ARG... --show ARG...
+
+Open two paused mpv windows wired for IPC control and lay them out for reaction
+viewing: the SHOW large (windowed, full usable height below the bar, aligned per
+--align) and the REACTION as a small overlay in the show's bottom-right corner.
+Both start paused so they can be lined up and un-paused together — useful when
+the two drift because of a frame-rate mismatch (see ff-video-sync to correct
+PAL/NTSC speed differences first).
+
+Multiple files given to either side become an mpv playlist (played back to
+back in that one window) — e.g. a single reaction covering several short
+episodes, or one reaction split across several files.
+
+The windows are titled "mpv-show" and "mpv-reaction" for Sway/i3 window rules,
+and expose IPC sockets for scripted control at:
+  show:     ${SHOW_SOCKET}
+  reaction: ${REACTION_SOCKET}
+
+Layout is applied via swaymsg using the workspace's usable area (bars excluded
+automatically, like sway-place). Without Sway it falls back to mpv's own
+geometry (reaction at the screen's bottom-right; show at mpv's default size).
+
+Sync hotkeys are installed into both windows (they work whichever has focus;
+require the mpv-ipc helper). Modifier picks the target — Shift+Alt = show,
+Ctrl+Alt = reaction, Ctrl+Shift+Alt = both:
+  <mod>+Left/Right   seek: -/+1 exact per side, -/+10 for both (skip/repeat)
+  <mod>+Space        toggle play/pause
+  <mod>+q            quit (quit-watch-later, so resume is saved)
+
+Two input styles (do not mix them):
+  Positional shortcut (common case):
+    REACTION is a single file, every following file is a SHOW episode.
+  Explicit groups (full control, either order):
+    --reaction and --show each begin a group; every following argument — video
+    files AND extra mpv options — is forwarded verbatim to that mpv instance
+    until the next --reaction/--show. This is how you drive the rarer reverse
+    case (one show, several reaction files) or pass per-window mpv options.
+    A --geometry inside a group disables that window's automatic placement.
+
+Options (must precede the first --reaction/--show group):
+  -a, --align left|center|right   horizontal alignment of the show [center]
+  -g, --geometry WxH+X+Y   place the reaction manually via mpv --geometry
+                           (disables the automatic bottom-right placement)
+  -p, --play               start playing immediately (default: start paused)
+  -h, --help               show this help and exit
+
+Examples:
+  # common: 1 reaction, several show episodes as a playlist in the large window
+  ${SCRIPT_FILE} reaction_ep1-4.mp4 ep1.mkv ep2.mkv ep3.mkv ep4.mkv
+
+  # show pinned left (free the right half of the screen), start playing
+  ${SCRIPT_FILE} -p --align left reaction.mp4 ep1.mkv
+
+  # place the reaction manually instead of the automatic overlay
+  ${SCRIPT_FILE} -g 640x360-40-40 reaction.mp4 ep1.mkv
+
+  # reverse (rare): one show episode, reaction split across two files
+  ${SCRIPT_FILE} --show single_ep.mkv --reaction react_a.mp4 react_b.mp4
+EOF
+}
+
+# Return 0 if any argument sets an mpv --geometry (manual placement opt-out).
+_has_geometry_arg() {
+  local a
+  for a in "$@"; do
+    [[ "$a" == "--geometry" || "$a" == "--geometry="* ]] && return 0
+  done
+  return 1
+}
+
+# Echo the first argument that is an existing file (for aspect probing).
+_first_existing_file() {
+  local a
+  for a in "$@"; do
+    [[ -f "$a" ]] && { printf '%s' "$a"; return 0; }
+  done
+  return 0
+}
+
+# Echo "W H" aspect for a video file via ffprobe (display aspect if sane, else
+# pixel dimensions). Empty output on any failure — caller falls back to 16:9.
+probe_aspect() {
+  local file="$1"
+  [[ -n "$file" && -f "$file" ]] || return 0
+  command -v ffprobe > /dev/null 2>&1 || return 0
+
+  local out w h dar
+  out="$(ffprobe -v error -select_streams v:0 \
+    -show_entries stream=width,height,display_aspect_ratio \
+    -of default=nw=1 -- "$file" 2>/dev/null)" || return 0
+  w="$(sed -n 's/^width=//p' <<< "$out")"
+  h="$(sed -n 's/^height=//p' <<< "$out")"
+  dar="$(sed -n 's/^display_aspect_ratio=//p' <<< "$out")"
+
+  if [[ "$dar" =~ ^[0-9]+:[0-9]+$ && "$dar" != "0:1" ]]; then
+    printf '%s %s' "${dar%:*}" "${dar#*:}"
+  elif [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] && (( h > 0 )); then
+    printf '%s %s' "$w" "$h"
+  fi
+}
+
+# True when Sway IPC (and jq) are usable for placement.
+sway_available() {
+  command -v swaymsg > /dev/null 2>&1 \
+    && command -v jq > /dev/null 2>&1 \
+    && swaymsg -t get_version > /dev/null 2>&1
+}
+
+# Echo the con_id of the first window whose title matches, or nothing.
+sway_conid() {
+  swaymsg -t get_tree 2>/dev/null \
+    | jq -r --arg t "$1" '[ .. | objects | select(.name? == $t) | .id ] | first // empty'
+}
+
+# Poll for a titled window to map; echo its con_id (rc 1 on timeout).
+sway_wait_conid() {
+  local title="$1" id i
+  for (( i = 0; i < WINDOW_WAIT_TRIES; i++ )); do
+    id="$(sway_conid "$title")"
+    [[ -n "$id" ]] && { printf '%s' "$id"; return 0; }
+    sleep "$WINDOW_WAIT_INTERVAL"
+  done
+  return 1
+}
+
+# Echo "W H" of the usable area of the workspace containing con_id $1.
+sway_ws_size() {
+  swaymsg -t get_tree 2>/dev/null | jq -r --argjson id "$1" '
+    [ .. | objects | select(.type? == "workspace")
+      | select([ .. | .id? // empty ] | index($id)) ] | first
+    | "\(.rect.width) \(.rect.height)"'
+}
+
+# Size and position both windows on their Sway workspace. Coordinates are
+# workspace-usable-relative (0,0 at the top-left of the area below the bar),
+# matching sway-place's `move position` convention.
+place_windows() {
+  local align="$1" show_manual="$2" reaction_manual="$3" show_file="$4"
+  local sid rid ws_w ws_h
+
+  sid="$(sway_wait_conid mpv-show)" \
+    || { p_war "show window did not appear; leaving mpv's own geometry"; return 0; }
+  rid="$(sway_wait_conid mpv-reaction)" \
+    || { p_war "reaction window did not appear; leaving mpv's own geometry"; return 0; }
+
+  read -r ws_w ws_h < <(sway_ws_size "$sid") || true
+  [[ "$ws_w" =~ ^[0-9]+$ && "$ws_h" =~ ^[0-9]+$ ]] \
+    || { p_war "could not read workspace size; skipping placement"; return 0; }
+
+  # Show: full usable height, width from the (probed) aspect, aligned. When the
+  # show is manually placed we keep these defaults only to anchor the reaction.
+  local -i show_w=ws_w show_x=0
+  if [[ "$show_manual" != true ]]; then
+    local arw arh
+    read -r arw arh < <(probe_aspect "$show_file") || true
+    if ! { [[ "$arw" =~ ^[0-9]+$ && "$arh" =~ ^[0-9]+$ ]] && (( arh > 0 )); }; then
+      arw=$SHOW_ASPECT_W
+      arh=$SHOW_ASPECT_H
+    fi
+    show_w=$(( ws_h * arw / arh ))
+    (( show_w > ws_w )) && show_w=ws_w
+    case "$align" in
+      left)  show_x=0 ;;
+      right) show_x=$(( ws_w - show_w )) ;;
+      *)     show_x=$(( (ws_w - show_w) / 2 )) ;;
+    esac
+    swaymsg "[con_id=$sid] floating enable, resize set ${show_w} px ${ws_h} px, move position ${show_x} px 0 px" \
+      > /dev/null || p_war "failed to place show window"
+  fi
+
+  # Reaction: fixed size, hugging the show's bottom-right corner with a margin.
+  if [[ "$reaction_manual" != true ]]; then
+    local -i rw=REACTION_W rh=REACTION_H rx ry
+    (( rw > ws_w )) && rw=ws_w
+    (( rh > ws_h )) && rh=ws_h
+    rx=$(( show_x + show_w - rw - REACTION_MARGIN ))
+    ry=$(( ws_h - rh - REACTION_MARGIN ))
+    (( rx < 0 )) && rx=0
+    (( ry < 0 )) && ry=0
+    swaymsg "[con_id=$rid] floating enable, resize set ${rw} px ${rh} px, move position ${rx} px ${ry} px" \
+      > /dev/null || p_war "failed to place reaction window"
+  fi
+
+  # Raise the reaction above the show (last-focused floating window is on top).
+  swaymsg "[con_id=$rid] focus" > /dev/null || true
+}
+
+# Install sync hotkeys into both mpv instances (once their IPC sockets are up)
+# via the `keybind` command. Each binding runs `mpv-ipc` to send an input
+# command to the targeted socket(s), so the key works regardless of which
+# window has focus. Requires the mpv-ipc helper in PATH; a no-op otherwise.
+inject_keybinds() {
+  local both="${SHOW_SOCKET},${REACTION_SOCKET}"
+  local i
+  for (( i = 0; i < WINDOW_WAIT_TRIES; i++ )); do
+    if [[ -S "$SHOW_SOCKET" && -S "$REACTION_SOCKET" ]]; then break; fi
+    sleep "$WINDOW_WAIT_INTERVAL"
+  done
+  if [[ ! -S "$SHOW_SOCKET" || ! -S "$REACTION_SOCKET" ]]; then
+    p_war "mpv IPC sockets not ready; sync hotkeys not installed"
+    return 0
+  fi
+  local mpv_ipc
+  mpv_ipc="$(command -v mpv-ipc)" || {
+    p_war "mpv-ipc helper not found in PATH; sync hotkeys not installed"
+    return 0
+  }
+
+  # KEY | target socket(s) | mpv input command. Modifier picks the target:
+  # Shift+Alt = show, Ctrl+Alt = reaction, Ctrl+Shift+Alt = both.
+  local -a binds=(
+    "Shift+Alt+RIGHT|${SHOW_SOCKET}|seek 1 exact"
+    "Shift+Alt+LEFT|${SHOW_SOCKET}|seek -1 exact"
+    "Ctrl+Alt+RIGHT|${REACTION_SOCKET}|seek 1 exact"
+    "Ctrl+Alt+LEFT|${REACTION_SOCKET}|seek -1 exact"
+    "Ctrl+Shift+Alt+RIGHT|${both}|seek 10"
+    "Ctrl+Shift+Alt+LEFT|${both}|seek -10"
+    "Shift+Alt+SPACE|${SHOW_SOCKET}|cycle pause"
+    "Ctrl+Alt+SPACE|${REACTION_SOCKET}|cycle pause"
+    "Ctrl+Shift+Alt+SPACE|${both}|cycle pause"
+    "Shift+Alt+q|${SHOW_SOCKET}|quit-watch-later"
+    "Ctrl+Alt+q|${REACTION_SOCKET}|quit-watch-later"
+    "Ctrl+Shift+Alt+q|${both}|quit-watch-later"
+  )
+
+  local entry key targets cmd action esc json
+  for entry in "${binds[@]}"; do
+    IFS='|' read -r key targets cmd <<< "$entry"
+    # The bound action: run the helper (absolute path, so it works regardless
+    # of mpv's own PATH) to relay `cmd` to the target socket(s).
+    action="run \"${mpv_ipc}\" \"${targets}\" \"${cmd}\""
+    esc="${action//\"/\\\"}"                       # escape quotes for JSON
+    json="{\"command\":[\"keybind\",\"${key}\",\"${esc}\"]}"
+    # Install into both instances so the key fires no matter which is focused.
+    mpv-ipc "$both" "$json" > /dev/null 2>&1 || p_war "failed to install hotkey ${key}"
+  done
+}
+
+# }}} = HELPERS ===============================================================
+
+main() {
+  local play=false
+  local align="center"
+  local geometry=""
+  local geometry_set=false
+  local current=""
+  local -a reaction=() show=() positional=()
+
+  # Parse: --reaction/--show open a group that swallows every following token
+  # verbatim (files + mpv options) until the next group flag. Plain options are
+  # only recognized before the first group flag.
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --reaction)
+        current="reaction"
+        shift
+        ;;
+      --show)
+        current="show"
+        shift
+        ;;
+      *)
+        if [[ "$current" == "reaction" ]]; then
+          reaction+=("$1")
+          shift
+          continue
+        elif [[ "$current" == "show" ]]; then
+          show+=("$1")
+          shift
+          continue
+        fi
+        case "$1" in
+          -p|--play)
+            play=true
+            shift
+            ;;
+          -a|--align)
+            [[ $# -ge 2 ]] || { p_err "missing argument for $1"; return 2; }
+            align="$2"
+            shift 2
+            ;;
+          --align=*)
+            align="${1#*=}"
+            shift
+            ;;
+          -g|--geometry)
+            [[ $# -ge 2 ]] || { p_err "missing argument for $1"; return 2; }
+            geometry="$2"
+            geometry_set=true
+            shift 2
+            ;;
+          --geometry=*)
+            geometry="${1#*=}"
+            geometry_set=true
+            shift
+            ;;
+          -h|--help)
+            p_usg
+            return 0
+            ;;
+          --)
+            shift
+            positional+=("$@")
+            break
+            ;;
+          -*)
+            p_err "unknown option: $1"
+            p_usg >&2
+            return 2
+            ;;
+          *)
+            positional+=("$1")
+            shift
+            ;;
+        esac
+        ;;
+    esac
+  done
+
+  case "$align" in
+    left|center|right) ;;
+    *) p_err "invalid --align: ${align} (expected left|center|right)"; return 2 ;;
+  esac
+
+  # Reconcile the two input styles: positional shortcut vs. explicit groups.
+  local shortcut=false
+  if [[ ${#positional[@]} -gt 0 ]]; then
+    if [[ ${#reaction[@]} -gt 0 || ${#show[@]} -gt 0 ]]; then
+      p_err "do not mix positional files with --reaction/--show groups"
+      p_usg >&2
+      return 2
+    fi
+    if [[ ${#positional[@]} -lt 2 ]]; then
+      p_err "need a reaction file and at least one show file"
+      p_usg >&2
+      return 2
+    fi
+    reaction=("${positional[0]}")
+    show=("${positional[@]:1}")
+    shortcut=true
+    # In shortcut mode the tokens are known to be files, so validate them.
+    local f
+    for f in "${reaction[@]}" "${show[@]}"; do
+      [[ -f "$f" ]] || { p_err "file not found: ${f}"; return 1; }
+    done
+  fi
+
+  if [[ ${#reaction[@]} -eq 0 || ${#show[@]} -eq 0 ]]; then
+    p_err "both a reaction and a show video are required"
+    p_usg >&2
+    return 2
+  fi
+
+  command -v mpv > /dev/null 2>&1 || { p_err "mpv not found in PATH"; return 1; }
+
+  # A --geometry (top-level -g or inside a group) means the user places that
+  # window; skip our automatic placement for it.
+  local reaction_manual=false show_manual=false
+  if $geometry_set || _has_geometry_arg "${reaction[@]}"; then reaction_manual=true; fi
+  if _has_geometry_arg "${show[@]}"; then show_manual=true; fi
+
+  # Remove stale sockets so a previous run can't hijack the IPC commands.
+  rm -f -- "${SHOW_SOCKET}" "${REACTION_SOCKET}"
+
+  local -a pause_opt=(--pause)
+  $play && pause_opt=()
+
+  # Distinct --audio-client-name so the two streams are told apart in pavucontrol
+  # (and can be routed independently).
+  local -a reaction_cmd=(
+    mpv
+    --no-terminal
+    --title=mpv-reaction
+    --audio-client-name=mpv-reaction
+    --input-ipc-server="${REACTION_SOCKET}"
+    "${pause_opt[@]}"
+  )
+  if $geometry_set; then
+    reaction_cmd+=(--geometry="${geometry}")
+  elif [[ "$reaction_manual" != true ]]; then
+    # Fallback for the non-Sway path; overridden by placement when under Sway.
+    reaction_cmd+=(--geometry="${REACTION_FALLBACK_GEOMETRY}")
+  fi
+
+  local -a show_cmd=(
+    mpv
+    --no-terminal
+    --title=mpv-show
+    --audio-client-name=mpv-show
+    --input-ipc-server="${SHOW_SOCKET}"
+    "${pause_opt[@]}"
+  )
+
+  # Only the shortcut path is guaranteed file-only, so guard those with `--`;
+  # group tokens may contain mpv options and must not be treated as filenames.
+  if $shortcut; then
+    reaction_cmd+=(-- "${reaction[@]}")
+    show_cmd+=(-- "${show[@]}")
+  else
+    reaction_cmd+=("${reaction[@]}")
+    show_cmd+=("${show[@]}")
+  fi
+
+  # Launch the show first and the reaction last so the small reaction window
+  # maps on top of the larger show window (newest floating window stacks above);
+  # place_windows then also explicitly focuses the reaction to keep it on top.
+  "${show_cmd[@]}" &
+  "${reaction_cmd[@]}" &
+
+  if sway_available; then
+    place_windows "$align" "$show_manual" "$reaction_manual" "$(_first_existing_file "${show[@]}")"
+  else
+    p_war "not running under Sway (swaymsg/jq unavailable); using mpv's own geometry"
+  fi
+
+  inject_keybinds
+
+  return 0
+}
+
+main "$@"

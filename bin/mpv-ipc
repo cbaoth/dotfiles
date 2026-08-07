@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Send an mpv input command to one or more --input-ipc-server sockets.
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="$(basename "$0")"
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# {{{ = HELPERS ===============================================================
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} SOCKET[,SOCKET...] COMMAND [ARG...]
+
+Send an mpv input command (input.conf / JSON IPC syntax) to one or more mpv
+IPC sockets. Multiple sockets are comma-separated; a socket that does not
+exist is skipped silently (so it is safe when only one instance is running).
+
+The command may be a plain input command or a raw JSON IPC line — mpv accepts
+both over --input-ipc-server.
+
+Examples:
+  ${SCRIPT_FILE} /tmp/mpv-show.sock seek 1 exact
+  ${SCRIPT_FILE} /tmp/mpv-show.sock,/tmp/mpv-reaction.sock cycle pause
+  ${SCRIPT_FILE} /tmp/mpv-show.sock '{"command":["get_property","time-pos"]}'
+EOF
+}
+
+# Send one newline-terminated line to a unix socket, trying socat, then
+# python3, then nc. Returns non-zero if no sender is available.
+send_line() {
+  local sock="$1" line="$2"
+  if command -v socat > /dev/null 2>&1; then
+    printf '%s\n' "$line" | socat - "$sock"
+  elif command -v python3 > /dev/null 2>&1; then
+    printf '%s\n' "$line" \
+      | python3 -c 'import socket,sys
+s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1])
+s.sendall(sys.stdin.buffer.read()); s.close()' "$sock"
+  elif command -v nc > /dev/null 2>&1; then
+    printf '%s\n' "$line" | nc -U -w1 "$sock"
+  else
+    p_err "no socket sender available (need socat, python3, or nc)"
+    return 127
+  fi
+}
+
+# }}} = HELPERS ===============================================================
+
+main() {
+  case "${1:-}" in
+    -h|--help)
+      p_usg
+      return 0
+      ;;
+  esac
+
+  if [[ $# -lt 2 ]]; then
+    p_err "expected a socket and a command"
+    p_usg >&2
+    return 2
+  fi
+
+  local sockets_arg="$1"
+  shift
+  local line="$*"
+
+  local -a sockets
+  IFS=',' read -r -a sockets <<< "$sockets_arg"
+
+  local sock rc=0
+  for sock in "${sockets[@]}"; do
+    [[ -S "$sock" ]] || continue
+    send_line "$sock" "$line" > /dev/null 2>&1 || rc=1
+  done
+
+  # Not reaching any live socket is not an error (e.g. an instance was closed).
+  return $rc
+}
+
+main "$@"
