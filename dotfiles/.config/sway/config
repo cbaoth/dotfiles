@@ -66,10 +66,20 @@ input "type:pointer" {
     pointer_accel 0.2
 }
 
-#input "type:touchpad" {
-#    tap               enabled
-#    natural_scroll    enabled
-#    scroll_factor     0.5
+# For notebook touchpad
+input "type:touchpad" {
+    dwt              enabled    # disable while typing
+    tap              enabled    # enable click-on-tap
+    tap_button_map   lrm        # map 1/2/3 finger tab to left/right/middle click
+    natural_scroll   disabled   # invert scroll direction: swipe down scroll down (vs. irl / touch screen dragging)
+    scroll_factor    1.5        # increase scroll speed
+    middle_emulation enabled    # map left+right to middle click
+}
+
+# For notebook touch screen
+# TODO evaluated
+#input "type:touch" {
+#    tap_button_map   lrm        # map 1/2/3 finger tab to left/right/middle click
 #}
 # }}} - Input ----------------------------------------------------------------
 # }}} = Output / Input =======================================================
