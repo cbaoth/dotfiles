@@ -1,17 +1,22 @@
 ---
 title: Web browsers
-hosts: [motoko]
+hosts: [motoko, puppet]
 status: resolved
-tags: [browser, apt, gpg, firefox, vivaldi, brave]
-updated: 2026-07-12
+tags: [browser, apt, gpg, firefox, vivaldi, chrome, brave, edge]
+updated: 2026-08-13
+automated_by: setup/modules/25-browsers.sh
 ---
 
 # Web browsers
 
-**Not automated.** Each browser means a third-party apt repo plus a signing key,
-and the exact incantation drifts every release. A stale automated version would
-silently install from an unverified source — worse than doing it by hand. When
-these stabilise, they can move into a `setup/modules/` module.
+**Automated:** `system-setup 25-browsers` (desktop profile) sets up third-party
+apt repos (signing keys, deb822 sources, pin priorities) and installs the
+default package for each browser. ungoogled-chromium is a flatpak (handled by
+`20-flatpak`).
+
+Each repo typically provides **multiple release channels**. The module installs
+only the default listed in its `BROWSERS` table; other variants from the same
+repo can always be added or removed via `apt install` / `apt remove`.
 
 **Browsers come from apt, not flatpak.** A **sandboxed browser** cannot do native
 messaging to KeePassXC, so password integration breaks outright.
@@ -74,21 +79,38 @@ EOF
 sudo apt-get update && sudo apt-get install firefox
 ```
 
-## Vivaldi / Brave / Chrome / Edge
+## Vivaldi
 
-All follow the pattern above. The vendor `.deb` usually installs its own repo,
-but often writes a legacy `.list` file without `Signed-By:` — fix it:
-
-```shell
-# example: Vivaldi
-curl -L https://repo.vivaldi.com/stable/linux_signing_key.pub \
-  | gpg --dearmor | sudo tee /usr/share/keyrings/vivaldi-keyring.gpg >/dev/null
-# then add Signed-By: /usr/share/keyrings/vivaldi-keyring.gpg
-# to /etc/apt/sources.list.d/vivaldi.sources
-```
+Automated by the module. The repo and signing key are set up directly (no need
+to download a `.deb` first). The vendor `.deb` installer adds its own legacy
+`.list` file without `Signed-By:` — the module uses a proper deb822 `.sources`
+instead.
 
 `sudo apt modernize-sources -y` converts legacy `.list` files to deb822
 `.sources`, which is worth doing once and then keeping.
+
+## Chrome / Brave / Edge
+
+Available in the module (`repo` mode: signing key + sources file are set up, but
+the package is not installed by default). Change the flag in the `BROWSERS` table
+from `repo` to `yes` to install. Brave was tried and deprioritised (CEO concerns).
+Edge is useful for testing.
+
+## Available packages per repo
+
+Each repo serves multiple release channels. The **bold** package is the default
+installed by the module; others can be installed manually alongside it.
+
+| Repo | Packages |
+| ---- | -------- |
+| Mozilla (Firefox) | **firefox-nightly**, firefox, firefox-beta, firefox-devedition, firefox-esr |
+| Vivaldi | **vivaldi-stable**, vivaldi-snapshot |
+| Google Chrome | **google-chrome-stable**, google-chrome-beta, google-chrome-unstable |
+| Brave | **brave-browser** |
+| Microsoft Edge | **microsoft-edge-stable**, microsoft-edge-beta, microsoft-edge-dev, microsoft-edge-canary |
+
+To install an additional variant: `sudo apt install firefox-devedition`. To
+change the module's default, edit the `BROWSERS` table in `25-browsers.sh`.
 
 ## ungoogled-chromium
 
