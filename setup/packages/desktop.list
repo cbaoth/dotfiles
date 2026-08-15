@@ -39,15 +39,26 @@ mpg123
 # both silently. (This is why a past switch to the flatpak was reverted.)
 mpv
 
-# Sway WM and related tools (sway-contrib)
+# Sway WM and related tools
 sway
 swayidle
 swaylock
 swayosd
+waybar
 foot
 grimshot
 # Notification daemon — grimshot --notify posts here.
 mako-notifier
+
+# Wayland session tools (required by sway config)
+brightnessctl
+playerctl
+# nm-applet (network/VPN tray icon). The real package is network-manager-gnome;
+# `network-manager-applet` is only the upstream project name.
+network-manager-gnome
+pulseaudio-utils
+fonts-font-awesome
+xdg-desktop-portal-wlr
 
 # Wayland related tools
 flameshot
