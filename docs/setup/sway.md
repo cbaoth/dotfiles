@@ -32,7 +32,7 @@ sudo apt install \
 | `waybar` | Status bar (replaces i3bar/i3status) |
 | `rofi` | Application/run launcher (`mod+r`, `mod+space`) |
 | `mako-notifier` | Notification daemon (`org.freedesktop.Notifications`) |
-| `grim`, `slurp` | Screenshot tools (Wayland-native, used by `flameshot` on Wayland or as CLI tools) |
+| `grim`, `slurp`, `grimshot` | Screenshot tools (Wayland-native). `grimshot` is the wrapper the key bindings use — see [Screenshots](#screenshots) |
 | `brightnessctl` | Backlight control (replaces `xbacklight` which is X11 only) |
 | `swayosd` | On-screen display for volume/brightness/caps-lock (see [Volume / Brightness OSD](#volume--brightness-osd-swayosd)) |
 | `network-manager-applet` | nm-applet tray icon (WiFi/VPN status) |
@@ -221,6 +221,34 @@ Mask the service so Sway exclusively manages waybar via `swaybar_command`. `disa
 ``` bash
 systemctl --user mask waybar
 ```
+
+# Screenshots
+
+`grimshot` (a `grim` + `slurp` wrapper) is bound to `Print`, `AltGr+F8`,
+`Super+Shift+R` (what the MX Mechanical's fn+F8 macro actually sends) and
+`$hyper+p`. Adding `Ctrl` to any of them switches from the current output to
+"select an area, window or output". Every binding uses `savecopy` — the shot is
+written to a file *and* put on the clipboard — followed by the freedesktop
+`screen-capture` shutter sound (`canberra-gtk-play`, from
+`gnome-session-canberra`), because a notification can be occluded in fullscreen
+gamescope while audio always mixes in.
+
+**The target directory has to exist.** `grim` does not create it, and grimshot
+reports the resulting failure as the thoroughly unhelpful `Error: Unable to
+invoke grim` — while `slurp` still lets you select an area first, and flameshot
+keeps working, which makes it look like a grim bug. It is not: see
+[xdg-user-dirs.md](xdg-user-dirs.md), automated by
+[`setup/modules/15-xdg-dirs.sh`](../../setup/modules/15-xdg-dirs.sh).
+
+The bindings pass an explicit filename
+(`2026-08-15T151219.153_screen.png`, `…_select.png`) instead of grimshot's
+default `date -Ins`, which yields `2026-08-15T14:55:41,457393075+02:00.png` —
+colons, a decimal comma and nanoseconds. The milliseconds (`date` `%3N`, *not*
+`%s` — that is epoch seconds) are there purely so two shots in the same second
+cannot overwrite each other.
+
+`flameshot` stays installed as the GUI alternative — the equivalent bindings sit
+commented out next to the grimshot ones in the Sway config.
 
 # Notifications
 

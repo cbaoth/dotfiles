@@ -580,22 +580,41 @@ bindsym XF86HomePage         exec $browser
 set $camerafx  canberra-gtk-play -i screen-capture
 # No visual OSD: in fullscreen gamescope an OSD can be occluded, but audio
 # always mixes in.
-bindsym Print                exec grimshot --notify savecopy output && $camerafx
+
+# The target directory must exist — grim does not create it, it just fails, and
+# grimshot reports that as "Error: Unable to invoke grim". Created by
+# setup/modules/15-xdg-dirs.sh; see docs/setup/xdg-user-dirs.md.
+set $shotdir      ${XDG_SCREENSHOTS_DIR:-$HOME/Pictures/Screenshots}
+# Explicit filename: grimshot's default is `date -Ins`, i.e.
+# 2026-08-15T14:55:41,457393075+02:00.png — colons, decimal comma and
+# nanoseconds. Same prefix format as the photo-renaming aliases (ISO date, then
+# the time without separators), plus milliseconds (%3N) so that two shots in
+# the same second cannot overwrite each other.
+set $shot_screen  grimshot --notify savecopy output "$shotdir/$(date +%Y-%m-%dT%H%M%S.%3N_)screen.png"
+set $shot_select  grimshot --notify savecopy anything "$shotdir/$(date +%Y-%m-%dT%H%M%S.%3N_)select.png"
+
+bindsym Print                exec $shot_screen && $camerafx
 # bindsym Print                exec flameshot screen && $camerafx
-bindsym Ctrl+Print           exec grimshot --notify savecopy anything && $camerafx
+bindsym Ctrl+Print           exec $shot_select && $camerafx
 # bindsym Ctrl+Print           exec flameshot gui && $camerafx
+
+# AltGr-[Ctrl-]F8: my common default for all tystems including work/windows
+bindsym $altgr+F8            exec $shot_screen && $camerafx
+# bindsym $altgr+F8            exec flameshot screen && $camerafx
+bindsym $altgr+Ctrl+F8       exec $shot_select && $camerafx
+# bindsym $altgr+Ctrl+F8       exec flameshot gui && $camerafx
 
 # Logitech MX Mechanical screenshot key (fn+F8) sends a hardcoded Super+Shift+R
 # macro, not Print — bind that combo to the same full-output screenshot action.
-bindsym $mod+Shift+r         exec grimshot --notify savecopy output && $camerafx
+bindsym $mod+Shift+r         exec $shot_screen && $camerafx
 # bindsym $mod+Shift+r         exec flameshot screen && $camerafx
-bindsym $mod+Shift+Ctrl+r    exec grimshot --notify savecopy anything && $camerafx
+bindsym $mod+Shift+Ctrl+r    exec $shot_select && $camerafx
 # bindsym $mod+Shift+Ctrl+r    exec flameshot gui && $camerafx
 
 # Hyper key: screenshots (alternative to Print)
-bindsym $hyper+p             exec grimshot --notify savecopy output && $camerafx
+bindsym $hyper+p             exec $shot_screen && $camerafx
 # bindsym $hyper+p             exec flameshot screen && $camerafx
-bindsym $hyper+Ctrl+p        exec grimshot --notify savecopy anything && $camerafx
+bindsym $hyper+Ctrl+p        exec $shot_select && $camerafx
 # bindsym $hyper+Ctrl+p        exec flameshot gui && $camerafx
 
 
