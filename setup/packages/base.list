@@ -65,3 +65,6 @@ shellcheck
 # System tools
 # https://github.com/dundee/gdu/tree/master - A fast disk usage analyzer written in Go
 gdu
+
+# Other
+rename
