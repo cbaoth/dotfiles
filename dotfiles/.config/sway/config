@@ -249,18 +249,8 @@ set $hyper Mod3
 # ----
 # https://wiki.archlinux.org/title/Sway#Change_modifier_to_CapsLock_and_keep_Super
 
-# default $mod+x chord mapping mod keys, e.g. via /etc/keyd/default.conf:
-# ----
-# [meta_chord]
-# a = M-C-A-S-a
-# b = M-C-A-S-b
-# c = M-C-A-S-c
-# ...
-# [meta]
-# x = timeout(oneshot(meta_chord), 1000, M-x)
-# ----
-# FIXE dosen't work this way
-#set $cmods          $mod+Ctrl+Alt+Shift
+# A $mod+x chord prefix was attempted via keyd; it never worked and keyd has
+# been dropped. Rationale and the dead ends: docs/TODO.md §3.
 
 # Directional navigation keys
 set $left            q

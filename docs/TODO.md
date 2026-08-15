@@ -114,6 +114,28 @@ Options (in order of preference):
 - [ ] [M] Add conky config for puppet (notebook): derive from motoko config, adapt for
   smaller viewport, no Nvidia GPU, no Windows/dual-boot partitions
 
+## Chorded Keybindings — keyd / xremap (dropped 2026-08-15)
+
+Both experiments were removed along with `docs/misc/`; the configs remain in git
+history (added in `93d3913`). Kept here so the dead ends are not re-walked:
+
+- **keyd** was to provide a `Super+/` chord prefix (a `[meta_chord]` layer
+  emitting `M-C-A-S-<key>`). It never worked. Its Unicode output is also
+  fundamentally broken under sway: keyd maps characters onto spare keycodes in
+  its *own* virtual keyboard's keymap, but sway's `input "type:keyboard"` block
+  overwrites that keymap, so those keycodes get reinterpreted through Colemak
+  and emit the wrong glyph. A leftover `[alt]` layer on puppet (from 2026-02-22)
+  also silently ate `Alt+.`, breaking zsh `insert-last-word` until 2026-08-15.
+- **xremap** held a Colemak→QWERTY per-application passthrough — superseded by
+  `bin/kbd-layout-toggle` plus the two `xkb_layout "custom,custom"` groups,
+  which do the job natively with no daemon.
+- What replaced them: arrow characters on AltGr+Shift and `Super+CapsLock` →
+  `Delete`, both in `dotfiles/.config/xkb/symbols/custom`. Pure xkb.
+
+- [ ] [M] Revisit only if a WM with weaker keybinding coverage than sway is
+      adopted (GNOME, …). A chord prefix needs an evdev-level remapper; check
+      first whether that compositor lets the remapper's own keymap survive.
+
 # 4. Dotfiles Linking Enhancements
 
 Current implementation documented in `docs/linking-system.md`. Low priority; revisit only if requirements change.

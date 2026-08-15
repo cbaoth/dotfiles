@@ -38,7 +38,7 @@ that were never verified.
 | ----------- | ---- | -------------- |
 | `015 Setup Gnome Desktop (Ubuntu).md` (440 lines) | Almost entirely `gsettings` → becomes `setup/modules/45-gnome-settings.sh` + `docs/setup/gnome.md`. The keybindings section is the interesting part. | — |
 | `090 System (Kernel & Boot).md` (136 lines) | Split: GRUB console-recovery → `troubleshooting/`; WiFi/NordVPN startup problems → `troubleshooting/`. | **Yes — contains real WiFi SSIDs.** |
-| `010 Wayland & Desktop.md` (57 lines) | Chorded keybindings (keyd/xremap) → merge with the existing [`docs/misc/keyd/`](../misc/keyd/) and [`docs/misc/xremap/`](../misc/xremap/). | — |
+| `010 Wayland & Desktop.md` (57 lines) | Chorded keybindings (keyd/xremap) — approach dropped 2026-08-15, see [`docs/TODO.md`](../TODO.md) §3. Mine the note only for anything *not* about chords. | — |
 | Remaining app installs from `001` (ULauncher + its ~25 extensions, JDownloader, WINE, browsers, image/AV apps) | Mostly reference-shaped. ULauncher's extension list is long and opinionated → probably its own `setup/ulauncher.md`. | — |
 
 ## Sanitization rules
