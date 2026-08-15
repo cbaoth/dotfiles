@@ -38,6 +38,11 @@ xkb_symbols "basic" {
     // client sees a bare Delete.
     key <CAPS> { [ BackSpace, BackSpace, Delete, Delete ] };
 
+    // AltGr+Delete -> Insert (AutoHotkey <^>!Del::Insert). Mainly for keyboards
+    // with no dedicated Insert key, e.g. the Logitech MX Mechanical Mini, where
+    // it otherwise needs a hard-to-remember Fn combination.
+    key <DELE> { [ Delete, Delete, Insert, Insert ] };
+
     // Arrow characters, mirroring the AutoHotkey bindings used on Windows
     // (Incl/KeyMap.ahk: <^>!. -> "→" etc.).
     //
