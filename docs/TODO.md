@@ -117,7 +117,9 @@ Options (in order of preference):
 ## Chorded Keybindings — keyd / xremap (dropped 2026-08-15)
 
 Both experiments were removed along with `docs/misc/`; the configs remain in git
-history (added in `93d3913`). Kept here so the dead ends are not re-walked:
+history (added in `93d3913`). Full journal, including the Super/Mod4 and VS Code
+dead ends: [`docs/troubleshooting/xkb-altgr-key-mappings.md`](troubleshooting/xkb-altgr-key-mappings.md).
+Summary, so the dead ends are not re-walked:
 
 - **keyd** was to provide a `Super+/` chord prefix (a `[meta_chord]` layer
   emitting `M-C-A-S-<key>`). It never worked. Its Unicode output is also
