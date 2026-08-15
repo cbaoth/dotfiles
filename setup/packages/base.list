@@ -37,7 +37,8 @@ python3-pygments
 
 # Search & find
 fd-find
-ripgrep-all
+ripgrep
+# TODO look into ripgrep-all
 
 # Data wrangling
 jq
