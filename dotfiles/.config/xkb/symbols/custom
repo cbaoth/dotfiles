@@ -26,6 +26,34 @@ xkb_symbols "basic" {
     // so sway can use it as $hyper (Mod3) in bindsym directives.
     key <LSGT> { [ Hyper_L, Hyper_L ] };
     modifier_map Mod3 { <LSGT> };
+
+    // AltGr+CapsLock -> Delete, complementing the CapsLock -> BackSpace that
+    // us(colemak) already provides. Windows binds this to Super instead
+    // (AutoHotkey #BackSpace::Delete), which is not reproducible here:
+    // `key <CAPS> { type = "PC_SUPER_LEVEL2", [ BackSpace, Delete ] };` compiles
+    // and yields the right keysym, but toolkits never treat Mod4 as consumed
+    // (Super+X must stay available as a shortcut), so clients see Super+Delete —
+    // foot emits \e[3;9~ (zsh drops into vicmd), VS Code inserts U+007F as text,
+    // browsers ignore it. AltGr is a level shifter and *is* consumed, so every
+    // client sees a bare Delete.
+    key <CAPS> { [ BackSpace, BackSpace, Delete, Delete ] };
+
+    // Arrow characters, mirroring the AutoHotkey bindings used on Windows
+    // (Incl/KeyMap.ahk: <^>!. -> "→" etc.).
+    //
+    // us(colemak) already pulls in level3(ralt_switch), so AltGr *is* LevelThree:
+    //   level 1 = plain   level 2 = Shift   level 3 = AltGr   level 4 = AltGr+Shift
+    //
+    // Only level 4 is overridden, so the level-3 dead keys stay usable. This is
+    // free: us(colemak) puts `asciitilde` on level 4 of every key whose level 3
+    // is a dead key (13 keys) as pure filler, and `~` already lives on
+    // Shift+grave — so nothing reachable is lost.
+    //
+    // Left/right key position mirrors arrow direction (k left of m, as , left of .).
+    key <AB09> { [ period, greater, dead_abovedot,  U2192 ] };  // AltGr-Shift-.  ->  →
+    key <AB08> { [ comma,  less,    dead_cedilla,   U2190 ] };  // AltGr-Shift-,  ->  ←
+    key <AB07> { [ m,      M,       dead_macron,    U21D2 ] };  // AltGr-Shift-m  ->  ⇒
+    key <AB06> { [ k,      K,       dead_abovering, U21D0 ] };  // AltGr-Shift-k  ->  ⇐
 };
 
 xkb_symbols "qwerty" {
