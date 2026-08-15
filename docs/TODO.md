@@ -116,23 +116,12 @@ Options (in order of preference):
 
 ## Chorded Keybindings — keyd / xremap (dropped 2026-08-15)
 
-Both experiments were removed along with `docs/misc/`; the configs remain in git
-history (added in `93d3913`). Full journal, including the Super/Mod4 and VS Code
-dead ends: [`docs/troubleshooting/xkb-altgr-key-mappings.md`](troubleshooting/xkb-altgr-key-mappings.md).
-Summary, so the dead ends are not re-walked:
+Both experiments were removed along with `docs/misc/` (the configs remain in git
+history at `93d3913`). What replaced them lives in
+`dotfiles/.config/xkb/symbols/custom` — pure xkb, no daemon.
 
-- **keyd** was to provide a `Super+/` chord prefix (a `[meta_chord]` layer
-  emitting `M-C-A-S-<key>`). It never worked. Its Unicode output is also
-  fundamentally broken under sway: keyd maps characters onto spare keycodes in
-  its *own* virtual keyboard's keymap, but sway's `input "type:keyboard"` block
-  overwrites that keymap, so those keycodes get reinterpreted through Colemak
-  and emit the wrong glyph. A leftover `[alt]` layer on puppet (from 2026-02-22)
-  also silently ate `Alt+.`, breaking zsh `insert-last-word` until 2026-08-15.
-- **xremap** held a Colemak→QWERTY per-application passthrough — superseded by
-  `bin/kbd-layout-toggle` plus the two `xkb_layout "custom,custom"` groups,
-  which do the job natively with no daemon.
-- What replaced them: arrow characters on AltGr+Shift and `Super+CapsLock` →
-  `Delete`, both in `dotfiles/.config/xkb/symbols/custom`. Pure xkb.
+Why each was dropped, plus the Super/Mod4 and VS Code dead ends:
+[`docs/troubleshooting/xkb-altgr-key-mappings.md`](troubleshooting/xkb-altgr-key-mappings.md).
 
 - [ ] [M] Revisit only if a WM with weaker keybinding coverage than sway is
       adopted (GNOME, …). A chord prefix needs an evdev-level remapper; check
@@ -200,10 +189,22 @@ long-lived setup that never quite stays working. Each host's public key added
 to the GitHub account (or a per-repo deploy key). Then: no PAT, nothing to copy,
 per-host revocation, works headless.
 
+**Progress (2026-08-15, puppet):** `dotfiles`, `AutoHotkey` and `notes` all use
+SSH remotes here, verified with `git pull` (and `push` for `dotfiles`), and
+`~/.git-credentials` is gone on this host. Remaining hosts untouched.
+
+Note the deviation from the target above: puppet has **no key files in
+`~/.ssh`** — two ed25519 keys are held by the gnome-keyring agent (`gcr`,
+`SSH_AUTH_SOCK=/run/user/1000/gcr/ssh`) and are identity keys, not per-host
+ones. Decide whether that is acceptable (it is not agent *forwarding*, so the
+main objection above does not apply) or whether the per-host key-file model
+still stands.
+
 - [ ] [M] Generate a dedicated ed25519 key per remote host (saito, vserver,
       WSL@work); add each to GitHub; retire the shared PAT.
-- [ ] [S] Switch own-repo remotes from HTTPS to SSH
+- [~] [S] Switch own-repo remotes from HTTPS to SSH
       (`git remote set-url origin git@github.com:cbaoth/<repo>.git`).
+      Done on puppet; still to do on motoko, saito, vserver, work.
 - [ ] [S] vserver: account-key vs. a write **deploy key** scoped to only the
       repos it needs (it may push notes back). Narrower is better.
 - [ ] [S] Remove the plaintext `~/.git-credentials` / repo-local `store` helper
