@@ -18,6 +18,12 @@ MODULE_DOC="docs/setup/ubuntu-base.md"
 declare -r APT_MIRROR_FROM="//archive.ubuntu.com"
 declare -r APT_MIRROR_TO="//de.archive.ubuntu.com"
 
+# apt(8) prints a warning ("do not use in scripts") whenever stdout is not a
+# TTY, which makes every apt-wrapping alias/function noisy for no benefit.
+declare -r APT_NOWARN_FILE="/etc/apt/apt.conf.d/90disable-apt-script-warning"
+declare -r APT_NOWARN_CONTENT='// Managed by dotfiles: setup/modules/00-apt-base.sh
+Apt::Cmd::Disable-Script-Warning true;'
+
 module_run() {
   # {{{ - Regional mirror -----------------------------------------------------
   # Ubuntu 24.04+ moved sources to deb822 (.sources); older releases still use
@@ -42,6 +48,13 @@ module_run() {
     force_refresh=1   # index no longer matches the new mirror — must re-fetch
   fi
   # }}} - Regional mirror -----------------------------------------------------
+
+  # {{{ - Script warning ------------------------------------------------------
+  # The warning guards against apt's unstable CLI output being parsed by
+  # scripts; the aliases here are convenience wrappers whose output nobody
+  # parses, so the two extra lines are pure noise.
+  st::file_content "${APT_NOWARN_FILE}" "${APT_NOWARN_CONTENT}"
+  # }}} - Script warning ------------------------------------------------------
 
   # {{{ - Upgrade -------------------------------------------------------------
   # A mirror switch must re-fetch regardless of cache age; otherwise package
