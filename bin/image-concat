@@ -18,8 +18,8 @@ IFS=$'\t\n\0'
 # shellcheck disable=SC2154
 trap 'rc=$?; \
      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
-            "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[@]:-N/A}" \
-            "${BASH_COMMAND:-N/A}"; \
+            "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[0]:-main}" \
+            "${BASH_COMMAND:-N/A}" >&2; \
      exit_clean $rc' ERR
 trap 'printf "\nINTERRUPT\n"; exit_clean 1' SIGINT SIGTERM
 
@@ -31,17 +31,23 @@ p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 #p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
 
 # print file name of given file with an added suffix (considering file ext.)
+# only the basename is inspected, so dots in directory names are safe
 p_file_with_suffix() {
   if [[ $# -ne 2 ]]; then
     printf "Usage: p_file_with_suffix SUFFIX FILE\n"
     return 1
   fi
   local suffix="$1"
-  shift
-  if [[ "$1" = *"."* ]]; then
-    printf "%s" "${1%.*}${suffix}.${1##*.}"
+  local file="$2"
+  local dir="" base="$file"
+  if [[ "$file" = */* ]]; then
+    dir="${file%/*}/"
+    base="${file##*/}"
+  fi
+  if [[ "$base" = ?*.* ]]; then
+    printf "%s" "${dir}${base%.*}${suffix}.${base##*.}"
   else
-    printf "%s" "$1${suffix}"
+    printf "%s" "${dir}${base}${suffix}"
   fi
 }
 
@@ -56,11 +62,7 @@ q_yesno() {
   local key=""
   printf "%s (y/n) " "$question"
   while [[ "$key" != "y" ]] && [[ "$key" != "n" ]]; do
-    if [[ "$(readlink /proc/$$/exe)" = *zsh ]]; then
-      read -r -s -k 1 key
-    else
-      read -r -s -n 1 key
-    fi
+    read -r -s -n 1 key
   done
   printf "\n"
   if [[ "$key" = "y" ]]; then
@@ -72,7 +74,7 @@ q_yesno() {
 # query (yes/no): overwrite given file? (no: return 1)
 # return 0, without asking a thing, if [file] doesn't exist
 q_overwrite() {
-  if [[ -z "$1" ]]; then
+  if [[ -z "${1:-}" ]]; then
     printf "Usage: q_overwrite FILE\n"
     return 1
   fi
@@ -93,54 +95,69 @@ q_overwrite() {
 }
 
 # Usage
-p_usg() { printf 'Usage: %s  [-w|-h|-n] [-x1] [-o OUTFILE] INFILE..\n' "$(basename "$0")"; }
+p_usg() { printf 'Usage: %s  [-v|-x] [-n] [-o OUTFILE] INFILE INFILE..\n' "$(basename "$0")"; }
 p_hlp() {
   p_usg
   cat <<EOF
 
 Concatenate images to create a simple collage.
 
+Direction (mutually exclusive, default: -v):
+  -v, --vertical     Stack images top to bottom, in argument order.
+                     All images are scaled down to the smallest width.
+  -x, --horizontal   Place images side by side, in argument order.
+                     All images are scaled down to the smallest height.
+
 Options:
-  -w         Resize all images to the width of the smallest image
-  -h         Resize all images to the height of the smallest image
-  -n         No resize, concatenate as-is
-  -x1        Tile vertically (one column) instead of horizontally
-  -o FILE    Output file name (default: auto-generated from first input file)
+  -n, --no-resize    Concatenate as-is; images smaller than the largest
+                     one are padded with the background color instead.
+  -o, --out FILE     Output file (default: derived from the first input)
+  -h, --help         This help
+
+Images are never scaled up, and never beyond ${MAX}px in the shared
+dimension. Padding, where needed, uses ${BG}.
 EOF
 }
 
 # constants
 declare -r MAX=3840
+declare -r BG=black
+declare -r IM=magick
 
 # arguments
-declare mode=default
-declare tile=""
+declare direction=vertical
+declare resize=1
 declare outfile=""
-declare -a infiles
-declare -a tempfiles
+declare -a infiles=()
+
+# state
+declare tempdir=""
+declare -a tempfiles=()
 
 # clean exit (remove temp files)
 exit_clean() {
-  for f in "${tempfiles[@]}"; do
-    rm -f "${f}"
-  done
+  [[ -n "${tempdir}" ]] && rm -rf -- "${tempdir}"
   exit "${1:-0}"
 }
 
 # parse arguments
 parse_args() {
-  while [[ -n "${1:-}" ]]; do
+  while [[ $# -gt 0 ]]; do
     case $1 in
-      -[hwn])
-        mode="$1"
+      -v|--vertical)
+        direction=vertical
         shift
         ;;
-      -x1)
-        tile="x1"
+      -x|--horizontal)
+        direction=horizontal
         shift
         ;;
-      -o)
-        [[ -z "${2:-}" ]] && p_err "missing file name after -o" && return 1
+      -n|--no-resize)
+        resize=0
+        shift
+        ;;
+      -o|--out)
+        [[ -z "${2:-}" ]] && p_err "missing file name after $1" && return 1
         outfile="$2"
         shift 2
         ;;
@@ -148,66 +165,96 @@ parse_args() {
         p_hlp
         exit 0
         ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        p_err "unknown option [$1]"
+        p_usg
+        return 1
+        ;;
       *)
         break
         ;;
     esac
   done
+
   # at least two input files are required
-  if [[ -z "${2:-}" ]]; then
+  if [[ $# -lt 2 ]]; then
     p_usg
-    exit 1
+    return 1
   fi
-  # if no outfile name is provided generate one
-  if [[ -z "$outfile" ]]; then
-    outfile="$(p_file_with_suffix "-concat$(date +%s)" "$1")"
-  fi
-  # create infiles array from remaining arguments
   infiles=("$@")
+
+  local infile
+  for infile in "${infiles[@]}"; do
+    if [[ ! -f "${infile}" ]]; then
+      p_err "no such file [${infile}]"
+      return 1
+    fi
+  done
+
+  # if no outfile name is provided generate one
+  if [[ -z "${outfile}" ]]; then
+    outfile="$(p_file_with_suffix "-concat$(date +%s)" "${infiles[0]}")"
+  fi
 }
 
-# resize all infiles to temp file
+# print the smallest value of the given dimension (%w or %h) over all infiles,
+# capped at MAX
+min_dimension() {
+  local -r fmt="$1"
+  printf "%s\n%s" \
+    "$("${IM}" identify -format "${fmt}\n" "${infiles[@]}" | sort -n | head -n 1)" \
+    "${MAX}" | sort -n | head -n 1
+}
+
+# resize all infiles into tempdir, populating tempfiles in the same order
 resize_infiles() {
-  local dim="$1"
+  local -r dim="$1"
+  local infile temp
+  local -i i=0
+  tempdir="$(mktemp -d -t image-concat.XXXXXXXXXX)"
   for infile in "${infiles[@]}"; do
-    local outfile
-    outfile="$HOME/._image-concat_$(basename "${infile}")"
-    tempfiles+=("${outfile}")
-    convert "${infile}" -resize "${dim}"\> "${outfile}"
+    # index-prefixed to keep the input order and avoid basename collisions
+    temp="${tempdir}/$(printf '%04d' "${i}")_${infile##*/}"
+    tempfiles+=("${temp}")
+    "${IM}" "${infile}" -resize "${dim}"\> "${temp}"
+    # assignment, not (( i++ )) -- that returns 1 for i=0 and trips the ERR trap
+    i=$(( i + 1 ))
   done
 }
 
 # concatenate images
 concat() {
   q_overwrite "${outfile}" || exit_clean 1
-  local min_height
-  min_height="$(identify -format '%h\n' "${infiles[@]}" | sort -n | head -n 1)"
-  local min_width
-  min_width="$(identify -format '%w\n' "${infiles[@]}" | sort -n | head -n 1)"
-  local -a args=(-background black -mode Concatenate)
-  [[ "${tile}" = "x1" ]] && args+=(-tile x1)
 
-  case "${mode}" in
-    -n)
-      convert -background black +append "${infiles[@]}" "${outfile}"
-      ;;
-    -w)
-      resize_infiles "$(printf "%s\n%s" "${min_width}" "${MAX}" | sort -n | head -n 1)x"
-      convert -background black +append "${tempfiles[@]}" "${outfile}"
-      ;;
-    -h)
-      resize_infiles "x${min_height}"
-      convert -background black +append "${tempfiles[@]}" "${outfile}"
-      ;;
-    *)
-      resize_infiles "x${min_height}" -extent "${min_width}>x"
-      convert -background black +append "${tempfiles[@]}" "${outfile}"
-      ;;
-  esac
+  # -append stacks vertically, +append places side by side; note that the
+  # magick(1) CLI is order-sensitive -- operators must follow the input images
+  local append="-append"
+  [[ "${direction}" = horizontal ]] && append="+append"
+
+  if (( resize )); then
+    if [[ "${direction}" = vertical ]]; then
+      resize_infiles "$(min_dimension '%w')x"
+    else
+      resize_infiles "x$(min_dimension '%h')"
+    fi
+    "${IM}" "${tempfiles[@]}" -background "${BG}" "${append}" "${outfile}"
+  else
+    "${IM}" "${infiles[@]}" -background "${BG}" "${append}" "${outfile}"
+  fi
+
+  printf '%s\n' "${outfile}"
 }
 
 main() {
-  parse_args "$@"
+  if ! command -v "${IM}" > /dev/null 2>&1; then
+    p_err "${IM} (ImageMagick) not found, exiting .."
+    exit 1
+  fi
+  parse_args "$@" || exit_clean 1
   concat
   exit_clean 0
 }
