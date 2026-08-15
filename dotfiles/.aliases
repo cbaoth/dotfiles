@@ -369,7 +369,7 @@ alias python-profile="python -m cProfile -s time"
 alias git-editor-vim="export GIT_EDITOR=vim"
 
 # TPM - Tmux Plugin Manager https://github.com/tmux-plugins/tpm
-tmux-tpm-install() {
+tmux-install-tpm() {
   if [[ -d ~/.tmux/plugins/tpm ]]; then
     echo "TPM already installed at ~/.tmux/plugins/tpm"
     return 0
@@ -377,7 +377,7 @@ tmux-tpm-install() {
   echo "Installing TPM to ~/.tmux/plugins/tpm..."
   if git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm; then
     cat <<'EOF'
-TMP installed successfully.
+TPM installed successfully.
 
 
 To use TPM, follow these steps:
