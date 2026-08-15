@@ -21,6 +21,7 @@
         "network",
         "memory",
         "cpu",
+        "power-profiles-daemon",
         "custom/sway-awake",
         "tray",
         "pulseaudio",
@@ -64,6 +65,20 @@
     "memory": {
         "format": "{}%",
         "interval": 10
+    },
+
+    // Lenovo DYTC thermal modes (the Vantage "Intelligent Cooling" equivalent):
+    // power-saver keeps the fan off and throttles hard -- see
+    // docs/troubleshooting/. Left-click cycles, scroll also switches.
+    "power-profiles-daemon": {
+        "format": "{icon}",
+        "tooltip-format": "Power profile: {profile}\nDriver: {driver}",
+        "tooltip": true,
+        "format-icons": {
+            "performance": "󰓅",
+            "balanced": "󰾅",
+            "power-saver": "󰾆"
+        }
     },
 
     "network": {
