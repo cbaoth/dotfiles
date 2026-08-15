@@ -109,6 +109,11 @@ Options (in order of preference):
 - [ ] [S] Verify YubiKey unlock still works (KeePassXC prompt visible at login)
 - [ ] [S] Verify GNOME remains usable if needed (`sudo systemctl enable gdm`)
 
+## Conky
+
+- [ ] [M] Add conky config for puppet (notebook): derive from motoko config, adapt for
+  smaller viewport, no Nvidia GPU, no Windows/dual-boot partitions
+
 # 4. Dotfiles Linking Enhancements
 
 Current implementation documented in `docs/linking-system.md`. Low priority; revisit only if requirements change.

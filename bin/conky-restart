@@ -105,10 +105,12 @@ parse_args() {
   if ! [[ -v HOST_CONFIGS["$HOST_NAME"] ]]; then
     if "${host_provided}"; then
       p_err "No known config for hostname '${HOST_NAME}', exiting..."
+      exit 1
     else
-      p_err "No hostname provided and no known config for default hostname '${HOST_NAME}', exiting..."
+      printf '\033[33mWARNING\033[0m: No conky config for hostname %s, skipping.\n' \
+        "'${HOST_NAME}'" >&2
+      exit 0
     fi
-    exit 1
   fi
 }
 
