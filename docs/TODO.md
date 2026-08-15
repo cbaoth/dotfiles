@@ -193,12 +193,12 @@ per-host revocation, works headless.
 SSH remotes here, verified with `git pull` (and `push` for `dotfiles`), and
 `~/.git-credentials` is gone on this host. Remaining hosts untouched.
 
-Note the deviation from the target above: puppet has **no key files in
-`~/.ssh`** — two ed25519 keys are held by the gnome-keyring agent (`gcr`,
-`SSH_AUTH_SOCK=/run/user/1000/gcr/ssh`) and are identity keys, not per-host
-ones. Decide whether that is acceptable (it is not agent *forwarding*, so the
-main objection above does not apply) or whether the per-host key-file model
-still stands.
+Deliberate deviation from the "key file per host" target above: there are **no
+key files in `~/.ssh`**. The ed25519 keys live in KeePassXC and are published to
+the session SSH agent by its agent integration. This is not agent *forwarding*,
+so the objection above does not apply — and it is arguably better than key
+files: encrypted at rest in the vault, and revocable from one place. Open
+question is only whether the remaining hosts follow the same model.
 
 - [ ] [M] Generate a dedicated ed25519 key per remote host (saito, vserver,
       WSL@work); add each to GitHub; retire the shared PAT.
