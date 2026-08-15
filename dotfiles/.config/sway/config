@@ -967,6 +967,13 @@ exec mako
 # of a bare `exec`, so Restart=on-failure recovers if the server loses the startup
 # race against the env import above and only half-registers its D-Bus name (which
 # silently breaks the volume keys). Must run after dbus-update-activation-environment.
+#
+# CapsLock OSD: the apt package auto-enables swayosd-libinput-backend.service
+# (system-wide), which reads raw evdev events and shows CapsLock/NumLock/ScrollLock
+# indicators. With Colemak (CapsLock → Backspace) every Backspace press triggers a
+# spurious CapsLock OSD. Volume/brightness go through swayosd-client (sway bindings),
+# not this backend, so masking it loses nothing useful:
+#   sudo systemctl mask swayosd-libinput-backend.service
 exec systemctl --user start swayosd.service
 
 # conky system monitor (native Wayland -- conky 1.22.2+ with BUILD_WAYLAND=ON)
