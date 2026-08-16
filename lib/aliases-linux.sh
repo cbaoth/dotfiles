@@ -106,6 +106,18 @@ alias midi-keyboard-output="aconnect \$(aconnect -i \
 # https://github.com/ValveSoftware/Proton
 
 alias winer='wine start /unix'  # run executable or location (file explorer) using unix path
+
+# Inspect Windows PE binaries (.exe/.dll) from Linux — apt package 'readpe'.
+# Named exe-* because that is what you have in hand and what you will type at
+# a completion prompt; the underlying tools (peres, readpe) are impossible to
+# recall from the task. pe-* duplicates exist for the same reason.
+alias exe-version='peres -v'    # File Version from the PE resource directory
+alias exe-info='peres -i -s'    # resource info + statistics (does NOT extract)
+alias exe-headers='readpe -H'   # DOS/COFF/optional headers
+alias exe-extract='peres -X'    # extract embedded resources (icons, manifests)
+alias pe-version='exe-version'
+alias pe-info='exe-info'
+alias pe-headers='exe-headers'
 # }}} - WINDOWS COMPATIBILITY LAYER ------------------------------------------
 
 # {{{ - BINARY TRANSLATION / EMULATION ---------------------------------------

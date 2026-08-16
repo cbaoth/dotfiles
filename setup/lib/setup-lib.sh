@@ -208,8 +208,12 @@ st::apt_available() {
 # Unavailable packages are warned about and skipped rather than failing the
 # batch: one bad name in a list would otherwise abort the install of every
 # other package alongside it, and lists are shared across profiles/releases.
-# Usage: st::apt_install PKG..
-st::apt_install() {
+#
+# Prefer the st::apt_install / st::apt_install_recommends wrappers below.
+# Usage: st::apt_install_opts APT_OPT PKG..
+st::apt_install_opts() {
+  local -r apt_opt="$1"; shift
+
   local -a missing=() unavailable=()
   local pkg providers
   for pkg in "$@"; do
@@ -239,7 +243,23 @@ st::apt_install() {
   fi
 
   st::run "install ${#missing[@]} apt package(s): ${missing[*]}" -- \
-    sudo apt-get install -y --no-install-recommends "${missing[@]}"
+    sudo apt-get install -y "${apt_opt}" "${missing[@]}"
+}
+
+# The default: no Recommends. Package lists here are meant to be explicit about
+# what lands on a machine, and Recommends quietly undermine that.
+# Usage: st::apt_install PKG..
+st::apt_install() {
+  st::apt_install_opts --no-install-recommends "$@"
+}
+
+# For the packages where the Recommends are the difference between "installed"
+# and "usable". winehq-stable is the reason this exists: its Recommends carry
+# gnutls, SDL2, the printing stack and half the font handling, and WineHQ's own
+# instructions say --install-recommends for exactly that reason. Use sparingly.
+# Usage: st::apt_install_recommends PKG..
+st::apt_install_recommends() {
+  st::apt_install_opts --install-recommends "$@"
 }
 
 # Install every package from a setup/packages/<name>.list
@@ -256,6 +276,24 @@ st::apt_install_list() {
 # the system, and counting it would mean every run reports at least one change,
 # destroying the "a re-run reports 0 changed" contract that the whole thing
 # leans on.
+# Enable a foreign dpkg architecture (i386 being the only one that comes up in
+# practice, for 32-bit libraries). Forces an apt refresh when it changes: the
+# new architecture has no package indices until apt fetches them, so an install
+# straight afterwards would fail with "unable to locate package".
+# Usage: st::dpkg_add_architecture ARCH
+st::dpkg_add_architecture() {
+  local -r arch="$1"
+
+  if dpkg --print-foreign-architectures 2>/dev/null | st::grep_q -x "${arch}"; then
+    st::noop "dpkg foreign architecture already enabled: ${arch}"
+    return 0
+  fi
+
+  st::run "enable dpkg foreign architecture: ${arch}" -- \
+    sudo dpkg --add-architecture "${arch}"
+  st::apt_update --force
+}
+
 declare -i ST_APT_UPDATED=0
 declare -ri ST_APT_MAX_AGE=3600
 # --force refreshes even on a fresh cache: use it right after changing the apt
