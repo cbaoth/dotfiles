@@ -7,8 +7,20 @@
 
 # {{{ = COMMON ===============================================================
 # {{{ - GENERAL --------------------------------------------------------------
-# LC_COLLATE=C will sort all uppercase before all lowercase
-LS_CMD="LC_COLLATE=C ls --color=auto --group-directories-first --time-style=long-iso"
+# LC_COLLATE=C will sort all uppercase before all lowercase.
+# uutils coreutils 0.8.0 (Ubuntu 26.04) breaks --group-directories-first for
+# ALL sort modes — directories group first but are not sorted within the group.
+# Fixed upstream in 5a25c70c1; drop the flag only on that known-buggy version,
+# so this self-heals on package upgrade and on GNU-coreutils hosts.
+# Bug: https://github.com/uutils/coreutils/issues/12393
+# Fix: https://github.com/uutils/coreutils/commit/5a25c70c1
+# See docs/troubleshooting/uutils-ls-group-directories-first.md
+_ls_group_dirs="--group-directories-first"
+if command ls --version 2>/dev/null | grep -qF '(uutils coreutils) 0.8.0'; then
+  _ls_group_dirs=""
+fi
+LS_CMD="LC_COLLATE=C ls --color=auto ${_ls_group_dirs} --time-style=long-iso"
+unset _ls_group_dirs
 # list all files, long version with human readable file size
 alias ls="$LS_CMD -aF"
 alias ll="$LS_CMD -aFlh"
