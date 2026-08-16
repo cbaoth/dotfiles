@@ -797,7 +797,8 @@ for_window [app_id="(?i)^peazip$"]                         $float
 for_window [app_id="(?i)(^|[ ._-])(lutris|hgl|ProtonPlus)$"] $float
 for_window [class="(?i)(^|[ ._-])(steam|PortProton)$"]     $float
 for_window [title="(?i)(Games Launcher|battle\.net)$"]     $float
-for_window [app_id="yad"][title="Protontricks"]            $float
+for_window [app_id="zenity"][title="^Winetricks"]          $float
+for_window [app_id="yad"][title="^Protontricks"]           $float
 # }}} - Floating -------------------------------------------------------------
 
 # {{{ - Popups, Dialogs, Small -----------------------------------------------
@@ -825,7 +826,7 @@ for_window [app_id="^io.missioncenter.MissionCenter$"]     $pop_sheer
 for_window [app_id="^net.nokyan.Resources$"]               $pop
 for_window [app_id="^wev$"]                                $pop_sheer, move position cursor
 
-# Remote desktop windwos
+# Remote desktop windows
 for_window [app_id="vncviewer$"]                           $pop
 for_window [app_id="^scrcpy$"]                             $pop
 
