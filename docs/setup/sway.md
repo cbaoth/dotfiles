@@ -1,8 +1,43 @@
+---
+title: Sway setup
+hosts: [motoko]
+status: resolved
+tags: [sway, wayland, waybar, keepassxc, nvidia, tray, config]
+updated: 2026-08-16
+---
+
 # Introduction
 
 This document covers the one-time setup steps required to run Sway on Ubuntu when migrating from (or alongside) a GNOME desktop. It focuses on things that are **not** handled automatically by the config files or the `sway-start` launch script — those are considered working by definition.
 
 The Sway configuration lives at `~/.config/sway/config` (symlinked from `dotfiles/dotfiles/.config/sway/config`). The launch script is `~/bin/sway-start`.
+
+## Configuration layout (config.d fragments)
+
+The config is **split into ordered fragments** under `config.d/`, loaded by a single line in the main file:
+
+``` text
+include config.d/*.conf
+```
+
+The main `~/.config/sway/config` is now a thin loader: the install-notes banner, a structure comment, and that `include`. Everything else lives in numbered fragments (`dotfiles/dotfiles/.config/sway/config.d/`, each individually symlinked into `~/.config/sway/config.d/` by `dotfiles-link`):
+
+|  |  |
+|----|----|
+| Fragment | Contents |
+| `00-nvidia.conf` | Nvidia driver notes (no live settings) |
+| `10-output-input.conf` | Outputs (monitors), wallpaper, keyboard/pointer/touchpad |
+| `20-styles.conf` | Font, borders, focus behavior, base16 colors, waybar `bar {}` |
+| `30-variables.conf` | `$mod`/`$hyper`, workspaces, opacity, apps, window-state commands |
+| `40-keybindings.conf` | All `bindsym` + meta modes (window, system, pointer) |
+| `70-window-rules.conf` | `for_window`/`no_focus` criteria, workspace assignment |
+| `90-launch-apps.conf` | Startup `exec` + tray applets (after waybar) |
+
+**Load order matters and is why the fragments are numbered.** Sway resolves the `include` path relative to the config file's own directory and expands the glob in **sorted (lexical)** order, so the numeric prefixes fix the sequence. `30-variables` must load before the bindings (`40`) and window rules (`70`) that reference `$mod`/`$ws*`/`$term`. The base16 colors are defined and used entirely within `20-styles`, so that fragment is self-contained.
+
+The `include` resolves correctly whether or not sway dereferences the config symlink: both the repo path (`dotfiles/.config/sway/config.d/`) and the linked home path (`~/.config/sway/config.d/`) hold the same fragments. This also means `sway --validate -c dotfiles/.config/sway/config` works straight from the repo, before `dotfiles-link` has run.
+
+To read the effective config as one stream (e.g. to connect a `$variable` definition to its uses): `cat ~/.config/sway/config.d/*.conf`, or `grep` across them. After adding or renaming a fragment, run `dotfiles-link`.
 
 # Required Packages
 
@@ -182,7 +217,7 @@ systemctl --user restart xdg-desktop-portal
 
 # KeePassXC
 
-KeePassXC is launched via sway config (`exec flatpak run org.keepassxc.KeePassXC`). The XDG autostart entry (`~/.config/autostart/keepassxc.desktop`) has `NotShowIn=sway;` so systemd’s autostart generator does not start a duplicate.
+KeePassXC is launched via sway config (`exec sway-run-after-waybar flatpak run org.keepassxc.KeePassXC` — see [Tray applet startup](#tray-applet-startup-ordering)). The XDG autostart entry (`~/.config/autostart/keepassxc.desktop`) has `NotShowIn=sway;` so systemd’s autostart generator does not start a duplicate.
 
 KeePassXC with the **SSH Agent** integration (Settings → SSH Agent) can serve as the SSH agent, injecting keys after database unlock. This works independently of GNOME Keyring.
 
@@ -221,6 +256,42 @@ Mask the service so Sway exclusively manages waybar via `swaybar_command`. `disa
 ``` bash
 systemctl --user mask waybar
 ```
+
+# Tray applet startup ordering
+
+Tray applets (KeePassXC, NordVPN, Trayscale, Nextcloud, Blueman, Solaar, CopyQ) must not start until **waybar's system tray is ready to host them**. Launched too early, they register their `StatusNotifierItem` before the tray exists, end up with no icon, and have to be restarted by hand.
+
+The old workaround, copy-pasted onto every tray `exec`, only *guessed* at readiness:
+
+``` bash
+# don't: proves the process exists, not that the tray is ready
+exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; keepassxc'
+```
+
+`pgrep` only confirms waybar's *process* is up, so the trailing `sleep 2` was a race-prone guess at how long the tray module needs. The real dependency is the **`org.kde.StatusNotifierWatcher`** D-Bus name, which waybar's tray module registers on the session bus once it can host items (verified live: waybar also owns `org.kde.StatusNotifierHost-<pid>`).
+
+`~/bin/sway-run-after-waybar` (symlinked from `dotfiles/bin/sway-run-after-waybar`) blocks on that name via `gdbus wait`, then execs the command — deterministic, not timed. A timeout guard (default 30 s, `-t SECS`) launches the app anyway if the tray never appears, so a missing bar never silently swallows an applet.
+
+``` bash
+# do: wait for the actual tray-ready signal, then launch
+exec sway-run-after-waybar flatpak run org.keepassxc.KeePassXC
+exec sway-run-after-waybar copyq
+```
+
+`nm-applet` is the deliberate exception — it dedupes itself over D-Bus (and is also started via XDG autostart), so it launches directly with no wait.
+
+Inspect the tray state on the live session:
+
+``` bash
+busctl --user list | grep -i StatusNotifier
+# waybar owns org.kde.StatusNotifierWatcher + org.kde.StatusNotifierHost-<pid>;
+# each applet owns an org.kde.StatusNotifierItem-<pid>-N
+```
+
+> [!NOTE]
+> The tray `exec` lines use `exec`, not `exec_always`, so `swaymsg reload` does
+> **not** re-run them — a reload never relaunches (or kills) the applets. They
+> run only on a fresh Sway start, which is where the tray race lives.
 
 # Screenshots
 
