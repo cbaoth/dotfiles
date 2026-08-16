@@ -825,6 +825,7 @@ for_window [app_id="^term\.top$"]                          $pop_sheer
 for_window [app_id="^io.missioncenter.MissionCenter$"]     $pop_sheer
 for_window [app_id="^net.nokyan.Resources$"]               $pop
 for_window [app_id="^wev$"]                                $pop_sheer, move position cursor
+for_window [app_id="^dev.deedles.Trayscale$"]              $pop_sheer
 
 # Remote desktop windows
 for_window [app_id="vncviewer$"]                           $pop
@@ -1007,6 +1008,9 @@ exec nm-applet --indicator
 
 # NordVPN client UI
 exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nordvpn-gui'
+
+# Trayscale - tray icon with basic settings for TailScale VPN
+exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; flatpak run dev.deedles.Trayscale --hide-window'
 
 # nextcloud client (1min delay so KeePassXC can unlock first)
 #exec sh -c 'sleep 60; nextcloud'

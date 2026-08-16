@@ -48,6 +48,9 @@ md.obsidian.Obsidian
 # KeePassXC via native messaging. See docs/setup/browsers.md.
 io.github.ungoogled_software.ungoogled_chromium
 
+# VPN
+dev.deedles.Trayscale
+
 # Ebooks
 # On hold — the ebook reader is not currently in use. Kept here rather than
 # deleted so the tool is not forgotten. Uncomment to reinstate.
