@@ -994,36 +994,41 @@ exec ~/bin/conky-restart
 #xremap --watch --device /dev/input/by-id/usb-Logitech_USB_Receiver-event-kbd ~/.config/xremap/config.yml
 
 # {{{ - Launch Apps after waybar ---------------------------------------------
+# Tray applets must start only once waybar's system tray is ready, else they
+# register their StatusNotifierItem into the void and show no icon (had to be
+# restarted by hand). sway-run-after-waybar blocks on waybar's
+# org.kde.StatusNotifierWatcher D-Bus name (deterministic, replaces the old
+# `until pgrep waybar; sleep 2` guesswork), with a timeout fallback so a missing
+# bar never swallows the app. See bin/sway-run-after-waybar.
+
 # KeePassXC (flatpak, auto-updates to latest stable).
 # The XDG autostart entry (~/.config/autostart/keepassxc.desktop) points to an
 # outdated AppImage path and is skipped by systemd, so we launch it explicitly here.
-# Wait until waybar is running, then add 2s for the tray module to initialize,
-# before starting KeePassXC so it can register its tray icon.
-exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; flatpak run org.keepassxc.KeePassXC'
+exec sway-run-after-waybar flatpak run org.keepassxc.KeePassXC
 
 # Network Manager applet - tray icon for network/VPN status.
 # Also started via systemd XDG autostart (app-nm-applet@autostart.service);
-# nm-applet deduplicates itself via D-Bus so only one instance runs.
+# nm-applet deduplicates itself via D-Bus so only one instance runs. It does not
+# need the tray-ready wait (dedupes on its own), so it launches directly.
 exec nm-applet --indicator
 
 # NordVPN client UI
-exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nordvpn-gui'
+exec sway-run-after-waybar nordvpn-gui
 
 # Trayscale - tray icon with basic settings for TailScale VPN
-exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; flatpak run dev.deedles.Trayscale --hide-window'
+exec sway-run-after-waybar flatpak run dev.deedles.Trayscale --hide-window
 
-# nextcloud client (1min delay so KeePassXC can unlock first)
-#exec sh -c 'sleep 60; nextcloud'
-exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; nextcloud'
+# nextcloud client
+exec sway-run-after-waybar nextcloud
 
 # Blueman bluetooth applet - tray icon for bluetooth status/management.
-exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; blueman-applet'
+exec sway-run-after-waybar blueman-applet
 
 # Solaar - tray icon for Logitech devices (mice, keyboards, etc.)
-exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; solaar -w hide'
+exec sway-run-after-waybar solaar -w hide
 
 # CopyQ - clipboard manager
-exec sh -c 'until pgrep -x waybar > /dev/null; do sleep 1; done; sleep 2; copyq'
+exec sway-run-after-waybar copyq
 
 # }}} - Launch Apps after waybar ---------------------------------------------
 # }}} = Launch Apps ==========================================================
