@@ -19,6 +19,12 @@
 declare -i ST_DRY_RUN="${ST_DRY_RUN:-0}"
 declare -i ST_CHANGED=0   # mutations actually applied (or would be, in dry-run)
 declare -i ST_SKIPPED=0   # no-ops: already in the desired state
+declare -i ST_FAILED=0    # steps that ran and returned non-zero
+
+# ST_FAILED exists because a module's exit status is the status of its LAST
+# command, so a step failing in the middle used to vanish: the run reported
+# "N changed" and exited 0 while an apt upgrade had actually errored out. The
+# summary is the whole contract here — it has to be able to say "this broke".
 
 # }}} = STATE ================================================================
 
@@ -69,17 +75,28 @@ st::err() {
 
 # Run a command, unless in dry-run. Counts as a change either way.
 # Usage: st::run DESCRIPTION -- CMD..
+# Note the counter order: ST_CHANGED is bumped only AFTER the command succeeds,
+# so "changed" means changed rather than attempted.
 st::run() {
   local desc="$1"; shift
   [[ "${1:-}" == "--" ]] && shift
 
-  (( ST_CHANGED++ ))
   if (( ST_DRY_RUN )); then
+    (( ST_CHANGED++ ))
     st::msg "${desc} ${ST_C_DIM}[dry-run: $*]${ST_C_RESET}"
     return 0
   fi
+
   st::msg "${desc}"
-  "$@"
+  local -i rc=0
+  "$@" || rc=$?
+  if (( rc != 0 )); then
+    (( ST_FAILED++ ))
+    st::err "failed (exit ${rc}): ${desc}"
+    return "${rc}"
+  fi
+  (( ST_CHANGED++ ))
+  return 0
 }
 
 # Same, but the command is a shell string (needed for pipes/redirects/heredocs).
@@ -88,13 +105,22 @@ st::run_sh() {
   local -r desc="$1"
   local -r cmd="$2"
 
-  (( ST_CHANGED++ ))
   if (( ST_DRY_RUN )); then
+    (( ST_CHANGED++ ))
     st::msg "${desc} ${ST_C_DIM}[dry-run: ${cmd}]${ST_C_RESET}"
     return 0
   fi
+
   st::msg "${desc}"
-  bash -c "${cmd}"
+  local -i rc=0
+  bash -c "${cmd}" || rc=$?
+  if (( rc != 0 )); then
+    (( ST_FAILED++ ))
+    st::err "failed (exit ${rc}): ${desc}"
+    return "${rc}"
+  fi
+  (( ST_CHANGED++ ))
+  return 0
 }
 
 # Record a no-op (already correct). Keeps the change counter honest.
@@ -327,8 +353,18 @@ st::apt_update() {
     st::skip "apt cache ${why} [dry-run: would apt-get update]"
     return 0
   fi
+  # Not routed through st::run (that would count it as a change), so the
+  # failure has to be caught by hand — a broken refresh otherwise leaves every
+  # install after it acting on a stale index.
   st::skip "refreshing apt cache (${why})"
-  sudo apt-get update
+  local -i rc=0
+  sudo apt-get update || rc=$?
+  if (( rc != 0 )); then
+    (( ST_FAILED++ ))
+    st::err "failed (exit ${rc}): apt cache refresh"
+    return "${rc}"
+  fi
+  return 0
 }
 
 # }}} = APT ==================================================================

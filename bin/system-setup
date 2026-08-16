@@ -136,7 +136,7 @@ run_module() {
     # parent; re-sourcing setup-lib.sh here would only trip over its readonly
     # colour vars. Just reset the per-module counters.
     # shellcheck disable=SC2034  # read by the st::* helpers in setup-lib.sh
-    ST_CHANGED=0 ST_SKIPPED=0 ST_APT_UPDATED=0
+    ST_CHANGED=0 ST_SKIPPED=0 ST_FAILED=0 ST_APT_UPDATED=0
 
     MODULE_DESC="" MODULE_PROFILES=() MODULE_DOC=""
     # shellcheck source=/dev/null
@@ -152,13 +152,13 @@ run_module() {
     module_run >&2 || { st::err "module failed: ${name}" >&2; exit 1; }
 
     # the only thing on stdout: the counters, for the parent to total up
-    printf '%s %s' "${ST_CHANGED}" "${ST_SKIPPED}"
+    printf '%s %s %s' "${ST_CHANGED}" "${ST_SKIPPED}" "${ST_FAILED}"
   )"
   rc=$?
 
-  local -i changed=0 skipped=0
-  read -r changed skipped <<<"${counts:-0 0}"
-  printf '%s %s %s' "${rc}" "${changed}" "${skipped}"
+  local -i changed=0 skipped=0 step_failures=0
+  read -r changed skipped step_failures <<<"${counts:-0 0 0}"
+  printf '%s %s %s %s' "${rc}" "${changed}" "${skipped}" "${step_failures}"
 }
 
 # }}} = FUNCTIONS =============================================================
@@ -258,12 +258,13 @@ main() {
 
   (( ST_DRY_RUN )) && st::war "DRY RUN — nothing will be changed"
 
-  local -i total_changed=0 total_skipped=0 failed=0
-  local rc changed skipped
+  local -i total_changed=0 total_skipped=0 total_step_failures=0 failed=0
+  local rc changed skipped step_failures
   for module_file in "${to_run[@]}"; do
-    read -r rc changed skipped < <(run_module "${module_file}")
+    read -r rc changed skipped step_failures < <(run_module "${module_file}")
     (( total_changed += changed ))
     (( total_skipped += skipped ))
+    (( total_step_failures += step_failures ))
     (( rc != 0 )) && (( failed++ ))
   done
 
@@ -272,6 +273,9 @@ main() {
   printf '\n%s==>%s %s%d changed%s, %d already correct' \
     "${ST_C_BLUE}" "${ST_C_RESET}" \
     "${ST_C_BOLD}" "${total_changed}" "${ST_C_RESET}" "${total_skipped}"
+  (( total_step_failures > 0 )) \
+    && printf ', %s%d step(s) failed%s' \
+       "${ST_C_RED}" "${total_step_failures}" "${ST_C_RESET}"
   (( failed > 0 )) \
     && printf ', %s%d module(s) failed%s' "${ST_C_RED}" "${failed}" "${ST_C_RESET}"
   printf '\n'
@@ -279,7 +283,9 @@ main() {
   (( ST_DRY_RUN && total_changed > 0 )) \
     && printf '%sRe-run without --dry-run to apply.%s\n' "${ST_C_DIM}" "${ST_C_RESET}"
 
-  (( failed > 0 )) && exit 1
+  # A failed step is a failed run even when the module itself returned 0 —
+  # that gap is exactly what this counter was added to close.
+  (( failed > 0 || total_step_failures > 0 )) && exit 1
   return 0
 }
 
