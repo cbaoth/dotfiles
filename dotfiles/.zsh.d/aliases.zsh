@@ -73,6 +73,7 @@ alias -g ,ep='|&'                   # include stderr
 # redirect to /dev/null
 alias -g ,n='> /dev/null 2>&1'      # silence stdout + stderr
 alias -g ,en='2> /dev/null'         # silence stderr only
+alias -g ,on='> /dev/null'          # silence stdout only
 
 # pipe to stdout + file
 alias -g ,t='| tee'
