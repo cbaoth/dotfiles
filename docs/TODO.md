@@ -114,6 +114,22 @@ Options (in order of preference):
 - [ ] [M] Add conky config for puppet (notebook): derive from motoko config, adapt for
   smaller viewport, no Nvidia GPU, no Windows/dual-boot partitions
 
+## Game streaming — Moonlight / Sunshine (parked 2026-08-16)
+
+Snaps removed 2026-08-16. The client is easy (Flatpak, same version); the open
+question is the **Sunshine host on motoko**, where AppImage/Flatpak cannot do
+KMS capture at all — `setcap` has no real binary to attach to. Full context,
+including the unverified udev/ufw setup that was already applied:
+[`docs/troubleshooting/sunshine-kms-capture.md`](troubleshooting/sunshine-kms-capture.md).
+
+- [ ] [S] Try the Moonlight **Flatpak** client — likely a straight swap
+- [ ] [M] Sunshine host: try the native `.deb` instead of the AppImage, so
+      `setcap cap_sys_admin+p` works and KMS capture is available
+- [ ] [S] Re-check the `usermod -aG input` step — it grants read access to every
+      input device including the keyboard; the `uaccess` udev tag may suffice
+- [ ] [S] If it sticks, extract a `setup/` module + `docs/setup/` note and drop
+      the `~/Applications` AppImage symlink (invisible to `dotfiles-link`)
+
 ## Chorded Keybindings — keyd / xremap (dropped 2026-08-15)
 
 Both experiments were removed along with `docs/misc/` (the configs remain in git
