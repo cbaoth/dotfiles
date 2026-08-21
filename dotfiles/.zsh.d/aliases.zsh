@@ -92,6 +92,10 @@ alias -g ,g='| grep -E'
 alias -g ,gi='| grep -Ei'
 alias -g ,eg='|& grep -E'
 alias -g ,egi='|& grep -Ei'
+
+# highlight (non-filtering: colorize matches, pass the full stream through)
+alias -g ,hl='| colorize-text'      # e.g. cmd ,hl '(?i)error:red' '(?i)warn:yellow'
+
 alias -g ,u='| LC_ALL=C  uniq'      # unique lines by byte value (more efficient and predictable)
 alias -g ,uc='| LC_ALL=C  uniq -c'  # count unique lines
 

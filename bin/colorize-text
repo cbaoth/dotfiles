@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# colorize-text: highlight regex matches in a stream or file(s) without
+# filtering — the whole input passes through, only matches are colored.
+# Like `grep -E --color` but non-filtering, with per-pattern colors.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+# {{{ = CONSTANTS ============================================================
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
+
+# Colors handed to uncolored patterns, in order (cycles).
+declare -ra PALETTE=(red green yellow blue magenta cyan)
+
+# Named SGR tokens. Combine with '-' or '+' (e.g. bold-red, underline-cyan);
+# prefix a color with 'on-' for background (on-yellow). A bare number is used
+# as a raw SGR code (e.g. 38;5;208 for 256-color).
+declare -rA SGR=(
+  [reset]=0 [bold]=1 [dim]=2 [faint]=2 [italic]=3 [underline]=4 [ul]=4
+  [blink]=5 [reverse]=7 [inverse]=7 [hidden]=8 [strike]=9 [strikethrough]=9
+  [black]=30 [red]=31 [green]=32 [yellow]=33 [blue]=34 [magenta]=35
+  [purple]=35 [cyan]=36 [white]=37 [grey]=90 [gray]=90
+  [brightblack]=90 [brightred]=91 [brightgreen]=92 [brightyellow]=93
+  [brightblue]=94 [brightmagenta]=95 [brightcyan]=96 [brightwhite]=97
+)
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = FUNCTIONS ============================================================
+
+p_err() { printf '%s: %s\n' "${SCRIPT_FILE}" "$*" >&2; }
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] SPEC... [-- FILE...]
+
+Highlight regex matches in stdin (or FILE...) without filtering; the full
+input is printed, matches are colored. Patterns are Perl-compatible (\\b,
+(?i), lookarounds, ...) and applied per line.
+
+A SPEC is  PATTERN[:COLOR]  (one per argument):
+  '\\bERROR\\b:red' '(?i)warn:yellow' TODO
+A PATTERN without :COLOR takes the next color from the palette
+(${PALETTE[*]}). Earlier specs win where matches overlap.
+
+COLOR is one or more names joined by '-' or '+':
+  red green yellow blue magenta cyan white black grey
+  bright{red,green,...}   bold dim italic underline blink reverse strike
+  on-COLOR (background)   or a raw SGR code (e.g. '38;5;208')
+  e.g.  bold-red   underline-cyan   brightgreen   on-yellow   bold-white-on-red
+
+Options:
+  -i, --ignore-case   Case-insensitive for every pattern
+  -l, --list-colors   List color names and exit
+  -h, --help          This help
+
+Notes:
+  * Always emits color (like --color=always); pipe into 'less -R'.
+  * Honors NO_COLOR: if set, input is passed through unchanged.
+  * A literal PATTERN ending in ':word' is safe when 'word' is not a color;
+    otherwise give an explicit color, e.g. 'foo:green:red'.
+
+Examples:
+  journalctl -f | ${SCRIPT_FILE} '(?i)\\berror\\b:red' '(?i)\\bwarn\\b:yellow'
+  ${SCRIPT_FILE} '\\buv\\b:bold-green' -- ~/dotfiles/docs/*.md
+  ls -a | ${SCRIPT_FILE} '^\\.?zsh'
+EOF
+}
+
+# Resolve a color spec (e.g. "bold-red", "on-yellow", "38;5;208") to an SGR
+# parameter string ("1;31"). Prints the code; returns 1 on an unknown token.
+resolve_color() {
+  local -r spec="$1"
+  local out="" tok code
+  local -i bg=0
+  local IFS='-+'
+  # shellcheck disable=SC2206  # intentional word split on IFS, no globbing risk
+  local -a toks=(${spec})
+  unset IFS
+  for tok in "${toks[@]}"; do
+    tok="${tok,,}"
+    if [[ "${tok}" == "on" ]]; then
+      bg=1
+      continue
+    elif [[ -n "${SGR[${tok}]:-}" ]]; then
+      code="${SGR[${tok}]}"
+    elif [[ "${tok}" =~ ^[0-9]+(\;[0-9]+)*$ ]]; then
+      code="${tok}"
+    else
+      return 1
+    fi
+    # Background = foreground code + 10 (31->41, 91->101); only for 30-37/90-97.
+    if (( bg )); then
+      if [[ "${code}" =~ ^(3[0-7]|9[0-7])$ ]]; then
+        code=$(( code + 10 ))
+      fi
+      bg=0
+    fi
+    out+="${out:+;}${code}"
+  done
+  [[ -n "${out}" ]] || return 1
+  printf '%s' "${out}"
+}
+
+list_colors() {
+  local name
+  printf 'Color names (combine with - or +, prefix background with on-):\n'
+  for name in red green yellow blue magenta cyan white black grey \
+              brightred brightgreen brightyellow brightblue \
+              brightmagenta brightcyan brightwhite; do
+    printf '  \033[%sm%s\033[0m\n' "${SGR[${name}]}" "${name}"
+  done
+  printf 'Styles: bold dim italic underline blink reverse strike\n'
+}
+
+# }}} = FUNCTIONS ============================================================
+
+# {{{ = PERL PROGRAM =========================================================
+
+# Single-pass highlighter. Patterns/colors arrive via COLORIZE_* env vars to
+# avoid any shell-quoting of user regex. Each pattern is one branch of a big
+# alternation; a (?{i}) code block tags the winning branch via $^R so we know
+# which color to apply — this way injected escapes are never re-scanned, and
+# leftmost-then-first-branch order gives earlier specs precedence.
+read -r -d '' PERL_PROG <<'PERL' || true
+BEGIN {
+  my $n  = $ENV{COLORIZE_N}  // 0;
+  my $ci = $ENV{COLORIZE_I} ? '(?i)' : '';
+  my @alts;
+  for my $i (0 .. $n - 1) {
+    my $p = $ENV{"COLORIZE_PAT_$i"};
+    push @alts, "(?{$i})(?:$ci(?:$p))";
+  }
+  my $re = join '|', @alts;
+  our $RX = eval { qr/$re/ };
+  if (!$RX) { $@ =~ s/\s+at .*//s; print STDERR "colorize-text: invalid pattern: $@\n"; exit 2; }
+  our @COL = map { $ENV{"COLORIZE_COL_$_"} } 0 .. $n - 1;
+}
+our ($RX, @COL);
+s/$RX/ length(${^MATCH}) ? "\e[$COL[$^R]m${^MATCH}\e[0m" : "" /gpe;
+PERL
+
+# }}} = PERL PROGRAM =========================================================
+
+# {{{ = MAIN =================================================================
+
+main() {
+  local -i ignore_case=0
+  local -a specs=() files=()
+
+  # Options and specs up to '--'; everything after '--' is a file.
+  while (( $# )); do
+    case "$1" in
+      -i|--ignore-case) ignore_case=1; shift ;;
+      -l|--list-colors) list_colors; exit 0 ;;
+      -h|--help)        usage; exit 0 ;;
+      --)               shift; files=("$@"); break ;;
+      -?*)              p_err "unknown option: $1"; usage >&2; exit 2 ;;
+      *)                specs+=("$1"); shift ;;
+    esac
+  done
+
+  if (( ${#specs[@]} == 0 )); then
+    p_err "no pattern given"
+    usage >&2
+    exit 2
+  fi
+
+  # NO_COLOR (or a dumb terminal target): pass input straight through.
+  if [[ -n "${NO_COLOR:-}" ]]; then
+    exec cat -- "${files[@]}"
+  fi
+
+  command -v perl > /dev/null 2>&1 || { p_err "perl not found (required)"; exit 1; }
+
+  # Parse each SPEC into pattern + SGR code; build the perl env.
+  local -a env_args=()
+  local -i i=0 pi=0
+  local spec pat color code
+  for spec in "${specs[@]}"; do
+    color="${spec##*:}"
+    pat="${spec%:*}"
+    # Use PATTERN:COLOR only when there is a ':' and the suffix is a real color.
+    if [[ "${spec}" == *:* && -n "${pat}" ]] && code="$(resolve_color "${color}")"; then
+      : # pat/code set
+    else
+      pat="${spec}"
+      code="$(resolve_color "${PALETTE[pi % ${#PALETTE[@]}]}")"
+      (( ++pi ))
+    fi
+    env_args+=( "COLORIZE_PAT_${i}=${pat}" "COLORIZE_COL_${i}=${code}" )
+    (( ++i ))
+  done
+  env_args+=( "COLORIZE_N=${i}" )
+  (( ignore_case )) && env_args+=( "COLORIZE_I=1" )
+
+  exec env "${env_args[@]}" perl -Mre=eval -pe "${PERL_PROG}" -- "${files[@]}"
+}
+
+main "$@"
+
+# }}} = MAIN =================================================================
