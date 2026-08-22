@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Push with an interactively-supplied token, storing and caching nothing.
+#
+# Installed in ~/bin, so git finds it as a subcommand: `git push-token`.
+
+# set options
+# -e omitted: the whole point is to surface git's own exit status and message
+# (a 403 from a read-only token is informative, not a script bug).
+set -o nounset
+set -o pipefail
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = FUNCTIONS ============================================================
+
+usage() {
+  cat <<EOF
+Usage: git push-token [GIT PUSH ARGS...]
+
+Run \`git push\` with every credential helper disabled, so git prompts for the
+username/token instead of reusing a stored or cached one — and stores nothing
+afterwards.
+
+Why this exists
+  Read and write need DIFFERENT credentials on some hosts, and git has no way
+  to pick a helper per operation: credentials are keyed by URL, and push and
+  fetch share one. On a read-only replica (the vserver, where ~/notes holds a
+  fine-grained READ-ONLY token on disk) a plain \`git push\` therefore reuses
+  that token and fails with 403. This bypasses the helper for one command.
+
+  Being explicit is deliberate. On a host that must not hold a write
+  credential, pushing should be a conscious act, not something that quietly
+  succeeds because a token was lying around.
+
+Examples
+  git push-token
+  git push-token origin main
+  git push-token --tags
+EOF
+}
+
+# }}} = FUNCTIONS ============================================================
+
+# {{{ = MAIN =================================================================
+
+main() {
+  case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+  esac
+
+  git rev-parse --git-dir >/dev/null 2>&1 \
+    || { printf 'ERROR: not inside a git repository\n' >&2; exit 1; }
+
+  # Force a TERMINAL prompt.
+  #
+  # With GIT_ASKPASS/SSH_ASKPASS set (any desktop session), git pops a GUI
+  # dialog instead — and those dialogs commonly offer to save the secret to a
+  # keyring, which is the exact thing this command exists to avoid. Unsetting
+  # them makes the prompt predictable and keeps the token in nothing but the
+  # process that used it.
+  unset GIT_ASKPASS SSH_ASKPASS
+
+  # An empty credential.helper RESETS the helper list rather than adding to it,
+  # and -c is applied last, so this clears whatever the repo/global config set
+  # (`store`, `cache`, libsecret, ...) for this one invocation only.
+  # Verified: `git -c credential.helper= credential fill` finds no credential
+  # where the plain form returns the stored one.
+  printf 'Credential helpers disabled for this push — you will be prompted,\n'
+  printf 'and nothing will be stored. Password = your GitHub token.\n\n'
+
+  git -c credential.helper= push "$@"
+}
+
+main "$@"
+
+# }}} = MAIN =================================================================

@@ -206,7 +206,18 @@ root-equivalent, and can enumerate the box in minutes anyway.
 On a replica, local edits are deliberately left **uncommitted** so they surface
 as drift; `--pull-only` warns on every run if local commits exist, because
 nothing on that host can ever push them. Write there only when you must, and
-push by hand with an interactively-supplied token.
+push by hand:
+
+```bash
+git push-token            # bin/git-push-token
+```
+
+A plain `git push` on a replica fails with **403**, and that is correct — it
+reuses the stored read-only token. Git cannot pick a credential per operation
+(they are keyed by URL, and push and fetch share one), so `git push-token`
+disables every helper for one command: it prompts, pushes, and stores nothing.
+Keeping it explicit is the point — on a host that must not hold a write
+credential, pushing should be a conscious act.
 
 **Do not hand-rsync `_local/` or `~/notes` between machines.** `~/notes` is a
 git repo with a remote; use `git pull` / `git push`. The old

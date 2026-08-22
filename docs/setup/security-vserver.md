@@ -231,8 +231,10 @@ which is root-equivalent.
 
 Corollary: **do not author notes on this host.** Edits stay uncommitted on
 purpose so they show up as drift, and `--pull-only` warns every run if local
-commits exist. When something must be written here, push it by hand with an
-interactively-supplied token.
+commits exist. When something must be written here, push it by hand with
+`git push-token`, which disables every credential helper for one command so the
+write token is prompted for and never stored. A plain `git push` here returns
+403 — that is the design working, not a fault.
 
 ## Open
 

@@ -132,6 +132,7 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | `bin/gif-cycle` | GIF frame cycling utility. |
 | `bin/gif-delay` | GIF frame delay inspector/modifier. |
 | `bin/git-fix-chmod` | Fix Git file permissions (chmod). |
+| `bin/git-push-token` | `git push-token` — push with an interactively-supplied token, disabling every credential helper so nothing is stored or cached. For hosts that hold a read-only credential (see `AGENTS.md`, *`~/notes` sync*). |
 | `bin/image-concat` | Concatenate images. |
 | `bin/mpv-find` | Find media files and play with mpv. |
 | `bin/netshare-bench` | Benchmark mounted network shares (NFS/CIFS/SMB) using `fio` and `iozone`. Tests sequential/random I/O, parallel photo-app reads (Lightroom/XnView MP workload), directory traversal (readdir/getattr RPC load), and network latency. Useful for comparing protocols and configuration tuning (LAN vs. Wi-Fi, server/client settings). All output is logged to a timestamped file alongside stdout. |
