@@ -8,6 +8,19 @@
 	name = Andreas Weyer
 	email = dev@cbaoth.de
 
+[credential "https://github.com"]
+	# Answers the "Username for 'https://github.com'" prompt so only the token
+	# is ever asked for. Safe in this public repo: the account name is already
+	# in every remote URL — it is identity, like user.email above, not a
+	# secret and not the machine-specific *helper* (which stays in
+	# ~/.gitconfig.local).
+	#
+	# The alternative is baking `cbaoth@` into each remote URL by hand, which
+	# has to be redone for every fresh clone on every host. This does not.
+	# Matters most with `git push-token`, which disables the helpers on purpose
+	# and so has nothing cached to fall back on.
+	username = cbaoth
+
 [init]
 	defaultBranch = main
 

@@ -36,6 +36,11 @@ Why this exists
   credential, pushing should be a conscious act, not something that quietly
   succeeds because a token was lying around.
 
+Only the token is prompted for, not the username: ~/.gitconfig sets
+\`credential.https://github.com.username\`. That is why no \`user@\` is needed in
+the remote URL — editing those by hand works too, but has to be redone for
+every fresh clone on every host.
+
 Examples
   git push-token
   git push-token origin main
