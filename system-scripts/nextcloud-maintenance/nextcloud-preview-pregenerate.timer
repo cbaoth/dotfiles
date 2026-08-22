@@ -1,0 +1,13 @@
+[Unit]
+Description=Nightly Nextcloud preview pre-generation
+Documentation=file:/opt/system-scripts/nextcloud-maintenance/README.adoc
+
+[Timer]
+# 04:00 — after the dump (01:30), the saito pull (~02:15) and any maintenance
+# run (03:10), so the heavy IO never overlaps a backup.
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

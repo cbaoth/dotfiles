@@ -1,0 +1,18 @@
+[Unit]
+Description=Monthly Nextcloud maintenance run
+Documentation=file:/opt/system-scripts/nextcloud-maintenance/README.adoc
+
+[Timer]
+# Monthly, not weekly as the old crontab had it. Under Docker the integrity
+# checks are near-pointless (the image is immutable and pinned) and they are the
+# slow part; the parts that still matter — db:add-missing-indices after an image
+# bump, and maintenance:repair — are not weekly concerns.
+#
+# 03:10 on the 2nd: after the nightly dump (01:30) and the saito pull (~02:15),
+# so a maintenance run never races the backup for the database.
+OnCalendar=*-*-02 03:10:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

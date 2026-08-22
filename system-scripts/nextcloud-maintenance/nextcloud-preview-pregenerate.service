@@ -1,0 +1,20 @@
+[Unit]
+Description=Nextcloud: generate previews queued by the previewgenerator app
+Documentation=file:/opt/system-scripts/nextcloud-maintenance/README.adoc
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# No wrapper script — this is a single occ call. -T because there is no TTY
+# under systemd and docker would otherwise inject control characters.
+ExecStart=/usr/bin/docker compose -f /srv/nextcloud/compose.yaml exec -T -u www-data app \
+          php --define apc.enable_cli=1 -f /var/www/html/occ preview:pre-generate
+# Thumbnailing is CPU- and IO-heavy; keep it out of the way of anything serving
+# real requests.
+TimeoutStartSec=3600
+Nice=15
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

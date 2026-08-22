@@ -1,0 +1,18 @@
+[Unit]
+Description=Routine Nextcloud maintenance (missing DB indices, repair, integrity, update check)
+Documentation=file:/opt/system-scripts/nextcloud-maintenance/README.adoc
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/system-scripts/nextcloud-maintenance/nextcloud-maintenance
+# The script already caps each individual occ call at 900s; this is the backstop
+# for the whole run (integrity:check-app iterates every enabled app).
+TimeoutStartSec=3600
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+
+[Install]
+WantedBy=multi-user.target

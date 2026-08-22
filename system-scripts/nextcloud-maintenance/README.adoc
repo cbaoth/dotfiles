@@ -1,0 +1,91 @@
+= nextcloud-maintenance
+:toc: macro
+:toclevels: 2
+
+Routine Nextcloud housekeeping, plus the preview pre-generation the
+`previewgenerator` app needs in order to do anything.
+
+toc::[]
+
+== Status: the Docker port is done
+
+The old inventory note read _"keep if Nextcloud stays bare-metal-ish;
+re-evaluate under Docker"_. **That re-evaluation happened** — the script was
+ported during the 2026-07 rebuild and every `occ` call now goes through
+`docker compose exec -T -u www-data`. The note was stale.
+
+What had *not* happened is scheduling. The script existed and worked, and
+nothing ever ran it. These units close that gap.
+
+== What runs, and how often
+
+[cols="1,1,3"]
+|===
+| Unit | Cadence | Does
+
+| `nextcloud-maintenance`
+| monthly, 2nd 03:10
+| `db:add-missing-indices`, `maintenance:repair`, `integrity:check-core` +
+  `check-app`, then a check-only `app:update --showonly` and `update:check`.
+
+| `nextcloud-preview-pregenerate`
+| nightly 04:00
+| `occ preview:pre-generate`.
+|===
+
+Both are ordered after the nightly DB dump (01:30) and the saito pull (~02:15),
+so heavy maintenance IO never races a backup.
+
+=== Monthly, not weekly
+
+The old crontab ran this `@weekly`. Under Docker the integrity checks are close
+to pointless — the image is immutable and pinned, and the only mutable app path
+is the `custom_apps` bind mount — and they are the slow part of the run. What
+still earns its place is `db:add-missing-indices` (image bumps routinely leave
+indices pending) and `maintenance:repair`, and neither is a weekly concern.
+
+=== The preview job was a real gap
+
+`previewgenerator` (5.14.0) is **enabled** on this instance, but nothing was
+calling `occ preview:pre-generate`. The app only *records* which files need
+previews; without a scheduled generate call it does no work at all. The old
+crontab had this line and it was never carried over — matching the still-unticked
+"Preview regeneration" item in the vserver restore checklist.
+
+[IMPORTANT]
+====
+`preview:pre-generate` only processes files recorded *since the app was
+enabled*. To cover files that already existed, run this **once**, by hand:
+
+[source,shell]
+----
+docker compose -f /srv/nextcloud/compose.yaml exec -T -u www-data app \
+  php -f /var/www/html/occ preview:generate-all -vvv
+----
+
+On a large instance that is hours of CPU and can add a lot of disk. Do it
+deliberately, watching `df -h`, not from a timer.
+====
+
+== Install
+
+[source,shell]
+----
+sudo install -D -m 755 nextcloud-maintenance \
+  /opt/system-scripts/nextcloud-maintenance/nextcloud-maintenance
+for u in nextcloud-maintenance nextcloud-preview-pregenerate; do
+  sudo install -D -m 644 "$u.service" "/etc/systemd/system/$u.service"
+  sudo install -D -m 644 "$u.timer"   "/etc/systemd/system/$u.timer"
+done
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now nextcloud-maintenance.timer
+sudo systemctl enable --now nextcloud-preview-pregenerate.timer
+
+# smoke-test both without waiting for the schedule
+sudo systemctl start nextcloud-preview-pregenerate.service
+journalctl -u nextcloud-preview-pregenerate.service -n 30 --no-pager
+----
+
+The maintenance script logs to `/var/log/nextcloud-maintenance.log` and rotates
+it itself at 10 MB (single `.old`), so it needs no logrotate entry.
