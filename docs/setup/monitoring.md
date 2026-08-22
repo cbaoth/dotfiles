@@ -3,7 +3,7 @@ title: Monitoring (Netdata) — three hosts, one pane, ntfy alerting
 hosts: [motoko, saito, 11001001]
 status: open
 tags: [monitoring, netdata, ntfy, alerting, streaming, motoko, saito, vserver]
-updated: 2026-07-25
+updated: 2026-08-22
 automated_by: setup/modules/60-netdata.sh
 ---
 
@@ -134,6 +134,50 @@ the box (root-readable config) and in KeePass. Nothing secret in this repo.
 
 Per-host deploy kits + runbooks: `~/notes/systems/<host>/monitoring/`.
 
+## Phase 2 — app-level checks (done 2026-08-22, vserver)
+
+The "App-level checks" and "Outdated-software signal" items below were closed on
+the vserver. Deploy kit and full reasoning:
+`~/notes/systems/11001001/monitoring/` and `~/notes/systems/11001001/fail2ban/`.
+
+### The trap: two stock alarms ship disabled
+
+Netdata's own health rules for **systemd units** and **Docker containers** both
+carry a chart-label selector that deliberately matches nothing:
+
+```
+chart labels: unit_name=!*        # health.d/systemdunits.conf
+chart labels: container_name=!*   # health.d/docker.conf
+```
+
+That is netdata's opt-in idiom, not a bug — but the consequence is easy to miss:
+`go.d/systemdunits` had been *collecting* 205 service-unit charts since install
+while **no unit failure had ever alerted**. `postfix.service` died on 2026-08-11
+(`inet_interfaces: no local interface found for 172.19.0.1` — it binds the
+Docker bridge but starts before Docker creates it) and stayed dead for 11 days,
+found by accident.
+
+Check for this on saito and motoko too: collecting is not alerting.
+
+### What was added
+
+| File | Closes |
+| ---- | ------ |
+| `health.d/systemdunits.conf` | any failed service unit — including the oneshots behind the backup timers |
+| `health.d/docker.conf` | container down. The stock `docker_container_unhealthy` reads `docker.container_health_status`, which can only move for containers declaring a HEALTHCHECK — caddy, forgejo, nextcloud-app and nextcloud-cron declare none, so it was permanently CLEAR for exactly the containers that matter |
+| `go.d/httpcheck.conf` | the public URLs actually answer, end to end. Complements the above: `container_down` catches a crash, httpcheck catches a container that was *removed* (its chart disappears, so there is nothing left to alarm on) |
+| `go.d/x509check.conf` | cert expiry. Caddy auto-renews, so the real failure is silent renewal failure — this watches the outcome (days remaining) rather than the log |
+| `health.d/fail2ban.conf` | ban-rate outside normal. `go.d/fail2ban` was already collecting; netdata ships no health rules for it |
+
+### Outdated-software signal
+
+Host packages: `unattended-upgrades` (security origins) plus netdata's
+`system_post_update_reboot_status`. Containers: **`system-scripts/docker-image-check`**
+— a weekly timer comparing every running image against its upstream registry,
+pushing to ntfy when something is behind. This is the gap `lynis` never covered
+and the one that actually matters here; the first run found Nextcloud five patch
+releases behind.
+
 ## Not covered (yet)
 
 - **Grafana/Prometheus/Loki** — the "later" track, spanning both servers. Netdata
@@ -141,8 +185,9 @@ Per-host deploy kits + runbooks: `~/notes/systems/<host>/monitoring/`.
 - **Pull surface** (MOTD / shell prompt segment reading the parent's API) — the
   half of alert delivery that isn't push. Open; best designed after living with
   the boxes. Do not "solve" delivery by adding a channel that gets muted.
-- **App-level checks** (Nextcloud up, Caddy cert expiry beyond Netdata's own,
-  fail2ban activity via the logs collector) — Phase 2+ polish.
-- **Outdated-software signal** — Netdata doesn't do this; pair with
-  `unattended-upgrades` + a weekly `apt list --upgradable` surfaced somewhere,
-  and the existing `lynis`.
+- **External reachability** — every check above runs *on* the host, so none of
+  them prove the services are reachable from the internet. A ufw or Contabo-panel
+  change that black-holes 443 would leave all of them green. Needs a prober
+  somewhere else (saito is on a different network).
+- **Phase 2 on saito and motoko** — the disabled-alarm trap above applies there
+  too; only the vserver has been fixed.
