@@ -1,0 +1,37 @@
+[Unit]
+Description=Check running container images against their upstream registries
+Documentation=file:///home/cbaoth/dotfiles/system-scripts/docker-image-check/README.adoc
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# Runs as the unprivileged stack owner, NOT root:
+#  - docker group membership is all the Docker API access this needs
+#  - ntfy-send reads ~/.config/ntfy-send/config (mode 600, owned by cbaoth),
+#    which root would not pick up without hardcoding the path
+User=cbaoth
+Group=cbaoth
+
+# ntfy-send lives in ~/bin via the dotfiles symlink farm; the script itself is
+# deployed under /opt/system-scripts like every other unit here.
+Environment=PATH=/home/cbaoth/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/opt/system-scripts/docker-image-check/docker-image-check --notify
+
+# Purely a read-only network+docker query; give it nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+# ntfy-send keeps throttle state under ~/.local/state/ntfy-send
+ReadWritePaths=/home/cbaoth/.local/state
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Weekly container image staleness check
+Documentation=file:///home/cbaoth/dotfiles/system-scripts/docker-image-check/README.adoc
+
+[Timer]
+# Weekly, Monday morning. Deliberately not daily: image releases are not that
+# frequent, and a notification that arrives more often than you act on it is a
+# notification you learn to swipe away.
+OnCalendar=Mon 08:30
+# Survive the box being down at the scheduled time.
+Persistent=true
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target

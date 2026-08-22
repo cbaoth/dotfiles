@@ -1,0 +1,121 @@
+= docker-image-check
+:toc: macro
+:toclevels: 2
+
+Report running container images that have fallen behind their upstream
+registry, and push the result to ntfy.
+
+toc::[]
+
+== Why this exists
+
+`unattended-upgrades` keeps the *host* patched. It does nothing whatsoever for
+containers. Every image on the vserver is pinned to an exact version on
+purpose — that is the right call, and it is also the reason each one goes stale
+*silently*:
+
+[source]
+----
+caddy:2-alpine
+codeberg.org/forgejo/forgejo:15.0.6
+ghcr.io/silverbulletmd/silverbullet:2.10.0
+mariadb:11.4
+nextcloud:31.0.9-apache
+redis:7-alpine
+----
+
+A pinned Nextcloud or Forgejo carrying a published CVE is a far more realistic
+threat to a box like this than the rootkits `rkhunter` was built to find. The
+first real run (2026-08-22) found Nextcloud **five patch releases behind**
+(31.0.9 vs 31.0.14) and Forgejo one behind (15.0.6 vs 15.0.7) — neither of which
+anything on the host would ever have mentioned.
+
+This is a *reporting* tool. It never pulls and never restarts anything;
+upgrading stays a deliberate, supervised act.
+
+== What it reports
+
+Two different kinds of "behind", because the pins are two different kinds:
+
+Exact pins (`31.0.9-apache`, `15.0.6`, `2.10.0`)::
+Lists newer tags with an *identical suffix*, so `-apache` images are only ever
+compared against `-apache` ones. By default it stays inside the pinned major
+version — Forgejo is on the v15 LTS deliberately, and a report that nags about
+v16 every week is a report you stop reading. `--any-major` lifts that.
+
+Moving tags (`2-alpine`, `11.4`, `7-alpine`)::
+These are republished in place, so "newer tag" is meaningless. Instead it
+compares the local image's repo digest against the registry's current digest
+for that tag: a mismatch means `docker compose pull` would fetch something new.
+
+== Usage
+
+[source,shell]
+----
+docker-image-check                # human-readable report
+docker-image-check --notify       # ...and ntfy push if anything is behind
+docker-image-check --any-major    # include major-version bumps
+----
+
+Exit status is 0 unless the Docker socket is unreachable — "things are behind"
+is a finding, not a failure, so the timer does not go red for it.
+
+== Install
+
+[source,shell]
+----
+sudo install -D -m 755 docker-image-check \
+  /opt/system-scripts/docker-image-check/docker-image-check
+sudo install -D -m 644 docker-image-check.service \
+  /etc/systemd/system/docker-image-check.service
+sudo install -D -m 644 docker-image-check.timer \
+  /etc/systemd/system/docker-image-check.timer
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now docker-image-check.timer
+
+# verify
+systemctl list-timers docker-image-check.timer
+sudo systemctl start docker-image-check.service && \
+  journalctl -u docker-image-check.service -n 20 --no-pager
+----
+
+Runs weekly (Mon 08:30, `Persistent=true`). Not daily: releases are not that
+frequent, and a notification arriving more often than you act on it is one you
+learn to swipe away.
+
+== Implementation notes
+
+=== No dependencies, and a plain `python3` shebang
+
+This deviates from `cb-python.instructions.md`, which calls for
+`#!/usr/bin/env -S uv run --script` with PEP 723 metadata. The script uses only
+the standard library, and runs from a systemd timer on a server where `uv` is
+not installed. Installing a package manager to run a script that needs no
+packages is the wrong trade; the deviation is documented at the top of the file.
+
+=== One code path for three registries
+
+Docker Hub, `ghcr.io` and `codeberg.org` all implement the OCI distribution
+spec: an unauthenticated request gets a `401` whose `WWW-Authenticate` header
+advertises a token endpoint, and the token it hands back is accepted on retry.
+So there is no per-registry special-casing — just that handshake.
+
+=== Two bugs worth remembering
+
+Both produced *confident false negatives* — the script cheerfully reporting
+"all images current" while everything was stale — which is the single worst way
+for a tool like this to fail.
+
+Header case::
+HTTP header names are case-insensitive; a Python `dict` is not. Docker Hub
+sends `www-authenticate` in lowercase, so looking up `"WWW-Authenticate"` missed
+it, no token was ever acquired, every tag listing came back empty, and every
+image looked current. Response headers are now lowercased on the way in.
+
+Pagination::
+Docker Hub caps a page at 1000 tags and orders them neither by semver nor by
+date. For `library/nextcloud` page one ends at `17.0.0beta4-fpm-alpine`, so
+every 31.x tag is on a later page — the pinned release looked like the newest in
+existence. The script now follows `Link: rel="next"`, and if it ever hits the
+40-page cap it says so in the report rather than truncating quietly.
