@@ -1,0 +1,17 @@
+[Unit]
+Description=Pull ~/notes hourly (read-only replica)
+Documentation=file:%h/dotfiles/bin/notes-sync
+
+[Timer]
+# Hourly, not the 5 minutes notes-sync uses. A replica has no unsaved work to
+# protect — the only cost of being stale is reading yesterday's note — so this
+# trades freshness for far fewer wakeups and log lines.
+OnStartupSec=3min
+OnUnitActiveSec=1h
+
+AccuracySec=1min
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

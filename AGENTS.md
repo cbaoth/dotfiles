@@ -174,7 +174,7 @@ newer one held a security fix. Recovered into `~/notes/systems/`.
 
 | Content | Home |
 | ------- | ---- |
-| Host-specific infra: runbooks, deploy scripts, units, inventories | `~/notes/systems/<host>/` — private, has a remote, auto-commits **and pushes** every 5 min (`notes-sync.timer`) |
+| Host-specific infra: runbooks, deploy scripts, units, inventories | `~/notes/systems/<host>/` — private, has a remote. Sync mode is **per host**, see below |
 | Generic, sanitized machine setup | this repo: `docs/setup/` + a `setup/` module |
 | Genuinely disposable: one-off dumps, pasted output, temp files | `_local/` |
 | Real secrets (topics, passwords, keys) | KeePassXC, or root-only files under `/etc` — **never** either repo |
@@ -184,6 +184,29 @@ That last row is not hypothetical: a Nextcloud migration dump under
 `_local/` contained another person's calendar export *including a live Todoist
 iCal token*. Scan before moving anything out of `_local/` into a repo — private
 does not mean safe.
+
+### `~/notes` sync: exactly one mode per host
+
+Two systemd user timers exist; enable **one**, never both:
+
+| Timer | For | Credential it needs |
+| ----- | --- | ------------------- |
+| `notes-sync.timer` | authoring hosts (motoko) — commits every 5 min **and pushes** | one that can **write** the notes repo |
+| `notes-pull.timer` | read-only replicas (the public-facing vserver) — hourly `git pull`, never commits, never pushes | one that can only **read** |
+
+Both drive `bin/notes-sync`; the replica adds `--pull-only`.
+
+The split is about the **credential, not the content**. A push token on an
+internet-facing box escalates "one host compromised" into "every host's
+documentation compromised, *and writable*" — and those notes are read back as
+instructions by both humans and agents. Read exposure is far less serious:
+anyone with a shell there is already in the `docker` group, which is
+root-equivalent, and can enumerate the box in minutes anyway.
+
+On a replica, local edits are deliberately left **uncommitted** so they surface
+as drift; `--pull-only` warns on every run if local commits exist, because
+nothing on that host can ever push them. Write there only when you must, and
+push by hand with an interactively-supplied token.
 
 **Do not hand-rsync `_local/` or `~/notes` between machines.** `~/notes` is a
 git repo with a remote; use `git pull` / `git push`. The old
