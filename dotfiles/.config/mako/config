@@ -1,2 +1,7 @@
 font=Fira Code 9
 background-color=#2e9ef4ff
+
+# Do-not-disturb: hide all notifications while active. Toggle with
+#   makoctl mode -a do-not-disturb   /   makoctl mode -r do-not-disturb
+[mode=do-not-disturb]
+invisible=true

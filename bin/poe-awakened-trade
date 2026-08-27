@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Launch Awakened PoE Trade (AppImage) on Sway/Wayland.
+#
+# Two workarounds are needed to start the AppImage from a shell under Sway:
+#
+#   1. AppImageLauncher installs a binfmt_misc handler that routes every
+#      AppImage exec through its Qt GUI wrapper (/usr/bin/AppImageLauncher).
+#      That wrapper cannot initialize under Wayland — sway-start exports
+#      QT_QPA_PLATFORM=wayland and the wrapper's bundled Qt has no wayland
+#      plugin — so it SIGABRTs (exit 134) before the app ever runs.
+#      APPIMAGELAUNCHER_DISABLE=1 makes the binfmt handler exec the AppImage
+#      directly, skipping the wrapper.
+#
+#   2. The app is Electron. --ozone-platform=x11 forces it onto XWayland so its
+#      global overlay works over the (XWayland) game. See issue #1647.
+#
+# Plain launcher; "trade mode" (float game + hide waybar + DND + start/stop) is
+# handled by bin/poe-trade-toggle, which tracks the overlay by process pattern.
+set -euo pipefail
+
+app=$(find "$HOME/Applications" -maxdepth 1 -iname 'Awakened-PoE-Trade*' -print -quit)
+[[ -n $app ]] || { echo "poe-awakened-trade: AppImage not found in ~/Applications" >&2; exit 1; }
+
+export APPIMAGELAUNCHER_DISABLE=1
+# ELECTRON_RUN_AS_NODE is injected by the VS Code terminal; it would make the
+# Electron binary run as plain node instead of launching the GUI.
+unset ELECTRON_RUN_AS_NODE
+
+exec "$app" --ozone-platform=x11 "$@"

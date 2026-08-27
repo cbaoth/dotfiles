@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Toggle Awakened PoE Trade "trade mode" on Sway (bind to a key, e.g. $hyper+Alt+p).
+#
+# Path of Exile defaults to sway-fullscreen (fullscreen_mode=1) like any Steam
+# game: best gameplay experience, waybar covered, no overlay. But the APT overlay
+# CANNOT receive pointer input over a fullscreen surface, and the game cursor
+# freezes on desktop switches (XWayland limitation, issue #1647). So trade mode
+# drops the game to a windowed fs=0 state and runs the overlay.
+#
+# Two coupled states, with "is the overlay running?" as the single source of
+# truth, so they cannot drift apart (a mixed state self-corrects in one press):
+#
+#   overlay NOT running  --press-->  ON : game tiled fs=0 (fills below waybar,
+#                                         border none = no titlebar), waybar
+#                                         visible, start overlay.
+#   overlay running      --press-->  OFF: kill overlay, game sway-fullscreen.
+#
+# Waybar is intentionally left visible in trade mode (switch desktops, use the
+# overlay's browser result page); fullscreen covers it during gameplay anyway.
+# Keep PoE in-game as "Windowed Fullscreen" so the windowed state fills cleanly.
+set -euo pipefail
+
+# Matches all APT processes: the electron main/helpers run as "awakened-poe-trade"
+# (binary name + --user-data-dir path); the AppImage runtime/binfmt use the
+# "Applications/Awakened-PoE-Trade" path. Neither substring appears in this
+# toggle's argv, the "poe-awakened-trade" launcher's argv (different word order),
+# or VS Code editing "Awakened_PoE_Trade.desktop" (underscores) -- so pgrep/pkill
+# -f cannot match those by accident.
+readonly apt_pat='awakened-poe-trade|Applications/Awakened-PoE-Trade'
+readonly poe_class='(?i)^steam_app_238960$'
+
+notify() {  # best-effort desktop confirmation of the keypress
+  notify-send -a 'PoE Trade' -t 2500 "$1" "${2:-}" >/dev/null 2>&1 || true
+}
+
+trade_mode_on() {
+  # fs=0 tiled window fills ws6's work area (below waybar) automatically; border
+  # none drops the titlebar. fs=0 is what lets the overlay take pointer input.
+  swaymsg "[class=\"${poe_class}\"] fullscreen disable, floating disable, border none" \
+    >/dev/null 2>&1 || true
+  setsid --fork poe-awakened-trade </dev/null >/dev/null 2>&1
+  notify '🟢 PoE trade mode ON' 'Game windowed · waybar visible · overlay starting'
+}
+
+trade_mode_off() {
+  pkill -TERM -f "$apt_pat" 2>/dev/null || true
+  # Force-kill any stragglers a moment later, without blocking the keypress.
+  ( sleep 2; pkill -KILL -f "$apt_pat" 2>/dev/null ) >/dev/null 2>&1 &
+  swaymsg "[class=\"${poe_class}\"] fullscreen enable" >/dev/null 2>&1 || true
+  notify '🔴 PoE trade mode OFF' 'Game fullscreen · overlay stopped'
+}
+
+if pgrep -f "$apt_pat" >/dev/null 2>&1; then
+  trade_mode_off
+else
+  trade_mode_on
+fi
