@@ -69,7 +69,8 @@
     },
 
     // Lenovo DYTC thermal modes (the Vantage "Intelligent Cooling" equivalent):
-    // power-saver caps power so the fan stays quiet; performance uncaps PL1.
+    // power-saver/balanced cap sustained power at 11 W so the fan stays quiet;
+    // performance raises it to 27 W (read intel-rapl-mmio:0, not intel-rapl:0).
     // There is no fan control on this model, so the profile is the only thermal
     // lever -- see docs/troubleshooting/lenovo-c940-thermal.md.
     // Left-click cycles, scroll also switches.

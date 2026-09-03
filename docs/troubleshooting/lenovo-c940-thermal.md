@@ -29,8 +29,8 @@ pkg temp      94-98 °C sustained
 throttling    +9,300 events in 50 s (~186/s, continuous)
 SEN2          72 -> 76 °C, climbing across the sample
 power         Mains online=0   <-- the actual cause
-PL1           200 W (uncapped by the performance profile)
-PL2           51 W
+PL1           27 W  (performance; 11 W for balanced/power-saver)
+PL2           44 W  (performance; 25 W otherwise)
 ```
 
 Package temperature pinned at the ceiling with the throttle counter climbing
@@ -41,11 +41,18 @@ the throttle counter essentially static** (2,597 events in 14 min of uptime).
 
 A USB-C charger that had come unplugged unnoticed, plus:
 
-- `performance` lifts PL1 to **200 W** — effectively uncapped on a 15 W-class
-  i7-1065G7.
+- `performance` more than doubles sustained power on a 15 W-class i7-1065G7:
+  **PL1 27 W / PL2 44 W**, against 11 W / 25 W for balanced and power-saver.
 - On battery the EC runs a **conservative fan curve** regardless of the profile.
 
-Uncapped power against a quiet fan curve = the CPU turbos into a thermal wall
+> **Read those limits from `intel-rapl-mmio:0`, not `intel-rapl:0`.** The MSR
+> domain reports a meaningless 200 W here and never changes with the profile;
+> the MMIO domain is the one DYTC actually drives. This was originally recorded
+> wrong in this note — corrected 2026-09-03. Note also its **~28 s PL1 averaging
+> window**: a profile change takes that long to show as a temperature change,
+> which is long enough to make you think the switch did nothing.
+
+Raised power against a quiet fan curve = the CPU turbos into a thermal wall
 and stays there. Note the counterintuitive consequence:
 
 > **On battery, `performance` makes the machine slower.** It spends all its time
@@ -135,17 +142,76 @@ Nothing about the fan — there was nothing to change. The gap was that
   `performance`-on-battery, hidden entirely otherwise. Covers the case the guard
   deliberately does not touch.
 
-## Sleep/resume: ruled out, not proven innocent
+## Second incident, 2026-09-03: sleep/resume confirmed
 
-The initial hypothesis was that suspend/resume had left the fan stopped. Set
-aside: the battery fan curve explains every symptom on its own, so there is no
-residual behaviour for a resume bug to account for. It was never properly
-isolated, though — the reboot and the replug happened at roughly the same time,
-so the two variables are confounded.
+The first time round this was dismissed — the battery fan curve explained every
+symptom, so no resume bug was needed. **That dismissal was wrong**, and the
+retest above is what caught it. Second occurrence, this time unambiguous:
 
-If it ever recurs **on AC**: suspend/resume, load the CPU, and watch
-`/sys/devices/system/cpu/cpu0/thermal_throttle/package_throttle_count`. If it
-stays near-static, resume is fine.
+```
+Sep 03 19:56:06  PM: suspend entry (s2idle)
+Sep 03 21:52:07  PM: suspend exit          <-- heat starts here
+```
+
+**On AC**, charger connected, package pinned at 94-98 °C. The decisive test: cap
+sustained power to 12 W (`balanced`) and wait.
+
+```
+22:30:27  pkg=94C  SEN2=77C  SEN4=80C
+22:31:22  pkg=97C  SEN2=76C  SEN4=80C   throttle +17,896 in 90 s
+```
+
+**Sixty seconds at 12 W and not one degree of movement.** A 15 W-class chip
+capped at 12 W that cannot get below 94 °C is not being cooled at all; the
+chassis is the only heatsink left, which is why the palmrest reached 80 °C and
+was painful to touch. There is still no RPM reading to confirm it directly, but
+thermally this is not ambiguous.
+
+So: an s2idle resume can leave the EC's fan control stopped, and no reboot means
+it stays stopped. Only a reboot has ever recovered it.
+
+### Mitigation while the fan is dead
+
+The ArchWiki config in the next section is the *only* thing that helps without
+rebooting: it cannot spin the fan, it just stops feeding the chip heat, holding
+~80 °C instead of 95 °C. Slow but touchable beats fast and painful.
+
+### Candidate fix at source: use S3 instead of s2idle
+
+`cat /sys/power/mem_sleep` reports `[s2idle] deep` — S3 is supported and simply
+not the default. `mem_sleep_default=deep` powers the EC down and back up
+properly instead of the half-awake S0ix state that wedges it. **Untested as of
+writing.** Test with nothing unsaved: S3 is occasionally flaky on machines
+tuned for modern standby, and the failure mode is not resuming at all.
+
+## The ArchWiki page for this model is worth reading
+
+<https://wiki.archlinux.org/title/Lenovo_Yoga_C940> (direct fetching is blocked
+by Anubis; paste the page source if an agent needs it). Independent confirmation
+and one genuinely useful config:
+
+> **"Manual fan control does not work at all."**
+
+It carries a `thermal-conf.xml` written for `<ProductName>81Q9</ProductName>` —
+this exact machine — setting **passive trip points at 80 °C** on `SEN2` and
+`x86_pkg_temp`, plus a service change to drop `--adaptive` and add
+`--ignore-default-control`. Deployed by the script referenced below.
+
+One caveat found on deployment: the wiki's first trip point names `B0D4` as a
+*cooling device*, but on kernel 6.17 B0D4 exists here only as a thermal *zone*
+(the cooling devices are `Processor`, `intel_powerclamp`, `TCC Offset`,
+`PCIe_Port_Link_Speed`), so it probably does not bind. The
+`x86_pkg_temp -> Processor` point is the one doing the work. The wiki also
+contradicts itself on the target temperature: the config says `80000`, the prose
+says `64000`.
+
+Other items from that page, for the record: battery `conservation_mode` caps
+charging at 50 %; `intel_iommu=off` fixes shutdown hangs (not seen here); the
+bass speakers need an unreleased beta BIOS and are explicitly broken on
+**AUCN61WW**, which is what this machine runs — not pursued, the beta BIOS
+carries a brick warning and this machine is used with Bluetooth headphones. Its
+tablet-mode section is out of date: it recommends an AUR DKMS driver, but
+mainline `lenovo_ymc` handles it.
 
 ## Useful one-liners
 

@@ -7,9 +7,15 @@
 # power-profile-guard: keep the `performance` power profile off battery power.
 #
 # On the Lenovo Yoga C940 the EC runs a conservative fan curve on battery, while
-# the `performance` profile lifts the CPU long-term power limit (PL1) to 200 W.
-# Together they cook the machine: ~96 C package temperature and continuous
-# thermal throttling under a load average of 1, with the fan barely audible.
+# the `performance` profile more than doubles the CPU sustained power limit:
+# PL1 27 W / PL2 44 W, against 11 W / 25 W for balanced and power-saver. Together
+# they cook the machine: ~96 C package temperature and continuous thermal
+# throttling under a load average of 1, with the fan barely audible.
+#
+# Read those limits from `intel-rapl-mmio:0`, not `intel-rapl:0`. The MSR domain
+# reports a meaningless 200 W here and never changes; the MMIO domain is the one
+# DYTC actually drives (note its ~28 s PL1 averaging window -- a profile change
+# takes that long to show up as a temperature change).
 # Linux has no fan control on this model at all (no hwmon fan, no pwm, no ACPI
 # fan device, and the ideapad `fan_mode` attribute is inert), so the power
 # profile is the *only* thermal lever -- hence this guard.
@@ -211,7 +217,7 @@ cmd_waybar() {
     class="warn"
     text="${ICON_WARN}"
     tooltip="On battery with the ${GUARDED_PROFILE} profile.${nl}"
-    tooltip+="PL1 is uncapped while the EC runs its quiet fan curve:${nl}"
+    tooltip+="PL1 is raised to 27 W while the EC runs its quiet fan curve:${nl}"
     tooltip+="expect ~96 C and heavy thermal throttling.${nl}"
     tooltip+="Click to switch to ${FALLBACK_PROFILE}."
   fi
