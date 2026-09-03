@@ -7,8 +7,10 @@
 # Sway workspace navigation with wrapping and container move support.
 #
 # By default reads workspace names from the sway config (set $ws<N> "..." lines),
-# sorted by number, and navigates through them in order. Falls back to numeric
-# range (--min / --max) if the config is not found or has no workspace definitions.
+# sorted by number, and navigates through them in order. `include` directives are
+# followed, so definitions living in a config.d/ fragment are found too. Falls back
+# to numeric range (--min / --max) if the config is not found or has no workspace
+# definitions.
 #
 # Named workspace navigation avoids the "empty workspaces are skipped" problem
 # by using `workspace <name>` (creates with the correct name) instead of
@@ -32,20 +34,77 @@ get_current_ws_name() {
   swaymsg -t get_workspaces | jq -r '.[] | select(.focused == true) | .name'
 }
 
-# Read workspace names from sway config, sorted by variable number.
-# Matches lines: set $ws<N>  "name"
+# ERE matching a `set $ws<N> ...` definition line (leading whitespace allowed).
+# shellcheck disable=SC2016  # $ws is a regex literal here, not an expansion
+declare -r WS_SET_RE='^[[:space:]]*set[[:space:]]+\$ws[0-9]+[[:space:]]'
+
+# Config files already visited by _config_files(), mirroring sway's own
+# duplicate-include guard (and stopping a cyclic include from recursing forever).
+declare -A _ws_seen=()
+
+# Print every config file sway would read, starting at $1, in read order.
+# Sway resolves an `include` path relative to the directory of the file holding
+# it and expands it with wordexp(3); a pattern matching nothing is ignored.
+_config_files() {
+  local real
+  real=$(readlink -f -- "$1" 2>/dev/null) || return 0
+  [[ -f "$real" && -r "$real" ]] || return 0
+  # sway reads any given file at most once, however often it is included
+  [[ -n "${_ws_seen[$real]:-}" ]] && return 0
+  _ws_seen["$real"]=1
+  printf '%s\n' "$real"
+
+  local -r dir="${real%/*}"
+  local line pattern match
+  local -a matches
+  while IFS= read -r line; do
+    [[ "$line" =~ ^[[:space:]]*include[[:space:]]+(.+)$ ]] || continue
+    pattern="${BASH_REMATCH[1]}"
+    pattern="${pattern%"${pattern##*[![:space:]]}"}"  # strip trailing blanks
+    pattern="${pattern#\"}"; pattern="${pattern%\"}"  # strip optional quoting
+    # shellcheck disable=SC2088  # literal ~ prefix is being matched, not expanded
+    [[ "$pattern" == "~/"* ]] && pattern="${HOME}/${pattern#\~/}"
+    [[ "$pattern" == /* ]] || pattern="${dir}/${pattern}"
+    # Globbing and word splitting are deliberate here: sway expands include
+    # patterns with wordexp(3), which does both.
+    shopt -s nullglob
+    # shellcheck disable=SC2206  # intentional glob expansion, see above
+    matches=( $pattern )
+    shopt -u nullglob
+    for match in "${matches[@]}"; do
+      _config_files "$match"
+    done
+  done < "$real"
+}
+
+# Read workspace names from the sway config and every file it includes, sorted
+# by variable number. Matches: set $ws<N> "name", or an unquoted single token.
+# A later definition of the same number wins, as it does in sway.
 # Outputs one name per line, in numeric order.
 read_ws_names() {
   local -r config="${1:-$WS_CONFIG_DEFAULT}"
-  [[ -f "$config" ]] || return 1
+  local -a files
+  mapfile -t files < <(_config_files "$config")
+  (( ${#files[@]} > 0 )) || return 1
   local output
-  # shellcheck disable=SC2016  # $ws in single quotes is intentional (regex literal)
-  output=$(grep -E '^set \$ws[0-9]+[[:space:]]' "$config" \
-    | sed -n 's/^set \$ws\([0-9]*\)[[:space:]]*"\(.*\)".*/\1:\2/p' \
+  # shellcheck disable=SC2016  # $ws/$0 are sed and awk literals, not expansions
+  output=$(grep -hE "$WS_SET_RE" -- "${files[@]}" 2>/dev/null \
+    | sed -nE -e 's/^[[:space:]]*set[[:space:]]+\$ws([0-9]+)[[:space:]]+"(.*)".*/\1:\2/p' \
+              -e 's/^[[:space:]]*set[[:space:]]+\$ws([0-9]+)[[:space:]]+([^"[:space:]]+)[[:space:]]*$/\1:\2/p' \
+    | awk -F: '{ n = $1; sub(/^[0-9]+:/, ""); v[n] = $0 } END { for (n in v) print n ":" v[n] }' \
     | sort -t: -k1,1n \
     | cut -d: -f2-)
   [[ -n "$output" ]] || return 1
   printf '%s\n' "$output"
+}
+
+# Print the config files that actually define workspaces, for `list` output.
+read_ws_sources() {
+  local -r config="${1:-$WS_CONFIG_DEFAULT}"
+  local -a files
+  mapfile -t files < <(_config_files "$config")
+  (( ${#files[@]} > 0 )) || return 1
+  grep -lE "$WS_SET_RE" -- "${files[@]}" 2>/dev/null
 }
 
 # Numeric mode: compute target workspace number
@@ -170,21 +229,28 @@ cmd_list() {
   current_name=$(get_current_ws_name 2>/dev/null) || true
   current_num=$(get_current_ws_num 2>/dev/null) || true
 
-  local -a ws_list
+  local -a ws_list src_files=()
   local source=""
   if [[ -n "$ws_arg" ]]; then
     IFS=',' read -ra ws_list <<< "$ws_arg"
     source="--workspaces argument"
   else
     mapfile -t ws_list < <(read_ws_names "$config")
-    (( ${#ws_list[@]} > 0 )) && source="$config"
+    (( ${#ws_list[@]} > 0 )) && mapfile -t src_files < <(read_ws_sources "$config")
   fi
 
   local -i i n
   local marker
   if (( ${#ws_list[@]} > 0 )); then
     printf 'Mode:   named\n'
-    printf 'Source: %s\n' "$source"
+    if (( ${#src_files[@]} > 0 )); then
+      printf 'Source: %s\n' "${src_files[0]}"
+      for (( i = 1; i < ${#src_files[@]}; i++ )); do
+        printf '        %s\n' "${src_files[$i]}"
+      done
+    else
+      printf 'Source: %s\n' "$source"
+    fi
     printf 'Workspaces (navigation order):\n'
     for i in "${!ws_list[@]}"; do
       marker="  "
@@ -194,8 +260,11 @@ cmd_list() {
   else
     printf 'Mode:   numeric (fallback)\n'
     if [[ -f "$config" ]]; then
+      local -i scanned
+      scanned=$(_config_files "$config" | wc -l)
+      printf 'Source: %s\n' "$config"
       # shellcheck disable=SC2016  # literal $ws<N> in message, not an expansion
-      printf 'Source: %s (no '\''set $ws<N>'\'' definitions found)\n' "$config"
+      printf '        no '\''set $ws<N>'\'' definitions in %d file(s) (includes followed)\n' "$scanned"
     else
       printf 'Source: config not found: %s\n' "$config"
     fi
@@ -236,7 +305,9 @@ Options:
 
 Auto-detection:
   Named mode is used automatically when 'set \$ws<N> "name"' lines are found in
-  the sway config. Numeric mode is used as fallback when config is not found.
+  the sway config or in any file it includes (include directives are followed
+  recursively). Numeric mode is the fallback when the config is not found or
+  defines no workspaces.
 EOF
 }
 
