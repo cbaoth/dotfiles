@@ -21,6 +21,7 @@
         "network",
         "memory",
         "cpu",
+        "custom/power-warn",
         "power-profiles-daemon",
         "custom/sway-awake",
         "tray",
@@ -68,8 +69,10 @@
     },
 
     // Lenovo DYTC thermal modes (the Vantage "Intelligent Cooling" equivalent):
-    // power-saver keeps the fan off and throttles hard -- see
-    // docs/troubleshooting/. Left-click cycles, scroll also switches.
+    // power-saver caps power so the fan stays quiet; performance uncaps PL1.
+    // There is no fan control on this model, so the profile is the only thermal
+    // lever -- see docs/troubleshooting/lenovo-c940-thermal.md.
+    // Left-click cycles, scroll also switches.
     "power-profiles-daemon": {
         "format": "{icon}",
         "tooltip-format": "Power profile: {profile}\nDriver: {driver}",
@@ -108,6 +111,21 @@
 
     "tray": {
         "spacing": 8
+    },
+
+    // Standing warning when the performance profile is active on battery
+    // (bin/power-profile-guard). Hidden entirely otherwise: waybar omits a
+    // custom module whose text is empty. power-profile-guard.service demotes
+    // the profile on unplug, so this only ever shows for a profile chosen
+    // deliberately while already on battery.
+    "custom/power-warn": {
+        "exec": "power-profile-guard waybar",
+        "return-type": "json",
+        "interval": 5,
+        "signal": 9,
+        "format": "{}",
+        "tooltip": true,
+        "on-click": "powerprofilesctl set balanced"
     },
 
     // Manual + automatic idle-inhibit indicator (bin/sway-awake).

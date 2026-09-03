@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# power-profile-guard: keep the `performance` power profile off battery power.
+#
+# On the Lenovo Yoga C940 the EC runs a conservative fan curve on battery, while
+# the `performance` profile lifts the CPU long-term power limit (PL1) to 200 W.
+# Together they cook the machine: ~96 C package temperature and continuous
+# thermal throttling under a load average of 1, with the fan barely audible.
+# Linux has no fan control on this model at all (no hwmon fan, no pwm, no ACPI
+# fan device, and the ideapad `fan_mode` attribute is inert), so the power
+# profile is the *only* thermal lever -- hence this guard.
+#
+# `watch` demotes performance -> balanced when the charger is unplugged and
+# restores it on replug, provided nothing else changed the profile meanwhile.
+# It acts on the AC *transition*, so deliberately selecting performance while
+# already on battery is left alone; the `waybar` module shows a standing warning
+# for that case instead.
+#
+# Details and the dead ends: docs/troubleshooting/lenovo-c940-thermal.md
+
+# set options (see also bin/sway-awake for the house pattern)
+set -o errtrace
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n'
+
+# traps
+trap 'printf "\nINTERRUPT\n" >&2; exit 1' SIGINT SIGTERM
+
+# Logging
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+# {{{ = CONSTANTS ============================================================
+# The profile that is unsafe on battery, and what to fall back to.
+declare -r GUARDED_PROFILE="performance"
+declare -r FALLBACK_PROFILE="balanced"
+
+# waybar custom module signal (SIGRTMIN+N); must match "signal" in the waybar
+# config (dotfiles/.config/waybar/config.jsonc). 8 is taken by sway-awake.
+declare -ri WAYBAR_SIGNAL=9
+
+# Charger polling interval. A plain poll rather than a UPower D-Bus subscription
+# on purpose: reading one 2-byte sysfs file every few seconds costs nothing and
+# removes gdbus, signal parsing and a reconnect path from a script whose whole
+# job is to be reliable. A few seconds of latency is irrelevant thermally.
+declare -ri POLL_SECS=5
+
+# Runtime state: records the profile this script demoted *from*, so a replug can
+# undo exactly that and nothing else. Deliberately under $XDG_RUNTIME_DIR so it
+# is cleared on logout -- a demote must never outlive the session that made it.
+declare -r STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/power-profile-guard"
+declare -r DEMOTED_FILE="${STATE_DIR}/demoted-from"
+
+# Bar glyph (Font Awesome, matching the rest of the waybar config), as an
+# ANSI-C $'\uXXXX' escape so this source stays ASCII.
+declare -r ICON_WARN=$'\uf071'   # exclamation-triangle
+# }}} = CONSTANTS ============================================================
+
+# {{{ = HELPERS =============================================================
+usage() {
+  cat <<EOF
+Usage: power-profile-guard <watch|waybar|status>
+
+Commands:
+  watch     Run in the foreground and guard the profile across charger
+            events (started as a systemd user service; see
+            ~/.config/systemd/user/power-profile-guard.service)
+  waybar    Emit waybar JSON for the custom/power-warn module: empty
+            unless ${GUARDED_PROFILE} is active on battery
+  status    Print the current profile, charger and guard state
+
+Behaviour:
+  Unplugged  ${GUARDED_PROFILE} -> ${FALLBACK_PROFILE}, remembered
+  Replugged  restored, but only if the profile is still ${FALLBACK_PROFILE}
+             (a manual choice made while on battery is never overridden)
+EOF
+}
+
+notify() {
+  local -r urgency="$1"; shift
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -a power-profile-guard -u "${urgency}" "${1}" "${2:-}" 2>/dev/null || true
+}
+
+signal_waybar() {
+  pkill "-RTMIN+${WAYBAR_SIGNAL}" waybar 2>/dev/null || true
+}
+
+# Path of the first mains adapter, e.g. /sys/class/power_supply/ADP1.
+# Empty (return 1) on a machine with no charger at all, e.g. a desktop.
+ac_device() {
+  local dev
+  for dev in /sys/class/power_supply/*; do
+    [[ -r "${dev}/type" && -r "${dev}/online" ]] || continue
+    [[ "$(< "${dev}/type")" == "Mains" ]] || continue
+    printf '%s\n' "${dev}"
+    return 0
+  done
+  return 1
+}
+
+# $POWER_PROFILE_GUARD_AC_DEVICE overrides the detected adapter with any
+# directory holding `type` and `online` files. Testing hook only -- it makes the
+# unplug/replug paths of a script that silently changes system state actually
+# exercisable; leave it unset in normal operation.
+if [[ -n "${POWER_PROFILE_GUARD_AC_DEVICE:-}" ]]; then
+  AC_DEVICE="${POWER_PROFILE_GUARD_AC_DEVICE}"
+  [[ -r "${AC_DEVICE}/online" ]] \
+    || { p_err "POWER_PROFILE_GUARD_AC_DEVICE has no readable 'online': ${AC_DEVICE}"; exit 1; }
+else
+  AC_DEVICE="$(ac_device || true)"
+fi
+declare -r AC_DEVICE
+
+# True when running on mains power. A machine with no adapter (desktop) counts
+# as on AC, so the guard is inert there rather than pinning it to ${FALLBACK_PROFILE}.
+on_ac() {
+  [[ -n "${AC_DEVICE}" ]] || return 0
+  [[ "$(< "${AC_DEVICE}/online")" == "1" ]]
+}
+
+current_profile() {
+  powerprofilesctl get 2>/dev/null
+}
+
+set_profile() {
+  powerprofilesctl set "$1" 2>/dev/null
+}
+# }}} = HELPERS =============================================================
+
+# {{{ = GUARD ===============================================================
+# Bring the profile in line with the current charger state. Called once at
+# startup and then on every AC transition.
+apply_guard() {
+  local profile
+  profile="$(current_profile)" || profile=""
+  if [[ -z "${profile}" ]]; then
+    p_err "power-profiles-daemon is not responding; leaving the profile alone"
+    return 0
+  fi
+
+  if on_ac; then
+    # Replugged. Restore only what we demoted, and only if the profile is still
+    # where we left it -- otherwise the user picked something while on battery
+    # and that choice wins.
+    [[ -f "${DEMOTED_FILE}" ]] || return 0
+    local saved
+    saved="$(< "${DEMOTED_FILE}")"
+    rm -f "${DEMOTED_FILE}"
+    [[ -n "${saved}" && "${profile}" == "${FALLBACK_PROFILE}" ]] || return 0
+    if set_profile "${saved}"; then
+      notify normal "Power profile restored" \
+        "On AC again: ${FALLBACK_PROFILE} -> ${saved}"
+      signal_waybar
+    fi
+  else
+    # Unplugged. On battery this profile means an uncapped power limit against a
+    # quiet fan curve, which is how the machine ends up at 96 C while idle.
+    [[ "${profile}" == "${GUARDED_PROFILE}" ]] || return 0
+    if set_profile "${FALLBACK_PROFILE}"; then
+      mkdir -p "${STATE_DIR}"
+      printf '%s\n' "${profile}" > "${DEMOTED_FILE}"
+      notify critical "On battery: ${GUARDED_PROFILE} -> ${FALLBACK_PROFILE}" \
+        "The fan runs a quiet curve on battery; ${GUARDED_PROFILE} would overheat and throttle. Restored on replug."
+      signal_waybar
+    fi
+  fi
+}
+
+cmd_watch() {
+  mkdir -p "${STATE_DIR}"
+  # A demote recorded by an earlier session must not resurrect a profile now.
+  rm -f "${DEMOTED_FILE}"
+
+  if [[ -z "${AC_DEVICE}" ]]; then
+    printf 'No mains adapter found; nothing to guard.\n'
+    return 0
+  fi
+
+  local -i was_ac now_ac
+  on_ac && was_ac=1 || was_ac=0
+  # Startup safety check: a session that begins on battery in ${GUARDED_PROFILE}
+  # is the dangerous state regardless of how it got there.
+  apply_guard
+
+  while :; do
+    sleep "${POLL_SECS}"
+    on_ac && now_ac=1 || now_ac=0
+    (( now_ac == was_ac )) && continue
+    was_ac=${now_ac}
+    apply_guard
+  done
+}
+# }}} = GUARD ===============================================================
+
+# {{{ = WAYBAR ==============================================================
+cmd_waybar() {
+  local profile text="" tooltip="" class="ok"
+  local -r nl=$'\n'
+  profile="$(current_profile)" || profile=""
+
+  if [[ -z "${profile}" ]]; then
+    class="stale"
+    tooltip="power-profiles-daemon is not responding."
+  elif [[ "${profile}" == "${GUARDED_PROFILE}" ]] && ! on_ac; then
+    class="warn"
+    text="${ICON_WARN}"
+    tooltip="On battery with the ${GUARDED_PROFILE} profile.${nl}"
+    tooltip+="PL1 is uncapped while the EC runs its quiet fan curve:${nl}"
+    tooltip+="expect ~96 C and heavy thermal throttling.${nl}"
+    tooltip+="Click to switch to ${FALLBACK_PROFILE}."
+  fi
+
+  jq -cn --arg text "${text}" --arg tooltip "${tooltip}" --arg class "${class}" \
+    '{text: $text, tooltip: $tooltip, class: $class, alt: $class}'
+}
+
+cmd_status() {
+  local profile
+  profile="$(current_profile)" || profile="(daemon not responding)"
+  printf 'Profile:  %s\n' "${profile:-(unknown)}"
+  if [[ -n "${AC_DEVICE}" ]]; then
+    printf 'Charger:  %s (%s)\n' "$(on_ac && echo "on AC" || echo "on battery")" \
+      "${AC_DEVICE##*/}"
+  else
+    printf 'Charger:  no mains adapter (guard inert)\n'
+  fi
+  if [[ -f "${DEMOTED_FILE}" ]]; then
+    printf 'Demoted:  yes, from %s (restored on replug)\n' "$(< "${DEMOTED_FILE}")"
+  else
+    printf 'Demoted:  no\n'
+  fi
+}
+# }}} = WAYBAR ==============================================================
+
+main() {
+  case "${1:-}" in
+    watch)      cmd_watch ;;
+    waybar)     cmd_waybar ;;
+    status)     cmd_status ;;
+    -h|--help)  usage ;;
+    "")         p_err "no command specified"; usage >&2; exit 1 ;;
+    *)          p_err "unknown command: '${1}'"; usage >&2; exit 1 ;;
+  esac
+}
+
+main "$@"

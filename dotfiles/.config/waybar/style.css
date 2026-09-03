@@ -387,3 +387,34 @@ label:focus {
 #custom-sway-awake.auto:hover {
     background-color: #1c5980;
 }
+
+/****************************************************************************
+  Styles for custom module 'power-warn' (performance profile on battery)
+    (base / .ok) = nothing to warn about -- the module emits empty text and
+                   waybar hides it, so these rules normally never apply
+    .warn        = performance active on battery: uncapped PL1 against the
+                   EC's quiet fan curve, i.e. ~96 C and heavy throttling
+    .stale       = power-profiles-daemon not responding
+  Amber rather than the red already used by #power-profiles-daemon.performance,
+  so the warning reads as distinct from the (legitimate) performance icon it
+  sits next to. min-width in em keeps the glyph a fixed width, matching
+  #custom-sway-awake.
+ ****************************************************************************/
+#custom-power-warn {
+    background-color: #d35400;
+    color: #ffffff;
+    min-width: 1.4em;
+}
+
+#custom-power-warn.warn {
+    background-color: #d35400;
+    color: #ffffff;
+}
+#custom-power-warn.warn:hover {
+    background-color: #8c3700;
+}
+
+#custom-power-warn.stale {
+    background-color: #2d3436;
+    color: #808080;
+}

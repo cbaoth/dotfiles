@@ -1,0 +1,21 @@
+[Unit]
+Description=Keep the performance power profile off battery power (Lenovo C940)
+Documentation=file:///home/cbaoth/dotfiles/docs/troubleshooting/lenovo-c940-thermal.md
+# Started explicitly from the sway config:
+#   exec systemctl --user start power-profile-guard.service
+# That runs after `dbus-update-activation-environment --systemd`, so the service
+# inherits a session bus and notify-send works. No `systemctl --user enable` is
+# needed: deploying this unit plus the sway config is enough on any machine
+# using these dotfiles -- and on a machine without a battery the script exits 0
+# immediately, so enabling it unconditionally is harmless.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/bin/power-profile-guard watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
