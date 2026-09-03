@@ -36,6 +36,8 @@ imagemagick
 libimage-exiftool-perl
 mpg123
 
+# Image/media GUI
+geeqie
 # mpv — MUST be apt, not flatpak.
 # bin/mpv-find and the @MPV global alias in .zsh.d/aliases.zsh both pipe into
 # `xargs ... mpv`, which needs a real binary on $PATH. The flatpak build breaks
@@ -65,6 +67,7 @@ xdg-desktop-portal-wlr
 
 # Wayland related tools
 flameshot
+solaar
 
 # Screenshot shutter sound: canberra-gtk-play (the binary lives in
 # gnome-session-canberra) plays the freedesktop "screen-capture" event.
