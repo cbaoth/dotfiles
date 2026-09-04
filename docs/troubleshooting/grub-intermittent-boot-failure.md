@@ -1,15 +1,18 @@
 ---
 title: GRUB intermittently drops to its console at boot — Yoga C940 (puppet)
 hosts: [puppet]
-status: workaround
+status: open
 tags: [grub, uefi, boot, efi, nvme, ubuntu]
-updated: 2026-09-03
+updated: 2026-09-04
 ---
 
 # GRUB intermittently drops to its console at boot
 
-**Status: one concrete cause found and fixed; may not be the whole story** — see
-*Is this actually the original problem?* below.
+**Status: unresolved.** One concrete bug was found and fixed (a hardcoded disk
+in the ESP config) but it was *not* this problem — the failure survives it at
+roughly 1 success in 7 boots. Evidence from the GRUB prompt now narrows the
+fault to `configfile` failing after `/boot` has been found and read
+successfully. See *Is this actually the original problem?*.
 
 ## Symptom
 
@@ -85,28 +88,106 @@ modules from disk yet, and `test` or `sleep` would depend on whatever happens to
 be baked into `grubx64.efi`. `search` is known-safe here — the pre-February
 config used it for years.
 
-## Is this actually the original problem?
+## Is this actually the original problem? — **no, and now we know why**
 
-**Unclear, and worth staying honest about.** The hardcoded config dates from
-2026-02-22, but the boot trouble is what prompted the USB rescue *before* that.
-So either the same symptom had a different earlier cause, or the earlier failure
-was something transient that the rescue attempt then made permanent.
+The hardcoded `(hd0,gpt2)` was a real bug, but fixing it did not fix the boot.
+The failure rate after the fix is still roughly **1 success in 7 attempts**.
 
-If it still recurs after the fix, capture the error rather than guessing:
+On 2026-09-03 the `grub>` prompt was finally photographed legibly, and it settles
+several things at once:
 
-- At the `grub>` prompt, `set` shows `prefix` and `root`, and `ls` lists what
-  GRUB can actually see. If `ls` shows no `(hd0,gpt2)`-like partitions, the disk
-  genuinely was not ready and the theory is timing, not ordering.
-- These three lines boot the system by hand from that prompt:
+```
+grub> ls
+(memdisk) (proc) (hd0) (hd0,gpt3) (hd0,gpt2) (hd0,gpt1)
+grub> set
+...
+fw_path='(hd0,gpt1)/EFI/ubuntu'
+prefix='(hd0,gpt2)/grub'
+root='hd0,gpt2'
+error: command failed.
+grub> search.fs_uuid <BOOT_UUID> root
+grub> echo $root
+hd0,gpt2
+grub> ls (hd0,gpt2)
+        Partition hd0,gpt2: Filesystem type ext* - Last modification time 2026-09-03
+```
 
-  ```
-  search.fs_uuid <BOOT_UUID> root
-  set prefix=($root)/grub
-  configfile $prefix/grub.cfg
-  ```
+What each line rules out:
 
-  Worth writing on paper and keeping in the laptop bag. Repeated rebooting also
-  eventually works — booting from a USB stick has never actually been necessary.
+| Observation | Conclusion |
+| ----------- | ---------- |
+| `ls` lists `(hd0,gpt1..3)` | The NVMe **is** enumerated. Not a "disk not ready" race. |
+| `prefix` and `root` are already correct | The ESP `grub.cfg` ran and `search.fs_uuid` **succeeded**. The February fix works. |
+| `ls (hd0,gpt2)` reads the superblock | `/boot` is mountable and readable by GRUB at that moment. |
+| It is `grub>`, not `grub rescue>` | The `normal` module loaded from `/boot/grub`. Module reads work too. |
+
+So GRUB finds `/boot`, reads from it, loads modules from it — and then
+`configfile $prefix/grub.cfg` **fails anyway**. The failure is entirely
+downstream of everything the ESP fix addresses.
+
+The flashing pre-prompt spam was finally read too: it is the same line repeated
+roughly 10-15 times, `error: command failed.`, with one longer line somewhere in
+the middle. That is the shape of a script whose statements each fail in
+sequence, not of a single fatal error.
+
+**Still open.** The next step is to make the failure reproducible at the prompt
+rather than inferred — see below.
+
+## Making the failure readable
+
+`GRUB_GFXMODE` lives in `/boot/grub/grub.cfg`, which is exactly the file that
+fails to load, so it can never affect this screen. But `$prefix` is valid by
+then, which means the font *can* be loaded earlier — from the ESP config, before
+`configfile` runs:
+
+```
+search.fs_uuid <BOOT_UUID> root
+set prefix=($root)'/grub'
+if loadfont ($root)/grub/fonts/unicode.pf2 ; then
+  insmod all_video
+  insmod gfxterm
+  set gfxmode=1024x768,800x600,auto
+  terminal_output gfxterm
+fi
+set pager=1
+configfile $prefix/grub.cfg
+```
+
+Two deliberate choices:
+
+- **The `if` guard.** If `search` ever does fail, `$root` is wrong, `loadfont`
+  fails, and the block is skipped — leaving exactly today's behaviour rather than
+  a black screen from a half-initialised `gfxterm`.
+- **`set pager=1`.** This makes GRUB stop at every screenful. On a successful
+  boot nothing prints before the menu, so it never triggers; on a failing boot it
+  freezes the error spam instead of letting it scroll away. Safe here only
+  because this machine prompts for a LUKS passphrase every boot — someone is
+  always at the keyboard. Remove it if that ever stops being true.
+
+This supersedes the earlier "kept deliberately dumb" reasoning: that was written
+on the assumption that modules could not be loaded at this stage. The `set`
+output above disproves it — `prefix` is live before `configfile` runs.
+
+### Reproducing it by hand
+
+At the `grub>` prompt the state is already correct, so the failure can be
+triggered on demand and read at leisure:
+
+```
+set pager=1
+configfile $prefix/grub.cfg
+```
+
+Also worth running there, to narrow it further:
+
+```
+ls (hd0,gpt2)/grub/            # does the directory list?
+cat (hd0,gpt2)/grub/grub.cfg   # does the file read end-to-end?
+lsmod                          # what actually loaded
+```
+
+If `cat` reads the whole config but `configfile` still fails, the fault is in
+executing it (a failing `insmod`/`loadfont`/`save_env`), not in reading it.
 
 ## Unrelated but adjacent: unreadable fonts
 

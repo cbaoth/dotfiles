@@ -3,7 +3,7 @@ title: Overheating on battery & the search for fan control — Yoga C940 (puppet
 hosts: [puppet]
 status: resolved
 tags: [thermals, fans, power-profiles, dytc, ideapad, lenovo, acpi]
-updated: 2026-09-03
+updated: 2026-09-04
 automated_by: bin/power-profile-guard
 ---
 
@@ -176,13 +176,39 @@ The ArchWiki config in the next section is the *only* thing that helps without
 rebooting: it cannot spin the fan, it just stops feeding the chip heat, holding
 ~80 °C instead of 95 °C. Slow but touchable beats fast and painful.
 
-### Candidate fix at source: use S3 instead of s2idle
+### Candidate fix at source: use S3 instead of s2idle — **tested, it bricks resume**
 
-`cat /sys/power/mem_sleep` reports `[s2idle] deep` — S3 is supported and simply
-not the default. `mem_sleep_default=deep` powers the EC down and back up
-properly instead of the half-awake S0ix state that wedges it. **Untested as of
-writing.** Test with nothing unsaved: S3 is occasionally flaky on machines
-tuned for modern standby, and the failure mode is not resuming at all.
+`cat /sys/power/mem_sleep` reports `[s2idle] deep`, so S3 looks available and
+merely not the default. The theory was that `mem_sleep_default=deep` powers the
+EC down and back up properly instead of the half-awake S0ix state that wedges
+it.
+
+**Tested 2026-09-03. The machine suspends and never wakes.** No key, no lid, no
+short power press; only holding power for 10+ seconds, i.e. a hard cut and a
+cold boot. The journal shows it unambiguously — an entry with no matching exit,
+and the boot ends on that line:
+
+```
+2026-09-03T23:52:12  PM: suspend entry (deep)
+<no "PM: suspend exit"; boot -1 ends here>
+```
+
+Every other suspend in the journal is `(s2idle)` and every one of them resumed,
+including a **seven-day** suspend (2026-08-26 22:05 → 2026-09-02 21:00). So the
+`deep` entry the kernel advertises is not actually implemented by this firmware.
+Ice Lake era Lenovo consumer machines are S0ix-only in practice.
+
+**Reverted.** Do not re-try this. `s2idle` is the only working sleep state, so
+the resume fan-wedge cannot be avoided at the source — the thermald config below
+is the mitigation, not a stopgap.
+
+### Aside: the machine *was* suspending all along
+
+Worth recording because it was doubted: closing the lid really does suspend, it
+is not merely idling. `journalctl | grep "PM: suspend"` shows clean
+entry/exit pairs going back weeks. The reason it feels instant on reopening, and
+the reason the chassis is cold and silent beforehand, is that s2idle resume from
+S0ix genuinely is that fast — not that the session stayed awake.
 
 ## The ArchWiki page for this model is worth reading
 
