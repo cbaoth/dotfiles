@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Rename files to carry an ISO-like timestamp prefix, taken from a file time
+# (mtime/ctime/atime/btime) or from EXIF DateTimeOriginal.
+
+# No `set -e`: one unreadable or unrenamable file must not abort the batch;
+# every failure is reported per file and reflected in the exit status.
+set -uo pipefail
+
+# {{{ = CONSTANTS ============================================================
+
+# Best-effort match of an existing timestamp prefix: a date with consistent
+# separators, an optional time part, and the separator before the real name.
+# Backreferences keep separators consistent, so "2020-01_02_x" is not a match.
+declare -r PREFIX_RE='^[0-9]{4}([-_.]?)[0-9]{2}\1[0-9]{2}([T._ -][0-9]{2}([-:.]?)[0-9]{2}(\3[0-9]{2})?)?[_-]'
+declare -r TS_FORMAT='%Y-%m-%dT%H%M%S'
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = OUTPUT HELPERS =======================================================
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_war() { printf '\033[33mWARNING\033[0m: %s\n' "$*" >&2; }
+p_msg() { printf '%s\n' "$*"; }
+
+# }}} = OUTPUT HELPERS =======================================================
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [OPTIONS] [--] <files...>
+Rename files to include a timestamp prefix (YYYY-MM-DDTHHMMSS_).
+
+Options:
+  -n, --dry-run    Show what would be done without making any changes.
+  -t, --time TYPE  Timestamp source (default: mtime):
+                     mtime  last modification time
+                     ctime  last status change time
+                     atime  last access time
+                     btime  creation time (not on all filesystems)
+                     exif   EXIF DateTimeOriginal (requires exiftool)
+  -r, --replace    Replace an existing timestamp prefix instead of prepending
+                   another one. Best effort: a leading date (with optional
+                   time) is substituted, any other name is only prepended to.
+  -s, --skip       Skip files that already have a timestamp prefix.
+  -h, --help       Show this help.
+
+Without -r or -s a prefix is always prepended, even to an already prefixed
+file. Existing targets are never overwritten.
+EOF
+}
+
+# Print the timestamp for a file, or nothing if it is unavailable.
+# $1: file, $2: time type
+timestamp_for() {
+  local -r file="$1" ts_type="$2"
+  local epoch stat_fmt
+
+  if [[ "${ts_type}" == exif ]]; then
+    exiftool -s3 -d "${TS_FORMAT}" -DateTimeOriginal -- "${file}" 2>/dev/null
+    return
+  fi
+
+  case "${ts_type}" in
+    mtime) stat_fmt='%Y' ;;
+    ctime) stat_fmt='%Z' ;;
+    atime) stat_fmt='%X' ;;
+    btime) stat_fmt='%W' ;;
+  esac
+
+  epoch="$(stat -c "${stat_fmt}" -- "${file}" 2>/dev/null)"
+  # stat reports 0 or - for a birth time the filesystem does not record
+  [[ -z "${epoch}" || "${epoch}" == "-" || "${epoch}" == "0" ]] && return
+  date -d "@${epoch}" "+${TS_FORMAT}"
+}
+
+main() {
+  local dry_run=false mode=prepend ts_type=mtime
+  local -i rc=0
+
+  [[ -z "${1:-}" ]] && { usage; return 1; }
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -n|--dry-run) dry_run=true; shift ;;
+      -r|--replace) mode=replace; shift ;;
+      -s|--skip)    mode=skip;    shift ;;
+      -t|--time)
+        [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; usage >&2; return 1; }
+        ts_type="$2"; shift 2 ;;
+      --time=*)     ts_type="${1#*=}"; shift ;;
+      -h|--help)    usage; return 0 ;;
+      --)           shift; break ;;
+      -*)           p_err "Unknown option: $1"; usage >&2; return 1 ;;
+      *)            break ;;
+    esac
+  done
+
+  case "${ts_type}" in
+    mtime|ctime|atime|btime) ;;
+    exif)
+      if ! command -v exiftool > /dev/null 2>&1; then
+        p_err "exiftool not found, required for --time exif"
+        return 1
+      fi
+      ;;
+    *)
+      p_err "Unknown time type: ${ts_type} (use mtime, ctime, atime, btime or exif)"
+      usage >&2
+      return 1
+      ;;
+  esac
+
+  [[ $# -eq 0 ]] && { p_err "No files given"; usage >&2; return 1; }
+
+  local f dir base cur new timestamp
+  for f in "$@"; do
+    if [[ ! -f "${f}" ]]; then
+      p_war "Skipping (not a regular file): ${f}"
+      continue
+    fi
+
+    dir="$(dirname -- "${f}")"
+    base="$(basename -- "${f}")"
+    cur="${base}"
+    [[ "${dir}" != "." ]] && cur="${dir}/${base}"
+
+    if [[ "${base}" =~ ${PREFIX_RE} ]]; then
+      case "${mode}" in
+        skip)
+          p_war "Skipping (already prefixed): ${f}"
+          continue
+          ;;
+        replace)
+          # strip repeatedly: an earlier prepend-only run may have stacked them
+          while [[ "${base}" =~ ${PREFIX_RE} ]]; do
+            base="${base:${#BASH_REMATCH[0]}}"
+          done
+          if [[ -z "${base}" ]]; then
+            p_war "Skipping (name is only a timestamp): ${f}"
+            continue
+          fi
+          ;;
+        prepend) ;;
+      esac
+    fi
+
+    timestamp="$(timestamp_for "${f}" "${ts_type}")"
+    if [[ -z "${timestamp}" ]]; then
+      p_war "Skipping (no ${ts_type}): ${f}"
+      continue
+    fi
+
+    new="${timestamp}_${base}"
+    [[ "${dir}" != "." ]] && new="${dir}/${new}"
+
+    if [[ "${new}" == "${cur}" ]]; then
+      p_msg "Skipping (prefix already current): ${f}"
+      continue
+    fi
+    if [[ -e "${new}" ]]; then
+      p_war "Skipping (target exists): ${new}"
+      continue
+    fi
+
+    if [[ "${dry_run}" == true ]]; then
+      p_msg "mv -- ${f} ${new}"
+    elif mv -- "${f}" "${new}"; then
+      p_msg "${f} -> ${new}"
+    else
+      p_err "Failed to rename: ${f}"
+      rc=1
+    fi
+  done
+
+  return "${rc}"
+}
+
+main "$@"
