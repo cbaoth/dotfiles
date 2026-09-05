@@ -62,6 +62,7 @@ playerctl
 # `network-manager-applet` is only the upstream project name.
 network-manager-gnome
 pulseaudio-utils
+blueman
 fonts-font-awesome
 xdg-desktop-portal-wlr
 
