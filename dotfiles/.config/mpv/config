@@ -3,23 +3,23 @@
 # ======
 #  Core
 # ======
-no-border                      # no window title bar
-msg-module                     # prepend module name to log messages
-msg-color                      # color log messages on terminal
-term-osd-bar                   # display progress bar in terminal
-#term-osd-bar-chars='[-+-]'     # terminal progress bar chars
-#use-filedir-conf               # look for additional config files in the directory of the opened file
-#pause                          # start the player in paused state.
-#keep-open=yes                  # keep the player open when a file's end is reached (no|yes|always)
-autofit-larger=50%x50%         # resize window in case it's larger than W%xH% of the screen
-cursor-autohide-fs-only        # don't autohide the cursor in window mode, only fullscreen
-#input-media-keys=no            # enable/disable OSX media keys
-cursor-autohide=1000           # autohide the curser after 1s
+no-border                               # no window title bar
+msg-module                              # prepend module name to log messages
+msg-color                               # color log messages on terminal
+term-osd-bar                            # display progress bar in terminal
+#term-osd-bar-chars='[-+-]'              # terminal progress bar chars
+#use-filedir-conf                        # look for additional config files in the directory of the opened file
+#pause                                   # start the player in paused state.
+#keep-open=yes                           # keep the player open when a file's end is reached (no|yes|always)
+autofit-larger=50%x50%                  # resize window in case it's larger than W%xH% of the screen
+cursor-autohide-fs-only                 # don't autohide the cursor in window mode, only fullscreen
+#input-media-keys=no                     # enable/disable OSX media keys
+cursor-autohide=1000                    # autohide the curser after 1s
 prefetch-playlist=yes
 force-seekable=yes
-hr-seek=yes                    # high resolutino seeking (maybe slower), values: no (never), absolute (for abs.
-                               # position seek only), default (like absolute for audio only), yes/always (when possible)
-
+hr-seek=yes                             # high resolutino seeking (maybe slower), values: no (never), absolute (for abs.
+                                        # position seek only), default (like absolute for audio only), yes/always (when possible)
+loop-playlist=inf                       # playlist infinity loop
 no-input-right-alt-gr                   # disable alt-gr numerical input (cocoa and Windows only)
 # consider using this on X instead (global): xmodmap -e 'clear mod5'; xmodmap -e 'keycode 108 = Alt_L'
 
@@ -31,10 +31,10 @@ screenshot-template='%X{~/Pictures/mpv/}/%F_@%wH%wM%wS.%wT %#n'
 #  Video
 # =======
 # mpv --vo=help for a list of supported outputs
-vo=gpu                                # video output driver (use old api, gpu-next/libplacebo fails on NVIDIA+Wayland)
-gpu-context=wayland                   # force Wayland/EGL context (prevents X11 fallback crash on Wayland/Sway)
-gpu-api=opengl                        # use OpenGL (Vulkan fails with NVIDIA proprietary on Wayland)
-#vo=gpu-next                          # newer libplacebo API (default in recent mpv) - requires Vulkan or working EGL
+vo=gpu                                  # video output driver (use old api, gpu-next/libplacebo fails on NVIDIA+Wayland)
+gpu-context=wayland                     # force Wayland/EGL context (prevents X11 fallback crash on Wayland/Sway)
+gpu-api=opengl                          # use OpenGL (Vulkan fails with NVIDIA proprietary on Wayland)
+#vo=gpu-next                            # newer libplacebo API (default in recent mpv) - requires Vulkan or working EGL
 #vo=sdl
 
 # a profile that can be enabled with --profile=big-cache
@@ -129,11 +129,11 @@ audio-file-auto=fuzzy                   # external audio doesn't has to match th
 audio-pitch-correction=yes              # automatically insert scaletempo when playing with higher speed
 
 
-#tscale=oversample                        # [sharp] oversample <-> linear (triangle) <-> catmull_rom <-> mitchell (default) <-> gaussian <-> bicubic [smooth]
+#tscale=oversample                       # [sharp] oversample <-> linear (triangle) <-> catmull_rom <-> mitchell (default) <-> gaussian <-> bicubic [smooth]
 #opengl-early-flush=no
 #opengl-pbo=yes
-#sigmoid-slope=10                         # (default: 6.5)
-#framedrop=vo                             # (default: vo, options: no|vo|decoder|decoder+vo)
+#sigmoid-slope=10                        # (default: 6.5)
+#framedrop=vo                            # (default: vo, options: no|vo|decoder|decoder+vo)
 
 [high-quality]
 profile-desc=cond:is_desktop() and get('width', math.huge) < 3840
@@ -198,14 +198,14 @@ vd-lavc-threads=0
 
 [protocol.https]
 #cache=yes
-#cache-default=500000                    # size in KB
-#cache-backbuffer=250000                 # size in KB
-cache-secs=100                           # how many seconds of audio/video to prefetch
+#cache-default=500000                   # size in KB
+#cache-backbuffer=250000                # size in KB
+cache-secs=100                          # how many seconds of audio/video to prefetch
 user-agent='Mozilla/5.0 (X11; Linux x86_64; rv:57.0) Gecko/20100101 Firefox/57.0'
 
 [protocol.http]
 #cache=yes
-#cache-default=500000                    # size in KB
-#cache-backbuffer=250000                 # size in KB
-cache-secs=100                           # how many seconds of audio/video to prefetch
+#cache-default=500000                   # size in KB
+#cache-backbuffer=250000                # size in KB
+cache-secs=100                          # how many seconds of audio/video to prefetch
 user-agent='Mozilla/5.0 (X11; Linux x86_64; rv:57.0) Gecko/20100101 Firefox/57.0'
