@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# bt-audio-reset: kick a silent Bluetooth A2DP sink back to life.
+#
+# On PipeWire/BlueZ the A2DP transport of some headsets (e.g. Sony WH-1000XM4)
+# occasionally gets stuck after an idle-suspend: the sink reads RUNNING but no
+# sound reaches the headset. Cycling the card profile forces a transport
+# re-negotiation, which restores audio. This automates that manual workaround.
+#
+# Default target is the current default sink's card; pass a card name substring
+# to target a specific one. Cycles the active profile off -> (settle) -> back.
+
+# set options (see also bin/sway-awake for the house pattern)
+set -o errtrace
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n'
+
+# traps
+trap 'printf "\nINTERRUPT\n" >&2; exit 1' SIGINT SIGTERM
+
+# Logging
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_msg() { printf '%s\n' "$*"; }
+
+# {{{ = CONSTANTS ============================================================
+# Seconds to leave the profile off before switching it back (transport settle).
+declare -r SETTLE_SECS="1"
+# }}} = CONSTANTS ============================================================
+
+# {{{ = HELPERS =============================================================
+usage() {
+  cat <<-EOF
+Usage: bt-audio-reset [CARD] [-h|--help]
+
+Kick a stuck Bluetooth A2DP sink by cycling its card profile off and back on.
+
+CARD  Card-name substring to target (e.g. bluez_card, WH-1000XM4).
+      Default: the card backing the current default sink, else the first
+      bluez_card found.
+EOF
+}
+
+notify() {
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -a bt-audio-reset -t 2500 "${1}" "${2:-}" 2>/dev/null || true
+}
+
+# Name of the card backing the current default sink (empty if not resolvable).
+# PipeWire's pulse-compat layer does not emit a "Card:" line on sinks, so map
+# via the sink's device.name property (e.g. bluez_card.AC_80_0A_15_0E_96).
+default_sink_card() {
+  local sink
+  sink="$(pactl get-default-sink 2>/dev/null)" || return 0
+  [[ -n "${sink}" ]] || return 0
+  pactl list sinks 2>/dev/null \
+    | awk -v s="${sink}" '
+        /^Sink #/                    { in_blk = 0 }
+        $1 == "Name:" && $2 == s     { in_blk = 1 }
+        in_blk && $1 == "device.name" { gsub(/"/, "", $3); print $3; exit }'
+}
+
+# First card whose name matches the given substring (default: bluez_card).
+find_card() {
+  local -r want="${1:-bluez_card}"
+  pactl list cards short 2>/dev/null | awk -v w="${want}" '$2 ~ w {print $2; exit}'
+}
+
+# Active profile name of the given card (empty if none).
+active_profile() {
+  local -r card="${1}"
+  pactl list cards 2>/dev/null | awk -v c="${card}" '
+    /^\s*Name: /          { cur=$2 }
+    /^\s*Active Profile: / { if (cur==c) { print $3; exit } }'
+}
+# }}} = HELPERS =============================================================
+
+main() {
+  case "${1:-}" in
+    -h|--help|help) usage; return 0 ;;
+  esac
+
+  command -v pactl >/dev/null 2>&1 \
+    || { p_err "pactl not found (PipeWire pulse compat or PulseAudio required)"; return 1; }
+
+  local card
+  if [[ -n "${1:-}" ]]; then
+    card="$(find_card "${1}")"
+  else
+    card="$(default_sink_card)"
+    [[ "${card}" == bluez_card* ]] || card="$(find_card bluez_card)"
+  fi
+
+  if [[ -z "${card}" ]]; then
+    p_err "no matching Bluetooth card found (is the headset connected?)"
+    notify "BT audio reset failed" "No Bluetooth card found"
+    return 1
+  fi
+
+  local profile
+  profile="$(active_profile "${card}")"
+  if [[ -z "${profile}" || "${profile}" == "off" ]]; then
+    p_err "card '${card}' has no active A2DP profile (currently: ${profile:-none})"
+    notify "BT audio reset failed" "No active A2DP profile on ${card}"
+    return 1
+  fi
+
+  p_msg "Cycling ${card}: ${profile} -> off -> ${profile}"
+  pactl set-card-profile "${card}" off \
+    || { p_err "failed to set profile off"; return 1; }
+  sleep "${SETTLE_SECS}"
+  pactl set-card-profile "${card}" "${profile}" \
+    || { p_err "failed to restore profile ${profile}"; return 1; }
+
+  notify "BT audio reset" "Re-negotiated ${profile}"
+  p_msg "Done."
+}
+
+main "$@"
