@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Turn an animated GIF or WebP into a loop by appending the reversed frames.
+
+# src: http://www.imagemagick.org/Usage/anim_mods/#patrol
+# the video counterpart is video-cycle (ffmpeg)
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+# shellcheck disable=SC2154
+trap 'rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[0]:-main}" \
+             "${BASH_COMMAND:-N/A}" >&2; \
+      exit $rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+
+# Logging
+p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+# constants
+declare -r IM=magick
+declare -r SUFFIX="-cycle"
+declare -ri DEFAULT_QUALITY=90
+
+# Usage
+p_usg() { printf 'Usage: %s  [-k] [-l|-L] [-q QUALITY] [-O] [-o OUTFILE] [-y] [-n] INFILE\n' "$(basename "$0")"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+Turn an animated GIF or WebP into a seamless (ping-pong / boomerang) loop by
+appending the reversed frames -- ImageMagick's "patrol cycle".
+
+By default the duplicate frames at both seams are dropped -- the last frame
+of the forward pass, and the frame the loop wraps back to -- so nothing
+stutters when the result is played on repeat: N frames become 2N-2.
+
+The output format follows the output file extension, so this also converts
+(e.g. 'anim-cycle -o out.webp in.gif'). Per-frame delays and the loop count
+are preserved.
+
+Options:
+  -k, --keep-dupes   Do not drop the duplicate frames at the seams (2N frames)
+                     Note: for GIF, OptimizePlus merges the resulting pair of
+                     identical frames back into one with a doubled delay
+  -l, --lossless     WebP: encode losslessly
+  -L, --lossy        WebP: encode lossily (see --quality)
+                     Default: lossless for GIF and lossless-WebP input,
+                     lossy for lossy-WebP input
+  -q, --quality N    WebP: lossy quality, higher is better (default: ${DEFAULT_QUALITY})
+                     ImageMagick reports no usable quality for WebP input, so
+                     a lossy source is always re-encoded at this quality
+  -O, --no-optimize  GIF: skip '-layers OptimizePlus' frame optimization
+                     (it can introduce artifacts with transparency)
+  -o, --out FILE     Output file (default: INFILE${SUFFIX}.EXT)
+  -y, --yes          Overwrite an existing output file without asking
+  -n, --dry-run      Print the ${IM} command instead of running it
+  -h, --help         This help
+
+Examples:
+  # infile.gif -> infile-cycle.gif
+  $(basename "$0") infile.gif
+
+  # infile.webp -> infile-cycle.webp, keeping the source encoding
+  $(basename "$0") infile.webp
+
+  # convert while cycling, lossy webp at quality 80
+  $(basename "$0") -L -q 80 -o loop.webp infile.gif
+EOF
+}
+
+# arguments
+declare -i trim_seams=1
+declare -i optimize=1
+declare -i force=0
+declare -i dry_run=0
+declare lossless="auto" # auto|yes|no
+declare quality=""
+declare outfile=""
+declare infile=""
+
+# probed input properties
+declare informat=""
+declare -i frames=0
+
+# print file name of given file with an added suffix (considering file ext.)
+# only the basename is inspected, so dots in directory names are safe
+p_file_with_suffix() {
+  local -r suffix="$1"
+  local -r file="$2"
+  local dir="" base="${file}"
+  if [[ "${file}" = */* ]]; then
+    dir="${file%/*}/"
+    base="${file##*/}"
+  fi
+  if [[ "${base}" = ?*.* ]]; then
+    printf "%s" "${dir}${base%.*}${suffix}.${base##*.}"
+  else
+    printf "%s" "${dir}${base}${suffix}"
+  fi
+}
+
+# query (yes/no): ask any question (no: return 1)
+q_yesno() {
+  local -r question="$*"
+  local key=""
+  printf "%s (y/n) " "${question}"
+  while [[ "${key}" != "y" ]] && [[ "${key}" != "n" ]]; do
+    read -r -s -n 1 key
+  done
+  printf "\n"
+  [[ "${key}" = "y" ]]
+}
+
+# parse arguments
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -k|--keep-dupes)
+        trim_seams=0
+        shift
+        ;;
+      -l|--lossless)
+        lossless=yes
+        shift
+        ;;
+      -L|--lossy)
+        lossless=no
+        shift
+        ;;
+      -q|--quality)
+        [[ -z "${2:-}" ]] && p_err "missing value after $1" && return 1
+        quality="$2"
+        shift 2
+        ;;
+      -O|--no-optimize)
+        optimize=0
+        shift
+        ;;
+      -o|--out)
+        [[ -z "${2:-}" ]] && p_err "missing file name after $1" && return 1
+        outfile="$2"
+        shift 2
+        ;;
+      -y|--yes)
+        force=1
+        shift
+        ;;
+      -n|--dry-run)
+        dry_run=1
+        shift
+        ;;
+      -h|--help)
+        p_hlp
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        p_err "unknown option [$1]"
+        p_usg
+        return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -lt 1 ]]; then
+    p_usg
+    return 1
+  fi
+  if [[ $# -gt 1 ]]; then
+    p_err "too many arguments, provide only a single input file"
+    return 1
+  fi
+  infile="$1"
+
+  if [[ ! -f "${infile}" ]]; then
+    p_err "no such file [${infile}]"
+    return 1
+  fi
+  if [[ -n "${quality}" ]] && ! [[ "${quality}" =~ ^[0-9]+$ ]]; then
+    p_err "quality must be a positive integer [${quality}]"
+    return 1
+  fi
+
+  [[ -z "${outfile}" ]] && outfile="$(p_file_with_suffix "${SUFFIX}" "${infile}")"
+  if [[ "${outfile}" -ef "${infile}" ]]; then
+    p_err "output file is the input file [${outfile}]"
+    return 1
+  fi
+}
+
+# probe the input: format and frame count
+probe_infile() {
+  # %m/%n of the first frame: format and total number of frames
+  local probe
+  if ! probe="$("${IM}" identify -format "%m %n\n" -- "${infile}" 2>/dev/null | head -n 1)"; then
+    p_err "unable to read [${infile}]"
+    return 1
+  fi
+  informat="${probe%% *}"
+  frames="${probe##* }"
+
+  case "${informat}" in
+    GIF|WEBP) ;;
+    *)
+      p_err "unsupported input format [${informat:-unknown}], expected GIF or WEBP"
+      return 1
+      ;;
+  esac
+  if (( frames < 2 )); then
+    p_err "not an animation, [${infile}] has a single frame"
+    return 1
+  fi
+  if (( trim_seams )) && (( frames < 3 )); then
+    p_err "too few frames (${frames}) to drop the seam frames, use --keep-dupes"
+    return 1
+  fi
+
+  # keep the source encoding unless told otherwise: GIF is palette based and
+  # lossless WebP stores its frames in VP8L chunks, lossy ones in VP8
+  if [[ "${lossless}" = auto ]]; then
+    if [[ "${informat}" = GIF ]] || grep -qa 'VP8L' -- "${infile}"; then
+      lossless=yes
+    else
+      lossless=no
+    fi
+  fi
+  # an if, not a && list: this is the last statement of the function and its
+  # status becomes the return value
+  if [[ -z "${quality}" ]]; then quality="${DEFAULT_QUALITY}"; fi
+}
+
+# encoder options for the output format (taken from the output extension)
+build_enc_args() {
+  local -a args=()
+  case "${outfile##*.}" in
+    [gG][iI][fF])
+      # OptimizePlus is a GIF frame optimization, it does nothing for WebP
+      (( optimize )) && args+=(-layers OptimizePlus)
+      ;;
+    [wW][eE][bB][pP])
+      if [[ "${lossless}" = yes ]]; then
+        args+=(-define webp:lossless=true)
+      else
+        args+=(-quality "${quality}")
+      fi
+      ;;
+  esac
+  printf '%s\n' "${args[@]}"
+}
+
+cycle() {
+  # -duplicate COUNT,INDEXES appends copies of the given frames; counting
+  # backwards from -2 to 1 appends everything but the seam frames
+  local duplicate="1,-2-1"
+  (( trim_seams )) || duplicate="1,-1-0"
+
+  local -a enc_args=()
+  local arg
+  while read -r arg; do [[ -n "${arg}" ]] && enc_args+=("${arg}"); done < <(build_enc_args)
+
+  local -a cmd=("${IM}" "${infile}" -coalesce -duplicate "${duplicate}"
+                "${enc_args[@]}" "${outfile}")
+
+  if (( dry_run )); then
+    printf '%q ' "${cmd[@]}"
+    printf '\n'
+    return 0
+  fi
+
+  if [[ -e "${outfile}" ]]; then
+    if (( force )); then
+      p_war "overwriting [${outfile}]"
+    elif [[ ! -t 0 ]]; then
+      p_err "file exists [${outfile}], use --yes to overwrite"
+      return 1
+    else
+      q_yesno "file [${outfile}] exists, overwrite?" || return 1
+    fi
+  fi
+
+  p_msg "cycling [${infile}] to [${outfile}]"
+  # explicit check: the ERR trap does not fire inside a function called from
+  # an || list, and errexit is off
+  if ! "${cmd[@]}"; then
+    p_err "${IM} failed, no output written"
+    return 1
+  fi
+  p_msg "${outfile}"
+}
+
+main() {
+  if ! command -v "${IM}" > /dev/null 2>&1; then
+    p_err "${IM} (ImageMagick) not found, exiting .."
+    exit 1
+  fi
+  parse_args "$@" || exit 1
+  probe_infile || exit 1
+  cycle || exit 1
+}
+
+main "$@"

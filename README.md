@@ -129,7 +129,7 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | `bin/ff-copy` | Firefox copy utility. |
 | `bin/ff-copy-mpv-bookmarks` | Copy MPV bookmarks from Firefox. |
 | `bin/getbyext` | Get files by extension from a given URL using wget. |
-| `bin/gif-cycle` | GIF frame cycling utility. |
+| `bin/anim-cycle` | Turn an animated GIF or WebP into a seamless ping-pong loop by appending the reversed frames (ImageMagick's "patrol cycle"); also converts between GIF and WebP. |
 | `bin/gif-delay` | GIF frame delay inspector/modifier. |
 | `bin/git-fix-chmod` | Fix Git file permissions (chmod). |
 | `bin/git-push-token` | `git push-token` — push with an interactively-supplied token, disabling every credential helper so nothing is stored or cached. For hosts that hold a read-only credential (see `AGENTS.md`, *`~/notes` sync*). |
@@ -138,6 +138,7 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | `bin/netshare-bench` | Benchmark mounted network shares (NFS/CIFS/SMB) using `fio` and `iozone`. Tests sequential/random I/O, parallel photo-app reads (Lightroom/XnView MP workload), directory traversal (readdir/getattr RPC load), and network latency. Useful for comparing protocols and configuration tuning (LAN vs. Wi-Fi, server/client settings). All output is logged to a timestamped file alongside stdout. |
 | `bin/rsync-parallel-backup` | Parallel rsync backup. |
 | `bin/rsynclt` | rsync with limited throughput. |
+| `bin/video-cycle` | Turn a video into a seamless ping-pong loop by appending the reversed frames (the video counterpart of `anim-cycle`), using ffmpeg. |
 | `bin/wget-p` | Parallel file fetching wrapper for wget. |
 | `bin/while-read` | Execute a command for each line read from stdin. |
 | `bin/xsuspend` | Suspend the X session. |

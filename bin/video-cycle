@@ -1,0 +1,391 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Turn a video into a seamless loop by appending the reversed frames.
+
+# the video counterpart of anim-cycle (imagemagick's "patrol cycle"), using
+# ffmpeg's reverse filter -- src: https://ffmpeg.org/ffmpeg-filters.html#reverse
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+# shellcheck disable=SC2154
+trap 'rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[0]:-main}" \
+             "${BASH_COMMAND:-N/A}" >&2; \
+      exit $rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+
+# Logging
+p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+# constants
+declare -r FFMPEG=ffmpeg
+declare -r FFPROBE=ffprobe
+declare -r SUFFIX="-cycle"
+declare -r DEFAULT_EXT=mp4
+# warn above this decoded frame buffer size (MiB), see reverse filter docs
+declare -ri RAM_WARN_MIB=1024
+
+# Usage
+p_usg() { printf 'Usage: %s  [-a] [-k] [-c CRF] [-p PRESET] [-C CODEC] [-o OUTFILE] [-y] [-n] INFILE\n' "$(basename "$0")"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+Turn a video into a seamless (ping-pong / boomerang) loop by appending the
+reversed frames, the video equivalent of anim-cycle.
+
+By default the duplicate frames at both seams are dropped -- the last frame
+of the forward pass, and the frame the loop wraps back to -- so nothing
+stutters when the result is played on repeat (as anim-cycle does with
+'-duplicate 1,-2-1').
+
+Options:
+  -a, --audio        Keep the audio stream (forward + reversed), default: drop
+  -k, --keep-dupes   Do not drop the duplicate frames at the seams
+  -c, --crf N        Encoder quality, lower is better (default: ${crf})
+  -p, --preset NAME  x264/x265 preset (default: ${preset})
+  -C, --codec NAME   Video encoder (default: libx264, webm/ogv: libvpx-vp9)
+  -o, --out FILE     Output file (default: INFILE${SUFFIX}.EXT)
+  -y, --yes          Overwrite an existing output file without asking
+  -n, --dry-run      Print the ffmpeg command instead of running it
+  -h, --help         This help
+
+Note:
+  The reverse filter buffers the whole decoded video in memory -- fine for
+  the short clips this is meant for, but expect several GiB per minute of
+  HD footage. A warning is printed above ~${RAM_WARN_MIB} MiB.
+
+Examples:
+  # infile.mp4 -> infile-cycle.mp4, silent, x264 crf ${crf}
+  $(basename "$0") infile.mp4
+
+  # keep the (reversed) audio, higher quality, explicit output name
+  $(basename "$0") -a -c 16 -o loop.mp4 infile.mp4
+EOF
+}
+
+# arguments
+declare -i keep_audio=0
+declare -i trim_seams=1
+declare -i force=0
+declare -i dry_run=0
+declare crf=18
+declare preset=medium
+declare vcodec=""
+declare outfile=""
+declare infile=""
+
+# probed input properties
+declare -i width=0 height=0 nb_frames=0
+declare fps=""            # frames per second, as the raw "num/den" fraction
+declare frame_duration="" # seconds per frame, as a decimal
+declare -i has_audio=0
+
+# print file name of given file with an added suffix (considering file ext.)
+# only the basename is inspected, so dots in directory names are safe
+p_file_with_suffix() {
+  local -r suffix="$1"
+  local -r file="$2"
+  local dir="" base="${file}"
+  if [[ "${file}" = */* ]]; then
+    dir="${file%/*}/"
+    base="${file##*/}"
+  fi
+  if [[ "${base}" = ?*.* ]]; then
+    printf "%s" "${dir}${base%.*}${suffix}.${base##*.}"
+  else
+    printf "%s" "${dir}${base}${suffix}.${DEFAULT_EXT}"
+  fi
+}
+
+# query (yes/no): ask any question (no: return 1)
+q_yesno() {
+  local -r question="$*"
+  local key=""
+  printf "%s (y/n) " "${question}"
+  while [[ "${key}" != "y" ]] && [[ "${key}" != "n" ]]; do
+    read -r -s -n 1 key
+  done
+  printf "\n"
+  [[ "${key}" = "y" ]]
+}
+
+# parse arguments
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -a|--audio)
+        keep_audio=1
+        shift
+        ;;
+      -k|--keep-dupes)
+        trim_seams=0
+        shift
+        ;;
+      -c|--crf)
+        [[ -z "${2:-}" ]] && p_err "missing value after $1" && return 1
+        crf="$2"
+        shift 2
+        ;;
+      -p|--preset)
+        [[ -z "${2:-}" ]] && p_err "missing value after $1" && return 1
+        preset="$2"
+        shift 2
+        ;;
+      -C|--codec)
+        [[ -z "${2:-}" ]] && p_err "missing value after $1" && return 1
+        vcodec="$2"
+        shift 2
+        ;;
+      -o|--out)
+        [[ -z "${2:-}" ]] && p_err "missing file name after $1" && return 1
+        outfile="$2"
+        shift 2
+        ;;
+      -y|--yes)
+        force=1
+        shift
+        ;;
+      -n|--dry-run)
+        dry_run=1
+        shift
+        ;;
+      -h|--help)
+        p_hlp
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        p_err "unknown option [$1]"
+        p_usg
+        return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -lt 1 ]]; then
+    p_usg
+    return 1
+  fi
+  if [[ $# -gt 1 ]]; then
+    p_err "too many arguments, provide only a single input file"
+    return 1
+  fi
+  infile="$1"
+
+  if [[ ! -f "${infile}" ]]; then
+    p_err "no such file [${infile}]"
+    return 1
+  fi
+  if [[ ! "${crf}" =~ ^[0-9]+$ ]]; then
+    p_err "crf must be a positive integer [${crf}]"
+    return 1
+  fi
+
+  [[ -z "${outfile}" ]] && outfile="$(p_file_with_suffix "${SUFFIX}" "${infile}")"
+  if [[ "${outfile}" -ef "${infile}" ]]; then
+    p_err "output file is the input file [${outfile}]"
+    return 1
+  fi
+
+  # container defaults, the output extension decides what can be muxed
+  if [[ -z "${vcodec}" ]]; then
+    case "${outfile##*.}" in
+      [wW][eE][bB][mM]|[oO][gG][vV]) vcodec=libvpx-vp9 ;;
+      *) vcodec=libx264 ;;
+    esac
+  fi
+}
+
+# probe the input: dimensions, frame rate, frame count, audio presence
+probe_infile() {
+  local key value
+  while IFS='=' read -r key value; do
+    case "${key}" in
+      width) width="${value}" ;;
+      height) height="${value}" ;;
+      r_frame_rate) fps="${value}" ;;
+      nb_frames) [[ "${value}" =~ ^[0-9]+$ ]] && nb_frames="${value}" ;;
+    esac
+  done < <("${FFPROBE}" -v error -select_streams v:0 \
+             -show_entries stream=width,height,r_frame_rate,nb_frames \
+             -of default=noprint_wrappers=1 -- "${infile}")
+
+  if (( width == 0 )); then
+    p_err "no video stream found in [${infile}]"
+    return 1
+  fi
+  if [[ ! "${fps}" =~ ^[0-9]+/[0-9]+$ ]] || [[ "${fps}" = */0 ]] || [[ "${fps}" = 0/* ]]; then
+    p_err "unable to determine the frame rate of [${infile}]"
+    return 1
+  fi
+  # seconds per frame, the inverse of the "num/den" frame rate fraction
+  frame_duration="$(awk -F/ '{ printf "%.9f", $2 / $1 }' <<< "${fps}")"
+
+  # frame count is missing in some containers (e.g. matroska), fall back to
+  # duration x frame rate -- only used for warnings, so an estimate will do
+  if (( nb_frames == 0 )); then
+    local duration
+    duration="$("${FFPROBE}" -v error -show_entries format=duration \
+                  -of default=noprint_wrappers=1:nokey=1 -- "${infile}")"
+    if [[ "${duration}" =~ ^[0-9.]+$ ]]; then
+      nb_frames="$(awk -F/ -v d="${duration}" '{ printf "%d", d * $1 / $2 }' <<< "${fps}")"
+    fi
+  fi
+
+  if "${FFPROBE}" -v error -select_streams a:0 -show_entries stream=index \
+       -of default=noprint_wrappers=1:nokey=1 -- "${infile}" | grep -q .; then
+    has_audio=1
+  fi
+
+  if (( keep_audio )) && (( ! has_audio )); then
+    p_war "no audio stream in [${infile}], continuing without audio"
+    keep_audio=0
+  fi
+  if (( trim_seams )) && (( nb_frames > 0 && nb_frames < 3 )); then
+    p_err "too few frames (${nb_frames}) to drop the seam frames, use --keep-dupes"
+    return 1
+  fi
+
+  # the reverse filter holds every decoded frame, warn before the box swaps
+  if (( nb_frames > 0 )); then
+    local -i mib=$(( nb_frames * width * height * 3 / 2 / 1048576 ))
+    if (( mib > RAM_WARN_MIB )); then
+      p_war "$(printf 'reversing %d frames of %dx%d needs roughly %d MiB of memory' \
+                      "${nb_frames}" "${width}" "${height}" "${mib}")"
+    fi
+  fi
+}
+
+# build the filter graph: forward + reversed, seams trimmed, then concatenated
+build_filter() {
+  local -a chains=()
+  local vtrim="" atrim=""
+  if (( trim_seams )); then
+    # dropping the first frame of each pass removes both duplicates: the one
+    # at the turning point and the one the loop wraps back to
+    vtrim="trim=start_frame=1,setpts=PTS-STARTPTS,"
+    atrim="atrim=start=${frame_duration},asetpts=PTS-STARTPTS,"
+  fi
+
+  chains+=("[0:v]split[vf][vb]")
+  chains+=("[vf]${vtrim}null[v0]")
+  chains+=("[vb]reverse,${vtrim}null[v1]")
+
+  if (( keep_audio )); then
+    chains+=("[0:a]asplit[af][ab]")
+    chains+=("[af]${atrim}anull[a0]")
+    chains+=("[ab]areverse,${atrim}anull[a1]")
+    chains+=("[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]")
+  else
+    chains+=("[v0][v1]concat=n=2:v=1:a=0[v]")
+  fi
+
+  local IFS=';'
+  printf '%s' "${chains[*]}"
+}
+
+# encoder options for the selected codec/container
+build_enc_args() {
+  local -a args=()
+  case "${vcodec}" in
+    libx264|libx265)
+      args=(-c:v "${vcodec}" -preset "${preset}" -crf "${crf}" -pix_fmt yuv420p)
+      ;;
+    libvpx-vp9)
+      # vp9 needs -b:v 0 for constant quality, the preset does not apply
+      args=(-c:v libvpx-vp9 -crf "${crf}" -b:v 0 -pix_fmt yuv420p)
+      ;;
+    *)
+      args=(-c:v "${vcodec}" -crf "${crf}")
+      ;;
+  esac
+  case "${outfile##*.}" in
+    [mM][pP]4|[mM]4[vV]|[mM][oO][vV]) args+=(-movflags +faststart) ;;
+  esac
+  printf '%s\n' "${args[@]}"
+}
+
+cycle() {
+  local filter
+  filter="$(build_filter)"
+
+  local -a enc_args=()
+  local arg
+  while read -r arg; do enc_args+=("${arg}"); done < <(build_enc_args)
+
+  # quiet by default, DEBUG_LVL>=1 (or --dry-run) shows the full ffmpeg output
+  local loglevel=warning
+  if (( ${DEBUG_LVL:-0} >= 1 )); then loglevel=info; fi
+  local -a cmd=("${FFMPEG}" -hide_banner -loglevel "${loglevel}" -stats -y
+                -i "${infile}" -filter_complex "${filter}" -map '[v]')
+  if (( keep_audio )); then
+    cmd+=(-map '[a]')
+  else
+    cmd+=(-an)
+  fi
+  cmd+=("${enc_args[@]}" "${outfile}")
+
+  if (( dry_run )); then
+    printf '%q ' "${cmd[@]}"
+    printf '\n'
+    return 0
+  fi
+
+  if [[ -e "${outfile}" ]]; then
+    if (( force )); then
+      p_war "overwriting [${outfile}]"
+    elif [[ ! -t 0 ]]; then
+      p_err "file exists [${outfile}], use --yes to overwrite"
+      return 1
+    else
+      q_yesno "file [${outfile}] exists, overwrite?" || return 1
+    fi
+  fi
+
+  p_msg "cycling [${infile}] to [${outfile}]"
+  # explicit check: the ERR trap does not fire inside a function called from
+  # an || list, and errexit is off
+  if ! "${cmd[@]}"; then
+    p_err "ffmpeg failed, no output written"
+    return 1
+  fi
+  p_msg "${outfile}"
+}
+
+main() {
+  local cmd
+  for cmd in "${FFMPEG}" "${FFPROBE}"; do
+    if ! command -v "${cmd}" > /dev/null 2>&1; then
+      p_err "${cmd} not found, exiting .."
+      exit 1
+    fi
+  done
+  parse_args "$@" || exit 1
+  probe_infile || exit 1
+  cycle || exit 1
+}
+
+main "$@"
