@@ -1,0 +1,30 @@
+#compdef system-setup
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for system-setup (bin/system-setup in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above — do not call `compdef`
+# manually (this dir is added to fpath before compinit in ~/.zshrc).
+#
+# Keep in sync with bin/system-setup: options mirror usage(), profile values
+# mirror ST_PROFILES, and module names are discovered live from setup/modules/.
+
+# Discover module names from the repo that owns the installed system-setup.
+# Resolves the ~/bin symlink back into the repo, then globs setup/modules/*.sh.
+# Degrades silently to no candidates when the repo cannot be located.
+_system-setup_modules() {
+  local bin repo
+  bin=$(whence -p system-setup 2>/dev/null) || return
+  bin=${bin:A}                          # absolute, symlinks resolved
+  repo=${bin:h:h}                       # …/repo/bin/system-setup -> …/repo
+  local -a modules
+  modules=("${repo}"/setup/modules/*.sh(N:t:r))   # N=nullglob t=tail r=noext
+  (( ${#modules} )) && _values 'module' "${modules[@]}"
+}
+
+_arguments -s \
+  '(-l --list)'{-l,--list}'[List available modules and exit]' \
+  '(-n --dry-run)'{-n,--dry-run}'[Print what would change; change nothing]' \
+  '(-p --profile)'{-p,--profile}'[Run all modules matching PROFILE]:profile:(desktop server wsl auto)' \
+  '(-y --yes)'{-y,--yes}'[Do not prompt before applying changes]' \
+  '(-h --help)'{-h,--help}'[Show this help]' \
+  '*:module:_system-setup_modules'

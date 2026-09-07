@@ -385,8 +385,20 @@ prompt fade 0
 export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump"
 
 # register custom completions before compinit
+# In-repo tool completions (system-setup, check_script, …) ship here and are
+# deployed to every host by dotfiles-link.
 fpath=("$HOME/.zsh.d/completions" "${fpath[@]}")
-[[ -d "$HOME/git/cb-voice-toolkit" ]] && fpath=("$HOME/git/cb-voice-toolkit/completions" "${fpath[@]}")
+
+# Completions bundled with locally cloned projects. Each dir is added only when
+# it exists, so hosts without the clone are unaffected (no error, no slowdown).
+# Add a new project by appending its completions dir to this list.
+_cb_project_completions=(
+  "$HOME/git/cb-voice-lab/completions"
+)
+for _d in "${_cb_project_completions[@]}"; do
+  [[ -d "$_d" ]] && fpath=("$_d" "${fpath[@]}")
+done
+unset _d _cb_project_completions
 
 # enable new style completion system
 autoload -Uz compinit && compinit

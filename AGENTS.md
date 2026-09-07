@@ -110,6 +110,38 @@ means adding a line to a list, not editing bash.
 Modules must not depend on `~/lib/commons.sh`: `system-setup` runs on fresh
 machines, before `dotfiles-link` has created `~/lib/`.
 
+## Shell Completions (zsh)
+
+Zsh completion functions are files named `_<command>` starting with a
+`#compdef <command>` tag; compinit autoloads them from any dir on `fpath`
+(registered **before** `compinit` in `dotfiles/.zshrc`). Two locations, by
+whose tool it completes:
+
+| The tool lives in… | Completion goes in… | Reaches |
+| ------------------ | ------------------- | ------- |
+| **this repo** (`bin/`, `lib/` functions) — e.g. `system-setup`, `check_script` | `dotfiles/.zsh.d/completions/_<cmd>` | every host (deployed by `dotfiles-link`) |
+| **a separate cloned project** — e.g. `~/git/cb-voice-lab` | that project's own `completions/_<cmd>` | only hosts with the clone |
+
+External-project completion dirs are registered in `dotfiles/.zshrc` via the
+`_cb_project_completions` array, each guarded by `[[ -d ]]` so a host without
+the clone is unaffected (no error, no slowdown). **Adding a project = one line
+in that array**, not a new `fpath=(…)` statement.
+
+**The sync rule (applies to every completion, both locations):** a completion
+script is hand-maintained and drifts the moment a tool's CLI changes. When you
+add, rename, or remove an **option, subcommand, profile, or enumerated value**
+of a tool, update its `_<cmd>` in the *same* change. Prefer discovering
+open-ended lists **live** in the completion over hardcoding them, so routine
+additions need no edit:
+
+- `_system-setup` derives module names live from `setup/modules/*.sh`, so
+  **adding a module needs no completion change**. But its options
+  (`usage()`) and profile values (`ST_PROFILES`) *are* hardcoded there —
+  changing those means editing `_system-setup` too.
+
+After adding or renaming a completion file under `dotfiles/`, run
+`dotfiles-link` (see above) so the symlink lands in `$HOME`.
+
 ## Notes & System Documentation
 
 `docs/` holds two different things. **Repo meta** (`linking-system.md`,
