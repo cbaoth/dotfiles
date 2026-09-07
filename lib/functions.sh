@@ -871,6 +871,95 @@ EOF
   done < <("${jdupes_cmd[@]}")
 }
 
+# Run rmlint-ai across two or more directories, writing a uniquely named
+# json+sh report pair so batch runs never overwrite each other and can be
+# resumed per subtree. Missing targets are warned about and skipped; if fewer
+# than two remain, nothing runs and the function returns 0 (loop-friendly).
+rmlint_dedup() {
+  if [[ -z "${1:-}" || "$1" == "-h" || "$1" == "--help" ]]; then
+    cat <<EOF
+Usage: $(cl::func_name) [--name NAME] [--out-dir DIR] TARGET_DIR... [-- RMLINT_ARG...]
+
+Deduplicate across TARGET_DIRs with rmlint-ai (see ~/.aliases), writing a
+uniquely named report pair rmlint_<name>_<ts>.{json,sh}. Review the .sh (it is
+an inert dry-run) before executing it: '<file>.sh -n' to preview, '-c' to apply.
+
+By default at least two existing targets are required (merging diverged copies).
+Pass --allow-single to permit a one-directory run (intra-tree dedup, e.g. an
+already-merged Pictures/YYYY-MM). Tagged-dir ('//') runs remain out of scope.
+
+Options:
+  --name NAME     Base name for the report files [default: basename of first
+                  target]. A unix timestamp is always appended for uniqueness.
+  --out-dir DIR   Directory for the report pair [default: current directory].
+  --allow-single  Permit a run with only one existing target (default: need >=2).
+  -h, --help      Show this help and return.
+
+Anything after a literal -- is passed straight through to rmlint-ai.
+
+Example (per-month batch over three base dirs; needs 'date-range' in PATH):
+  cd ~ai
+  date-range 2023-01 | while read -r m; do
+    $(cl::func_name) --name "\$m" \\
+      "Pictures/AI/\$m" "/srv/nas/Pictures/AI/\$m" "/media/Backup/AI/Pictures/\$m"
+  done
+EOF
+    [[ -z "${1:-}" ]] && return 1 || return 0
+  fi
+
+  command -v rmlint      > /dev/null 2>&1 || { cl::p_err "rmlint not found in PATH"; return 1; }
+  command -v rmlint-ai   > /dev/null 2>&1 || { cl::p_err "rmlint-ai not found (defined in ~/.aliases)"; return 1; }
+
+  local name="" out_dir="."
+  local -i allow_single=0
+  local -a targets=() passthrough=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name)         [[ -z "${2:-}" ]] && { cl::p_err "--name requires a value"; return 1; };    name="$2"; shift 2 ;;
+      --out-dir)      [[ -z "${2:-}" ]] && { cl::p_err "--out-dir requires a value"; return 1; }; out_dir="$2"; shift 2 ;;
+      --allow-single) allow_single=1; shift ;;
+      --)             shift; passthrough=("$@"); break ;;
+      -*)             cl::p_err "unknown option: $1"; return 1 ;;
+      *)              targets+=("$1"); shift ;;
+    esac
+  done
+
+  [[ ${#targets[@]} -eq 0 ]] && { cl::p_err "no target directories given"; return 1; }
+  [[ -d "$out_dir" ]]        || { cl::p_err "--out-dir does not exist: $out_dir"; return 1; }
+
+  # Keep only existing target dirs (warn on the rest), remembering the first.
+  local t first_existing=""
+  local -a existing=()
+  for t in "${targets[@]}"; do
+    t="$(sed -E 's#/+#/#g; s#/+$##' <<<"$t")"
+    if [[ -d "$t" ]]; then
+      existing+=("$t")
+      [[ -z "$first_existing" ]] && first_existing="$t"
+    else
+      cl::p_war "target missing, skipping: $t"
+    fi
+  done
+
+  local -ri min_targets=$(( allow_single ? 1 : 2 ))
+  if (( ${#existing[@]} < min_targets )); then
+    cl::p_msg "fewer than ${min_targets} existing target(s) (${#existing[@]}), skipping${name:+ [$name]}"
+    return 0
+  fi
+
+  [[ -z "$name" ]] && name="$(basename "$first_existing")"
+  local safe_name; safe_name="$(sed -E 's#[^A-Za-z0-9._+-]+#_#g' <<<"$name")"
+  local base="rmlint_${safe_name}_$(date +%s)"
+
+  local -a cmd=(
+    rmlint-ai "${existing[@]}"
+    -o "json:${out_dir%/}/${base}.json"
+    -o "sh:${out_dir%/}/${base}.sh"
+    "${passthrough[@]}"
+  )
+  cl::p_msg "$(cl::p_cmd "${cmd[@]}")"
+  "${cmd[@]}"
+}
+
 # Find files present in source directory but missing in target directory by filename
 find_missing_files_byname() {
   [[ -z "$2" ]] && {

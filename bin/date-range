@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Generate an inclusive range of ISO date tokens, one per line (ascending).
+# Granularity is inferred from START: YYYY-MM -> months, YYYY-MM-DD -> days.
+
+# set options
+set -o errtrace
+set -o pipefail
+set -o nounset
+
+# traps
+# shellcheck disable=SC2154  # rc is assigned within the trap string itself
+trap 'rc=$?; printf "\033[31mERROR\033[0m in %s:%s -> %s\n" \
+      "${0##*/}" "${LINENO:-N/A}" "${BASH_COMMAND:-N/A}" >&2; exit "${rc}"' ERR
+
+# constants
+declare -r RE_MONTH='^[0-9]{4}-[0-9]{2}$'
+declare -r RE_DAY='^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+
+# {{{ = FUNCTIONS =============================================================
+
+# Logging
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+p_usg() { printf 'Usage: %s START [END]\n' "${0##*/}"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+Generate an inclusive range of ISO date tokens, one per line (ascending).
+The step size is inferred from the START format:
+  YYYY-MM      monthly tokens (e.g. 2023-01 ... 2026-08)
+  YYYY-MM-DD   daily tokens   (e.g. 2023-01-01 ... 2026-08-28)
+
+END is inclusive and must use the same format as START. If omitted it defaults
+to the current month (monthly) or today (daily).
+
+Options:
+  -h, --help   Show this help message and exit.
+
+Examples:
+  $(basename "$0") 2023-01 2026-08     # every month from Jan 2023 to Aug 2026
+  $(basename "$0") 2023-01             # every month from Jan 2023 to this month
+  $(basename "$0") 2023-01-01          # every day from 2023-01-01 to today
+
+  # Drive a per-month batch loop (e.g. with rmlint_dedup / rsync / find):
+  $(basename "$0") 2023-01 | while read -r m; do
+    rmlint_dedup --name "\$m" "dirA/\$m" "dirB/\$m" "dirC/\$m"
+  done
+EOF
+}
+
+# Numeric sort key for an ISO token (strip dashes; force base 10).
+_key() { printf '%d' "$((10#${1//-/}))"; }
+
+# True if TOKEN is a real calendar date for the given granularity (month|day).
+_valid_date() {
+  local -r token="$1" gran="$2"
+  case "${gran}" in
+    month) date -d "${token}-01" > /dev/null 2>&1 ;;
+    day)   date -d "${token}"    > /dev/null 2>&1 ;;
+  esac
+}
+
+# Emit the inclusive range [start, end] at the given granularity (month|day).
+gen_range() {
+  local cur="$1"
+  local -r end="$2" gran="$3"
+  local -ri end_key="$(_key "${end}")"
+  while (( $(_key "${cur}") <= end_key )); do
+    printf '%s\n' "${cur}"
+    case "${gran}" in
+      month) cur="$(date -d "${cur}-01 +1 month" +%Y-%m)" ;;
+      day)   cur="$(date -d "${cur} +1 day" +%Y-%m-%d)" ;;
+    esac
+  done
+}
+
+main() {
+  case "${1:-}" in
+    -h|--help) p_hlp; exit 0 ;;
+    "")        p_usg >&2; exit 1 ;;
+  esac
+
+  local -r start="$1"
+  local end="${2:-}"
+  local gran
+
+  # Infer granularity from START.
+  if [[ "${start}" =~ ${RE_MONTH} ]]; then
+    gran="month"
+  elif [[ "${start}" =~ ${RE_DAY} ]]; then
+    gran="day"
+  else
+    p_err "START must be YYYY-MM or YYYY-MM-DD: '${start}'"
+    exit 1
+  fi
+  _valid_date "${start}" "${gran}" || { p_err "START is not a valid date: '${start}'"; exit 1; }
+
+  # Resolve END: default to today at the inferred granularity, else validate it.
+  if [[ -z "${end}" ]]; then
+    [[ "${gran}" == "month" ]] && end="$(date +%Y-%m)" || end="$(date +%Y-%m-%d)"
+  else
+    local re="${RE_DAY}"
+    [[ "${gran}" == "month" ]] && re="${RE_MONTH}"
+    [[ "${end}" =~ ${re} ]] || { p_err "END must match START granularity (${gran}): '${end}'"; exit 1; }
+    _valid_date "${end}" "${gran}" || { p_err "END is not a valid date: '${end}'"; exit 1; }
+  fi
+
+  if (( $(_key "${start}") > $(_key "${end}") )); then
+    p_err "END (${end}) is before START (${start})"
+    exit 1
+  fi
+
+  gen_range "${start}" "${end}" "${gran}"
+}
+
+# }}} = FUNCTIONS =============================================================
+
+main "$@"
