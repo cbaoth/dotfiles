@@ -145,11 +145,32 @@ Both were vestigial X11 clipboard managers from the old GNOME/Unity setup
 adding their own chaos → copyq removed 2026-09-08; diodon autostart still
 present (`~/.config/autostart/diodon-autostart.desktop`), remove too.
 
+**Bridge behaviour (refined 2026-09-08):** not simply dead — it appears to
+engage only while an XWayland surface is mapped. With a real mapped X11
+GTK window present, `xclip` and `wl-paste` finally agreed; with no
+XWayland window, the two clipboards are fully independent. Even engaged,
+the X11→Wayland direction is flaky (a mapped X11 app's own copy got
+clobbered by the Wayland selection being pushed back into X11). Too shaky
+to rely on for wine.
+
 **Already fixed / sidestepped:**
 
 - mpv path-copy bindings now use mpv's native Wayland clipboard
   (`set clipboard/text`) / `wl-copy` instead of xclip — see
   `dotfiles/.config/mpv/input.conf`.
+
+- **wine → native Wayland driver (primary avenue, pending verification).**
+  wine 11.0 ships `winewayland.drv`; the `~/.wine` prefix was defaulting
+  to x11 (→ XWayland → broken bridge). Set on `~/.wine`:
+  `wine reg add "HKCU\Software\Wine\Drivers" /v Graphics /d "wayland,x11" /f`.
+  Confirmed the driver loads and produces a **native** `xdg_shell` window
+  (notepad: `app_id=notepad.exe`, no X11 id). Driver is per-prefix/per-
+  wineserver, not per-app; Proton prefixes (bg3mm) are separate. Left ON
+  pending an interactive copy test (copy in wine → `wl-paste`). Revert:
+  `wine reg delete "HKCU\Software\Wine\Drivers" /v Graphics /f`. If it
+  sticks, document as a setup step (machine state, not repo-tracked).
+  Caveats: `xdg_toplevel_icon_manager_v1` unsupported (no window icons);
+  sway `for_window` rules keyed on X11 `class` must switch to `app_id`.
 
 - [ ] [M] Root-cause the sway/wlroots XWayland clipboard sync failure:
   - Check `sway -V` / wlroots build, `swaymsg -t get_config`, and the sway
