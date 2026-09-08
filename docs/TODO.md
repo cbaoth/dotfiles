@@ -171,6 +171,24 @@ to rely on for wine.
   sticks, document as a setup step (machine state, not repo-tracked).
   Caveats: `xdg_toplevel_icon_manager_v1` unsupported (no window icons);
   sway `for_window` rules keyed on X11 `class` must switch to `app_id`.
+  - **Clipboard: CONFIRMED working** under winewayland (copied SimpleGraphic
+    text out to `wl-paste`). Goal achieved for wine→Wayland copy.
+  - **GL init fix:** SimpleGraphic (PoB's renderer) is OpenGL. Default EGL
+    dispatch sent wine's GL to Mesa dri2 on the NVIDIA card
+    (`libEGL … driver (null)`, `failed to create dri2 screen`) → hang. Force
+    NVIDIA's EGL vendor:
+    `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json`.
+    With that, EGL init is clean and wine creates a GL context and loops on
+    `wglSwapBuffers` (verified via `WINEDEBUG=+wgl,+egl`).
+  - **Remaining blocker:** even rendering, PoB's window presents blank/stuck
+    on NVIDIA — a winewayland GL *presentation* rough edge (app runs at ~48%
+    CPU swapping buffers but nothing visible). Non-GL wine apps (notepad) are
+    fine. PoB kept on x11 (`Graphics=x11`) for now; revisit winewayland GL
+    presentation on NVIDIA (wine/wlroots issue tracker) later.
+  - **Driver mechanics learned:** graphics driver is per-wineprefix/per-
+    wineserver, not per-app; every change needs `wineserver -k` to reload.
+    `reg delete` reverts to wine's default (may be wayland on wine 11 with
+    WAYLAND_DISPLAY set) — set `Graphics=x11` explicitly to force XWayland.
 
 - [ ] [M] Root-cause the sway/wlroots XWayland clipboard sync failure:
   - Check `sway -V` / wlroots build, `swaymsg -t get_config`, and the sway
