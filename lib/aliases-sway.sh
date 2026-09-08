@@ -1,12 +1,11 @@
-# -*- mode: sh; sh-shell: zsh; indent-tabs-mode: nil; tab-width: 2 -*-
-# vim: ft=zsh:et:ts=2:sts=2:sw=2
-# code: language=zsh insertSpaces=true tabSize=2
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash disable=SC2148
 #
-# ~/.zsh.d/aliases-sway.zsh: SwayWM-specific zsh-only additions.
+# ~/lib/aliases-sway.sh: SwayWM-specific aliases (bash + zsh).
 #
-# Shell-agnostic aliases live in ~/lib/aliases-sway.sh (sourced first).
-# This file contains only zsh-specific additions.
+# Sourced via source_ifex_custom when XDG_CURRENT_DESKTOP contains "sway".
 
 # {{{ - Sway Tools -----------------------------------------------------------
 # (sw)ay (g|s)et (*)info-type [h]uman readable json layout (else: raw json)
