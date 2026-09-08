@@ -592,7 +592,7 @@ alias dupes-find-unique-rec='jdupes -Or -u'
 # NOTE: also see dupes_find_byname and dupes_mv in lib/functions.sh
 
 rmlint-ai() {
-  rmlint -g -S 'Mx<[0-9]{4}-[0-9]{2}-[0-9]{2}T[^/]+$>r<.*/_?([0-9]|h?p[0-9]?\+*)/.*$>x<[^/]*\b(xi|ref|ai)\.([0-9]{12}\b|[0-9]{4}-[0-9]{2}-[0-9]{2}T)[^/]+$>pdl' "$@"
+  rmlint -g -S 'Mx<[0-9]{4}-[0-9]{2}-[0-9]{2}T[^/]+$>r<.*/_?([0-9]|h?p[0-9]?\+*)/.*$>x<[^/]*\b(xi|ref|ai)\.([0-9]{12}\b|[0-9]{4}-[0-9]{2}-[0-9]{2}T)[^/]+$>pR<.*/_src\w*/.*$>dl' "$@"
   # sequence of rules (first match wins):
   # - keep highest mtime (newest)
   # x keep path with name NOT matching hidden sub-dir: /.*/
@@ -602,6 +602,7 @@ rmlint-ai() {
   # - keep path with name matching common rating sub-dirs, e.g.: /_p/, /_pp/, /_p1/, ...
   # - keep path with basename matching image hash or ai image ref: `*{xi,ref,ai}.{000000000000|YYYY-MM-DD}*`
   # - keep path in first named (cli) target dir
+  # - keep path with name not matching `/_src/`
   # - keep path with lowest depth
   # - keep path with shortest basename
   #   -> assumption: copy with artificial suffix (timestamp prefix and hash suffix already considered above)
