@@ -121,22 +121,51 @@ Options (in order of preference):
 - [ ] [M] Add conky config for puppet (notebook): derive from motoko config, adapt for
   smaller viewport, no Nvidia GPU, no Windows/dual-boot partitions
 
-## Clipboard — wine / flatpak → Wayland
+## Clipboard — XWayland ↔ Wayland bridge not working (motoko)
 
-- [ ] [M] Copy from sandboxed/foreign apps does not reach the Wayland clipboard.
-  In-app copy/paste works (e.g. Ctrl+C/Ctrl+V inside Path of Building under wine),
-  but nothing propagates to sway's clipboard, so item descriptions etc. can't be
-  pasted into other apps. copyq is running (store clipboard on, mouse-selection
-  store off, paste-with-mouse on) but shows no notification on wine copies →
-  the data never arrives. Likely the same class of issue as flatpak↔flatpak
-  (e.g. XnView → ungoogled-chromium file/name copy also fails), i.e. the app has
-  no access to the host clipboard bridge.
-  - Investigate: `wl-clipboard` (`wl-copy`/`wl-paste`) behaviour, XWayland vs
-    native Wayland clients, and whether wine writes only to the X11 selection
-    (needs `wl-clip-persist` or a clipboard-sync daemon bridging X11↔Wayland).
-  - For flatpak: check portal / clipboard permissions (`flatpak info --show-permissions`).
-  - Earlier attempt with a clipboard-sync daemon was abandoned without a real
-    setup effort — retry deliberately.
+Copy from XWayland apps (e.g. Path of Building under wine) never reaches
+Wayland apps: in-app copy/paste works, but nothing propagates to sway's
+clipboard. Same class of symptom as flatpak↔flatpak copy failures
+(XnView → ungoogled-chromium file/name copy).
+
+**Root cause found (2026-09-08, motoko/sway 1.11):** the XWayland↔Wayland
+clipboard bridge is dead in *both* directions, for *both* CLIPBOARD and
+PRIMARY. Verified with **zero** clipboard managers running:
+
+- `printf x | xclip -selection clipboard` → `wl-paste` does not see it.
+- `printf x | wl-copy` → `xclip -selection clipboard -o` does not see it.
+- same for `-selection primary` / `wl-paste --primary`.
+
+Single Xwayland on `:0` (`-rootless … -wm 169`, i.e. sway is the XWM), so
+it is not a wrong-X-server problem. Normally wlroots/sway syncs this
+automatically, so something specific here is off.
+
+**Ruled out:** copyq and diodon (bridge fails with nothing running).
+Both were vestigial X11 clipboard managers from the old GNOME/Unity setup
+adding their own chaos → copyq removed 2026-09-08; diodon autostart still
+present (`~/.config/autostart/diodon-autostart.desktop`), remove too.
+
+**Already fixed / sidestepped:**
+
+- mpv path-copy bindings now use mpv's native Wayland clipboard
+  (`set clipboard/text`) / `wl-copy` instead of xclip — see
+  `dotfiles/.config/mpv/input.conf`.
+
+- [ ] [M] Root-cause the sway/wlroots XWayland clipboard sync failure:
+  - Check `sway -V` / wlroots build, `swaymsg -t get_config`, and the sway
+    log for XWM / clipboard errors right after an XWayland copy.
+  - Confirm whether *real* mapped XWayland GUI clients sync (the CLI test
+    with xclip uses an unmapped selection window — verify it is not a
+    false negative by copying inside an actual X11 app and reading
+    `wl-paste`).
+  - Search sway/wlroots issues for 1.11 XWayland clipboard regressions.
+  - Only if it is genuinely a wlroots gap: a sync daemon (e.g.
+    `wl-clip-persist` is for *persistence*, not X11↔WL sync — wrong tool;
+    look for an actual bridge). Earlier daemon attempt was abandoned
+    without real setup effort.
+  - For flatpak: check portal / clipboard permissions
+    (`flatpak info --show-permissions`).
+  - Reproduce on the notebook (puppet) too — same class of issue reported there.
 
 ## Game streaming — Moonlight / Sunshine (parked 2026-08-16)
 
