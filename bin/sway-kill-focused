@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# sway-kill-focused: force-kill (SIGKILL) the process behind the focused Sway
+# window. For hung clients that ignore a normal close (sway `kill` / Alt+F4 do
+# nothing) — e.g. stuck wine apps. Falls back to sway's polite close when the
+# window reports no PID.
+
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+SCRIPT_FILE="$(basename "$0")"; declare -r SCRIPT_FILE
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+notify() {
+  command -v notify-send > /dev/null 2>&1 \
+    && notify-send -a "sway-kill" -t 4000 "${1:-sway-kill}" "${2:-}" 2>/dev/null || true
+}
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [-s SIGNAL] [-h]
+
+Force-kill the process owning the currently focused Sway window. Reads the
+focused container's PID from the sway tree and signals it (default: KILL).
+Use for hung windows that ignore a normal close request.
+
+Options:
+  -s, --signal SIG   Signal to send (default: KILL); e.g. TERM, KILL
+  -h, --help         Show this help
+
+Suggested binding (inside the mod-x window mode):
+  bindsym k  exec ~/bin/${SCRIPT_FILE}, mode "default"
+EOF
+}
+
+main() {
+  local signal="KILL"
+  while (( $# > 0 )); do
+    case "$1" in
+      -s|--signal) shift; signal="${1:?missing signal value}" ;;
+      -h|--help)   p_usg; return 0 ;;
+      -*)          p_err "Unknown option: $1"; p_usg >&2; return 1 ;;
+      *)           p_err "Unexpected argument: $1"; return 1 ;;
+    esac
+    shift
+  done
+
+  local cmd
+  for cmd in swaymsg jq; do
+    command -v "$cmd" > /dev/null 2>&1 || { p_err "Missing required command: $cmd"; return 1; }
+  done
+
+  # Focused container (con or floating_con only), as compact JSON.
+  local node
+  node="$(swaymsg -t get_tree \
+    | jq -c 'limit(1; .. | objects | select(.focused? == true
+             and (.type? == "con" or .type? == "floating_con")))')" || true
+
+  if [[ -z "$node" ]]; then
+    notify "sway-kill" "No focused window"
+    p_err "No focused window found"
+    return 1
+  fi
+
+  local pid title
+  pid="$(jq -r '.pid // empty' <<< "$node")"
+  title="$(jq -r '.name // .app_id // .window_properties.class // "?"' <<< "$node")"
+
+  # Some windows report no PID; fall back to sway's (polite) close.
+  if [[ -z "$pid" || "$pid" == "0" ]]; then
+    notify "sway-kill" "No PID for '${title}' — sending sway close"
+    swaymsg '[con_id=__focused__] kill' > /dev/null 2>&1
+    return 0
+  fi
+
+  if kill -"${signal}" "$pid" 2>/dev/null; then
+    notify "sway-kill" "SIG${signal} → '${title}' (pid ${pid})"
+  else
+    p_err "Failed to signal pid ${pid} (${title})"
+    notify "sway-kill" "Failed to kill '${title}' (pid ${pid})"
+    return 1
+  fi
+}
+
+main "$@"
