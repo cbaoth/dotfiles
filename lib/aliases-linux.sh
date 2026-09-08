@@ -40,6 +40,10 @@ alias llg="ls -al | grep -Ei --color"
 
 # {{{ - SYSTEM ---------------------------------------------------------------
 alias fontcache-refresh="xset fp rehash; sudo fc-cache -f -v"
+# font discovery (fontconfig) — see ~/.config/sway/config.d/20-styles.conf
+alias font-list="fc-list : family | sort -u"          # all installed families
+alias font-search="fc-list | grep -i"                 # font-search fira
+alias font-match="fc-match"                            # what a name resolves to
 alias remount-exec="sudo mount -o remount,exec"
 alias fsck-ntfs-clear-dirty="sudo ntfsfix --clear-dirty"
 # lm-sensors
