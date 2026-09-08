@@ -62,6 +62,13 @@ Ideas and future tasks for improving the shell scripts in this repository.
 ## Specific Scripts
 
 - [ ] [S] Review `.vimrc` local settings to confirm modeline options (`expandtab`, `tabstop=2`, `shiftwidth=2`, `filetype`) align with the canonical header block
+- [ ] [M] `bin/while-read`: add a concurrency-limited job queue for `--background`.
+  Currently `-b` spawns one process per input with no throttle, so e.g.
+  `while-read -b wget` fed a stream of URLs launches unbounded parallel `wget`s.
+  A simple FIFO queue capping concurrent jobs at N would fix this (this was the
+  never-finished intent of the removed `.zsh.d/job.zsh` stub; original ref
+  <https://blog.garage-coding.com/2016/02/05/bash-fifo-jobqueue.html>, now dead).
+  See the `# TODO implement a simple queue` marker in `read_loop()`.
 
 ## General Output
 
@@ -113,6 +120,23 @@ Options (in order of preference):
 
 - [ ] [M] Add conky config for puppet (notebook): derive from motoko config, adapt for
   smaller viewport, no Nvidia GPU, no Windows/dual-boot partitions
+
+## Clipboard — wine / flatpak → Wayland
+
+- [ ] [M] Copy from sandboxed/foreign apps does not reach the Wayland clipboard.
+  In-app copy/paste works (e.g. Ctrl+C/Ctrl+V inside Path of Building under wine),
+  but nothing propagates to sway's clipboard, so item descriptions etc. can't be
+  pasted into other apps. copyq is running (store clipboard on, mouse-selection
+  store off, paste-with-mouse on) but shows no notification on wine copies →
+  the data never arrives. Likely the same class of issue as flatpak↔flatpak
+  (e.g. XnView → ungoogled-chromium file/name copy also fails), i.e. the app has
+  no access to the host clipboard bridge.
+  - Investigate: `wl-clipboard` (`wl-copy`/`wl-paste`) behaviour, XWayland vs
+    native Wayland clients, and whether wine writes only to the X11 selection
+    (needs `wl-clip-persist` or a clipboard-sync daemon bridging X11↔Wayland).
+  - For flatpak: check portal / clipboard permissions (`flatpak info --show-permissions`).
+  - Earlier attempt with a clipboard-sync daemon was abandoned without a real
+    setup effort — retry deliberately.
 
 ## Game streaming — Moonlight / Sunshine (parked 2026-08-16)
 
