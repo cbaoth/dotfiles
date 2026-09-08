@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Reverse a video file (and its audio) into a new file.
+
+# the sibling of video-cycle, using ffmpeg's reverse/areverse filters
+# src: https://ffmpeg.org/ffmpeg-filters.html#reverse
+
+# set options
+set -o errtrace
+#set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+IFS=$'\t\n\0'
+
+# traps
+# shellcheck disable=SC2154
+trap 'rc=$?; \
+      printf "ERROR(%s) in %s:%s\n  -> %s\n  -> %s\n" "${rc}" \
+             "${0:-N/A}" "${LINENO:-N/A}" "${FUNCNAME[0]:-main}" \
+             "${BASH_COMMAND:-N/A}" >&2; \
+      exit $rc' ERR
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+
+# Logging
+p_msg() { printf '%s\n' "$*"; }
+#p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+#p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+# constants
+declare -r FFMPEG=ffmpeg
+declare -r FFPROBE=ffprobe
+declare -r SUFFIX="-reverse"
+declare -r DEFAULT_EXT=mp4
+# warn above this decoded frame buffer size (MiB), see reverse filter docs
+declare -ri RAM_WARN_MIB=1024
+
+# Usage
+p_usg() { printf 'Usage: %s  [-a] [-A] [-c CRF] [-p PRESET] [-C CODEC] [-o OUTFILE] [-y] [-n] INFILE\n' "$(basename "$0")"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+Reverse a video file into a new file, the plain-reverse sibling of
+video-cycle.
+
+Audio is dropped by default. With -a the audio is reversed along with the
+video; with -A the original audio is kept forward (unreversed), e.g. to
+play background music or ambient noise over a reversed shot. -a and -A are
+mutually exclusive.
+
+Options:
+  -a, --audio          Keep audio, reversed to match the video, default: drop
+  -A, --audio-forward  Keep audio, original/forward (not reversed)
+  -c, --crf N          Encoder quality, lower is better (default: ${crf})
+  -p, --preset NAME    x264/x265 preset (default: ${preset})
+  -C, --codec NAME     Video encoder (default: libx264, webm/ogv: libvpx-vp9)
+  -o, --out FILE       Output file (default: INFILE${SUFFIX}.EXT)
+  -y, --yes            Overwrite an existing output file without asking
+  -n, --dry-run        Print the ffmpeg command instead of running it
+  -h, --help           This help
+
+Note:
+  The reverse filter buffers the whole decoded video in memory -- fine for
+  the short clips this is meant for, but expect several GiB per minute of
+  HD footage. A warning is printed above ~${RAM_WARN_MIB} MiB.
+
+Examples:
+  # infile.mp4 -> infile${SUFFIX}.mp4, silent, x264 crf ${crf}
+  $(basename "$0") infile.mp4
+
+  # reversed clip with reversed audio, higher quality, explicit output name
+  $(basename "$0") -a -c 16 -o back.mp4 infile.mp4
+
+  # reversed video but original (forward) audio, e.g. background music
+  $(basename "$0") -A infile.mp4
+EOF
+}
+
+# arguments
+declare audio_mode=none   # none | reverse | forward
+declare -i force=0
+declare -i dry_run=0
+declare crf=18
+declare preset=medium
+declare vcodec=""
+declare outfile=""
+declare infile=""
+
+# probed input properties
+declare -i width=0 height=0 nb_frames=0
+declare -i has_audio=0
+
+# print file name of given file with an added suffix (considering file ext.)
+# only the basename is inspected, so dots in directory names are safe
+p_file_with_suffix() {
+  local -r suffix="$1"
+  local -r file="$2"
+  local dir="" base="${file}"
+  if [[ "${file}" = */* ]]; then
+    dir="${file%/*}/"
+    base="${file##*/}"
+  fi
+  if [[ "${base}" = ?*.* ]]; then
+    printf "%s" "${dir}${base%.*}${suffix}.${base##*.}"
+  else
+    printf "%s" "${dir}${base}${suffix}.${DEFAULT_EXT}"
+  fi
+}
+
+# query (yes/no): ask any question (no: return 1)
+q_yesno() {
+  local -r question="$*"
+  local key=""
+  printf "%s (y/n) " "${question}"
+  while [[ "${key}" != "y" ]] && [[ "${key}" != "n" ]]; do
+    read -r -s -n 1 key
+  done
+  printf "\n"
+  [[ "${key}" = "y" ]]
+}
+
+# parse arguments
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -a|--audio)
+        audio_mode=reverse
+        shift
+        ;;
+      -A|--audio-forward)
+        audio_mode=forward
+        shift
+        ;;
+      -c|--crf)
+        [[ -z "${2:-}" ]] && p_err "missing value after $1" && return 1
+        crf="$2"
+        shift 2
+        ;;
+      -p|--preset)
+        [[ -z "${2:-}" ]] && p_err "missing value after $1" && return 1
+        preset="$2"
+        shift 2
+        ;;
+      -C|--codec)
+        [[ -z "${2:-}" ]] && p_err "missing value after $1" && return 1
+        vcodec="$2"
+        shift 2
+        ;;
+      -o|--out)
+        [[ -z "${2:-}" ]] && p_err "missing file name after $1" && return 1
+        outfile="$2"
+        shift 2
+        ;;
+      -y|--yes)
+        force=1
+        shift
+        ;;
+      -n|--dry-run)
+        dry_run=1
+        shift
+        ;;
+      -h|--help)
+        p_hlp
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        p_err "unknown option [$1]"
+        p_usg
+        return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -lt 1 ]]; then
+    p_usg
+    return 1
+  fi
+  if [[ $# -gt 1 ]]; then
+    p_err "too many arguments, provide only a single input file"
+    return 1
+  fi
+  infile="$1"
+
+  if [[ ! -f "${infile}" ]]; then
+    p_err "no such file [${infile}]"
+    return 1
+  fi
+  if [[ ! "${crf}" =~ ^[0-9]+$ ]]; then
+    p_err "crf must be a positive integer [${crf}]"
+    return 1
+  fi
+
+  [[ -z "${outfile}" ]] && outfile="$(p_file_with_suffix "${SUFFIX}" "${infile}")"
+  if [[ "${outfile}" -ef "${infile}" ]]; then
+    p_err "output file is the input file [${outfile}]"
+    return 1
+  fi
+
+  # container defaults, the output extension decides what can be muxed
+  if [[ -z "${vcodec}" ]]; then
+    case "${outfile##*.}" in
+      [wW][eE][bB][mM]|[oO][gG][vV]) vcodec=libvpx-vp9 ;;
+      *) vcodec=libx264 ;;
+    esac
+  fi
+}
+
+# probe the input: dimensions, frame count, audio presence
+probe_infile() {
+  local key value
+  while IFS='=' read -r key value; do
+    case "${key}" in
+      width) width="${value}" ;;
+      height) height="${value}" ;;
+      nb_frames) [[ "${value}" =~ ^[0-9]+$ ]] && nb_frames="${value}" ;;
+    esac
+  done < <("${FFPROBE}" -v error -select_streams v:0 \
+             -show_entries stream=width,height,nb_frames \
+             -of default=noprint_wrappers=1 -- "${infile}")
+
+  if (( width == 0 )); then
+    p_err "no video stream found in [${infile}]"
+    return 1
+  fi
+
+  # frame count is missing in some containers (e.g. matroska), fall back to
+  # duration x frame rate -- only used for the RAM warning, an estimate will do
+  if (( nb_frames == 0 )); then
+    local duration fps
+    duration="$("${FFPROBE}" -v error -show_entries format=duration \
+                  -of default=noprint_wrappers=1:nokey=1 -- "${infile}")"
+    fps="$("${FFPROBE}" -v error -select_streams v:0 -show_entries stream=r_frame_rate \
+             -of default=noprint_wrappers=1:nokey=1 -- "${infile}")"
+    if [[ "${duration}" =~ ^[0-9.]+$ ]] && [[ "${fps}" =~ ^[0-9]+/[0-9]+$ ]] && [[ "${fps}" != */0 ]]; then
+      nb_frames="$(awk -F/ -v d="${duration}" '{ printf "%d", d * $1 / $2 }' <<< "${fps}")"
+    fi
+  fi
+
+  if "${FFPROBE}" -v error -select_streams a:0 -show_entries stream=index \
+       -of default=noprint_wrappers=1:nokey=1 -- "${infile}" | grep -q .; then
+    has_audio=1
+  fi
+
+  if [[ "${audio_mode}" != none ]] && (( ! has_audio )); then
+    p_war "no audio stream in [${infile}], continuing without audio"
+    audio_mode=none
+  fi
+
+  # the reverse filter holds every decoded frame, warn before the box swaps
+  if (( nb_frames > 0 )); then
+    local -i mib=$(( nb_frames * width * height * 3 / 2 / 1048576 ))
+    if (( mib > RAM_WARN_MIB )); then
+      p_war "$(printf 'reversing %d frames of %dx%d needs roughly %d MiB of memory' \
+                      "${nb_frames}" "${width}" "${height}" "${mib}")"
+    fi
+  fi
+}
+
+# encoder options for the selected codec/container
+build_enc_args() {
+  local -a args=()
+  case "${vcodec}" in
+    libx264|libx265)
+      args=(-c:v "${vcodec}" -preset "${preset}" -crf "${crf}" -pix_fmt yuv420p)
+      ;;
+    libvpx-vp9)
+      # vp9 needs -b:v 0 for constant quality, the preset does not apply
+      args=(-c:v libvpx-vp9 -crf "${crf}" -b:v 0 -pix_fmt yuv420p)
+      ;;
+    *)
+      args=(-c:v "${vcodec}" -crf "${crf}")
+      ;;
+  esac
+  case "${outfile##*.}" in
+    [mM][pP]4|[mM]4[vV]|[mM][oO][vV]) args+=(-movflags +faststart) ;;
+  esac
+  printf '%s\n' "${args[@]}"
+}
+
+reverse() {
+  local -a enc_args=()
+  local arg
+  while read -r arg; do enc_args+=("${arg}"); done < <(build_enc_args)
+
+  # quiet by default, DEBUG_LVL>=1 (or --dry-run) shows the full ffmpeg output
+  local loglevel=warning
+  if (( ${DEBUG_LVL:-0} >= 1 )); then loglevel=info; fi
+  local -a cmd=("${FFMPEG}" -hide_banner -loglevel "${loglevel}" -stats -y
+                -i "${infile}" -vf reverse)
+  case "${audio_mode}" in
+    reverse) cmd+=(-af areverse) ;;   # reverse audio to match the video
+    forward) : ;;                     # keep original audio, unreversed
+    *)       cmd+=(-an) ;;            # drop audio (default)
+  esac
+  cmd+=("${enc_args[@]}" "${outfile}")
+
+  if (( dry_run )); then
+    printf '%q ' "${cmd[@]}"
+    printf '\n'
+    return 0
+  fi
+
+  if [[ -e "${outfile}" ]]; then
+    if (( force )); then
+      p_war "overwriting [${outfile}]"
+    elif [[ ! -t 0 ]]; then
+      p_err "file exists [${outfile}], use --yes to overwrite"
+      return 1
+    else
+      q_yesno "file [${outfile}] exists, overwrite?" || return 1
+    fi
+  fi
+
+  p_msg "reversing [${infile}] to [${outfile}]"
+  # explicit check: the ERR trap does not fire inside a function called from
+  # an || list, and errexit is off
+  if ! "${cmd[@]}"; then
+    p_err "ffmpeg failed, no output written"
+    return 1
+  fi
+  p_msg "${outfile}"
+}
+
+main() {
+  local cmd
+  for cmd in "${FFMPEG}" "${FFPROBE}"; do
+    if ! command -v "${cmd}" > /dev/null 2>&1; then
+      p_err "${cmd} not found, exiting .."
+      exit 1
+    fi
+  done
+  parse_args "$@" || exit 1
+  probe_infile || exit 1
+  reverse || exit 1
+}
+
+main "$@"
