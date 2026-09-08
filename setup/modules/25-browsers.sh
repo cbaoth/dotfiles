@@ -31,11 +31,56 @@ MODULE_DOC="docs/setup/browsers.md"
 #             the same repo; see docs/setup/browsers.md for all variants)
 #   install — "yes" = set up repo AND install package; "repo" = repo only
 declare -ra BROWSERS=(
-  "firefox:firefox-nightly:yes"
-  "vivaldi:vivaldi-stable:yes"
-  "chrome:google-chrome-stable:repo"
-  "brave:brave-browser:repo"
-  "edge:microsoft-edge-stable:repo"
+  # Mozilla Firefox - https://www.firefox.com
+  # https://www.firefox.com/channel/desktop/
+  #"firefox:firefox:yes"                                    # https://www.firefox.com
+  #"firefox:firefox-esr:yes"                                # https://www.firefox.com/browsers/enterprise/
+  #"firefox:firefox-beta:yes"                               # https://www.firefox.com/firefox/beta/
+  "firefox:firefox-devedition:yes"                         # https://www.firefox.com/channel/desktop/developer/
+  "firefox:firefox-nightly:yes"                            # https://www.firefox.com/firefox/nightly/
+  # https://blog.nightly.mozilla.org
+
+  # Vivaldi - https://vivaldi.com
+  # https://forum.vivaldi.net/category/2/desktop
+  #"vivaldi:vivaldi-stable:yes"                             # https://vivaldi.com/blog/desktop/releases/
+  "vivaldi:vivaldi-snapshot:yes"                           # https://vivaldi.com/blog/desktop/snapshots/
+
+  # Google Chrome - https://www.google.com/chrome/
+  # https://developer.chrome.com
+  # https://developer.chrome.com/docs/web-platform/chrome-release-channels/
+  #"chrome:google-chrome-beta:repo"                         # https://www.google.com/chrome/beta/
+  "chrome:google-chrome-unstable:yes"                      # https://www.google.com/chrome/dev/
+  #"chrome:google-chrome-canary:repo"                       # https://www.google.com/chrome/canary/
+
+  # Brave - https://brave.com/
+  # https://github.com/brave/brave-browser/wiki/Release-Channel-Descriptions
+  # https://brave.com/category/developers-community/
+  # https://support.brave.app/hc/articles/360017916752-What-is-the-difference-between-Nightly-Beta-and-Release-builds
+  # https://brave.com/latest/
+  # Unlike the others, Brave ships one repo *per channel* (release/beta/nightly),
+  # differing only by the channel token in the URI and the keyring filename.
+  # setup_brave / setup_brave_beta / setup_brave_nightly handle all three; the
+  # brave-origin* packages ship from the matching channel repo.
+  #"brave:brave-browser:repo"                               # https://brave.com/linux/
+  #"brave-beta:brave-browser-beta:repo"                     # https://brave.com/linux/beta/
+  "brave-nightly:brave-browser-nightly:repo"               # https://brave.com/linux/nightly/
+
+  # Brave Origin - https://brave.com/origin/
+  # Same repos as regular Brave above. Paid product, but free for Linux users
+  #"brave:brave-origin:repo"                                # https://brave.com/origin/linux/
+  #"brave-beta:brave-origin-beta:repo"                      # https://brave.com/origin/linux/beta/
+  #"brave-nightly:brave-origin-nightly:repo"                # https://brave.com/origin/linux/nightly/
+
+  # Microsoft Edge - https://explore.microsoft.com/edge
+  # https://learn.microsoft.com/deployedge/microsoft-edge-channels
+  # https://developer.microsoft.com/microsoft-edge
+  # One repo (packages.microsoft.com/repos/edge) serves every channel, so
+  # setup_edge covers stable/beta/dev/canary alike — the website's per-channel
+  # "insider" instructions just re-add the same repo under a different filename.
+  #"edge:microsoft-edge-stable:repo"                        #
+  #"edge:microsoft-edge-beta:repo"                          # https://explore.microsoft.com/edge/download/insider
+  "edge:microsoft-edge-dev:repo"                           # https://explore.microsoft.com/edge/download/insider
+  #"edge:microsoft-edge-canary:repo"                        # https://explore.microsoft.com/edge/download/insider
 )
 
 # {{{ = Helpers =============================================================
@@ -169,22 +214,38 @@ EOF
 
 # {{{ = Brave ===============================================================
 
-setup_brave() {
+# Brave publishes one apt repo per channel; they differ only by the channel
+# token in the URI and a "-<channel>" suffix on the keyring/sources filenames.
+# The release channel carries no suffix (brave-browser-archive-keyring.gpg),
+# beta/nightly do (brave-browser-<channel>-archive-keyring.gpg).
+# Usage: _setup_brave [release|beta|nightly]
+_setup_brave() {
+  local -r channel="${1:-release}"
+  local suffix=""
+  [[ "${channel}" != "release" ]] && suffix="-${channel}"
+
+  local -r base_url="https://brave-browser-apt-${channel}.s3.brave.com"
+  local -r keyring="/usr/share/keyrings/brave-browser${suffix}-archive-keyring.gpg"
+  local -r sources_file="/etc/apt/sources.list.d/brave-browser${suffix}.sources"
+
   local sources_content
-  read -r -d '' sources_content <<'EOF' || true
+  read -r -d '' sources_content <<EOF || true
 Types: deb
-URIs: https://brave-browser-apt-release.s3.brave.com/
+URIs: ${base_url}/
 Suites: stable
 Components: main
 Architectures: amd64
-Signed-By: /usr/share/keyrings/brave-browser-archive-keyring.gpg
+Signed-By: ${keyring}
 EOF
 
-  install_key "https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg" \
-    "/usr/share/keyrings/brave-browser-archive-keyring.gpg"
+  install_key "${base_url}/brave-browser${suffix}-archive-keyring.gpg" "${keyring}"
 
-  install_sources "/etc/apt/sources.list.d/brave-browser.sources" "${sources_content}"
+  install_sources "${sources_file}" "${sources_content}"
 }
+
+setup_brave()         { _setup_brave release; }
+setup_brave_beta()    { _setup_brave beta; }
+setup_brave_nightly() { _setup_brave nightly; }
 
 # }}} = Brave ===============================================================
 
@@ -214,7 +275,9 @@ module_run() {
   for entry in "${BROWSERS[@]}"; do
     IFS=: read -r name pkg install <<< "${entry}"
     st::hdr "${name} (${install})"
-    "setup_${name}"
+    # Registry names may contain hyphens (e.g. brave-beta); function names use
+    # underscores (setup_brave_beta).
+    "setup_${name//-/_}"
     [[ "${install}" == "yes" ]] && st::apt_install "${pkg}" || true
   done
 }

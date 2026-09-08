@@ -103,11 +103,19 @@ installed by the module; others can be installed manually alongside it.
 
 | Repo | Packages |
 | ---- | -------- |
-| Mozilla (Firefox) | **firefox-nightly**, firefox, firefox-beta, firefox-devedition, firefox-esr |
-| Vivaldi | **vivaldi-stable**, vivaldi-snapshot |
-| Google Chrome | **google-chrome-stable**, google-chrome-beta, google-chrome-unstable |
-| Brave | **brave-browser** |
-| Microsoft Edge | **microsoft-edge-stable**, microsoft-edge-beta, microsoft-edge-dev, microsoft-edge-canary |
+| Mozilla (Firefox) | firefox, firefox-esr, firefox-beta, firefox-devedition, **firefox-nightly** |
+| Vivaldi | vivaldi-stable, **vivaldi-snapshot** |
+| Google Chrome | google-chrome-stable, google-chrome-beta, **google-chrome-unstable** (dev), google-chrome-canary |
+| Brave — release repo | brave-browser, brave-origin |
+| Brave — beta repo | brave-browser-beta, brave-origin-beta |
+| Brave — nightly repo | **brave-browser-nightly**, brave-origin-nightly |
+| Microsoft Edge | microsoft-edge-stable, microsoft-edge-beta, **microsoft-edge-dev**, microsoft-edge-canary |
+
+Every vendor except **Brave** serves all channels from one repo (including Edge —
+its single repo carries beta/dev/canary too). **Brave is the exception:** each
+channel is a separate S3 repo, so the module has a `setup_brave` /
+`setup_brave_beta` / `setup_brave_nightly` trio (a shared core with a per-channel
+suffix). `brave-origin*` ship from the matching channel repo.
 
 To install an additional variant: `sudo apt install firefox-devedition`. To
 change the module's default, edit the `BROWSERS` table in `25-browsers.sh`.
