@@ -55,3 +55,7 @@ dev.deedles.Trayscale
 # On hold — the ebook reader is not currently in use. Kept here rather than
 # deleted so the tool is not forgotten. Uncomment to reinstate.
 #com.calibre_ebook.calibre
+
+# Gaming
+io.github.unknownskl.greenlight
+
