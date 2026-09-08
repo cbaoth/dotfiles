@@ -12,7 +12,6 @@ nvtop
 
 # Terminal emulator & clipboard
 xfce4-terminal
-copyq
 wl-clipboard
 
 # Launcher
