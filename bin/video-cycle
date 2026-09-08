@@ -42,7 +42,7 @@ declare -r DEFAULT_EXT=mp4
 declare -ri RAM_WARN_MIB=1024
 
 # Usage
-p_usg() { printf 'Usage: %s  [-a] [-k] [-c CRF] [-p PRESET] [-C CODEC] [-o OUTFILE] [-y] [-n] INFILE\n' "$(basename "$0")"; }
+p_usg() { printf 'Usage: %s  [-a] [-A] [-k] [-c CRF] [-p PRESET] [-C CODEC] [-o OUTFILE] [-y] [-n] INFILE\n' "$(basename "$0")"; }
 p_hlp() {
   p_usg
   cat <<EOF
@@ -55,16 +55,23 @@ of the forward pass, and the frame the loop wraps back to -- so nothing
 stutters when the result is played on repeat (as anim-cycle does with
 '-duplicate 1,-2-1').
 
+Audio is dropped by default. With -a the audio follows the video (forward
+then reversed); with -A the original audio simply plays again over the
+reversed half instead of being reversed -- useful when the sound is
+background music or ambient noise not synced to on-screen events, where
+repeating it reads better than silence. -a and -A are mutually exclusive.
+
 Options:
-  -a, --audio        Keep the audio stream (forward + reversed), default: drop
-  -k, --keep-dupes   Do not drop the duplicate frames at the seams
-  -c, --crf N        Encoder quality, lower is better (default: ${crf})
-  -p, --preset NAME  x264/x265 preset (default: ${preset})
-  -C, --codec NAME   Video encoder (default: libx264, webm/ogv: libvpx-vp9)
-  -o, --out FILE     Output file (default: INFILE${SUFFIX}.EXT)
-  -y, --yes          Overwrite an existing output file without asking
-  -n, --dry-run      Print the ffmpeg command instead of running it
-  -h, --help         This help
+  -a, --audio          Keep audio: forward + reversed (boomerang), default: drop
+  -A, --audio-forward  Keep audio: original played twice, not reversed
+  -k, --keep-dupes     Do not drop the duplicate frames at the seams
+  -c, --crf N          Encoder quality, lower is better (default: ${crf})
+  -p, --preset NAME    x264/x265 preset (default: ${preset})
+  -C, --codec NAME     Video encoder (default: libx264, webm/ogv: libvpx-vp9)
+  -o, --out FILE       Output file (default: INFILE${SUFFIX}.EXT)
+  -y, --yes            Overwrite an existing output file without asking
+  -n, --dry-run        Print the ffmpeg command instead of running it
+  -h, --help           This help
 
 Note:
   The reverse filter buffers the whole decoded video in memory -- fine for
@@ -77,11 +84,14 @@ Examples:
 
   # keep the (reversed) audio, higher quality, explicit output name
   $(basename "$0") -a -c 16 -o loop.mp4 infile.mp4
+
+  # keep the original audio (played twice, not reversed), e.g. music
+  $(basename "$0") -A infile.mp4
 EOF
 }
 
 # arguments
-declare -i keep_audio=0
+declare audio_mode=none   # none | reverse | forward
 declare -i trim_seams=1
 declare -i force=0
 declare -i dry_run=0
@@ -131,7 +141,11 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     case $1 in
       -a|--audio)
-        keep_audio=1
+        audio_mode=reverse
+        shift
+        ;;
+      -A|--audio-forward)
+        audio_mode=forward
         shift
         ;;
       -k|--keep-dupes)
@@ -260,9 +274,9 @@ probe_infile() {
     has_audio=1
   fi
 
-  if (( keep_audio )) && (( ! has_audio )); then
+  if [[ "${audio_mode}" != none ]] && (( ! has_audio )); then
     p_war "no audio stream in [${infile}], continuing without audio"
-    keep_audio=0
+    audio_mode=none
   fi
   if (( trim_seams )) && (( nb_frames > 0 && nb_frames < 3 )); then
     p_err "too few frames (${nb_frames}) to drop the seam frames, use --keep-dupes"
@@ -294,10 +308,14 @@ build_filter() {
   chains+=("[vf]${vtrim}null[v0]")
   chains+=("[vb]reverse,${vtrim}null[v1]")
 
-  if (( keep_audio )); then
+  if [[ "${audio_mode}" != none ]]; then
+    # "reverse": the second half's audio is reversed to match the video;
+    # "forward": it stays forward, so the original audio simply repeats
+    local areverse=""
+    [[ "${audio_mode}" = reverse ]] && areverse="areverse,"
     chains+=("[0:a]asplit[af][ab]")
     chains+=("[af]${atrim}anull[a0]")
-    chains+=("[ab]areverse,${atrim}anull[a1]")
+    chains+=("[ab]${areverse}${atrim}anull[a1]")
     chains+=("[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]")
   else
     chains+=("[v0][v1]concat=n=2:v=1:a=0[v]")
@@ -341,7 +359,7 @@ cycle() {
   if (( ${DEBUG_LVL:-0} >= 1 )); then loglevel=info; fi
   local -a cmd=("${FFMPEG}" -hide_banner -loglevel "${loglevel}" -stats -y
                 -i "${infile}" -filter_complex "${filter}" -map '[v]')
-  if (( keep_audio )); then
+  if [[ "${audio_mode}" != none ]]; then
     cmd+=(-map '[a]')
   else
     cmd+=(-an)
