@@ -734,9 +734,37 @@ _repo_dotfiles() {
 }
 _repo_notes() { echo "${NOTES_DIR:-${HOME}/notes}"; }
 
+# Does a plain `git push` stand any chance on this host?
+#
+# On the public-facing vserver the stored credential is a READ-ONLY token, so
+# `git push` can only ever 403 — there is no reason to attempt it, and the
+# failure is just noise before the prompt. Both repos use the same rw token
+# when prompted, so routing straight to `git push-token` is always correct
+# there. Override anywhere with CB_PUSH_NEEDS_TOKEN=1 (force prompt) or =0
+# (force plain push), e.g. in ~/.zsh.d/zshrc-<host>.zsh for a new replica.
+_repo_push_needs_token() {
+  case "${CB_PUSH_NEEDS_TOKEN:-}" in
+    1) return 0 ;;
+    0) return 1 ;;
+  esac
+  [[ "$(hostname -f 2>/dev/null || hostname)" == "11001001.org" ]]
+}
+
 # Run git inside a repo without cd-ing there:  dotg status / notg log --oneline
-alias dotg='git -C "$(_repo_dotfiles)"'
-alias notg='git -C "$(_repo_notes)"'
+# `push` is intercepted where a plain push cannot work, so muscle memory still
+# does the right thing instead of failing first.
+_repo_git() {
+  local _dir="$1"; shift
+  if [[ "${1:-}" == "push" ]] && _repo_push_needs_token; then
+    shift
+    echo "==> read-only credential here - using git push-token (prompts)" >&2
+    git -C "${_dir}" push-token "$@"
+    return
+  fi
+  git -C "${_dir}" "$@"
+}
+dotg() { _repo_git "$(_repo_dotfiles)" "$@"; }
+notg() { _repo_git "$(_repo_notes)" "$@"; }
 
 # Pull then push, but NEVER push if the pull failed: a failed pull means a
 # rebase conflict or a dirty tree, and pushing on top of that turns a local
@@ -757,10 +785,16 @@ repo-sync() {
     return 0
   fi
 
+  if _repo_push_needs_token; then
+    echo "==> ${_dir}: push-token (read-only credential on this host)"
+    git -C "${_dir}" push-token
+    return
+  fi
+
   echo "==> ${_dir}: push"
   git -C "${_dir}" push && return 0
 
-  # Read-only-token host: fall back to the prompting push.
+  # Unexpected rejection elsewhere: still offer the prompting push.
   echo "==> ${_dir}: push rejected - retrying with git push-token (prompts)" >&2
   git -C "${_dir}" push-token
 }
