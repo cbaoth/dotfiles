@@ -27,9 +27,18 @@ it from history with `↑` instead of typing it.
 Every staged script must:
 
 1. Start with `#!/usr/bin/env bash` and `set -euo pipefail`.
-2. **Log everything** — first real line is
-   `exec > >(tee "$HOME/.ccrun.log") 2>&1`. You read that log yourself with
-   your own tools; the user never pipes, selects, or pastes output.
+2. **Log everything, appending** — first real lines are
+
+   ```bash
+   exec > >(tee -a "$HOME/.ccrun.log") 2>&1
+   printf '\n===== %s  %s =====\n' "$(date -Is)" "${*:-<no args>}"
+   ```
+
+   You read that log yourself with your own tools; the user never pipes,
+   selects, or pastes output. **Append, never overwrite** — the user may run a
+   script several times (dry-run, then apply, then a retry), and each run is
+   evidence. A `tee` without `-a` throws away every run but the last, which has
+   already cost one debugging cycle.
 3. **Default to a dry run.** Act only on an explicit `apply` argument:
    `[[ ${1:-} == apply ]] || DRY=1`. This mirrors `system-setup --dry-run`,
    which the user already thinks in.
@@ -54,10 +63,31 @@ conversation, so you see the result with no relaying. Follow up with
 
 ## When the step needs sudo or is interactive
 
-`!` cannot service a password prompt. In that case say plainly: *"run
-`~/.ccrun apply` in another tmux window (`Ctrl-b c`), then just say done."*
-You then read `~/.ccrun.log` yourself. They type one command and one word —
-nothing is relayed by hand.
+Neither your own Bash tool nor the `!` prefix has a tty — both verified. `!`
+reports `not a tty` and sudo there fails with *"interactive authentication is
+required"*. That is sudo's own error, not a permission block: `!` is not gated
+by the allow/deny rules at all, it simply has no terminal to prompt on, and no
+setting can change that. **Never route a privileged step through either.**
+
+A tmux window *does*, including one you create yourself, and creating it
+detached neither steals focus nor leaves clutter (verified: it gets a real
+pty and closes on completion). So launch the work rather than dictating it:
+
+```bash
+tmux new-window -d -n ccrun '~/.ccrun apply; echo; read -k1 "?done - any key"'
+```
+
+Then tell the user only: *"`Ctrl-b n`, type your password, `Ctrl-b p` back."*
+A password and two chords, with no command to type and nothing to relay. You
+read `~/.ccrun.log` yourself afterwards.
+
+If several privileged steps are needed, have the script run `sudo -v` first so
+the credential is cached for the rest of the run — note the cache is normally
+per-tty (`tty_tickets`), so the caching and the work must happen in that same
+window, which this flow does naturally.
+
+If tmux is not available, fall back to: *"run `~/.ccrun apply` in another
+window, then just say done."*
 
 Optionally `Monitor` `~/.ccrun.log` for changes so you pick the result up
 without even needing the "done".
