@@ -460,6 +460,33 @@ print-color256() {
 }
 # }}} - DEV ------------------------------------------------------------------
 
+# {{{ - AI / CLAUDE CODE -----------------------------------------------------
+# Claude Code launchers. Name scheme: cc[r][d][m]
+#   r = resume a previous session (-r, no id -> session picker)
+#   d = run in the dotfiles workspace (~/dotfiles); cwd is restored on exit
+#   m = mobile mode: driving a session from a phone/tablet over SSH, where
+#       manual steps are handed over as staged scripts instead of commands to
+#       type. See ~/.claude/skills/mobile-mode/SKILL.md.
+#
+# `cc` shadows the C compiler, but only in interactive shells - Makefiles and
+# build scripts run non-interactively and never see aliases.
+alias cc='claude'
+alias ccr='claude -r'
+
+# Mobile mode is injected via --append-system-prompt rather than as an initial
+# `/mobile-mode` prompt, because -r/--resume takes an OPTIONAL session id and
+# would otherwise swallow the positional argument.
+CC_MOBILE='Mobile mode is active for this entire session: read and follow ~/.claude/skills/mobile-mode/SKILL.md before your first reply.'
+alias ccm='claude --append-system-prompt "$CC_MOBILE"'
+alias ccrm='claude -r --append-system-prompt "$CC_MOBILE"'
+
+# Workspace variants: subshell so the caller's cwd survives.
+ccd()   { ( cd "$HOME/dotfiles" && claude "$@" ); }
+ccrd()  { ( cd "$HOME/dotfiles" && claude -r "$@" ); }
+ccdm()  { ( cd "$HOME/dotfiles" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+ccrdm() { ( cd "$HOME/dotfiles" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+# }}} - AI / CLAUDE CODE -----------------------------------------------------
+
 # {{{ - NETWORK --------------------------------------------------------------
 # shellcheck disable=SC2139  # $UAGENT intentionally baked in at definition time (it's a constant)
 alias wget="wget -U '$UAGENT'"
