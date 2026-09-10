@@ -736,18 +736,14 @@ _repo_notes() { echo "${NOTES_DIR:-${HOME}/notes}"; }
 
 # Does a plain `git push` stand any chance on this host?
 #
-# On the public-facing vserver the stored credential is a READ-ONLY token, so
-# `git push` can only ever 403 — there is no reason to attempt it, and the
-# failure is just noise before the prompt. Both repos use the same rw token
-# when prompted, so routing straight to `git push-token` is always correct
-# there. Override anywhere with CB_PUSH_NEEDS_TOKEN=1 (force prompt) or =0
-# (force plain push), e.g. in ~/.zsh.d/zshrc-<host>.zsh for a new replica.
+# On a read-only replica the stored credential can only fetch, so `git push`
+# can only ever 403 — attempting it is just noise before the prompt that was
+# always going to be needed. Hosts opt in by setting CB_PUSH_NEEDS_TOKEN=1 in
+# their own ~/lib/aliases-<host>.sh (see aliases-11001001_org.sh); everywhere
+# else pushes stay plain. Default is deliberately the permissive one, so a new
+# host behaves normally until it says otherwise.
 _repo_push_needs_token() {
-  case "${CB_PUSH_NEEDS_TOKEN:-}" in
-    1) return 0 ;;
-    0) return 1 ;;
-  esac
-  [[ "$(hostname -f 2>/dev/null || hostname)" == "11001001.org" ]]
+  [[ "${CB_PUSH_NEEDS_TOKEN:-0}" == "1" ]]
 }
 
 # Run git inside a repo without cd-ing there:  dotg status / notg log --oneline
