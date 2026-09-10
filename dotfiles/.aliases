@@ -716,6 +716,70 @@ dotfiles-update() {
 alias dotu='dotfiles-update'
 # }}} - DOTFILES MANAGEMENT --------------------------------------------------
 
+# {{{ - REPO SYNC (dotfiles / notes) -----------------------------------------
+# Both repos live on several hosts and are pushed by hand. On the public-facing
+# vserver the stored token is READ-ONLY, so `git push` there fails with 403 and
+# `git push-token` must prompt instead (see bin/git-push-token). These wrappers
+# remove the cd/pull/push dance without hiding that distinction.
+
+# Repo roots. dotfiles is resolved by following the .aliases symlink — same
+# trick dotfiles-link uses — so it works where the clone is not ~/dotfiles.
+_repo_dotfiles() {
+  local _p
+  if _p=$(readlink -f "${HOME}/.aliases" 2>/dev/null); then
+    dirname "$(dirname "${_p}")"
+  else
+    echo "${HOME}/dotfiles"
+  fi
+}
+_repo_notes() { echo "${NOTES_DIR:-${HOME}/notes}"; }
+
+# Run git inside a repo without cd-ing there:  dotg status / notg log --oneline
+alias dotg='git -C "$(_repo_dotfiles)"'
+alias notg='git -C "$(_repo_notes)"'
+
+# Pull then push, but NEVER push if the pull failed: a failed pull means a
+# rebase conflict or a dirty tree, and pushing on top of that turns a local
+# mess into a remote one. --rebase keeps history linear (the autosave commits
+# would otherwise breed merge bubbles); --autostash handles a dirty tree.
+repo-sync() {
+  local _dir="${1:?usage: repo-sync <repo-dir>}"
+
+  echo "==> ${_dir}: pull --rebase"
+  if ! git -C "${_dir}" pull --rebase --autostash; then
+    echo "!!! pull failed - NOT pushing. Resolve first: git -C ${_dir} status" >&2
+    return 1
+  fi
+
+  if git -C "${_dir}" rev-parse '@{u}' >/dev/null 2>&1 \
+     && [[ -z "$(git -C "${_dir}" log '@{u}..HEAD' --oneline)" ]]; then
+    echo "==> ${_dir}: nothing to push"
+    return 0
+  fi
+
+  echo "==> ${_dir}: push"
+  git -C "${_dir}" push && return 0
+
+  # Read-only-token host: fall back to the prompting push.
+  echo "==> ${_dir}: push rejected - retrying with git push-token (prompts)" >&2
+  git -C "${_dir}" push-token
+}
+
+# dotfiles: relink after pulling, since a pull can add or rename linked files.
+dots() { repo-sync "$(_repo_dotfiles)" && dotfiles-link; }
+alias nots='repo-sync "$(_repo_notes)"'
+alias notu='notg pull --rebase --autostash'   # pull only; the twin of dotu
+
+# Both repos. Independent, so a failure in one does not skip the other.
+syncall() {
+  local _rc=0
+  dots || _rc=1
+  repo-sync "$(_repo_notes)" || _rc=1
+  return "${_rc}"
+}
+alias sy='syncall'
+# }}} - REPO SYNC ------------------------------------------------------------
+
 # {{{ - SHELL NAVIGATION -----------------------------------------------------
 # alias /='cd /' is zsh-only (invalid alias name in bash) — defined in aliases.zsh
 alias h='history'
