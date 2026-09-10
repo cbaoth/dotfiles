@@ -387,6 +387,8 @@
       "Bash(/home/cbaoth/dotfiles/tools/*)",
       "Bash(system-setup *)",
       "Bash(notes-sync *)",
+      "Bash(mkdir *)",
+      "Bash(systemctl --user *)",
       "Bash(systemctl --user daemon-reload)",
       "Bash(systemctl --user status *)",
       "Bash(systemctl --user list-timers *)",
