@@ -71,20 +71,59 @@ setting can change that. **Never route a privileged step through either.**
 
 A tmux window *does*, including one you create yourself, and creating it
 detached neither steals focus nor leaves clutter (verified: it gets a real
-pty and closes on completion). So launch the work rather than dictating it:
+pty and closes on completion). So launch the work rather than dictating it,
+keeping the `tmux` argument a bare invocation of the script:
 
 ```bash
-tmux new-window -d -n ccrun '~/.ccrun apply; echo; read -k1 "?done - any key"'
+tmux new-window -d -n ccrun '~/.ccrun apply'
 ```
 
-Then tell the user only: *"`Ctrl-b n`, type your password, `Ctrl-b p` back."*
-A password and two chords, with no command to type and nothing to relay. You
-read `~/.ccrun.log` yourself afterwards.
+Everything interactive belongs *inside* the script, where the `tee` logs it and
+you can read it back afterwards — not inline in a one-shot tmux argument, where
+it is invisible to you and unversioned.
 
-If several privileged steps are needed, have the script run `sudo -v` first so
-the credential is cached for the rest of the run — note the cache is normally
-per-tty (`tty_tickets`), so the caching and the work must happen in that same
-window, which this flow does naturally.
+**Pause in the script, immediately before the first command that prompts.**
+`new-window -d` starts the script at once, while the user is still in the other
+window — with no pause, the sudo prompt is racing their window switch and times
+out before they arrive:
+
+```bash
+echo
+echo "  --- this step needs your sudo password ---"
+read -r -p "  switch here, then press Enter to continue: " _
+sudo …
+```
+
+**Trap EXIT so the window never closes on an unread result.** Without it the
+window vanishes the moment the script ends — the user cannot tell success from
+failure, and `tee` is killed before flushing, so the `STATUS:` line is lost from
+the log too (observed: an apply run whose summary reached neither the screen nor
+the log):
+
+```bash
+finish() {
+  local rc=$?
+  echo
+  (( rc == 0 )) && echo "EXIT: 0 (ok)" || echo "EXIT: $rc (FAILED)"
+  sleep 0.3
+  { read -rsn1 -p "--- press any key to close ---" _ </dev/tty; } 2>/dev/null || true
+  echo
+  sleep 0.2
+}
+trap finish EXIT
+```
+
+The `</dev/tty` redirect makes the pause a no-op when there is no terminal, so
+the same script still runs unattended under `!`.
+
+Then tell the user only: *"`Ctrl-b n`, press Enter, type your password,
+`Ctrl-b p` back."* A password and two chords, with no command to type and
+nothing to relay. You read `~/.ccrun.log` yourself afterwards.
+
+If several privileged steps are needed, have the script run `sudo -v` right
+after that `read` so the credential is cached for the rest of the run — note
+the cache is normally per-tty (`tty_tickets`), so the caching and the work must
+happen in that same window, which this flow does naturally.
 
 If tmux is not available, fall back to: *"run `~/.ccrun apply` in another
 window, then just say done."*
