@@ -182,34 +182,52 @@ fi
 # $1:  variable name
 # $2+: commands to check, first one found wins
 _export_to_first_cmd() {
-  [[ -z "${1-}" || $# -lt 2 ]] && echo "Usage: $0 var-name command.." && return 1
-  # && cl::p_usg "$0 var-name command.." && return 1
+  if [[ -z "${1-}" || $# -lt 2 ]]; then
+    echo "Usage: $0 var-name command.."
+    (( ${DEBUG_LVL:0} > 0 )) && echo "DEBUG: $0 var-name command.." >&2
+    return 1
+  fi
   local var_name="$1"
   shift
   local cmd cmd_bin
   for cmd in "$@"; do
     cmd_bin="${cmd%% *}"  # first word only, for command availability check
     if command -v "$cmd_bin" >/dev/null 2>&1; then
-      #cl::p_dbg -t 0 1 "Exporting '$var_name' to command '$cmd' ..."
+      (( ${DEBUG_LVL:0} > 0 )) && echo "DEBUG: Exporting '$var_name' to command '$cmd' ..." 2>&1
       export "$var_name=$cmd"
       return 0
     fi
   done
-  #cl::p_dbg -t 0 2 "No matching command found to export '$var_name' to. Provided commands: $*"
+  (( ${DEBUG_LVL:0} > 0 )) && echo "DEBUG: No matching command found to export '$var_name' to. Provided commands: $*" 2>&1
   return 1
 }
 
 # Default apps, if available
-_export_to_first_cmd MPLAYER mpv
+_export_to_first_cmd MPLAYER mpv vlc mplayer
 # In X11/Wayland? Then use GUI apps as default, otherwise terminal apps
-_export_to_first_cmd EDITOR 'vim -N' vi 'emacs -nw' nano
+_export_to_first_cmd EDITOR nvim 'vim -N' vi 'emacs -nw' nano
 
 if ${IS_X:-false}; then
   _export_to_first_cmd VISUAL 'code --wait'
-  _export_to_first_cmd BROWSER firefox-nightly firefox vivaldi google-chrome links2 links
-  _export_to_first_cmd IMGVIEWER xnview feh catimg
+  _export_to_first_cmd BROWSER vivaldi-snapshot vivaldi \
+      firefox-nightly firefox-devedition firefox-beta firefox firefox-esr \
+      google-chrome-canary google-chrome-unstable google-chrome-beta google-chrome \
+      chromium \
+      ungoogled-chromium \
+      'flatpak run org.mozilla.firefox' \
+      'flatpak run com.google.ChromeDev' 'flatpak run com.google.Chrome' \
+      'flatpak run org.chromium.Chromium' \
+      'flatpak run io.github.ungoogled_software.ungoogled_chromium' \
+      torbrowser-launcher \
+      'flatpak run org.torproject.torbrowser-launcher' \
+      brave-browser-nightly brave-browser \
+      brave-origin-nightly brave-origin \
+      'flatpak run com.brave.Browser' \
+      links2 links lynx w3m 'wget -q -O -' 'curl -S'
+  _export_to_first_cmd IMGVIEWER 'flatpak run com.xnview.XnViewMP' xnviewmp \
+      geeqie feh catimg
 else
-  _export_to_first_cmd BROWSER links2 links lynx w3m
+  _export_to_first_cmd BROWSER links2 links lynx w3m 'wget -O -' 'curl -S'
   _export_to_first_cmd IMGVIEWER catimg
 fi
 unset -f _export_to_first_cmd

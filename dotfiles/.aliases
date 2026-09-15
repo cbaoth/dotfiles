@@ -117,13 +117,30 @@ editor() {
     ${EDITOR} "$@"
   fi
 }
+alias ed=editor
 
 # the same for nano, since it is commonly used in guides and by AI (no need to rewrite instructions that use nanon)
 alias nano='editor'
+
 alias e='emacs -nw'
-alias vim='vim -N'  # -N disable nvi compatibility mode, which causes various issues (e.g. with plugins), but note that some scripts may rely on defaults
-alias vi='vim -N'
-alias v='vim -N'
+
+vedit() {
+  # check which editor is available and use first of: nvim, vim, vi
+  if command -v nvim >/dev/null 2>&1; then
+    \nvim "$@"
+  elif command -v vim >/dev/null 2>&1; then
+    # -N disable nvi compatibility mode, which causes various issues (e.g. with plugins), but note that some scripts may rely on defaults
+    \vim -N "$@"
+  elif command -v vi >/dev/null 2>&1; then
+    \vi "$@"
+  else
+    echo "No suitable editor found (nvim, vim, or vi)" >&2
+    return 1
+  fi
+}
+alias vim=vedit
+alias nv=vedit
+alias v=vedit
 
 # the alias can be used to ensure that sudoedit uses $EDITOR instead of $VISUAL (or $SUDO_EDITOR if set)
 # e.g. in case emacs/vim is preferrable to vs code, when in desktop environment
@@ -367,6 +384,7 @@ alias ocamli='ledit ocaml'
 alias cmucl="rlwrap -b \$BREAK_CHARS cmucl"
 alias python-profile="python -m cProfile -s time"
 alias git-editor-vim="export GIT_EDITOR=vim"
+alias git-editor-neovim="export GIT_EDITOR=nvim"
 
 # TPM - Tmux Plugin Manager https://github.com/tmux-plugins/tpm
 tmux-install-tpm() {
