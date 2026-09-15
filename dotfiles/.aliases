@@ -608,14 +608,14 @@ alias cat-utf8-to-iso-8859-1='iconv -f utf-8 -t ISO-8859-1'
 alias cal-month='ncal -wM -m'
 alias cal-year='ncal -ywM'
 
-alias dupes-rm='jdupes -dNO -o time'
-alias dupes-rm-rec='jdupes -dNOr -o time'
+alias dupes-rm='jdupes -dNO -o time -y .'
+alias dupes-rm-rec='jdupes -dNOr -o time -y .'
 
-alias dupes-find='jdupes -O -o time'
-alias dupes-find-rec='jdupes -Or -o time'
+alias dupes-find='jdupes -O -o time -y .'
+alias dupes-find-rec='jdupes -Or -o time -y .'
 
-alias dupes-find-unique='jdupes -O -u'
-alias dupes-find-unique-rec='jdupes -Or -u'
+alias dupes-find-unique='jdupes -O -u -y .'
+alias dupes-find-unique-rec='jdupes -Or -u -y .'
 # NOTE: also see dupes_find_byname and dupes_mv in lib/functions.sh
 
 rmlint-ai() {
