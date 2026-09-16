@@ -24,19 +24,47 @@ alias mv='mv -i'
 
 # find with regex (POSIX extended) by default
 findre () {
+  local options=()
   local paths=()
   local expressions=()
-  local in_paths=true
+  local phase="options"     # options -> paths -> expressions (never goes back)
+  local expect_optarg=false # true while consuming the argument of a leading -D
 
-  # Consume leading non-expression args as paths; once an expression token is seen
-  # (starts with '-', or is '!', '(', ')'), everything remaining is an expression.
-  # This matches find's grammar: paths always precede predicates, and predicate
-  # arguments (e.g. 'd' in '-type d') must not be misclassified as paths.
+  # find's grammar is strictly ordered:
+  #   find [-H] [-L] [-P] [-D debugopts] [-Olevel] [starting-point...] [expression]
+  # So we walk the args in three one-way phases. Leading global options come
+  # first, then paths, then predicates. We only recognise the *known* leading
+  # options explicitly (not a generic '-*') so a misordered expression like
+  # `findre -name foo ~/` fails loudly on find's side instead of being silently
+  # scrambled into the wrong place — which matters a lot with -delete / -exec.
+  #
+  # NOTE: if GNU find ever grows a new leading option, add it to the case below.
   for arg in "$@"; do
-    if "${in_paths}" && [[ "$arg" != -* && "$arg" != "!" && "$arg" != "(" && "$arg" != ")" ]]; then
+    # The token after a bare -D is its debugopts value, not a path/predicate.
+    if "${expect_optarg}"; then
+      options+=("$arg")
+      expect_optarg=false
+      continue
+    fi
+
+    if [[ "${phase}" == "options" ]]; then
+      case "$arg" in
+        -H|-L|-P) options+=("$arg"); continue ;;
+        -D)       options+=("$arg"); expect_optarg=true; continue ;;
+        -O*)      options+=("$arg"); continue ;;   # -Olevel is one combined token
+        *)        phase="paths" ;;                 # first non-option: fall through
+      esac
+    fi
+
+    # Consume non-expression args as paths; once an expression token is seen
+    # (starts with '-', or is '!', '(', ')'), everything remaining is an
+    # expression. Predicate arguments (e.g. 'd' in '-type d') must not be
+    # misclassified as paths.
+    if [[ "${phase}" == "paths" \
+          && "$arg" != -* && "$arg" != "!" && "$arg" != "(" && "$arg" != ")" ]]; then
       paths+=("$arg")
     else
-      in_paths=false
+      phase="expressions"
       expressions+=("$arg")
     fi
   done
@@ -46,9 +74,20 @@ findre () {
     paths=(".")
   fi
 
-  # Execute with -regextype safely injected exactly between paths and expressions since order matters.
-  # `-regextype posix-extended` must come before the expressions, else `findutils-default` is used
-  command find "${paths[@]}" -regextype posix-extended "${expressions[@]}"
+  # Options must precede paths; `-regextype posix-extended` must precede the
+  # expressions, else `findutils-default` is used — order matters throughout.
+  local cmd=(find "${options[@]}" "${paths[@]}" -regextype posix-extended "${expressions[@]}")
+
+  # Echo the resolved command line (quoted) to stderr so it never pollutes a
+  # pipe consuming find's stdout. cl::p_cmd (commons.sh, sourced first) restores
+  # quotes around args that need them; fall back to a plain print if unavailable.
+  if command -v cl::p_cmd > /dev/null 2>&1; then
+    printf '> %s\n' "$(cl::p_cmd "${cmd[@]}")" >&2
+  else
+    printf '> %s\n' "${cmd[*]}" >&2
+  fi
+
+  command "${cmd[@]}"
 }
 
 # add --color option to all grep commands and add -i aliases
@@ -661,8 +700,40 @@ alias dupes-find-unique='jdupes -O -u -y .'
 alias dupes-find-unique-rec='jdupes -Or -u -y .'
 # NOTE: also see dupes_find_byname and dupes_mv in lib/functions.sh
 
+rmlint-ai-by-name-only() {
+  rmlint -b -g -S \
+'x<^[0-9]{4}\b[0-9]{2}\b[0-9]{2}.[0-9]{2}.?[0-9]{2}.?[0-9]{2}\b.*$>'\
+'x<\b(xi|ref|ai)\.([0-9]{12}\b|[0-9]{4}-[0-9]{2}-[0-9]{2}T)\b>'\
+'R<.*/\b([^/]+\b)?(backup|bak(\b[^/]+)?)/.*$>'\
+'R<.*/\b([^/]+\b)?(src|sources?)/.*$>'\
+'R<.*/\b([^/]+\b)?from.saito.*/.*$>'\
+'R<.*/\b([^/]+\b)?from.motoko(\b[^/]+)?/.*$>'\
+'r<.*/[0-9]{4}-[0-9]{2}/[^/]+$>'\
+'r<.*/\b([0-9]|h?p+[0-9]?\+*)/.*$>'\
+'p'\
+'d'\
+'l' "$@"
+  # sequence of rules (first match wins):
+  # - keep path with name not matching `/{_src,src,source}/`
+  # - keep path with basename matching image hash or ai image ref: `*{xi,ref,ai}.{000000000000|YYYY-MM-DD}*`
+  # - keep path with basename matching iso date prefix: `YYYY-MM-DD'T'*`
+  # - keep path with name matching file in month date dirs: `**/YYYY-MM/*`
+  # - keep path with name matching common rating sub-dirs, e.g.: `**/_{p,pp,p1}/**`
+  # - keep path in first named (cli) target dir
+  # - keep path with lowest depth
+  # - keep path with shortest basename
+  #   -> assumption: copy with artificial suffix (timestamp prefix and hash suffix already considered above)
+}
+
 rmlint-ai() {
-  rmlint -g -S 'Mx<[0-9]{4}-[0-9]{2}-[0-9]{2}T[^/]+$>r<.*/_?([0-9]|h?p[0-9]?\+*)/.*$>x<[^/]*\b(xi|ref|ai)\.([0-9]{12}\b|[0-9]{4}-[0-9]{2}-[0-9]{2}T)[^/]+$>pR<.*/_src\w*/.*$>dl' "$@"
+  rmlint -g -S 'M'\
+'x<[0-9]{4}-[0-9]{2}-[0-9]{2}T[^/]+$>'\
+'r<.*/_?([0-9]|h?p[0-9]?\+*)/.*$>'\
+'x<[^/]*\b(xi|ref|ai)\.([0-9]{12}\b|[0-9]{4}-[0-9]{2}-[0-9]{2}T)[^/]+$>'\
+'p'\
+'R<.*/_src\w*/.*$>'\
+'d'\
+'l' "$@"
   # sequence of rules (first match wins):
   # - keep highest mtime (newest)
   # x keep path with name NOT matching hidden sub-dir: /.*/
