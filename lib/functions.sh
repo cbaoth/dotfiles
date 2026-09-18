@@ -369,16 +369,6 @@ Examples:
 }
 #
 
-rename_prefix_exiftime () {
-  [[ -n "$2" ]] && cl::p_err "rename-prefix-exif-time to many parameters" &&\
-    cl::p_usg "rename-prefix-exif-time file" && return 2
-  [[ -z "$1" ]] && cl::p_usg "rename-prefix-exif-time file" && return 2
-  local target="$(exif -t 0x9003 \"$1\"|grep Value|sed 's/\s*Value:\s*\([0-9]*\):\([0-9]*\):\([0-9]*\) \([0-9]*\):\([0-9]*\):\([0-9]*\).*/\1-\2-\3@\4.\5.\6/g') $1"
-  echo renaming \"$1\" to \"$target\"
-  mv "$1" "$target"
-}
-#export rename_prefix_exiftime
-
 # OK - add file count (content) to folder name (pre-/suffix)
 rename_dir_filecount () {
   local skip="" digits=0 rec=0 reccount=0 countall=0 verbose=0 test=0 prefix=0 clean=0 cleanonly=0 hidden=0
