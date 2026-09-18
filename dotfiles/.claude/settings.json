@@ -473,7 +473,7 @@
       "/home/cbaoth/.*/**"
     ]
   },
-  "model": "opus",
+  "model": "opus[1m]",
   "worktree": {},
   "effortLevel": "high",
   "askUserQuestionTimeout": "never",
