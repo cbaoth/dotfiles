@@ -1,0 +1,36 @@
+#compdef rename-timestamp-prefix
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for rename-timestamp-prefix (bin/rename-timestamp-prefix in the
+# dotfiles repo). Autoloaded by compinit via the #compdef tag above — do not
+# call `compdef` manually (this dir is added to fpath before compinit in
+# ~/.zshrc).
+#
+# Keep in sync with bin/rename-timestamp-prefix: options mirror usage(), and
+# the --time / --move-to values are enumerated there. Both lists are short and
+# closed, so they are spelled out here rather than discovered at runtime.
+
+_arguments -s \
+  '(-n --dry-run)'{-n,--dry-run}'[Show what would be done without changing anything]' \
+  '(-t --time)'{-t,--time}'[Timestamp source]:source:((
+    mtime\:"last modification time"
+    ctime\:"last status change time"
+    atime\:"last access time"
+    btime\:"creation time (not on all filesystems)"
+    exif\:"EXIF/QuickTime creation date (requires exiftool)"))' \
+  '--subsec[Include .sss milliseconds in the prefix]' \
+  '(-r --replace -s --skip)'{-r,--replace}'[Replace an existing timestamp prefix]' \
+  '(-r --replace -s --skip)'{-s,--skip}'[Skip files that already have a prefix]' \
+  '--replace-name[Use the timestamp as the whole name]' \
+  '--move-to[Also move into a date directory]:granularity:((
+    year\:"YYYY/"
+    month\:"YYYY-MM/"
+    date\:"YYYY-MM-DD/"))' \
+  '--base-dir[Where --move-to creates directories (or '\''source'\'')]:base:_alternative
+    "dirs:directory:_files -/"
+    "special:keyword:(source)"' \
+  '--set-mtime[Set the file mtime from the resolved timestamp]' \
+  '--no-rename[Do not rename or move (use with --set-mtime)]' \
+  '--warn-mismatch[Skip files whose date tags disagree]::hours (default 24):' \
+  '(-h --help)'{-h,--help}'[Show this help]' \
+  '*:file:_files'

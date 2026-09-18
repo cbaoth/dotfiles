@@ -5,7 +5,8 @@
 # shellcheck shell=bash
 #
 # Rename files to carry an ISO-like timestamp prefix, taken from a file time
-# (mtime/ctime/atime/btime) or from EXIF DateTimeOriginal.
+# (mtime/ctime/atime/btime) or from EXIF/QuickTime creation metadata,
+# optionally moving them into date directories and syncing the file mtime.
 
 # No `set -e`: one unreadable or unrenamable file must not abort the batch;
 # every failure is reported per file and reflected in the exit status.
@@ -14,10 +15,38 @@ set -uo pipefail
 # {{{ = CONSTANTS ============================================================
 
 # Best-effort match of an existing timestamp prefix: a date with consistent
-# separators, an optional time part, and the separator before the real name.
+# separators, an optional time part, an optional .sss fraction, and the
+# separator before the real name.
 # Backreferences keep separators consistent, so "2020-01_02_x" is not a match.
-declare -r PREFIX_RE='^[0-9]{4}([-_.]?)[0-9]{2}\1[0-9]{2}([T._ -][0-9]{2}([-:.]?)[0-9]{2}(\3[0-9]{2})?)?[_-]'
-declare -r TS_FORMAT='%Y-%m-%dT%H%M%S'
+declare -r PREFIX_RE='^[0-9]{4}([-_.]?)[0-9]{2}\1[0-9]{2}([T._ -][0-9]{2}([-:.]?)[0-9]{2}(\3[0-9]{2})?)?(\.[0-9]{1,3})?[_-]'
+
+# Canonical fetch format: ISO 8601 with colons. Everything else is derived from
+# it, so a timestamp is read from the file only once.
+declare -r TS_FETCH='%Y-%m-%dT%H:%M:%S'
+declare -r TS_FETCH_SUBSEC='%Y-%m-%dT%H:%M:%S.%-3f'
+
+# Creation-date tags in priority order. DateTimeOriginal is the moment of
+# capture; the QuickTime tags are what videos actually carry -- without them
+# every video yields nothing.
+#
+# Keys:CreationDate must outrank the bare CreateDate. It is an ISO string with
+# a UTC offset, so it is unambiguous; QuickTime:CreateDate is a bare datetime
+# that the spec defines as UTC but most consumer devices write as local time.
+# exiftool's default is to assume local (the pragmatic read), which means a
+# video shot abroad reports neither the capture wall-clock nor a correct
+# instant: a clip shot in Japan at 21:19:25+09:00 comes back as 12:19:25 --
+# the UTC value wearing a local label. Asking Keys first avoids the guess
+# entirely and yields the wall-clock at the place of capture, which is also
+# what DateTimeOriginal means for stills.
+declare -ra EXIF_DATE_TAGS=(
+  -SubSecDateTimeOriginal
+  -DateTimeOriginal
+  -Keys:CreationDate
+  -SubSecCreateDate
+  -CreateDate
+  -QuickTime:CreateDate
+  -MediaCreateDate
+)
 
 # }}} = CONSTANTS ============================================================
 
@@ -41,11 +70,34 @@ Options:
                      ctime  last status change time
                      atime  last access time
                      btime  creation time (not on all filesystems)
-                     exif   EXIF DateTimeOriginal (requires exiftool)
+                     exif   EXIF/QuickTime creation date (requires exiftool)
+      --subsec     Include .sss milliseconds in the prefix, when available.
   -r, --replace    Replace an existing timestamp prefix instead of prepending
                    another one. Best effort: a leading date (with optional
                    time) is substituted, any other name is only prepended to.
   -s, --skip       Skip files that already have a timestamp prefix.
+      --replace-name
+                   Use the timestamp as the whole name, dropping the original
+                   basename and the trailing underscore (extension is kept).
+      --move-to GRANULARITY
+                   Also move each file into a date directory:
+                     year   YYYY/
+                     month  YYYY-MM/
+                     date   YYYY-MM-DD/
+      --base-dir DIR
+                   Where --move-to creates its directories (default: the
+                   current directory). Use 'source' for each file's own
+                   directory.
+      --set-mtime  Set the file modification time from the resolved timestamp.
+      --no-rename  Do not rename or move; useful with --set-mtime alone.
+      --warn-mismatch [HOURS]
+                   With --time exif: if the candidate date tags disagree by
+                   more than HOURS (default 24), warn and skip the file
+                   instead of picking one. Catches files whose dates were
+                   partly rewritten by an editor -- an iOS trim, for example,
+                   leaves the original Keys:CreationDate but sets a new
+                   QuickTime:CreateDate. A timezone disagreement is only a few
+                   hours, so it does not trip the default threshold.
   -h, --help       Show this help.
 
 Without -r or -s a prefix is always prepended, even to an already prefixed
@@ -53,32 +105,84 @@ file. Existing targets are never overwritten.
 EOF
 }
 
-# Print the timestamp for a file, or nothing if it is unavailable.
-# $1: file, $2: time type
+# Print the timestamp for a file in TS_FETCH[_SUBSEC] form, or nothing if it is
+# unavailable.
+# $1: file, $2: time type, $3: fetch format
 timestamp_for() {
-  local -r file="$1" ts_type="$2"
+  local -r file="$1" ts_type="$2" fmt="$3"
   local epoch stat_fmt
 
   if [[ "${ts_type}" == exif ]]; then
-    exiftool -s3 -d "${TS_FORMAT}" -DateTimeOriginal -- "${file}" 2>/dev/null
+    # exiftool emits values in the order the tags were requested, so the first
+    # usable line is the highest-priority one. Invalid dates ("0000:00:00
+    # 00:00:00", common in files written by transcoders) are passed through
+    # unformatted, so requiring the formatted YYYY- shape filters them out.
+    exiftool -s3 -d "${fmt}" "${EXIF_DATE_TAGS[@]}" -- "${file}" 2>/dev/null \
+      | grep -m1 -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' \
+      | grep -v '^0000-'
     return
   fi
 
   case "${ts_type}" in
-    mtime) stat_fmt='%Y' ;;
-    ctime) stat_fmt='%Z' ;;
-    atime) stat_fmt='%X' ;;
-    btime) stat_fmt='%W' ;;
+    mtime) stat_fmt='%.3Y' ;;
+    ctime) stat_fmt='%.3Z' ;;
+    atime) stat_fmt='%.3X' ;;
+    btime) stat_fmt='%.3W' ;;
   esac
 
   epoch="$(stat -c "${stat_fmt}" -- "${file}" 2>/dev/null)"
   # stat reports 0 or - for a birth time the filesystem does not record
-  [[ -z "${epoch}" || "${epoch}" == "-" || "${epoch}" == "0" ]] && return
-  date -d "@${epoch}" "+${TS_FORMAT}"
+  [[ -z "${epoch}" || "${epoch}" == "-" || "${epoch}" == 0*(.000)? ]] && return
+  [[ "${epoch%%.*}" == "0" ]] && return
+  date -d "@${epoch}" "+${fmt//%-3f/%3N}"
+}
+
+# Derive the filename prefix form (no colons) from a fetched timestamp.
+# $1: timestamp in TS_FETCH form
+prefix_form() {
+  local -r ts="$1"
+  printf '%s' "${ts%%T*}T${ts#*T}" | sed 's/:/ /g; s/ //g'
+}
+
+# Report whether the candidate date tags disagree by more than $2 hours.
+# Returns 1 (and prints the offending values) when they do.
+# $1: file, $2: threshold in hours
+date_mismatch() {
+  local -r file="$1"
+  local -ri hours="$2"
+  local name epoch
+  local -i min=0 max=0 have=0
+  local min_name="" max_name=""
+
+  # -d %s renders each tag as an epoch, which compares instants rather than
+  # wall-clock strings: a pure timezone disagreement is then only the offset
+  # difference (hours), while a rewritten date is days out. Invalid dates
+  # ("0000:00:00 00:00:00") are left unformatted by -d and filtered here.
+  while read -r name epoch; do
+    if (( have == 0 )); then
+      min="${epoch}"; max="${epoch}"; min_name="${name}"; max_name="${name}"; have=1
+      continue
+    fi
+    (( epoch < min )) && { min="${epoch}"; min_name="${name}"; }
+    (( epoch > max )) && { max="${epoch}"; max_name="${name}"; }
+  done < <(exiftool -s -d '%s' "${EXIF_DATE_TAGS[@]}" -- "${file}" 2>/dev/null \
+             | awk '{ v = $NF; if (v ~ /^[0-9]+$/ && v != 0) print $1, v }')
+
+  (( have == 0 )) && return 0
+  (( max - min > hours * 3600 )) || return 0
+
+  # Shown as instants normalised to local time, with the offset, because that
+  # is what was compared -- a tag's own wall-clock may carry a different one.
+  p_war "Date sources disagree by $(( (max - min) / 3600 ))h, skipping: ${file}"
+  p_msg "         ${min_name}: $(date -d "@${min}" '+%Y-%m-%dT%H:%M:%S%z')"
+  p_msg "         ${max_name}: $(date -d "@${max}" '+%Y-%m-%dT%H:%M:%S%z')"
+  return 1
 }
 
 main() {
-  local dry_run=false mode=prepend ts_type=mtime
+  local dry_run=false mode=prepend ts_type=mtime subsec=false
+  local replace_name=false move_to="" base_dir="" set_mtime=false rename=true
+  local warn_mismatch=""
   local -i rc=0
 
   [[ -z "${1:-}" ]] && { usage; return 1; }
@@ -92,6 +196,26 @@ main() {
         [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; usage >&2; return 1; }
         ts_type="$2"; shift 2 ;;
       --time=*)     ts_type="${1#*=}"; shift ;;
+      --subsec)     subsec=true; shift ;;
+      --replace-name) replace_name=true; shift ;;
+      --move-to)
+        [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; usage >&2; return 1; }
+        move_to="$2"; shift 2 ;;
+      --move-to=*)  move_to="${1#*=}"; shift ;;
+      --base-dir)
+        [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; usage >&2; return 1; }
+        base_dir="$2"; shift 2 ;;
+      --base-dir=*) base_dir="${1#*=}"; shift ;;
+      --set-mtime)  set_mtime=true; shift ;;
+      --no-rename)  rename=false; shift ;;
+      --warn-mismatch)
+        # optional argument: a bare flag means the default threshold
+        if [[ "${2:-}" =~ ^[0-9]+$ ]]; then
+          warn_mismatch="$2"; shift 2
+        else
+          warn_mismatch=24; shift
+        fi ;;
+      --warn-mismatch=*) warn_mismatch="${1#*=}"; shift ;;
       -h|--help)    usage; return 0 ;;
       --)           shift; break ;;
       -*)           p_err "Unknown option: $1"; usage >&2; return 1 ;;
@@ -100,7 +224,11 @@ main() {
   done
 
   case "${ts_type}" in
-    mtime|ctime|atime|btime) ;;
+    mtime|ctime|atime|btime)
+      if [[ "${subsec}" == true ]]; then
+        p_war "--subsec with --time ${ts_type}: filesystems rarely record sub-second times"
+      fi
+      ;;
     exif)
       if ! command -v exiftool > /dev/null 2>&1; then
         p_err "exiftool not found, required for --time exif"
@@ -114,9 +242,41 @@ main() {
       ;;
   esac
 
+  case "${move_to}" in
+    ''|year|month|date) ;;
+    *)
+      p_err "Unknown --move-to granularity: ${move_to} (use year, month or date)"
+      usage >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -n "${warn_mismatch}" ]]; then
+    if [[ ! "${warn_mismatch}" =~ ^[0-9]+$ ]]; then
+      p_err "--warn-mismatch needs a whole number of hours: ${warn_mismatch}"
+      return 1
+    fi
+    if [[ "${ts_type}" != exif ]]; then
+      p_war "--warn-mismatch has no effect with --time ${ts_type} (only one source)"
+      warn_mismatch=""
+    fi
+  fi
+
+  if [[ "${rename}" == false && "${set_mtime}" == false ]]; then
+    p_err "--no-rename leaves nothing to do; add --set-mtime"
+    return 1
+  fi
+  if [[ "${rename}" == false && -n "${move_to}" ]]; then
+    p_err "--no-rename and --move-to are mutually exclusive"
+    return 1
+  fi
+
   [[ $# -eq 0 ]] && { p_err "No files given"; usage >&2; return 1; }
 
-  local f dir base cur new timestamp
+  local fetch_fmt="${TS_FETCH}"
+  [[ "${subsec}" == true ]] && fetch_fmt="${TS_FETCH_SUBSEC}"
+
+  local f dir base cur new timestamp prefix target_dir ext
   for f in "$@"; do
     if [[ ! -f "${f}" ]]; then
       p_war "Skipping (not a regular file): ${f}"
@@ -128,7 +288,7 @@ main() {
     cur="${base}"
     [[ "${dir}" != "." ]] && cur="${dir}/${base}"
 
-    if [[ "${base}" =~ ${PREFIX_RE} ]]; then
+    if [[ "${rename}" == true && "${base}" =~ ${PREFIX_RE} ]]; then
       case "${mode}" in
         skip)
           p_war "Skipping (already prefixed): ${f}"
@@ -148,14 +308,60 @@ main() {
       esac
     fi
 
-    timestamp="$(timestamp_for "${f}" "${ts_type}")"
+    if [[ -n "${warn_mismatch}" ]] && ! date_mismatch "${f}" "${warn_mismatch}"; then
+      continue
+    fi
+
+    timestamp="$(timestamp_for "${f}" "${ts_type}" "${fetch_fmt}")"
     if [[ -z "${timestamp}" ]]; then
       p_war "Skipping (no ${ts_type}): ${f}"
       continue
     fi
+    prefix="$(prefix_form "${timestamp}")"
 
-    new="${timestamp}_${base}"
-    [[ "${dir}" != "." ]] && new="${dir}/${new}"
+    # Set the file mtime from the resolved timestamp. touch parses the ISO "T"
+    # form as local time but a space-separated one as UTC, and EXIF timestamps
+    # are unzoned local wall-clock -- so the fetched "T" form must be passed
+    # through verbatim.
+    if [[ "${set_mtime}" == true ]]; then
+      if [[ "${dry_run}" == true ]]; then
+        p_msg "touch -d ${timestamp} -- ${f}"
+      elif ! touch -d "${timestamp}" -- "${f}"; then
+        p_err "Failed to set mtime: ${f}"
+        rc=1
+      fi
+    fi
+
+    [[ "${rename}" == false ]] && continue
+
+    if [[ "${replace_name}" == true ]]; then
+      # keep the extension, drop the original name and the trailing underscore
+      ext=""
+      [[ "${base}" == *.* ]] && ext=".${base##*.}"
+      new="${prefix}${ext}"
+    else
+      new="${prefix}_${base}"
+    fi
+
+    # Choose the directory: --move-to derives one from the timestamp, otherwise
+    # the file stays where it is.
+    target_dir="${dir}"
+    if [[ -n "${move_to}" ]]; then
+      local date_part="${timestamp%%T*}" sub=""
+      case "${move_to}" in
+        year)  sub="${date_part%%-*}" ;;
+        month) sub="${date_part%-*}" ;;
+        date)  sub="${date_part}" ;;
+      esac
+      case "${base_dir}" in
+        '')       target_dir="./${sub}" ;;
+        source)   target_dir="${dir}/${sub}" ;;
+        *)        target_dir="${base_dir}/${sub}" ;;
+      esac
+    fi
+
+    # A leading "./" is noise in the output; anything else is a real path.
+    [[ "${target_dir}" != "." ]] && new="${target_dir}/${new}"
 
     if [[ "${new}" == "${cur}" ]]; then
       p_msg "Skipping (prefix already current): ${f}"
@@ -167,8 +373,18 @@ main() {
     fi
 
     if [[ "${dry_run}" == true ]]; then
+      [[ -n "${move_to}" && ! -d "${target_dir}" ]] && p_msg "mkdir -p -- ${target_dir}"
       p_msg "mv -- ${f} ${new}"
-    elif mv -- "${f}" "${new}"; then
+      continue
+    fi
+
+    if [[ -n "${move_to}" ]] && ! mkdir -p -- "${target_dir}"; then
+      p_err "Failed to create directory: ${target_dir}"
+      rc=1
+      continue
+    fi
+
+    if mv -- "${f}" "${new}"; then
       p_msg "${f} -> ${new}"
     else
       p_err "Failed to rename: ${f}"
