@@ -1,0 +1,36 @@
+[Unit]
+Description=Auto-commit and sync the SilverBullet space %f
+Documentation=file:%h/dotfiles/bin/notes-sync
+After=network-online.target
+Wants=network-online.target
+
+# Same escalation as notes-sync: transient failures exit 0 and retry; only a
+# persistent one (no upstream, stuck rebase, growing unpushed backlog) alerts.
+OnFailure=sb-sync-failed@%i.service
+
+[Service]
+Type=oneshot
+
+# Template instance = the space directory, systemd-escaped, e.g.:
+#   systemctl --user enable --now \
+#     "sb-sync@$(systemd-escape --path /srv/silverbullet/space).timer"
+# One instance per space; each space is its own git repo with its own Forgejo
+# remote, so a space can later move to another instance as one directory.
+#
+# Unlike ~/notes (pull-only here, see notes-pull.service), this host is the
+# AUTHORING host for the spaces: SilverBullet and Claude sessions both write
+# into the live space, so it commits and pushes. The credential concern that
+# keeps ~/notes pull-only does not apply — the remote is the Forgejo on this
+# same box, so the push token grants nothing a compromise here would not
+# already have.
+Environment=NOTES_DIR=%f
+ExecStart=%h/bin/notes-sync --quiet
+
+# The Forgejo token comes from a credential helper scoped to the repo; if auth
+# breaks, fail rather than hang waiting for input.
+Environment=GIT_TERMINAL_PROMPT=0
+
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

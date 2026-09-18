@@ -1,0 +1,15 @@
+[Unit]
+Description=Auto-commit and sync the SilverBullet space %f every 5 minutes
+Documentation=file:%h/dotfiles/bin/notes-sync
+
+[Timer]
+# 5 minutes bounds both the undo granularity (git history of what SilverBullet
+# or an agent wrote) and the conflict window against clones edited elsewhere.
+OnStartupSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

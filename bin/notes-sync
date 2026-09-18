@@ -18,7 +18,6 @@ trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
 # {{{ = CONSTANTS =============================================================
 
 declare -r NOTES_DIR="${NOTES_DIR:-${HOME}/notes}"
-declare -r LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/notes-sync.lock"
 
 # Unpushed-commit count that flips a *tolerated* transient failure (offline, ssh
 # agent not up yet) into a *hard, alertable* one (exit non-zero → the systemd
@@ -62,6 +61,10 @@ Environment:
 Runs every 5 minutes via the notes-sync.timer systemd user unit:
   systemctl --user status notes-sync.timer
   journalctl --user -u notes-sync.service -n 50
+
+SilverBullet spaces use the sb-sync@ template (instance = escaped path):
+  systemctl --user enable --now \\
+    "sb-sync@\$(systemd-escape --path /srv/silverbullet/space).timer"
 EOF
 }
 
@@ -127,7 +130,13 @@ main() {
 
   # A timer firing every 5 minutes will eventually overlap a slow push. Two
   # concurrent rebases in one worktree is how a notes repo gets corrupted.
-  exec 9>"${LOCK_FILE}"
+  # The lock lives in the repo's own git dir, so it is per repo: several
+  # instances (~/notes, each SilverBullet space) on one host never block
+  # each other, while two runs on the same repo still do.
+  local lock_file
+  lock_file="$(git rev-parse --absolute-git-dir)/notes-sync.lock" \
+    || { p_err "cannot resolve git dir of ${NOTES_DIR}"; exit 1; }
+  exec 9>"${lock_file}"
   if ! flock -n 9; then
     p_msg "another notes-sync is running, skipping"
     exit 0

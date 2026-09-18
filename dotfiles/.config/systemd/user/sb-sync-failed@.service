@@ -1,0 +1,12 @@
+[Unit]
+Description=Alert (ntfy) that sb-sync could not sync the SilverBullet space %f
+Documentation=file:%h/dotfiles/bin/notes-sync
+# Started via OnFailure= in sb-sync@.service — no timer, no [Install].
+
+[Service]
+Type=oneshot
+# ntfy-send throttles by title; the instance is in the title so one broken
+# space cannot silence the alert for another.
+ExecStart=%h/bin/ntfy-send --priority high --tags floppy_disk,warning --throttle 3600 \
+  "sb-sync FAILED: %f" \
+  "SilverBullet space is not syncing. Inspect: journalctl --user -u sb-sync@%i -n 40"
