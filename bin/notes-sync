@@ -179,7 +179,6 @@ main() {
 
     if ! git pull --rebase --autostash -q; then
       fail_or_tolerate "pull --rebase failed (conflict? offline? auth?)"
-      return 0
     fi
 
     # Uncommitted edits are expected here and are not an error — but LOCAL
