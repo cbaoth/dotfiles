@@ -9,6 +9,8 @@ Deployed to `~/.zsh.d/completions/` on every host by `dotfiles-link`.
 | ---- | --------- |
 | `_system-setup` | `bin/system-setup` — options, `--profile` values, and module names (discovered live from `setup/modules/`) |
 | `_check_script` | the `check_script` function (`lib/functions.sh`) |
+| `_exif-sanitize` | `bin/exif-sanitize` — options, plus `--profile`/`--strip`/`--keep` values (read live from `--list-profiles` / `--list-topics`) |
+| `_rename-timestamp-prefix` | `bin/rename-timestamp-prefix` — options, plus `--time` and `--move-to` values |
 
 Completions for **separate cloned projects** (e.g. `~/git/cb-voice-lab`) do
 **not** live here — they ship inside their own repo's `completions/` dir and are

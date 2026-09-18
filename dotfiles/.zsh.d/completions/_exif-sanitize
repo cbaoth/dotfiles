@@ -1,0 +1,50 @@
+#compdef exif-sanitize
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for exif-sanitize (bin/exif-sanitize in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above — do not call `compdef`
+# manually (this dir is added to fpath before compinit in ~/.zshrc).
+#
+# Keep in sync with bin/exif-sanitize: options mirror help(). Profile and topic
+# values are NOT hardcoded — they are read live from --list-profiles and
+# --list-topics, so adding a topic or profile needs no change here.
+
+# Read "name  description" pairs from the tool itself and feed them to
+# _describe, so completion shows what each value means. Degrades silently to no
+# candidates when the tool is not on PATH.
+_exif-sanitize_values() {
+  local kind=$1 tag=$2 desc=$3
+  local -a pairs
+  pairs=( ${(f)"$(exif-sanitize --list-${kind} 2>/dev/null)"} )
+  (( ${#pairs} )) || return
+  # "name   some description" -> "name:some description"
+  pairs=( ${pairs/(#b)([^ ]##) ##(*)/${match[1]}:${match[2]}} )
+  _describe -t "${tag}" "${desc}" pairs
+}
+
+_exif-sanitize_profiles() { _exif-sanitize_values profiles profile 'profile' }
+_exif-sanitize_topics()   { _exif-sanitize_values topics topic 'topic' }
+
+# Comma-separated topic lists for --strip/--keep.
+_exif-sanitize_topic_list() {
+  compset -P '*,'
+  _exif-sanitize_topics
+}
+
+_arguments -s \
+  '(-p --profile)'{-p,--profile}'[Profile to apply]:profile:_exif-sanitize_profiles' \
+  '--strip[Additionally strip these topics]:topics:_exif-sanitize_topic_list' \
+  '--keep[Do not strip these topics]:topics:_exif-sanitize_topic_list' \
+  '(-o --output)'{-o,--output}'[Write sanitized copies to DIR]:output directory:_files -/' \
+  '--in-place[Modify the given files instead of copying]' \
+  '(-r --recursive)'{-r,--recursive}'[Descend into directories]' \
+  '(-t --types)'{-t,--types}'[Extensions to process when walking directories]:extensions:' \
+  '--no-preserve[Let the file modification date change]' \
+  '--keep-original[Keep exiftool'\''s *_original backup files]' \
+  '(-y --yes)'{-y,--yes}'[Do not prompt before an in-place run]' \
+  '(-n --dry-run)'{-n,--dry-run}'[Print the exiftool command instead of running it]' \
+  '(-v --verbose)'{-v,--verbose}'[With -n, report which targeted tags each file has]' \
+  '--list-topics[List topics and exit]' \
+  '--list-profiles[List profiles and exit]' \
+  '(-h --help)'{-h,--help}'[Show this help]' \
+  '*:file or directory:_files'

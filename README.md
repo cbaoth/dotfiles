@@ -122,7 +122,9 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 |---|---|
 | `bin/media-keys` | Script to be used from within X (e.g. media key mappings) for media player control (play/pause, prev/next song) and pulse audio volume control (+/-5% and toggle mute) optionally showing an OSD. |
 | `bin/apt-update` | Quietly update apt package indexes and store a timestamp. |
-| `bin/exif-move-to-rating-dirs` | Organize image files into a directory hierarchy based on EXIF star ratings (0-5) and color labels. Features smart caching, directory mapping with regex patterns, and move/copy modes. See `bin/exif-move-to-rating-dirs.d/README.adoc` for full documentation. |
+| `bin/exif-sanitize` | Strip privacy-sensitive and clutter metadata from images and videos by profile (`guests`, `social`, `public`, `anon`, `import`) or by topic (`location`, `people`, `serial`, `makernotes`, ...). Writes sanitized copies by default for the sharing profiles; one exiftool pass per run. |
+| `bin/rename-timestamp-prefix` | Rename files to carry an ISO timestamp prefix (`YYYY-MM-DDTHHMMSS_`) taken from a file time or EXIF/QuickTime creation date, optionally moving them into `YYYY`/`YYYY-MM`/`YYYY-MM-DD` directories and syncing the file mtime. |
+| `bin/exif-move-to-rating-dirs` | Organize image files into a directory hierarchy based on EXIF star ratings (0-5) and color labels. Features smart caching, directory mapping with regex patterns, and move/copy modes. See `bin/exif-move-to-rating-dirs.d/README.md` for full documentation. |
 | `bin/smfetch` | Fetch RTMP and direct HTTP media links from broadcaster pages using wget and rtmpdump. |
 | `bin/aria2c-d` | aria2c downloader wrapper. |
 | `bin/diff-ini` | Diff INI files. |

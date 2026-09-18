@@ -675,6 +675,8 @@ occsh() {
   docker compose -f "$NEXTCLOUD_COMPOSE" exec -u www-data app bash
 }
 
+# Media metadata sanitizing (share/import profiles): bin/exif-sanitize
+# Timestamp prefixes and date-dir moves: bin/rename-timestamp-prefix
 # }}} - MISC -----------------------------------------------------------------
 
 # {{{ - DOTFILES MANAGEMENT --------------------------------------------------

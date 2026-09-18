@@ -1,0 +1,506 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Strip privacy-sensitive and clutter metadata from media files, by profile.
+
+# Topics map to exiftool delete arguments, profiles bundle topics by intent.
+# A whole run is a single exiftool invocation over the whole batch: exiftool
+# does its own directory walk and rewrites each file at most once.
+#
+# No `set -e` and no ERR trap: rejecting bad input with `return 1` is routine
+# control flow here, and an ERR trap would report every such case as a crash.
+# One unreadable or unwritable file must not abort the batch either; exiftool
+# reports per-file failures and its exit status is propagated.
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# traps
+trap 'printf "\nINTERRUPT\n" >&2; exit 1' SIGINT SIGTERM
+
+# Logging
+p_msg() { printf '%s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m: %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_dbg() {
+  if (( "${1:-0}" <= "${DEBUG_LVL:-0}" )); then
+    printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2
+  fi
+}
+
+# {{{ = CONSTANTS ============================================================
+
+declare -r EXIFTOOL=exiftool
+declare -r CONFIG_FILE="${XDG_CONFIG_HOME:-${HOME}/.config}/exif-sanitize/profiles.conf"
+
+# Extensions used to filter a directory walk (ignored for explicitly named
+# files, so an odd extension can always be sanitized by naming it).
+declare -a DEFAULT_TYPES=(
+  jpg jpeg png tif tiff webp heic heif avif
+  cr2 cr3 nef arw orf raf rw2 dng
+  mp4 mov m4v avi mkv
+)
+
+# Topic -> exiftool delete arguments. Values are space-separated and word-split
+# on use; no exiftool tag argument contains whitespace, so this is safe.
+#
+# Family-2 semantic groups (`exiftool -listd`) are preferred over hand-listed
+# tags wherever they cover the ground: they are format-agnostic, so one entry
+# handles JPEG, RAW and QuickTime alike instead of enumerating per-container
+# tags that drift with every exiftool release.
+#
+# Not readonly: an optional user config may extend or replace entries.
+declare -A TOPIC_ARGS=(
+  # GPS coordinates plus the textual location fields (IPTC City/Country, XMP,
+  # QuickTime). Note this cannot reach location written *inside* MakerNotes --
+  # see the `makernotes` topic.
+  [location]='-Location:all= -GPS:all='
+
+  # Face/person regions, in all three schemas that matter: MWG (Lightroom,
+  # darktable, digiKam), Microsoft Photo (Windows Photos, Picasa), IPTC Ext.
+  # Often written without the photographer ever enabling it.
+  [people]='-RegionInfo= -XMP-mwg-rs:all= -XMP-MP:all= -PersonInImage= -XMP-iptcExt:PersonInImage='
+
+  # Personal star ratings and colour labels. Recipients want their own.
+  [rating]='-Rating= -RatingPercent= -Label= -SharedUserRating= -XMP-microsoft:all='
+
+  # Keywords, categories and tag hierarchies -- personal library taxonomy that
+  # only clutters someone else's catalogue.
+  [tags]='-Keywords= -Subject= -HierarchicalSubject= -TagsList= -CatalogSets= -LastKeywordXMP= -LastKeywordIPTC= -Categories= -SupplementalCategories='
+
+  # Free-text fields: descriptions, comments, titles, the Windows XP* block.
+  [notes]='-Comment= -UserComment= -XPComment= -XPTitle= -XPSubject= -XPKeywords= -XPAuthor= -Description= -ImageDescription= -Caption-Abstract= -Title= -Headline= -Instructions='
+
+  # Reshare advertising: the website/credit trail files pick up as they pass
+  # through forums and image boards.
+  [urls]='-WebStatement= -URL= -Source= -Credit= -SpecialInstructions='
+
+  # Ownership and attribution. Strip only when publishing anonymously, or when
+  # an unknown-origin file carries attribution that is plainly false.
+  [author]='-Author:all= -Artist= -Creator= -Copyright= -Rights= -By-line= -OwnerName= -CameraOwnerName='
+
+  # The IPTC creator contact block -- address, phone, e-mail, website.
+  # Separate from `author` so attribution can be kept without contact details.
+  [contact]='-CreatorContactInfo= -CreatorAddress= -CreatorCity= -CreatorRegion= -CreatorPostalCode= -CreatorCountry= -CreatorWorkEmail= -CreatorWorkTelephone= -CreatorWorkURL='
+
+  # The proprietary maker-note blob. Its own topic because it is the only way
+  # to remove what it contains: maker-note fields are Permanent, so individual
+  # deletes silently do nothing. On many bodies it carries the serial number,
+  # and on GPS-enabled ones a copy of the location -- which means a `location`
+  # strip that leaves MakerNotes in place is not actually a location strip.
+  # Standard EXIF shooting data (exposure, aperture, ISO, focal length, lens,
+  # make, model) lives outside it and survives.
+  [makernotes]='-MakerNotes:all='
+
+  # Serial numbers only. Its own topic because a body serial is a persistent
+  # unique identifier that links every photo you publish to the same camera,
+  # while make/model/lens are usually harmless and often worth keeping.
+  [serial]='-SerialNumber= -BodySerialNumber= -LensSerialNumber= -InternalSerialNumber= -CameraSerialNumber='
+
+  # Camera and lens identity, including every serial number.
+  [device]='-Camera:all= -MakerNotes:all= -Make= -Model= -SerialNumber= -BodySerialNumber= -LensSerialNumber= -InternalSerialNumber= -CameraSerialNumber='
+
+  # Editing software, and the raw-development settings that reveal the tool.
+  [software]='-Software= -ProcessingSoftware= -CreatorTool= -HistorySoftwareAgent= -XMP-crs:all='
+
+  # Edit history and document/instance IDs, which link a file to its siblings
+  # and to the originals it was derived from.
+  [history]='-XMP-xmpMM:all= -Document:all= -XMP-photoshop:History= -OriginatingProgram='
+
+  # Embedded thumbnails and previews. These are not regenerated by every
+  # editor, so a cropped image can still ship a preview of the *uncropped*
+  # frame.
+  [thumbnail]='-Preview:all= -ThumbnailImage= -PreviewImage= -JpgFromRaw= -OtherImage='
+
+  # Every timestamp. Rarely wanted -- only really for anonymous publishing.
+  [time]='-Time:all='
+)
+
+# One-line topic summaries for --list-topics.
+declare -A TOPIC_DESC=(
+  [location]='GPS coordinates and textual location fields'
+  [people]='face/person regions (MWG, Microsoft Photo, IPTC Ext)'
+  [rating]='star ratings and colour labels'
+  [tags]='keywords, categories, tag hierarchies'
+  [notes]='descriptions, comments, titles, XP* fields'
+  [urls]='website/credit trail picked up from resharing'
+  [author]='artist, creator, copyright, owner'
+  [contact]='IPTC creator contact block (address, phone, mail)'
+  [makernotes]='proprietary maker-note blob (serials, sometimes GPS)'
+  [serial]='camera/lens serial numbers (persistent unique ID)'
+  [device]='camera/lens identity, serials and makernotes'
+  [software]='editing software and raw-development settings'
+  [history]='edit history, document and instance IDs'
+  [thumbnail]='embedded thumbnails/previews (may predate a crop)'
+  [time]='all timestamps'
+)
+
+# Profile -> topics. `anon` is handled by a separate keep-list path and has no
+# topic list of its own.
+declare -A PROFILE_TOPICS=(
+  [guests]='rating tags history'
+  [social]='rating tags history location people contact thumbnail makernotes serial'
+  [public]='rating tags history location people contact thumbnail makernotes serial device software notes urls'
+  [anon]=''
+  [import]='rating tags notes urls location people history software makernotes serial'
+)
+
+declare -A PROFILE_DESC=(
+  [guests]='event photos for friends/family: drop personal library data only'
+  [social]='social media: also drop location, faces, contact, serials, previews'
+  [public]='public, attribution kept: also drop device, software, text, URLs'
+  [anon]='public domain: keep technical data only, drop everything else'
+  [import]='files received from others: clean for your own library'
+)
+
+# Default write mode per profile. Sharing should never touch the originals;
+# cleaning an inbox usually should.
+declare -A PROFILE_WRITE=(
+  [guests]=copy
+  [social]=copy
+  [public]=copy
+  [anon]=copy
+  [import]=inplace
+)
+
+# Tags copied back after `-all=` in the anon path. `-all=` strips colour-space
+# information (exiftool leaves the JPEG APP14 Adobe segment alone but removes
+# the rest), so colours shift unless ColorSpaceTags is restored; Orientation
+# must survive or the image displays rotated.
+declare -r ANON_KEEP='-ColorSpaceTags -Orientation'
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = HELPERS ==============================================================
+
+usage() { printf 'Usage: %s [OPTIONS] [--] <files/dirs...>\n' "${0##*/}"; }
+
+help() {
+  usage
+  cat <<EOF
+Strip privacy-sensitive and clutter metadata from media files.
+
+Profiles bundle topics by intent; topics map to groups of metadata tags.
+Use --strip/--keep to adjust any profile, or --strip on its own.
+
+Options:
+  -p, --profile NAME   Profile to apply (see --list-profiles)
+      --strip a,b,..   Additionally strip these topics
+      --keep a,b,..    Do not strip these topics
+  -o, --output DIR     Write sanitized copies to DIR (originals untouched)
+      --in-place       Modify the given files instead of copying
+  -r, --recursive      Descend into directories
+  -t, --types a,b,..   Extensions to process when walking directories
+                       (default: ${DEFAULT_TYPES[*]})
+      --no-preserve    Let the file modification date change
+                       (default: preserve it, exiftool -P)
+      --keep-original  Keep exiftool's *_original backup files
+                       (default: overwrite in one rename, no backups)
+  -y, --yes            Do not prompt before an in-place run
+  -n, --dry-run        Print the exiftool command instead of running it
+  -v, --verbose        With -n, also report which targeted tags each file has
+      --list-topics    List topics and exit
+      --list-profiles  List profiles and exit
+  -h, --help           Show this help
+
+Write mode defaults to copies for the sharing profiles and in-place for
+'import'; -o and --in-place always win. Copies land in ./sanitized-<profile>/
+unless -o says otherwise. Named directories keep their structure; individually
+named files are copied flat.
+
+Files needing no change are left untouched -- exiftool detects a no-op write
+and reports them as unchanged, so re-running is cheap and safe.
+
+Examples:
+  ${0##*/} --profile social ~/photos/trip        # copies, GPS and faces gone
+  ${0##*/} --profile social --keep location .    # trip photos, location kept
+  ${0##*/} --profile import ~/incoming           # clean an inbox in place
+  ${0##*/} --strip location,people -r .          # no profile, just two topics
+EOF
+}
+
+list_topics() {
+  local t
+  for t in $(printf '%s\n' "${!TOPIC_ARGS[@]}" | sort); do
+    printf '%-12s %s\n' "${t}" "${TOPIC_DESC[${t}]:-}"
+  done
+}
+
+list_profiles() {
+  local p
+  for p in $(printf '%s\n' "${!PROFILE_TOPICS[@]}" | sort); do
+    printf '%-10s %s\n' "${p}" "${PROFILE_DESC[${p}]:-}"
+  done
+}
+
+# Split a comma-separated topic list into the named array, validating each.
+# $1: destination array name, $2: comma-separated list
+split_topics() {
+  local -n _dest="$1"
+  local -r list="$2"
+  local t
+  IFS=',' read -r -a _dest <<< "${list}"
+  for t in "${_dest[@]}"; do
+    if [[ -z "${TOPIC_ARGS[${t}]:-}" ]]; then
+      p_err "Unknown topic: ${t}"
+      p_msg "Known topics:"
+      list_topics >&2
+      return 1
+    fi
+  done
+}
+
+# Print the given command, quoted well enough to paste back into a shell.
+p_cmd() {
+  local arg
+  for arg in "$@"; do printf '%q ' "${arg}"; done
+  printf '\n'
+}
+
+# }}} = HELPERS ==============================================================
+
+# {{{ = MAIN =================================================================
+
+main() {
+  local profile="" strip_list="" keep_list="" out_dir="" write_mode=""
+  local recursive=false preserve=true overwrite=true assume_yes=false
+  local dry_run=false verbose=false
+  local -a types=("${DEFAULT_TYPES[@]}")
+  local -a inputs=()
+
+  if ! command -v "${EXIFTOOL}" > /dev/null 2>&1; then
+    p_err "${EXIFTOOL} not found (Debian/Ubuntu: libimage-exiftool-perl)"
+    return 1
+  fi
+
+  # A user config may add or replace topics and profiles.
+  if [[ -r "${CONFIG_FILE}" ]]; then
+    p_dbg 1 "sourcing ${CONFIG_FILE}"
+    # shellcheck source=/dev/null
+    source "${CONFIG_FILE}"
+  fi
+
+  [[ -z "${1:-}" ]] && { help; return 1; }
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -p|--profile)
+        [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; return 1; }
+        profile="$2"; shift 2 ;;
+      --profile=*)   profile="${1#*=}"; shift ;;
+      --strip)
+        [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; return 1; }
+        strip_list="$2"; shift 2 ;;
+      --strip=*)     strip_list="${1#*=}"; shift ;;
+      --keep)
+        [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; return 1; }
+        keep_list="$2"; shift 2 ;;
+      --keep=*)      keep_list="${1#*=}"; shift ;;
+      -o|--output)
+        [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; return 1; }
+        out_dir="$2"; write_mode=copy; shift 2 ;;
+      --output=*)    out_dir="${1#*=}"; write_mode=copy; shift ;;
+      --in-place)    write_mode=inplace; shift ;;
+      -r|--recursive) recursive=true; shift ;;
+      -t|--types)
+        [[ -z "${2:-}" ]] && { p_err "Missing argument for $1"; return 1; }
+        IFS=',' read -r -a types <<< "$2"; shift 2 ;;
+      --types=*)     IFS=',' read -r -a types <<< "${1#*=}"; shift ;;
+      --no-preserve)  preserve=false; shift ;;
+      --keep-original) overwrite=false; shift ;;
+      -y|--yes)      assume_yes=true; shift ;;
+      -n|--dry-run)  dry_run=true; shift ;;
+      -v|--verbose)  verbose=true; shift ;;
+      --list-topics)   list_topics; return 0 ;;
+      --list-profiles) list_profiles; return 0 ;;
+      -h|--help)     help; return 0 ;;
+      --)            shift; break ;;
+      -*)            p_err "Unknown option: $1"; usage >&2; return 1 ;;
+      *)             break ;;
+    esac
+  done
+
+  inputs=("$@")
+
+  # {{{ - Resolve topics -----------------------------------------------------
+
+  if [[ -n "${profile}" && -z "${PROFILE_TOPICS[${profile}]+set}" ]]; then
+    p_err "Unknown profile: ${profile}"
+    p_msg "Known profiles:"
+    list_profiles >&2
+    return 1
+  fi
+  if [[ -z "${profile}" && -z "${strip_list}" ]]; then
+    p_err "Nothing to do: give --profile or --strip"
+    usage >&2
+    return 1
+  fi
+  [[ ${#inputs[@]} -eq 0 ]] && { p_err "No files or directories given"; usage >&2; return 1; }
+
+  local -a want=() extra=() unwanted=()
+  [[ -n "${profile}" ]] && read -r -a want <<< "${PROFILE_TOPICS[${profile}]}"
+  [[ -n "${strip_list}" ]] && { split_topics extra "${strip_list}" || return 1; want+=("${extra[@]}"); }
+  [[ -n "${keep_list}" ]] && { split_topics unwanted "${keep_list}" || return 1; }
+
+  local -A drop=()
+  local t
+  for t in "${unwanted[@]:-}"; do [[ -n "${t}" ]] && drop["${t}"]=1; done
+
+  local -a topics=()
+  local -A seen=()
+  for t in "${want[@]:-}"; do
+    [[ -z "${t}" || -n "${seen[${t}]:-}" || -n "${drop[${t}]:-}" ]] && continue
+    seen["${t}"]=1
+    topics+=("${t}")
+  done
+
+  # }}} - Resolve topics -----------------------------------------------------
+
+  # {{{ - Assemble exiftool arguments ----------------------------------------
+
+  local -a tag_args=()
+  if [[ "${profile}" == anon ]]; then
+    # Keep-list path: remove everything, then copy back the few tags without
+    # which the image no longer renders as it did.
+    local keep_back="${ANON_KEEP}"
+    [[ -n "${drop[time]:-}" ]] && keep_back+=' -AllDates'
+    # shellcheck disable=SC2206  # deliberate word split, no whitespace in args
+    tag_args=(-all= -tagsfromfile @ ${keep_back})
+    for t in "${topics[@]:-}"; do
+      [[ -n "${t}" ]] && p_war "--strip ${t} is redundant with --profile anon"
+    done
+  else
+    if [[ ${#topics[@]} -eq 0 ]]; then
+      p_err "No topics left to strip (everything was excluded by --keep)"
+      return 1
+    fi
+    for t in "${topics[@]}"; do
+      # shellcheck disable=SC2206  # deliberate word split, no whitespace in args
+      tag_args+=(${TOPIC_ARGS[${t}]})
+    done
+  fi
+
+  # }}} - Assemble exiftool arguments ----------------------------------------
+
+  # {{{ - Resolve write mode -------------------------------------------------
+
+  if [[ -z "${write_mode}" ]]; then
+    if [[ -n "${profile}" ]]; then
+      write_mode="${PROFILE_WRITE[${profile}]:-inplace}"
+    else
+      write_mode=inplace
+    fi
+  fi
+  if [[ "${write_mode}" == copy && -z "${out_dir}" ]]; then
+    out_dir="./sanitized-${profile:-custom}"
+  fi
+
+  # }}} - Resolve write mode -------------------------------------------------
+
+  # {{{ - Build the command --------------------------------------------------
+
+  local -a targets=()
+  local -a opt_args=(-m)
+  [[ "${preserve}" == true ]] && opt_args+=(-P)
+  [[ "${overwrite}" == true ]] && opt_args+=(-overwrite_original)
+  [[ "${recursive}" == true ]] && opt_args+=(-r)
+
+  # -ext filters apply to every argument, so only add them when a directory is
+  # actually being walked -- otherwise an explicitly named file with an
+  # unlisted extension would be silently skipped.
+  local input has_dir=false
+  for input in "${inputs[@]}"; do
+    if [[ ! -e "${input}" ]]; then
+      p_err "No such file or directory: ${input}"
+      return 1
+    fi
+    [[ -d "${input}" ]] && has_dir=true
+  done
+  if [[ "${has_dir}" == true ]]; then
+    local ext
+    for ext in "${types[@]}"; do opt_args+=(-ext "${ext}"); done
+  fi
+
+  if [[ "${write_mode}" == copy ]]; then
+    targets=("${out_dir}")
+    # cp -a copies a named directory whole, so every file that lands in the
+    # output must be sanitized -- otherwise the output dir looks clean while
+    # nested files still carry their metadata.
+    if [[ "${has_dir}" == true && "${recursive}" != true ]]; then
+      opt_args+=(-r)
+      recursive=forced
+    fi
+  else
+    targets=("${inputs[@]}")
+  fi
+
+  local -a cmd=("${EXIFTOOL}" "${opt_args[@]}" "${tag_args[@]}" -- "${targets[@]}")
+
+  # }}} - Build the command --------------------------------------------------
+
+  # {{{ - Report and run -----------------------------------------------------
+
+  p_msg "Profile:    ${profile:-(none)}"
+  p_msg "Topics:     ${topics[*]:-(keep-list: technical data only)}"
+  if [[ "${write_mode}" == copy ]]; then
+    p_msg "Write mode: copies -> ${out_dir} (originals untouched)"
+    [[ "${recursive}" == forced ]] \
+      && p_msg "            recursing: a copied directory must be sanitized whole"
+  else
+    p_msg "Write mode: in place"
+  fi
+
+  if [[ "${dry_run}" == true ]]; then
+    p_msg ""
+    if [[ "${write_mode}" == copy ]]; then
+      p_msg "Would copy into ${out_dir}, then run:"
+    else
+      p_msg "Would run:"
+    fi
+    p_cmd "${cmd[@]}"
+    if [[ "${verbose}" == true && "${profile}" != anon ]]; then
+      p_msg ""
+      p_msg "Targeted tags present in the input:"
+      local -a read_args=()
+      for t in "${tag_args[@]}"; do
+        # -Tag= -> -Tag, and skip the -tagsfromfile machinery
+        [[ "${t}" == -*= ]] && read_args+=("${t%=}")
+      done
+      "${EXIFTOOL}" -G1 -s -a "${opt_args[@]/-overwrite_original/}" \
+        "${read_args[@]}" -- "${inputs[@]}" 2>&1 | grep -v '^$' || true
+    fi
+    return 0
+  fi
+
+  if [[ "${write_mode}" == inplace && "${assume_yes}" != true ]]; then
+    p_msg ""
+    printf 'Modify these files in place? [y/N] '
+    local reply
+    read -r reply
+    [[ "${reply}" =~ ^[Yy] ]] || { p_msg "Aborted."; return 0; }
+  fi
+
+  if [[ "${write_mode}" == copy ]]; then
+    mkdir -p -- "${out_dir}" || { p_err "Cannot create ${out_dir}"; return 1; }
+    for input in "${inputs[@]}"; do
+      # -a preserves timestamps and permissions; --reflink=auto keeps the copy
+      # cheap on btrfs/xfs and falls back to a full copy elsewhere.
+      if ! cp -a --reflink=auto -- "${input}" "${out_dir}/"; then
+        p_err "Failed to copy ${input} into ${out_dir}"
+        return 1
+      fi
+    done
+  fi
+
+  p_msg ""
+  "${cmd[@]}"
+
+  # }}} - Report and run -----------------------------------------------------
+}
+
+# }}} = MAIN =================================================================
+
+main "$@"
