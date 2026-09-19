@@ -150,7 +150,6 @@ Scripts intended for system administrators or privileged operations (some requir
 | `system-scripts/backup` | System backup script with exclusion list; supports full and incremental backups. |
 | `system-scripts/bedtime-shutdown/bedtime-shutdown.sh` | Force system shutdown at a configured bedtime with grace periods, desktop notifications, and emergency overrides. See `system-scripts/bedtime-shutdown/README.adoc` for full documentation. |
 | `system-scripts/dbbackup` | Backup script for MySQL and PostgreSQL databases. |
-| `system-scripts/fail2ban-summary-mail` | **Superseded — candidate for removal.** Weekly Fail2Ban summary email. Replaced by Netdata health rules on the `go.d/fail2ban` charts pushing to ntfy; the vserver's outbound MTA is not running, so this cannot deliver anyway. See `docs/setup/security-vserver.md`. |
 | `system-scripts/docker-image-check/docker-image-check` | Report running container images that have fallen behind their upstream registry, push to ntfy (weekly timer). Covers the gap `unattended-upgrades` leaves for pinned container tags. See `system-scripts/docker-image-check/README.adoc`. |
 | `system-scripts/forgejo-dump/forgejo-dump` | Consistent nightly `forgejo dump` for offsite backup (systemd timer). See `system-scripts/forgejo-dump/README.adoc`. |
 | `system-scripts/nextcloud-db-dump/nextcloud-db-dump` | Consistent logical dump of the Nextcloud database, no maintenance mode needed (systemd timer). See `system-scripts/nextcloud-db-dump/README.adoc`. |

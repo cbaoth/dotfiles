@@ -244,7 +244,8 @@ write token is prompted for and never stored. A plain `git push` here returns
       leftover directories and users) — see the OpenVAS section above, then
       re-run lynis a third time; 3 of its 4 warnings should vanish.
 - [ ] Reboot for `linux-image-7.0.0-30-generic` (pending since 2026-08-21).
-- [ ] Decide on `system-scripts/fail2ban-summary-mail` — superseded; remove?
+- [x] Decide on `system-scripts/fail2ban-summary-mail` — superseded; removed from
+      the repo 2026-09-19 (Netdata `go.d/fail2ban` → ntfy replaces it).
 - [ ] `postfix.service` has been failed since 2026-08-11: it binds the Docker
       bridge address (`inet_interfaces`) but starts before Docker creates the
       bridge. Either order it after `docker.service` with a wait, or drop the
