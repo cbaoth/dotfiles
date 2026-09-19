@@ -277,6 +277,47 @@ IFS=$'\t\n\0'
 This is optional and should be used when the script processes filenames or
 other data that may contain spaces. Document when and why it is set.
 
+### Locale & Collation
+
+`sort`, `uniq`, `comm`, and `join` order and compare text using the locale's
+collation (`LC_COLLATE`, typically a UTF-8 locale). That collation interleaves
+punctuation and case (`_a` sorts near `a`) and, worse, treats some distinct byte
+sequences as equal — so `sort -u` and `uniq` can drop or fail to dedupe lines.
+Two pipelines that must agree (`sort … | uniq`, or `comm`/`join` on two
+pre-sorted inputs) silently corrupt their output if one side uses locale
+collation and the other byte collation.
+
+Force byte-order collation with `LC_ALL=C`, or the narrower `LC_COLLATE=C` which
+changes only sort order and leaves UTF-8 character handling (`LC_CTYPE`) intact:
+
+**When it matters**
+
+- Any `sort` feeding `uniq`, `comm`, or `join` — both sides must use the same
+  collation. A C-`sort` next to a locale-`uniq` is the actual dedup bug, and it
+  is worse than doing nothing.
+- Anywhere reproducible, stable output is wanted.
+
+**When it does not**
+
+- Pure `sort -n` or numeric-field sorts (`sort -k1,1n`) — collation barely
+  affects them.
+- Human-facing alphabetical *display* — rare in scripts, and the one case where
+  locale collation is actually what you want.
+
+**Where to set it**
+
+- **Standalone scripts:** a single `export LC_COLLATE=C` (or `LC_ALL=C`) near the
+  header, next to the `set` options, beats prefixing every command. See
+  `bin/diff-ini` for an example.
+- **Sourced files (`lib/*.sh`, `.zsh.d/*.zsh`): never `export` at file scope.**
+  A sourced file shares the interactive shell's environment, so an `export` there
+  clobbers the user's locale for their whole session. Use a per-command prefix
+  (`LC_ALL=C sort …`) or `local LC_ALL=C` inside a function.
+
+Interactive `sort`/`uniq` default to `LC_ALL=C` through aliases, but aliases do
+not reach non-interactive scripts or sourced libraries — those must handle
+collation explicitly.
+
 
 ## Naming Conventions
 

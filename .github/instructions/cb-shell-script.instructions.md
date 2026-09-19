@@ -134,6 +134,26 @@ Don't convert working single-line aliases to functions for style reasons alone.
 - Use `"$@"` not `$*`
 - Use process substitution (`< <(cmd)`) instead of piping to `while`
 
+## Locale & Collation
+
+`sort`/`uniq`/`comm`/`join` use the locale's collation by default (`LC_COLLATE`,
+usually a UTF-8 locale), which reorders non-ASCII and can make `sort -u`/`uniq`
+merge or miss lines. Force byte collation with `LC_ALL=C` — or the narrower
+`LC_COLLATE=C`, which leaves UTF-8 handling (`LC_CTYPE`) intact — where it matters.
+
+- **When it matters:** any `sort` feeding `uniq`/`comm`/`join` (both sides must
+  agree — a C-`sort` next to a locale-`uniq` is the dedup bug, worse than
+  neither), and wherever output must be reproducible.
+- **When it does not:** pure `sort -n` / numeric-field sorts, and human-facing
+  alphabetical *display* (rare in scripts).
+- **Standalone scripts:** one `export LC_COLLATE=C` (or `LC_ALL=C`) near the
+  header, not a prefix on every command (see `bin/diff-ini`).
+- **Sourced files (`lib/*.sh`, `.zsh.d/`): never `export` at file scope** — it
+  clobbers the user's interactive locale. Use a per-command `LC_ALL=C` prefix,
+  or `local LC_ALL=C` inside a function.
+- Interactive `sort`/`uniq` already default to `LC_ALL=C` via aliases; that does
+  **not** reach scripts or sourced libs, so those still need explicit handling.
+
 ## commons.sh Usage
 
 ```bash

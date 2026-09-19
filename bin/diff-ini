@@ -14,6 +14,13 @@ set -o nounset
 (( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
 IFS=$'\t\n\0'
 
+# Deterministic, locale-independent collation: this is a structural diff, so
+# every sort/`sort -u` must compare byte-for-byte. Locale collation reorders
+# non-ASCII keys and can make `sort -u` merge distinct keys (the classic dedup
+# bug), corrupting the diff. LC_COLLATE affects only sort order, not UTF-8
+# handling (LC_CTYPE), so values with umlauts are still processed correctly.
+export LC_COLLATE=C
+
 # traps
 # shellcheck disable=SC2154
 trap 'rc=$?; \

@@ -47,9 +47,10 @@ mismatch bug). Aliases only reach *interactive* shells, so standalone scripts an
 sourced libs need explicit handling. `lib/functions.sh` already fixed
 (2026-09-19).
 
-- [ ] [S] Document the convention in the shell style guide
+- [x] [S] Document the convention in the shell style guide
   (`docs/shell-style-guide.md`) and AI instructions
-  (`.github/instructions/cb-shell-script.instructions.md`). Key points:
+  (`.github/instructions/cb-shell-script.instructions.md`). **Done 2026-09-19.**
+  Key points:
   - **When it matters:** any `sort` feeding `uniq`/`comm`/`join` (both sides must
     agree), and where reproducible output is wanted. A C-sort next to a
     locale-`uniq` is the actual dedup bug — worse than doing nothing.
@@ -60,10 +61,16 @@ sourced libs need explicit handling. `lib/functions.sh` already fixed
   - **Sourced files (`lib/*.sh`, `.zsh.d/`): NEVER `export` at file scope** — it
     clobbers the user's whole interactive locale. Use per-command `LC_ALL=C`
     prefixes (or `local LC_ALL=C` inside a function).
-- [ ] [S] Audit remaining `bin/` scripts for candidates (not a blind sweep — many
+- [x] [S] Audit remaining `bin/` scripts for candidates (not a blind sweep — many
   hits are false positives: jq `unique`, fzf `--no-sort`, a var named `sort`,
   Python `sorted()`). `bin/diff-ini` (`sort -u` for INI comparison) is the main
   determinism candidate; numeric sorts (`sway-ws`, `image-concat`) can stay.
+  **Done 2026-09-19:** `bin/diff-ini` fixed via `export LC_COLLATE=C` near the
+  header (structural diff — `sort -u` must be byte-exact). Everything else
+  confirmed a non-candidate: numeric sorts (`sway-ws`, `image-concat`),
+  human-facing display order (`mpv-find` playback, `ff-copy-mpv-bookmarks`,
+  `exif-sanitize` ASCII help keys), and false positives (Perl/Python `join`,
+  var named `sort`).
 
 ## Aliases & Functions Review
 
