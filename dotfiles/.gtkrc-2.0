@@ -1,0 +1,15 @@
+# ~/.gtkrc-2.0: GTK2 theme settings.
+#
+# GTK2 does not read the GTK3/4 settings.ini, gsettings, or the desktop
+# color-scheme portal, so a GTK2 app renders light on a dark desktop unless a
+# dark GTK2 theme is named here explicitly. The only GTK2 app in use is Double
+# Commander (the doublecmd-gtk build); its own panel colours are theme-default,
+# so theming the widgetset darkens both the chrome and the file panels.
+#
+# Values mirror the GTK3/system theme (gsettings org.gnome.desktop.interface)
+# so GTK2 apps match the rest of the desktop. A host without the Yaru themes
+# falls back to the GTK2 default with no error.
+
+gtk-theme-name="Yaru-magenta-dark"
+gtk-icon-theme-name="Yaru-magenta-dark"
+gtk-font-name="Ubuntu Sans 11"
