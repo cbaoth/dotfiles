@@ -3,7 +3,7 @@ title: Which package manager? (apt / flatpak / snap / AppImage / nix / uv)
 hosts: [all]
 status: resolved
 tags: [apt, flatpak, snap, appimage, nix, packaging, decisions]
-updated: 2026-07-12
+updated: 2026-09-18
 ---
 
 # Which package manager?
@@ -88,9 +88,33 @@ because everything shells out to it.
 
 ## The other four
 
-**snap** — keep to a minimum. Currently `libreoffice`, `shellcheck`, `waveterm`.
+**snap** — keep to a minimum. On motoko: `libreoffice`, `shellcheck`, `waveterm`.
 Snap is where things land when Ubuntu forces it (Firefox — hence the Mozilla apt
-repo in [../setup/browsers.md](../setup/browsers.md)).
+repo in [../setup/browsers.md](../setup/browsers.md)), or when neither apt nor
+flathub has a usable build (`bottom`: apt only has `btm` 0.10.x, no flatpak).
+
+Managed ones are listed in `setup/packages/snap-base.list`, applied by
+`setup/modules/21-snap.sh`. The module **never installs snapd itself** — Ubuntu
+ships it, Debian (saito) does not, and pulling a daemon onto a server for one
+CLI tool is the opposite of "keep to a minimum". Where snapd is absent it is a
+no-op.
+
+Two snap traps, both hit with `bottom`:
+
+- **Key plugs ship disconnected.** A strict snap only gets the interfaces it
+  declares *and* that are connected; privileged ones (`system-observe`,
+  `process-control`, …) need a manual `sudo snap connect`. Nothing fails — the
+  app just runs with partial data. `snap connections <name>` shows `-` in the
+  Slot column for each missing one. That is why the list format carries plugs:
+  `NAME [--install-opt..] [plug..]`.
+- **`~/.config` is unreachable, and there is no user override.** Unlike
+  `flatpak override --filesystem=…`, snap permissions are fixed by the
+  publisher, and even the `home` interface excludes hidden dirs. snapd points
+  `$HOME` at `~/snap/<name>/current` — but passes our exported `XDG_*_HOME`
+  (`.common_env`) through, so an XDG-aware app tries the real `~/.config` and
+  gets *Permission denied*. Fix: `bin/bottom`, a name-agnostic wrapper that
+  unsets those vars; copy it to `bin/<snap-command>` for any other snap that
+  does the same. The config then lives in `~/snap/<name>/current/.config/`.
 
 **AppImage** — a few in `~/Applications/`. Managed by
 [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever), which is what

@@ -1,0 +1,14 @@
+# Snap packages for every host that has snapd (one per line).
+# Installed by: setup/modules/21-snap.sh (skipped where snapd is absent)
+# Docs:         docs/reference/package-managers.md
+#
+# Format: NAME [--install-opt..] [plug..]
+#   --classic, --channel=…  passed to `snap install`
+#   any other word          a plug to connect as NAME:plug
+#
+# Snap is the last resort: only what has no reasonable apt or flatpak package.
+
+# Process/system monitor, first choice for PROCVIEWER (.common_env). apt only
+# has btm 0.10.x and there is no flatpak. Without these plugs it shows partial
+# data and cannot signal processes. Runs via bin/bottom (XDG workaround).
+bottom system-observe process-control hardware-observe mount-observe

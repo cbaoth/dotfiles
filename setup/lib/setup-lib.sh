@@ -404,6 +404,65 @@ st::flatpak_install_list() {
 
 # }}} = FLATPAK ==============================================================
 
+# {{{ = SNAP =================================================================
+
+# Is snapd present *and* answering? The CLI can exist where the daemon cannot
+# run (WSL without systemd), so ask the daemon rather than PATH.
+st::snap_available() {
+  command -v snap >/dev/null 2>&1 && snap list >/dev/null 2>&1
+}
+
+st::snap_installed() {
+  snap list "$1" >/dev/null 2>&1
+}
+
+# Is SNAP:PLUG connected? `snap connections` shows "-" in the Slot column for a
+# disconnected plug. awk reads all input, so no SIGPIPE under pipefail.
+# Usage: st::snap_connected SNAP:PLUG
+st::snap_connected() {
+  local -r plug="$1"
+  snap connections "${plug%%:*}" 2>/dev/null \
+    | awk -v p="${plug}" '$2 == p && $3 != "-" { found = 1 } END { exit !found }'
+}
+
+# Install snaps from a setup/packages/<name>.list and connect their plugs.
+# Line format:  NAME [--install-opt..] [plug..]
+#   words starting with --  are passed to `snap install` (--classic, --channel=…)
+#   any other word          is a plug of NAME to connect (NAME:plug)
+# Plugs are part of the list because strict snaps often ship with their key
+# plugs disconnected; without them the app runs, just quietly crippled.
+st::snap_install_list() {
+  local -a lines=()
+  st::read_list "$1" lines || return 1
+  (( ${#lines[@]} == 0 )) && { st::skip "snap list '$1' is empty"; return 0; }
+
+  local line name word
+  local -a words=() opts=() plugs=()
+  for line in "${lines[@]}"; do
+    IFS=$' \t' read -r -a words <<< "${line}"
+    name="${words[0]}"; opts=(); plugs=()
+    for word in "${words[@]:1}"; do
+      if [[ "${word}" == --* ]]; then opts+=("${word}"); else plugs+=("${word}"); fi
+    done
+
+    if st::snap_installed "${name}"; then
+      st::noop "snap ${name} already installed"
+    else
+      st::run "install snap ${name}" -- sudo snap install "${name}" "${opts[@]}" || continue
+    fi
+
+    for word in "${plugs[@]}"; do
+      if st::snap_connected "${name}:${word}"; then
+        st::noop "${name}:${word} already connected"
+      else
+        st::run "connect ${name}:${word}" -- sudo snap connect "${name}:${word}"
+      fi
+    done
+  done
+}
+
+# }}} = SNAP =================================================================
+
 # {{{ = FILES ================================================================
 
 # Ensure LINE exists in FILE (appending if absent). Root-owned files get sudo.
