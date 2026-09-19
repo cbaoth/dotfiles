@@ -206,6 +206,16 @@ _export_to_first_cmd() {
 _export_to_first_cmd MPLAYER mpv vlc mplayer
 # In X11/Wayland? Then use GUI apps as default, otherwise terminal apps
 _export_to_first_cmd EDITOR nvim 'vim -N' vi 'emacs -nw' nano
+# Process/system monitor. Not TOP: that is a common Makefile/build-system
+# variable (top-level dir) and an exported value would leak into them.
+# `bottom` is the snap, run via the bin/bottom XDG wrapper -- which is linked on
+# every host, so check for the snap itself or the wrapper would win (and fail)
+# where the snap is absent. btm is bottom's native binary (apt/cargo).
+if [[ -x /snap/bin/bottom ]]; then
+  _export_to_first_cmd PROCVIEWER bottom btm htop top
+else
+  _export_to_first_cmd PROCVIEWER btm htop top
+fi
 
 if ${IS_X:-false}; then
   _export_to_first_cmd VISUAL 'code --wait'

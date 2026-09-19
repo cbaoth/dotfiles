@@ -201,6 +201,20 @@ alias mdscrub-abort='echo idle | sudo tee /sys/block/md0/md/sync_action'
 alias mdscrub-stats='sudo cat /sys/block/md0/md/mismatch_cnt'
 
 alias mdcheck='/usr/share/mdadm/checkarray'
+
+# Preferred process/system monitor: $PROCVIEWER (bottom > btm > htop > top, see
+# .common_env). Same word-split handling as editor() in case the value has args.
+procviewer() {
+  if [[ -n "${ZSH_VERSION-}" ]]; then
+    # shellcheck disable=SC2296  # ${=var} is zsh-specific syntax, not valid in bash/sh
+    ${=PROCVIEWER:-top} "$@"
+  else
+    # shellcheck disable=SC2086  # intentional word-split on $PROCVIEWER
+    ${PROCVIEWER:-top} "$@"
+  fi
+}
+# shadow top like nano above; `\top` or `command top` still runs the real one
+alias top='procviewer'
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - MOUNT ----------------------------------------------------------------
