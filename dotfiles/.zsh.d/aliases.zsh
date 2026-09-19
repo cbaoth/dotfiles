@@ -127,6 +127,8 @@ alias -g ,pp='| pygmentize'         # pretty-print code
 alias -g ,mpv='| tr "\n" "\0" | xargs -0 -n 10000 mpv --no-resume-playback'
 alias -g ,urlclean="| sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/gi'"
 
+# common cli arguments
+alias -g ,np='--no-pager'
 # }}} - GLOBAL ALIASES -------------------------------------------------------
 
 return 0
