@@ -124,6 +124,8 @@ alias -g ,j='| jq'                  # jq (default: pretty-print JSON)
 alias -g ,pp='| pygmentize'         # pretty-print code
 
 # misc pipelines
+alias -g ,c='| cat'
+alias -g ,cn='| cat -n'             # cat with line numbers
 alias -g ,mpv='| tr "\n" "\0" | xargs -0 -n 10000 mpv --no-resume-playback'
 alias -g ,urlclean="| sed 's/%3a/:/gi; s/%2f/\//gi; s/[?&].*//g; s/%26/&/gi; s/%3d/:/gi; s/%3f/?/gi'"
 
