@@ -108,5 +108,7 @@ AppImages otherwise lack.
 
 ## See also
 
+- [dark-theme.md](dark-theme.md) — dark theming across Qt/GTK toolkits; the
+  non-libadwaita flatpak case above is one branch of it
 - [../reference/flatpak.md](../reference/flatpak.md) — override/permission cheatsheet
 - [browsers.md](browsers.md) — why the browsers come from apt
