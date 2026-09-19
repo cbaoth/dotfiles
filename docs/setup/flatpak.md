@@ -3,7 +3,7 @@ title: Flatpak — apps and sandbox permissions
 hosts: [motoko]
 status: resolved
 tags: [flatpak, desktop, sandbox]
-updated: 2026-07-12
+updated: 2026-09-19
 automated_by: setup/modules/20-flatpak.sh
 ---
 
@@ -11,7 +11,8 @@ automated_by: setup/modules/20-flatpak.sh
 
 **Automated:** `system-setup 20-flatpak` — installs flatpak, adds the Flathub
 remote, installs [`setup/packages/flatpak-desktop.list`](../../setup/packages/flatpak-desktop.list),
-and grants NAS access to the apps that need it.
+grants NAS access to the apps that need it, and forces a dark GTK theme on the
+apps that would otherwise render light (see *Dark theme* below).
 
 ## apt or flatpak?
 
@@ -76,6 +77,28 @@ drag-and-drop in one app.
 If video thumbnails or playback do not work, enable the internal video player in
 `~/.config/xnviewmp/xnview.ini` (`useInternalVideoPlayer=true`). Setting
 `QT_XCB_GL_INTEGRATION=xcb_egl` was tried and made the window go black — avoid.
+
+### Dark theme — non-libadwaita GTK apps render light
+
+A GTK flatpak that does **not** use libadwaita ignores the desktop
+`color-scheme: prefer-dark` portal, so it renders light even though the host is
+dark (host apps like `gnome-control-center`, which *are* libadwaita, follow the
+portal and go dark correctly). The host GTK theme (`Yaru-*-dark`) is no help:
+it is not visible inside the sandbox, so the app falls back to light Adwaita.
+
+First case: **Safe Eyes** (`io.github.slgobinath.SafeEyes`) — plain GTK4, no
+`Adw`. Force the bundled dark Adwaita theme:
+
+```shell
+flatpak override --user --env=GTK_THEME=Adwaita:dark io.github.slgobinath.SafeEyes
+```
+
+`Adwaita:dark` ships in the GTK runtime, so it is always present in the sandbox
+(unlike Yaru). The override is applied by the module — add the app-id to
+`GTK_DARK_APPS` in [`20-flatpak.sh`](../../setup/modules/20-flatpak.sh) when a
+new app turns up light. Keep it **per-app**: a global `GTK_THEME` would override
+theming for every sandboxed app, including the ones already doing dark right.
+The override takes effect on the app's next launch (restart a running tray app).
 
 ### AppImages
 

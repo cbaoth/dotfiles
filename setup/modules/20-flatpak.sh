@@ -30,6 +30,13 @@ declare -ra NAS_APPS=(
 # mpv is not listed: it is the apt build (see setup/packages/desktop.list), so
 # it is unsandboxed and reaches the NAS without an override.
 
+# Dark-theme overrides: non-libadwaita GTK flatpaks that ignore the desktop
+# color-scheme portal and render light on a dark desktop. Forced to the bundled
+# dark Adwaita theme below. Add the app-id here when a new one turns up light.
+declare -ra GTK_DARK_APPS=(
+  io.github.slgobinath.SafeEyes
+)
+
 module_run() {
   st::apt_install flatpak gnome-software-plugin-flatpak
 
@@ -45,6 +52,26 @@ module_run() {
   # {{{ - Apps ----------------------------------------------------------------
   st::flatpak_install_list flatpak-desktop
   # }}} - Apps ----------------------------------------------------------------
+
+  # {{{ - Dark-theme overrides ------------------------------------------------
+  # --user + per-app keeps the blast radius on GTK_DARK_APPS: a global
+  # GTK_THEME would degrade every other sandboxed app (cf. the XnViewMP
+  # QT_QPA_PLATFORM note in docs/setup/flatpak.md). Adwaita:dark ships in the
+  # GTK runtime, so it is always present inside the sandbox.
+  local dark_app
+  for dark_app in "${GTK_DARK_APPS[@]}"; do
+    if ! st::flatpak_installed "${dark_app}"; then
+      continue   # not installed here, nothing to theme
+    fi
+    if flatpak info --show-permissions "${dark_app}" 2>/dev/null \
+         | st::grep_q -F 'GTK_THEME=Adwaita:dark'; then
+      st::noop "${dark_app} already forced to dark theme"
+    else
+      st::run "force dark GTK theme for ${dark_app}" -- \
+        flatpak override --user --env=GTK_THEME=Adwaita:dark "${dark_app}"
+    fi
+  done
+  # }}} - Dark-theme overrides ------------------------------------------------
 
   # {{{ - NAS access overrides ------------------------------------------------
   # Only meaningful where the NAS is actually mounted; on a laptop or a fresh

@@ -3,7 +3,7 @@ title: Flatpak permissions & overrides cheatsheet
 hosts: [motoko]
 status: resolved
 tags: [flatpak, sandbox, permissions]
-updated: 2026-07-12
+updated: 2026-09-19
 ---
 
 # Flatpak permissions & overrides
@@ -51,6 +51,16 @@ flatpak override --user --env=QT_QPA_PLATFORM=xcb <AppID>
 Scope these to the single app that needs them. Setting Qt/GTK platform hints
 globally degrades every other sandboxed app — see the XnViewMP note in
 [../setup/flatpak.md](../setup/flatpak.md).
+
+Force a dark theme on a non-libadwaita GTK app that renders light on a dark
+desktop (Safe Eyes):
+
+```shell
+flatpak override --user --env=GTK_THEME=Adwaita:dark <AppID>
+```
+
+`Adwaita:dark` is bundled in the GTK runtime, so it is always available in the
+sandbox. Rationale and the app list: [../setup/flatpak.md](../setup/flatpak.md).
 
 ## Run with host access
 
