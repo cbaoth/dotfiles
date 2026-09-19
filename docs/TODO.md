@@ -335,6 +335,8 @@ For now, cross-host coordination = git (dotfiles + `~/notes`) as the bus, plus
 
 Just some quick unrefined notes, before I forget:
 
+- improve contrasts in zsh prompt (p10k) and maybe shell in general. for example the default (non-home) path segment shows cyan background and silver text which is barely readable.
+  - consider potentially existing color themes, maybe there are better ones (used this one for ages with p9k and now p10k)
 - `bin/bt-audio-reset` fails when no profile is active
   - `ERROR: card 'bluez_card.AC_80_0A_15_0E_96' has no active A2DP profile (currently: off)`
   - example scenario (with WH-1000XM4):
@@ -360,3 +362,6 @@ Just some quick unrefined notes, before I forget:
     - [nix home](https://nix-community.github.io/nix-home/) - seems to be a bit more complex, but also more powerful. i saw some github repos of people who migrated from chezmoi to nix os or nix home (+ ansible), and they seemed to be happy with the decision.
       - regarding nix: some say that nix os in particular (not an option for me, at least right now) is great, after a steep learning curve, while others say that it is great as long as it works, but as soon as something breaks, it can be a nightmare to fix plus it needs a lot of disk space due to the way it works.
       - regarding ansible: we setup our own system-setup scripts. i have some experience with ansible (not a lot, and some time ago), but if it is still considered a good and modern option, it might be worth a second look. considering that at least nix os seems to combine both in one.
+  - related things to consider, if not already covered by the current solution, or a potential future solution (open topic, see previous point:
+    - orphan pruning of symlinks (see `tools/link.sh`), potentially empty dirs as well (this can however be dangerous, unless we know that i dir is only used for dotfile repo purposes).
+    - potentially an uninstall option, to remove all symlinks (and other fs objects that were created by the dotfiles setup, and that can safely be removed)
