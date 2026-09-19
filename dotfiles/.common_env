@@ -181,6 +181,13 @@ fi
 # (if any)
 # $1:  variable name
 # $2+: commands to check, first one found wins
+# Flatpak apps: list the app ID itself (org.foo.Bar), NOT 'flatpak run org.foo.Bar'.
+# The exports/bin dirs (on PATH above) hold a launcher per installed app that
+# execs `flatpak run` -- present exactly while the app is installed. So the
+# command -v check below stays exact, whereas for 'flatpak run X' it only checks
+# `flatpak` and picks X on any host with flatpak, installed or not. A single
+# word is also safer in $BROWSER, which some consumers split on ':' or treat as
+# a bare command.
 _export_to_first_cmd() {
   if [[ -z "${1-}" || $# -lt 2 ]]; then
     echo "Usage: $0 var-name command.."
@@ -224,17 +231,17 @@ if ${IS_X:-false}; then
       google-chrome-canary google-chrome-unstable google-chrome-beta google-chrome \
       chromium \
       ungoogled-chromium \
-      'flatpak run org.mozilla.firefox' \
-      'flatpak run com.google.ChromeDev' 'flatpak run com.google.Chrome' \
-      'flatpak run org.chromium.Chromium' \
-      'flatpak run io.github.ungoogled_software.ungoogled_chromium' \
+      org.mozilla.firefox \
+      com.google.ChromeDev com.google.Chrome \
+      org.chromium.Chromium \
+      io.github.ungoogled_software.ungoogled_chromium \
       torbrowser-launcher \
-      'flatpak run org.torproject.torbrowser-launcher' \
+      org.torproject.torbrowser-launcher \
       brave-browser-nightly brave-browser \
       brave-origin-nightly brave-origin \
-      'flatpak run com.brave.Browser' \
+      com.brave.Browser \
       links2 links lynx w3m 'wget -q -O -' 'curl -S'
-  _export_to_first_cmd IMGVIEWER 'flatpak run com.xnview.XnViewMP' xnviewmp \
+  _export_to_first_cmd IMGVIEWER com.xnview.XnViewMP xnviewmp \
       geeqie feh catimg
 else
   _export_to_first_cmd BROWSER links2 links lynx w3m 'wget -O -' 'curl -S'
