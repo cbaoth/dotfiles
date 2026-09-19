@@ -4,10 +4,11 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# Watch a reaction alongside the show in two paused, IPC-controlled mpv windows:
-# the show large (windowed, full usable height), the reaction a small overlay in
-# the show's bottom-right corner. Placement is done via Sway (falls back to mpv
-# geometry when not under Sway).
+# Watch a reaction alongside the show in two paused, IPC-controlled mpv windows,
+# laid out per a selectable --profile: the reaction large with the show injected
+# center-bottom (default), the classic small reaction overlay over a large show,
+# or a larger reaction snapped to the screen corner. Placement is done via Sway
+# (falls back to mpv geometry when not under Sway).
 
 # shellcheck disable=SC2155
 declare -r SCRIPT_FILE="$(basename "$0")"
@@ -22,11 +23,13 @@ set -o nounset
 declare -r SHOW_SOCKET="/tmp/mpv-show.sock"
 declare -r REACTION_SOCKET="/tmp/mpv-reaction.sock"
 
-declare -ri REACTION_W=480                       # default reaction overlay size
-declare -ri REACTION_H=270
-declare -ri REACTION_MARGIN=20                   # px inset from the show's corner
-# mpv-geometry fallback used when not under Sway: bottom-right, margin inset.
-declare -r REACTION_FALLBACK_GEOMETRY="${REACTION_W}x${REACTION_H}-${REACTION_MARGIN}-${REACTION_MARGIN}"
+# Layout profiles pick which side is the large centered window and the small
+# overlay's target height (px); the overlay's width follows its own aspect.
+declare -r DEFAULT_PROFILE="inject"              # profile 2: reaction large
+declare -ri PROFILE_INJECT_OVERLAY_H=578         # show injected into the reaction
+declare -ri PROFILE_OVERLAY_OVERLAY_H=270        # classic reaction over the show
+declare -ri PROFILE_CORNER_OVERLAY_H=640         # reaction in the screen corner
+declare -ri OVERLAY_MARGIN=20                    # px inset for the classic overlay
 
 declare -ri SHOW_ASPECT_W=16                     # show aspect fallback if unprobed
 declare -ri SHOW_ASPECT_H=9
@@ -47,11 +50,19 @@ Usage: ${SCRIPT_FILE} [OPTIONS] REACTION SHOW [SHOW...]
    or: ${SCRIPT_FILE} [OPTIONS] --reaction ARG... --show ARG...
 
 Open two paused mpv windows wired for IPC control and lay them out for reaction
-viewing: the SHOW large (windowed, full usable height below the bar, aligned per
---align) and the REACTION as a small overlay in the show's bottom-right corner.
-Both start paused so they can be lined up and un-paused together — useful when
-the two drift because of a frame-rate mismatch (see ff-video-sync to correct
-PAL/NTSC speed differences first).
+viewing per a selectable --profile. Both start paused so they can be lined up
+and un-paused together — useful when the two drift because of a frame-rate
+mismatch (see ff-video-sync to correct PAL/NTSC speed differences first).
+
+Layout profiles (-P/--profile) — height is the reference, width follows aspect:
+  2, inject    reaction large (full usable height); the SHOW injected clear and
+               sharp center-bottom into the reaction's blurred dummy-footage
+               area (~578 px high, flush to the bottom). The default.
+  1, overlay   classic: SHOW large; a small REACTION overlay (~270 px) hugging
+               the show's bottom-right corner with a margin.
+  3, corner    SHOW large and left-aligned (uses the full ultra-wide width); a
+               larger REACTION (~640 px) snapped flush to the screen's
+               bottom-right corner, no padding — more out of the way.
 
 Multiple files given to either side become an mpv playlist (played back to
 back in that one window) — e.g. a single reaction covering several short
@@ -64,7 +75,8 @@ and expose IPC sockets for scripted control at:
 
 Layout is applied via swaymsg using the workspace's usable area (bars excluded
 automatically, like sway-place). Without Sway it falls back to mpv's own
-geometry (reaction at the screen's bottom-right; show at mpv's default size).
+geometry (the small overlay placed best-effort; the large window left at mpv's
+default size).
 
 Sync hotkeys are installed into both windows (they work whichever has focus;
 require the mpv-ipc helper). Modifier picks the target — Shift+Alt = show,
@@ -82,20 +94,27 @@ Two input styles (do not mix them):
     until the next --reaction/--show. This is how you drive the rarer reverse
     case (one show, several reaction files) or pass per-window mpv options.
     A --geometry inside a group disables that window's automatic placement.
+  The input style only picks which files feed which window; it never changes the
+  layout — that is the --profile's job.
 
 Options (must precede the first --reaction/--show group):
-  -a, --align left|center|right   horizontal alignment of the show [center]
-  -g, --geometry WxH+X+Y   place the reaction manually via mpv --geometry
-                           (disables the automatic bottom-right placement)
+  -P, --profile PROFILE    layout: 1|overlay, 2|inject, 3|corner [inject]
+  -a, --align left|center|right   horizontal alignment of the large window
+                           [center; corner defaults to left]
+  -g, --geometry WxH+X+Y   place the REACTION manually via mpv --geometry
+                           (disables its automatic placement, in any profile)
   -p, --play               start playing immediately (default: start paused)
   -h, --help               show this help and exit
 
 Examples:
-  # common: 1 reaction, several show episodes as a playlist in the large window
+  # default (inject): 1 reaction, several show episodes as a playlist
   ${SCRIPT_FILE} reaction_ep1-4.mp4 ep1.mkv ep2.mkv ep3.mkv ep4.mkv
 
-  # show pinned left (free the right half of the screen), start playing
-  ${SCRIPT_FILE} -p --align left reaction.mp4 ep1.mkv
+  # classic small overlay over a large show, pinned left, start playing
+  ${SCRIPT_FILE} -p -P overlay --align left reaction.mp4 ep1.mkv
+
+  # larger reaction snapped to the screen's bottom-right corner
+  ${SCRIPT_FILE} --profile corner reaction.mp4 ep1.mkv
 
   # place the reaction manually instead of the automatic overlay
   ${SCRIPT_FILE} -g 640x360-40-40 reaction.mp4 ep1.mkv
@@ -145,6 +164,42 @@ probe_aspect() {
   fi
 }
 
+# Echo a profile's layout params: "PRIMARY OVERLAY_H ANCHOR HPOS MARGIN ALIGN".
+# PRIMARY (show|reaction) is the large window; the other side is the small
+# overlay, OVERLAY_H its target height (px, width follows aspect), ANCHOR where
+# it sits (primary = hug the large window's box, screen = the whole area), HPOS
+# its horizontal placement (right|center), MARGIN its inset (px). ALIGN is the
+# large window's default horizontal alignment (an explicit --align overrides it).
+_profile_spec() {
+  case "$1" in
+    overlay) printf 'show %d primary right %d center\n' "$PROFILE_OVERLAY_OVERLAY_H" "$OVERLAY_MARGIN" ;;
+    inject)  printf 'reaction %d primary center 0 center\n' "$PROFILE_INJECT_OVERLAY_H" ;;
+    corner)  printf 'show %d screen right 0 left\n' "$PROFILE_CORNER_OVERLAY_H" ;;
+  esac
+}
+
+# Echo an mpv --geometry string for the profile's overlay window (non-Sway
+# fallback), sized from the overlay file's aspect at the profile height.
+_overlay_fallback_geometry() {
+  local profile="$1" overlay_file="$2"
+  local hpos
+  local -i overlay_h margin
+  # Fields: PRIMARY OVERLAY_H ANCHOR HPOS MARGIN ALIGN — only HPOS/MARGIN/H matter.
+  read -r _ overlay_h _ hpos margin _ < <(_profile_spec "$profile")
+  local aow aoh
+  read -r aow aoh < <(probe_aspect "$overlay_file") || true
+  if ! { [[ "$aow" =~ ^[0-9]+$ && "$aoh" =~ ^[0-9]+$ ]] && (( aoh > 0 )); }; then
+    aow=$SHOW_ASPECT_W
+    aoh=$SHOW_ASPECT_H
+  fi
+  local -i ow=$(( overlay_h * aow / aoh ))
+  if [[ "$hpos" == center ]]; then
+    printf '%dx%d+50%%+100%%' "$ow" "$overlay_h"                 # centered, bottom
+  else
+    printf '%dx%d-%d-%d' "$ow" "$overlay_h" "$margin" "$margin"  # bottom-right
+  fi
+}
+
 # True when Sway IPC (and jq) are usable for placement.
 sway_available() {
   command -v swaymsg > /dev/null 2>&1 \
@@ -177,11 +232,13 @@ sway_ws_size() {
     | "\(.rect.width) \(.rect.height)"'
 }
 
-# Size and position both windows on their Sway workspace. Coordinates are
-# workspace-usable-relative (0,0 at the top-left of the area below the bar),
-# matching sway-place's `move position` convention.
+# Size and position both windows on their Sway workspace for the given profile.
+# Coordinates are workspace-usable-relative (0,0 at the top-left of the area
+# below the bar), matching sway-place's `move position` convention. The profile
+# names which side is the large centered window; the other is a small overlay.
 place_windows() {
-  local align="$1" show_manual="$2" reaction_manual="$3" show_file="$4"
+  local profile="$1" align="$2" show_manual="$3" reaction_manual="$4"
+  local show_file="$5" reaction_file="$6"
   local sid rid ws_w ws_h
 
   sid="$(sway_wait_conid mpv-show)" \
@@ -193,42 +250,79 @@ place_windows() {
   [[ "$ws_w" =~ ^[0-9]+$ && "$ws_h" =~ ^[0-9]+$ ]] \
     || { p_war "could not read workspace size; skipping placement"; return 0; }
 
-  # Show: full usable height, width from the (probed) aspect, aligned. When the
-  # show is manually placed we keep these defaults only to anchor the reaction.
-  local -i show_w=ws_w show_x=0
-  if [[ "$show_manual" != true ]]; then
-    local arw arh
-    read -r arw arh < <(probe_aspect "$show_file") || true
-    if ! { [[ "$arw" =~ ^[0-9]+$ && "$arh" =~ ^[0-9]+$ ]] && (( arh > 0 )); }; then
-      arw=$SHOW_ASPECT_W
-      arh=$SHOW_ASPECT_H
+  # Profile params: which side is large, and the overlay's target height, anchor
+  # (hug the large window's box, or the whole screen), horizontal placement, and
+  # inset margin. The overlay's width follows its own video aspect.
+  local primary overlay_anchor overlay_hpos
+  local -i overlay_h overlay_margin
+  # Alignment is resolved in main and passed as $2, so drop the spec's ALIGN.
+  read -r primary overlay_h overlay_anchor overlay_hpos overlay_margin _ \
+    < <(_profile_spec "$profile")
+
+  # Map the large/overlay roles onto the concrete windows, files, and flags.
+  local -i primary_id overlay_id
+  local primary_file overlay_file primary_manual overlay_manual
+  if [[ "$primary" == show ]]; then
+    primary_id=$sid; overlay_id=$rid
+    primary_file="$show_file"; overlay_file="$reaction_file"
+    primary_manual="$show_manual"; overlay_manual="$reaction_manual"
+  else
+    primary_id=$rid; overlay_id=$sid
+    primary_file="$reaction_file"; overlay_file="$show_file"
+    primary_manual="$reaction_manual"; overlay_manual="$show_manual"
+  fi
+
+  # Large window: full usable height, width from the (probed) aspect, aligned.
+  # Computed even when manually placed, so the overlay can still anchor to it.
+  local arw arh
+  read -r arw arh < <(probe_aspect "$primary_file") || true
+  if ! { [[ "$arw" =~ ^[0-9]+$ && "$arh" =~ ^[0-9]+$ ]] && (( arh > 0 )); }; then
+    arw=$SHOW_ASPECT_W
+    arh=$SHOW_ASPECT_H
+  fi
+  local -i primary_w=$(( ws_h * arw / arh )) primary_x=0
+  (( primary_w > ws_w )) && primary_w=ws_w
+  case "$align" in
+    left)  primary_x=0 ;;
+    right) primary_x=$(( ws_w - primary_w )) ;;
+    *)     primary_x=$(( (ws_w - primary_w) / 2 )) ;;
+  esac
+  if [[ "$primary_manual" != true ]]; then
+    swaymsg "[con_id=$primary_id] floating enable, resize set ${primary_w} px ${ws_h} px, move position ${primary_x} px 0 px" \
+      > /dev/null || p_war "failed to place large window"
+  fi
+
+  # Overlay: profile height, width from its own aspect, placed against the chosen
+  # anchor (the large window's box, or the whole screen).
+  if [[ "$overlay_manual" != true ]]; then
+    local aow aoh
+    read -r aow aoh < <(probe_aspect "$overlay_file") || true
+    if ! { [[ "$aow" =~ ^[0-9]+$ && "$aoh" =~ ^[0-9]+$ ]] && (( aoh > 0 )); }; then
+      aow=$SHOW_ASPECT_W
+      aoh=$SHOW_ASPECT_H
     fi
-    show_w=$(( ws_h * arw / arh ))
-    (( show_w > ws_w )) && show_w=ws_w
-    case "$align" in
-      left)  show_x=0 ;;
-      right) show_x=$(( ws_w - show_w )) ;;
-      *)     show_x=$(( (ws_w - show_w) / 2 )) ;;
-    esac
-    swaymsg "[con_id=$sid] floating enable, resize set ${show_w} px ${ws_h} px, move position ${show_x} px 0 px" \
-      > /dev/null || p_war "failed to place show window"
+    local -i oh=overlay_h ow ox oy anchor_x=0 anchor_w=ws_w
+    (( oh > ws_h )) && oh=ws_h
+    ow=$(( oh * aow / aoh ))
+    (( ow > ws_w )) && ow=ws_w
+    if [[ "$overlay_anchor" == primary ]]; then
+      anchor_x=primary_x
+      anchor_w=primary_w
+    fi
+    if [[ "$overlay_hpos" == center ]]; then
+      ox=$(( anchor_x + (anchor_w - ow) / 2 ))
+    else
+      ox=$(( anchor_x + anchor_w - ow - overlay_margin ))
+    fi
+    oy=$(( ws_h - oh - overlay_margin ))
+    (( ox < 0 )) && ox=0
+    (( oy < 0 )) && oy=0
+    swaymsg "[con_id=$overlay_id] floating enable, resize set ${ow} px ${oh} px, move position ${ox} px ${oy} px" \
+      > /dev/null || p_war "failed to place overlay window"
   fi
 
-  # Reaction: fixed size, hugging the show's bottom-right corner with a margin.
-  if [[ "$reaction_manual" != true ]]; then
-    local -i rw=REACTION_W rh=REACTION_H rx ry
-    (( rw > ws_w )) && rw=ws_w
-    (( rh > ws_h )) && rh=ws_h
-    rx=$(( show_x + show_w - rw - REACTION_MARGIN ))
-    ry=$(( ws_h - rh - REACTION_MARGIN ))
-    (( rx < 0 )) && rx=0
-    (( ry < 0 )) && ry=0
-    swaymsg "[con_id=$rid] floating enable, resize set ${rw} px ${rh} px, move position ${rx} px ${ry} px" \
-      > /dev/null || p_war "failed to place reaction window"
-  fi
-
-  # Raise the reaction above the show (last-focused floating window is on top).
-  swaymsg "[con_id=$rid] focus" > /dev/null || true
+  # Raise the overlay above the large window (last-focused floating is on top).
+  swaymsg "[con_id=$overlay_id] focus" > /dev/null || true
 }
 
 # Install sync hotkeys into both mpv instances (once their IPC sockets are up)
@@ -287,6 +381,8 @@ inject_keybinds() {
 main() {
   local play=false
   local align="center"
+  local align_set=false
+  local profile="$DEFAULT_PROFILE"
   local geometry=""
   local geometry_set=false
   local current=""
@@ -320,13 +416,24 @@ main() {
             play=true
             shift
             ;;
+          -P|--profile)
+            [[ $# -ge 2 ]] || { p_err "missing argument for $1"; return 2; }
+            profile="$2"
+            shift 2
+            ;;
+          --profile=*)
+            profile="${1#*=}"
+            shift
+            ;;
           -a|--align)
             [[ $# -ge 2 ]] || { p_err "missing argument for $1"; return 2; }
             align="$2"
+            align_set=true
             shift 2
             ;;
           --align=*)
             align="${1#*=}"
+            align_set=true
             shift
             ;;
           -g|--geometry)
@@ -367,6 +474,22 @@ main() {
     left|center|right) ;;
     *) p_err "invalid --align: ${align} (expected left|center|right)"; return 2 ;;
   esac
+
+  # Normalize the profile to its canonical name (accept the 1/2/3 shortcuts).
+  case "$profile" in
+    1|overlay|classic) profile="overlay" ;;
+    2|inject|default)  profile="inject" ;;
+    3|corner)          profile="corner" ;;
+    *) p_err "invalid --profile: ${profile} (expected 1|overlay, 2|inject, 3|corner)"; return 2 ;;
+  esac
+
+  # Without an explicit --align, take the profile's preferred alignment (the last
+  # field of its spec) — e.g. corner left-aligns the show to free the ultra-wide.
+  if [[ "$align_set" != true ]]; then
+    local spec
+    spec="$(_profile_spec "$profile")"
+    align="${spec##* }"
+  fi
 
   # Reconcile the two input styles: positional shortcut vs. explicit groups.
   local shortcut=false
@@ -411,6 +534,16 @@ main() {
   local -a pause_opt=(--pause)
   $play && pause_opt=()
 
+  # Resolve the profile's large-window side once; the other side is the overlay.
+  local primary
+  primary="$(_profile_spec "$profile")"
+  primary="${primary%% *}"
+
+  # Detect Sway once: it drives both the layout dispatch and whether the overlay
+  # needs a best-effort mpv --geometry fallback (Sway placement overrides it).
+  local under_sway=false
+  sway_available && under_sway=true
+
   # Distinct --audio-client-name so the two streams are told apart in pavucontrol
   # (and can be routed independently).
   local -a reaction_cmd=(
@@ -421,13 +554,6 @@ main() {
     --input-ipc-server="${REACTION_SOCKET}"
     "${pause_opt[@]}"
   )
-  if $geometry_set; then
-    reaction_cmd+=(--geometry="${geometry}")
-  elif [[ "$reaction_manual" != true ]]; then
-    # Fallback for the non-Sway path; overridden by placement when under Sway.
-    reaction_cmd+=(--geometry="${REACTION_FALLBACK_GEOMETRY}")
-  fi
-
   local -a show_cmd=(
     mpv
     --no-terminal
@@ -436,6 +562,19 @@ main() {
     --input-ipc-server="${SHOW_SOCKET}"
     "${pause_opt[@]}"
   )
+
+  # An explicit -g always places the reaction (in any profile). Otherwise, only
+  # off Sway, the profile's overlay window gets a best-effort fallback geometry.
+  if $geometry_set; then
+    reaction_cmd+=(--geometry="${geometry}")
+  fi
+  if ! $under_sway; then
+    if [[ "$primary" == show && "$reaction_manual" != true ]]; then
+      reaction_cmd+=(--geometry="$(_overlay_fallback_geometry "$profile" "$(_first_existing_file "${reaction[@]}")")")
+    elif [[ "$primary" == reaction && "$show_manual" != true ]]; then
+      show_cmd+=(--geometry="$(_overlay_fallback_geometry "$profile" "$(_first_existing_file "${show[@]}")")")
+    fi
+  fi
 
   # Only the shortcut path is guaranteed file-only, so guard those with `--`;
   # group tokens may contain mpv options and must not be treated as filenames.
@@ -447,14 +586,20 @@ main() {
     show_cmd+=("${show[@]}")
   fi
 
-  # Launch the show first and the reaction last so the small reaction window
-  # maps on top of the larger show window (newest floating window stacks above);
-  # place_windows then also explicitly focuses the reaction to keep it on top.
-  "${show_cmd[@]}" &
-  "${reaction_cmd[@]}" &
+  # Launch the profile's large window first and the small overlay last so the
+  # overlay maps on top of the larger window (newest floating window stacks
+  # above); place_windows then also explicitly focuses the overlay to keep it up.
+  if [[ "$primary" == show ]]; then
+    "${show_cmd[@]}" &
+    "${reaction_cmd[@]}" &
+  else
+    "${reaction_cmd[@]}" &
+    "${show_cmd[@]}" &
+  fi
 
-  if sway_available; then
-    place_windows "$align" "$show_manual" "$reaction_manual" "$(_first_existing_file "${show[@]}")"
+  if $under_sway; then
+    place_windows "$profile" "$align" "$show_manual" "$reaction_manual" \
+      "$(_first_existing_file "${show[@]}")" "$(_first_existing_file "${reaction[@]}")"
   else
     p_war "not running under Sway (swaymsg/jq unavailable); using mpv's own geometry"
   fi
