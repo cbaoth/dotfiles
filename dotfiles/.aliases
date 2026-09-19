@@ -149,17 +149,20 @@ alias rsync-diff-quick='rsync -axvnu'
 # editors
 # the debian/ubuntu `editor` command uses the system wide default (not always under our control)
 # so let's shadow it to ensure it's always our prefered $EDITOR
-# Use a function so $EDITOR (which may include args like "vim -N") is word-split correctly.
-# Zsh requires ${=var} to force word-splitting; bash splits unquoted $var in command position.
-editor() {
-  if [[ -n "${ZSH_VERSION-}" ]]; then
-    # shellcheck disable=SC2296  # ${=var} is zsh-specific syntax, not valid in bash/sh
-    ${=EDITOR} "$@"
-  else
-    # shellcheck disable=SC2086  # intentional word-split on $EDITOR
-    ${EDITOR} "$@"
-  fi
-}
+#
+# NOTE: these must be aliases that expand to REAL commands, never to shell
+# functions: `alias sudo='sudo '` alias-expands the word after sudo, and sudo
+# cannot exec a function (`sudo vim` -> `sudo vedit` -> "command not found").
+#
+# Single quotes: $EDITOR is expanded at use time, so later changes apply. It may
+# include args like "vim -N", so it must be word-split: zsh needs ${=var}, bash
+# splits an unquoted $var anyway. Expansion results are never alias-expanded
+# again, so EDITOR=vim cannot loop back into the vim alias below.
+if [[ -n "${ZSH_VERSION-}" ]]; then
+  alias editor='${=EDITOR:-vi}'
+else
+  alias editor='${EDITOR:-vi}'
+fi
 alias ed=editor
 
 # the same for nano, since it is commonly used in guides and by AI (no need to rewrite instructions that use nanon)
@@ -167,23 +170,21 @@ alias nano='editor'
 
 alias e='emacs -nw'
 
-vedit() {
-  # check which editor is available and use first of: nvim, vim, vi
-  if command -v nvim >/dev/null 2>&1; then
-    \nvim "$@"
-  elif command -v vim >/dev/null 2>&1; then
-    # -N disable nvi compatibility mode, which causes various issues (e.g. with plugins), but note that some scripts may rely on defaults
-    \vim -N "$@"
-  elif command -v vi >/dev/null 2>&1; then
-    \vi "$@"
-  else
-    echo "No suitable editor found (nvim, vim, or vi)" >&2
-    return 1
-  fi
-}
-alias vim=vedit
-alias nv=vedit
-alias v=vedit
+# vim/nv/v -> first of nvim, vim, vi, resolved once at load time (see NOTE above:
+# must be a plain command so `sudo vim` works). -N disables vi compatibility
+# mode, which causes various issues (e.g. with plugins).
+if command -v nvim >/dev/null 2>&1; then
+  alias vedit='nvim'
+elif command -v vim >/dev/null 2>&1; then
+  alias vedit='vim -N'
+elif command -v vi >/dev/null 2>&1; then
+  alias vedit='vi'
+fi
+if alias vedit >/dev/null 2>&1; then
+  alias vim=vedit
+  alias nv=vedit
+  alias v=vedit
+fi
 
 # the alias can be used to ensure that sudoedit uses $EDITOR instead of $VISUAL (or $SUDO_EDITOR if set)
 # e.g. in case emacs/vim is preferrable to vs code, when in desktop environment
@@ -246,16 +247,14 @@ alias mdscrub-stats='sudo cat /sys/block/md0/md/mismatch_cnt'
 alias mdcheck='/usr/share/mdadm/checkarray'
 
 # Preferred process/system monitor: $PROCVIEWER (bottom > btm > htop > top, see
-# .common_env). Same word-split handling as editor() in case the value has args.
-procviewer() {
-  if [[ -n "${ZSH_VERSION-}" ]]; then
-    # shellcheck disable=SC2296  # ${=var} is zsh-specific syntax, not valid in bash/sh
-    ${=PROCVIEWER:-top} "$@"
-  else
-    # shellcheck disable=SC2086  # intentional word-split on $PROCVIEWER
-    ${PROCVIEWER:-top} "$@"
-  fi
-}
+# .common_env). An alias, not a function, for the same reasons as editor above.
+# NOTE: `sudo top` with PROCVIEWER=bottom resolves the ~/bin/bottom wrapper,
+# which sudo's secure_path does not include; use `sudo btm`/`sudo htop` there.
+if [[ -n "${ZSH_VERSION-}" ]]; then
+  alias procviewer='${=PROCVIEWER:-top}'
+else
+  alias procviewer='${PROCVIEWER:-top}'
+fi
 # shadow top like nano above; `\top` or `command top` still runs the real one
 alias top='procviewer'
 # }}} - SYSTEM ---------------------------------------------------------------
@@ -538,39 +537,52 @@ print-color256() {
 # {{{ - AI / CLAUDE CODE -----------------------------------------------------
 # Claude Code launchers. Name scheme: cc[r][d|n|s][m]
 #   r = resume a previous session (-r, no id -> session picker)
-#   d = run in the dotfiles workspace (~/dotfiles); cwd is restored on exit
-#   n = run in the private notes repo (~/notes)
-#   s = run in the SilverBullet main space (/srv/silverbullet/space) - exists
-#       on the vserver only; elsewhere the cd fails and claude never starts
+#   d = run in the dotfiles workspace (this repo); cwd is restored on exit
+#   n = run in the private notes repo ($NOTES_DIR or ~/notes)
+#   s = run in the SilverBullet main space (/srv/silverbullet/space)
+# Defined only where claude is installed and, for n/s, the target dir exists.
 #   m = mobile mode: driving a session from a phone/tablet over SSH, where
 #       manual steps are handed over as staged scripts instead of commands to
 #       type. See ~/.claude/skills/mobile-mode/SKILL.md.
-#
-# `cc` shadows the C compiler, but only in interactive shells - Makefiles and
-# build scripts run non-interactively and never see aliases.
-alias cc='claude'
-alias ccr='claude -r'
 
-# Mobile mode is injected via --append-system-prompt rather than as an initial
-# `/mobile-mode` prompt, because -r/--resume takes an OPTIONAL session id and
-# would otherwise swallow the positional argument.
-CC_MOBILE='Mobile mode is active for this entire session: read and follow ~/.claude/skills/mobile-mode/SKILL.md before your first reply.'
-alias ccm='claude --append-system-prompt "$CC_MOBILE"'
-alias ccrm='claude -r --append-system-prompt "$CC_MOBILE"'
+if command -v claude >/dev/null 2>&1; then
 
-# Workspace variants: subshell so the caller's cwd survives.
-ccd()   { ( cd "$HOME/dotfiles" && claude "$@" ); }
-ccrd()  { ( cd "$HOME/dotfiles" && claude -r "$@" ); }
-ccdm()  { ( cd "$HOME/dotfiles" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-ccrdm() { ( cd "$HOME/dotfiles" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
-ccn()   { ( cd "$HOME/notes" && claude "$@" ); }
-ccrn()  { ( cd "$HOME/notes" && claude -r "$@" ); }
-ccnm()  { ( cd "$HOME/notes" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-ccrnm() { ( cd "$HOME/notes" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
-ccs()   { ( cd /srv/silverbullet/space && claude "$@" ); }
-ccrs()  { ( cd /srv/silverbullet/space && claude -r "$@" ); }
-ccsm()  { ( cd /srv/silverbullet/space && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-ccrsm() { ( cd /srv/silverbullet/space && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+  # `cc` shadows the C compiler, but only in interactive shells - Makefiles and
+  # build scripts run non-interactively and never see aliases.
+  alias cc='claude'
+  alias ccr='claude -r'
+
+  # Mobile mode is injected via --append-system-prompt rather than as an initial
+  # `/mobile-mode` prompt, because -r/--resume takes an OPTIONAL session id and
+  # would otherwise swallow the positional argument.
+  CC_MOBILE='Mobile mode is active for this entire session: read and follow ~/.claude/skills/mobile-mode/SKILL.md before your first reply.'
+  alias ccm='claude --append-system-prompt "$CC_MOBILE"'
+  alias ccrm='claude -r --append-system-prompt "$CC_MOBILE"'
+
+  # Workspace variants: subshell so the caller's cwd survives. Repo roots come
+  # from _repo_dotfiles/_repo_notes (REPO SYNC below, resolved at call time), so
+  # a clone outside ~/dotfiles works too. dotfiles needs no guard: this file is
+  # part of it.
+  ccd()   { ( cd "$(_repo_dotfiles)" && claude "$@" ); }
+  ccrd()  { ( cd "$(_repo_dotfiles)" && claude -r "$@" ); }
+  ccdm()  { ( cd "$(_repo_dotfiles)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+  ccrdm() { ( cd "$(_repo_dotfiles)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+
+  if [[ -d "${NOTES_DIR:-${HOME}/notes}" ]]; then
+    ccn()   { ( cd "$(_repo_notes)" && claude "$@" ); }
+    ccrn()  { ( cd "$(_repo_notes)" && claude -r "$@" ); }
+    ccnm()  { ( cd "$(_repo_notes)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+    ccrnm() { ( cd "$(_repo_notes)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+  fi
+  # Guarded by the dir rather than living in the vserver's host file, so any
+  # host that gets a SilverBullet space later picks these up without a copy.
+  if [[ -d "/srv/silverbullet/space" ]]; then
+    ccs()   { ( cd /srv/silverbullet/space && claude "$@" ); }
+    ccrs()  { ( cd /srv/silverbullet/space && claude -r "$@" ); }
+    ccsm()  { ( cd /srv/silverbullet/space && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+    ccrsm() { ( cd /srv/silverbullet/space && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+  fi
+fi
 # }}} - AI / CLAUDE CODE -----------------------------------------------------
 
 # {{{ - NETWORK --------------------------------------------------------------
