@@ -121,6 +121,7 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | File | Description |
 |---|---|
 | `bin/media-keys` | Script to be used from within X (e.g. media key mappings) for media player control (play/pause, prev/next song) and pulse audio volume control (+/-5% and toggle mute) optionally showing an OSD. |
+| `bin/bottom` | Run the `bottom` snap with the exported `XDG_*_HOME` vars unset, so it keeps its config in its own snap dir instead of failing on `~/.config`. Name-agnostic: copy it to `bin/<snap-command>` for any other snap with the same problem. |
 | `bin/apt-update` | Quietly update apt package indexes and store a timestamp. |
 | `bin/exif-sanitize` | Strip privacy-sensitive and clutter metadata from images and videos by profile (`guests`, `social`, `public`, `anon`, `import`) or by topic (`location`, `people`, `serial`, `makernotes`, ...). Writes sanitized copies by default for the sharing profiles; one exiftool pass per run. |
 | `bin/rename-timestamp-prefix` | Rename files to carry an ISO timestamp prefix (`YYYY-MM-DDTHHMMSS_`) taken from a file time or EXIF/QuickTime creation date, optionally moving them into `YYYY`/`YYYY-MM`/`YYYY-MM-DD` directories and syncing the file mtime. |

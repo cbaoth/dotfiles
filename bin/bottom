@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Run a snap app without our exported XDG_*_HOME vars (here: bottom).
+
+# Why: snapd points $HOME at the snap's private ~/snap/<name>/current, but
+# passes the XDG vars exported in .common_env through unchanged. An app that
+# honours them then writes the real ~/.config and fails with "Permission
+# denied" -- strict snaps cannot reach hidden dirs in $HOME, and unlike flatpak
+# there is no user-side override. Without the vars the app falls back to
+# $HOME/.config inside its own dir (bottom: ~/snap/bottom/current/.config/).
+#
+# A bin/ script rather than a shell alias so it also works from sway exec
+# bindings, which run via /bin/sh. It shadows /snap/bin/<name> because ~/bin
+# comes first in PATH.
+#
+# Reuse for another affected snap: copy this file to bin/<snap-command>. The
+# target is taken from the script's own name, so the body needs no change.
+
+set -o nounset
+
+main() {
+  local -r snap_bin="/snap/bin/${0##*/}"
+  if [[ ! -x "${snap_bin}" ]]; then
+    printf '\033[31mERROR\033[0m: %s not found, is the snap installed?\n' "${snap_bin}" >&2
+    exit 127
+  fi
+  exec env -u XDG_CONFIG_HOME -u XDG_CACHE_HOME -u XDG_DATA_HOME -u XDG_STATE_HOME \
+    "${snap_bin}" "$@"
+}
+
+main "$@"
