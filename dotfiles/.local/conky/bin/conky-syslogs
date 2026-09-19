@@ -13,13 +13,13 @@ p_help() {
   cat <<EOF
 
 About:
-  Print system logs for conky display, including mdstat, journalctl, and sway/i3 logs.
+  Print system logs for conky display, including mdstat, journalctl, and sway logs.
   Output is colorized and folded to fit the given width.
 
 Arguments:
   FOLD_WIDTH: Column width to fold log lines to (e.g. 140)
   TAIL_LINES_JOURNAL: Number of lines to show from journalctl output (e.g. 50)
-  TAIL_LINES_LOGS: Number of lines to show from sway/i3 log output (e.g. 10)
+  TAIL_LINES_LOGS: Number of lines to show from sway log output (e.g. 10)
 
 Example usage in conky config:
   \${execp \$HOME/.local/conky/bin/conky-syslogs 140 50 10 "$HOME/.xsession.log"}

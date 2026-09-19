@@ -5,11 +5,8 @@
 # shellcheck shell=bash
 #
 # Suspend the system after optional lock-screen and audio cleanup steps.
-## lock screen if not in a light-dm session
-#ps aux | awk '$12=="light-dm" {exit 0} END{exit 1}' \
-#  ||
-# i3lock
-#dm-tool lock
+## lock screen before suspend (currently disabled)
+#swaylock
 
 # kill pulseaudio (doesn't always recover, respawn instead)
 pkill -9 pulseaudio

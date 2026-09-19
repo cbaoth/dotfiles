@@ -1,6 +1,0 @@
-! ~/.Xresources/saito: host specific x resource configuration
-
-! {{{ = General ==============================================================
-! get display dpi: grepxdpyinfo | grep dots
-!Xft.dpi: 120
-! }}} = General ==============================================================

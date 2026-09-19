@@ -75,18 +75,13 @@ notes cross-link to the `setup/` module that automates them. See
 | `dotfiles/.zsh.d/aliases.zsh` | SH | Common aliases |
 | `dotfiles/.zsh.d/aliases-freebsd.zsh` / `aliases-linux.zsh` / `aliases-linux_wsl.zsh` | SH | OS, distribution, and/or host specific aliases. |
 | `dotfiles/.bashrc` | [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) | Common Bash config _(rarely maintained)_. |
-| `dotfiles/.xsession` | X, Wayland | Used by the display manager. Loads `.profile` and `.xinitrc`. |
-| `dotfiles/.xinitrc` | [X](https://en.wikipedia.org/wiki/X_Window_System), [Wayland](https://en.wikipedia.org/wiki/Wayland_(display_server_protocol)) | Loaded from inside `.xsession` or when starting `xinit`. |
-| `dotfiles/.xsession.d/common` / `default` / `saito` | X, Wayland | Common, default and host specific xsession initialization scripts loaded from inside `.xinitrc`. The `common` script is always loaded, the host specific script `.xsession.d/{hostname}` is loaded if existing, else the fallback `default` is loaded. |
-| `dotfiles/.Xresources` / `.Xresources.d/saito` | X, Wayland | Common and host specific [X Resources](https://en.wikipedia.org/wiki/X_resources). The `.Xresources` file is loaded from inside `.xsession.d/common`. If a host specific `.Xresources.d/{hostname}` exists, it is merged into the common resources. |
-| `dotfiles/.imwheelrc` | [IMWheel](http://imwheel.sourceforge.net/) | General and app specific mouse button/wheel mappings. |
 | `dotfiles/.vimrc` | [VIM](https://www.vim.org/) | VIM configuration |
 | `dotfiles/.config/mpv/config` / `input.conf` | [mpv](https://en.wikipedia.org/wiki/Mpv_(media_player)) | MPV configuration and key bindings. |
 | `dotfiles/.mplayer/config` / `input.conf` | [MPlayer](https://en.wikipedia.org/wiki/MPlayer) | Old MPlayer configuration and key bindings (switched to `mpv`). |
 
 #### Host / OS specific zsh files
 
-Custom host / OS specific ZSH configurations, aliases, functions, xsessions and xresources can be created and they are dynamically loaded in case of a match. This provides a convenient way to enrich the environment in case of a specific host / os without messing around with the core files.
+Custom host / OS specific ZSH configurations, aliases and functions can be created and they are dynamically loaded in case of a match. This provides a convenient way to enrich the environment in case of a specific host / os without messing around with the core files.
 
 This is the sequence in which zshrc's, aliases and functions are loaded from within `.zshrc`:
 
