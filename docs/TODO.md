@@ -330,3 +330,19 @@ For now, cross-host coordination = git (dotfiles + `~/notes`) as the bus, plus
       (and maybe desktop) sync of a shared working dir. It sidesteps the
       NordVPN-inbound problem via relays and needs no manual trigger, but wants
       install + device pairing on both ends. Revisit if `hsync` proves too manual.
+
+## Quick Notes
+
+Just some quick unrefined notes, before I forget:
+
+- `bin/bt-audio-reset` fails when no profile is active
+  - `ERROR: card 'bluez_card.AC_80_0A_15_0E_96' has no active A2DP profile (currently: off)`
+  - example scenario (with WH-1000XM4):
+    1. start voice input in vscode github copilot chat -> switches to HSP/HFP MSBC
+    2. stop voice input -> switches to off (instead of back to the best A2DP profile)
+  - potential fixes:
+    - instead of resetting, which could reset to an undesired profile like in this case off, choose the best possible profile for the device. i assume there is a way to identify it, or potentially some kind of default for hifi stereo audio output. if not consider some kind of lookup (which profiles do exist) and choose the best from a predefined (hard coded list). simplest but least desirable case: hard code A2DP SBC-XQ (works for WH-1000XM4 at least).
+    - check the github copilot chat extension behavior: why does it behave this way? can the behavior be changed?
+  - hints:
+    - the script is used by a sway shortcut (`dotfiles/.config/sway/config.d/40-keybindings.conf`)
+    - i verified that the claude code extension, opposed to copilot, always selects A2DP SBC-XQ after turning of voice input, no matter which profile was active before initiating voice input (including off). so it seems to choose the best profile automatically, which is the desired behavior (at least for WH-1000XM4)
