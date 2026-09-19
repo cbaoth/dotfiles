@@ -46,7 +46,7 @@ alias fsck-ntfs-clear-dirty="sudo ntfsfix --clear-dirty"
 alias sensors-all='sensors'
 alias sensors-drives='sensors drivetemp-scsi-* nvme-pci-* 2>/dev/null'
 # list hwmon chip names with index numbers — useful for conky ${hwmon N type index} config
-alias sensors-hwmon='grep . /sys/class/hwmon/hwmon*/name | sed "s|/sys/class/hwmon/hwmon||;s|/name:|\t|" | sort -n'
+alias sensors-hwmon='grep . /sys/class/hwmon/hwmon*/name | sed "s|/sys/class/hwmon/hwmon||;s|/name:|\t|" | LC_ALL=C sort -n'
 # }}} - SYSTEM ---------------------------------------------------------------
 
 # {{{ - POWER MANAGEMENT -----------------------------------------------------

@@ -96,13 +96,16 @@ alias -g ,egi='|& grep -Ei'
 # highlight (non-filtering: colorize matches, pass the full stream through)
 alias -g ,hl='| colorize-text'      # e.g. cmd ,hl '(?i)error:red' '(?i)warn:yellow'
 
-alias -g ,u='| LC_ALL=C  uniq'      # unique lines by byte value (more efficient and predictable)
-alias -g ,uc='| LC_ALL=C  uniq -c'  # count unique lines
+# unique lines by byte value (more efficient and predictable)
+alias -g ,u='| LC_ALL=C uniq'
+alias -g ,uc='| LC_ALL=C uniq -c'   # count unique lines
 
-# sort, count
-alias -g ,so='| LC_ALL=C sort'      # sort by byte value (more efficient and predictable)
+# sort by byte value (more efficient and predictable)
+alias -g ,so='| LC_ALL=C sort'
 alias -g ,sor='| LC_ALL=C sort -r'  # reverse sort
 alias -g ,sou='| LC_ALL=C sort -u'  # sort unique lines
+
+# word count
 alias -g ,wc='| wc'
 alias -g ,wcl='| wc -l'             # count lines
 

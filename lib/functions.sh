@@ -656,7 +656,7 @@ EOF
     echo "example: merge_dirs_same_first_word -n [a-z]*/"
   fi
   ls -d "$@" | grep -vE '^(\.\.|\/)' | sed -r 's/^\.\///g' | grep -Eo "$pattern" \
-    | tr '/' '\0' | sort | uniq -c \
+    | tr '/' '\0' | LC_ALL=C sort | LC_ALL=C uniq -c \
     | while read c d; do
         if (($c > 1)) && [[ -n "$d" ]]; then
           if ${noact}; then
@@ -801,7 +801,7 @@ EOF
 
   find "${dirnames[@]}" "${find_args[@]}" > "$tempfile"
   # echo "> Temporary file list created at: $tempfile"
-  sed 's_.*/__' "$tempfile" | LC_ALL=C sort | uniq -d | while IFS= read -r f; do
+  sed 's_.*/__' "$tempfile" | LC_ALL=C sort | LC_ALL=C uniq -d | while IFS= read -r f; do
     # echo "==> $f" # debug
     if [[ $show_index -eq 1 ]]; then
       local line_num=0
@@ -1941,7 +1941,7 @@ mplayer-delete-me() {
     cl::p_err "file not found: $DELETE_ME, nothing to delete"
     return -1
   fi
-  uniq < "$DELETE_ME" | while read f; do
+  LC_ALL=C uniq < "$DELETE_ME" | while read f; do
     if [[ ! -f "$f" ]]; then
       cl::p_err "file not found: $f" \
         | tee -a "$LOG_FILE"

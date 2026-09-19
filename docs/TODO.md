@@ -38,6 +38,33 @@ Ideas and future tasks for improving the shell scripts in this repository.
 - [ ] [M] Define consolidation targets; migrate callers to `lib/commons.sh` or a shared loader where sensible
 - [ ] [M] Establish a ShellCheck cleanup baseline and iteratively reduce warnings to near-zero for active scripts
 
+## Locale & Collation (LC_ALL=C)
+
+Interactive `sort`/`uniq` now default to byte collation via `alias sort='LC_ALL=C
+sort'` / `alias uniq='LC_ALL=C uniq'` (deterministic order, faster, avoids the
+`_a` vs `a` locale-interleave and the classic `sort | uniq`/`comm`/`join`
+mismatch bug). Aliases only reach *interactive* shells, so standalone scripts and
+sourced libs need explicit handling. `lib/functions.sh` already fixed
+(2026-09-19).
+
+- [ ] [S] Document the convention in the shell style guide
+  (`docs/shell-style-guide.md`) and AI instructions
+  (`.github/instructions/cb-shell-script.instructions.md`). Key points:
+  - **When it matters:** any `sort` feeding `uniq`/`comm`/`join` (both sides must
+    agree), and where reproducible output is wanted. A C-sort next to a
+    locale-`uniq` is the actual dedup bug — worse than doing nothing.
+  - **When it does not:** pure `sort -n` / numeric-field sorts (locale barely
+    affects them) and human-facing alphabetical *display* (rare in scripts).
+  - **Standalone scripts:** prefer a single `export LC_ALL=C` (or `LC_COLLATE=C`)
+    near the header over prefixing every command.
+  - **Sourced files (`lib/*.sh`, `.zsh.d/`): NEVER `export` at file scope** — it
+    clobbers the user's whole interactive locale. Use per-command `LC_ALL=C`
+    prefixes (or `local LC_ALL=C` inside a function).
+- [ ] [S] Audit remaining `bin/` scripts for candidates (not a blind sweep — many
+  hits are false positives: jq `unique`, fzf `--no-sort`, a var named `sort`,
+  Python `sorted()`). `bin/diff-ini` (`sort -u` for INI comparison) is the main
+  determinism candidate; numeric sorts (`sway-ws`, `image-concat`) can stay.
+
 ## Aliases & Functions Review
 
 - [ ] [S] When touching `.zsh.d/` files, opportunistically review nearby aliases/functions for conversion candidates:
