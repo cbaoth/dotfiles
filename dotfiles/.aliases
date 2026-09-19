@@ -597,7 +597,7 @@ alias speedtest='wget -O - -q https://raw.githubusercontent.com/sivel/speedtest-
 # {{{ - XORG / WAYLAND -------------------------------------------------------
 alias xdisplay-local0='export DISPLAY=:0.0'
 
-alias xlog-multitail='multitail ~/.xsession.log'
+alias xlog-multitail='multitail ~/.local/state/sway/session.log'
 
 alias xprop-class='xprop WM_CLASS | cut -d\" -f2'
 alias xprop-name='xprop WM_CLASS | cut -d\" -f4'

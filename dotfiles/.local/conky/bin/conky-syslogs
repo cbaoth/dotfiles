@@ -22,7 +22,7 @@ Arguments:
   TAIL_LINES_LOGS: Number of lines to show from sway log output (e.g. 10)
 
 Example usage in conky config:
-  \${execp \$HOME/.local/conky/bin/conky-syslogs 140 50 10 "$HOME/.xsession.log"}
+  \${execp \$HOME/.local/conky/bin/conky-syslogs 140 50 10 "$HOME/.local/state/sway/session.log"}
 EOF
 }
 

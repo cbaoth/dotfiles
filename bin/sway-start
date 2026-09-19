@@ -13,8 +13,9 @@ set -euo pipefail
 # shellcheck disable=SC2155
 declare -r SCRIPT_FILE="$(basename "$0")"
 
-# Use ~/.xsession.log for backward compatibility, e.g. with conky configs
-declare -r LOG_FILE="$HOME/.xsession.log"
+# Session log: sway + child-app stderr, read by conky configs. TTY-launched
+# sway is not captured by the journal, so this file is the only capture.
+declare -r LOG_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/sway/session.log"
 
 p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
@@ -89,6 +90,7 @@ main() {
 
   # Log to file for debugging and monitoring (e.g. conky). Overwrite instead
   # of append to avoid unbounded growth; no rotation needed.
+  mkdir -p -- "$(dirname -- "${LOG_FILE}")"
   exec > >(tee "${LOG_FILE}") 2>&1
   exec sway "${sway_args[@]}"
 }
