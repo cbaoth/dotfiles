@@ -519,154 +519,156 @@ $(cl::fx b)Example:$(cl::fx r)
 url2fname () { echo $1 | sed 's/^http:\/\///g;s/\//+/g'; }
 export url2fname
 
-# FIXME this seems bugged
-merge_dir () {
-    echo -e "\033[33mWARNING\033[0m: this function may be bugged. Possible alternatives e.g.:"
-  cat <<EOF
+# execute (or, in dry-run, print) a single move. Overwrites are already decided
+# by the caller; -f here only suppresses a possible 'mv -i' alias prompt.
+_md_mv() {
+  if ${_md_noact}; then
+    printf '  WOULD mv: %s  ->  %s\n' "$1" "$2"
+  else
+    ${_md_verbose} && cl::p_msg "mv: $1 -> $2"
+    command mv -f -- "$1" "$2"
+  fi
+}
 
-# source with trailing slash!
-rsync -av --remove-source-files /path/to/folder_b/ /path/to/folder_a/
+# Move SRC's entries into DEST, recursing only where a same-named subdir already
+# exists. Helper for merge_dir; relies on its (dynamically-scoped) flags
+# _md_noact/_md_verbose/_md_force/_md_prune. Filenames are assumed newline-free
+# (true for this collection, as elsewhere in the pipeline).
+_merge_dir_into() {
+  local src="$1" dest="$2"
+  local entry name target
+  while IFS= read -r entry; do
+    name="${entry##*/}"
+    target="${dest}/${name}"
+    if [[ -d "${entry}" && ! -L "${entry}" ]]; then
+      if [[ ! -e "${target}" ]]; then
+        _md_mv "${entry}" "${target}"                 # whole subtree: one rename
+      elif [[ -d "${target}" && ! -L "${target}" ]]; then
+        ${_md_verbose} && cl::p_msg "merge dir: ${entry}/ -> ${target}/"
+        _merge_dir_into "${entry}" "${target}"         # collision: recurse
+      else
+        cl::p_war "type clash (dir vs non-dir), skipping: ${entry}"
+      fi
+    else
+      if [[ ! -e "${target}" && ! -L "${target}" ]]; then
+        _md_mv "${entry}" "${target}"
+      elif ${_md_force}; then
+        _md_mv "${entry}" "${target}"                  # -f: overwrite
+      else
+        cl::p_war "exists in target, skipping (use -f): ${target}"
+      fi
+    fi
+  done < <(find "${src}" -mindepth 1 -maxdepth 1)
+}
 
-# or simply using cp & rm
-cp -r -n /path/to/folder_b/* /path/to/folder_a/
-# caution: only delete source if copy was successful!
-#rm -rf /path/to/folder_b/
-
-EOF
-  cl::q_yesno "This function may be bugged, do you want to continue?" || return 1
-
-  local verbose=false wild=false noact=false ignore_case
+# Merge the contents of each SOURCE directory into DEST (the last argument) using
+# rename(2): instant on the same filesystem (incl. NFS, server-side), no byte
+# copy -- unlike rsync, which would stream every byte through the client. A
+# subdirectory not yet in DEST is moved whole (one rename); a colliding
+# subdirectory is merged recursively. A file already present in DEST is left in
+# SOURCE with a warning (use -f to overwrite). DEST is created if missing.
+merge_dir() {
+  local _md_noact=false _md_verbose=false _md_force=false _md_prune=false
   while [[ "${1:-}" == -* ]]; do
-    case ${1} in
-       -v)
-           verbose=true
-           shift
-           ;;
-       -w)
-           wild=true
-           shift
-           ;;
-       -n)
-           noact=true
-           shift
-           ;;
-       -i)
-           ignore_case=1
-           shift
-           ;;
-       *)
-           break
-           ;;
+    case "$1" in
+      -n|--dry-run) _md_noact=true ;;
+      -v|--verbose) _md_verbose=true ;;
+      -f|--force)   _md_force=true ;;
+      -p|--prune)   _md_prune=true ;;
+      --)           shift; break ;;
+      *) cl::p_err "$(cl::func_name): unknown option: $1"; return 1 ;;
     esac
+    shift
   done
-  if [[ -z "${1:-}" ]]; then
-    cl::p_usg "merge_dir [OPTION..] target [source..]
 
-merge content of all source directories into the given target directory
-  with -w to match *target* (actually base-directory/*target*)
+  if [[ -z "${2:-}" ]]; then
+    cl::p_usg "$(cl::func_name) [-n] [-v] [-f] [-p] SOURCE.. DEST
+
+merge the contents of each SOURCE dir into DEST (rename-based, same-fs instant);
+DEST is created if missing
 
 OPTIONS:
-  -w match *target*, only if no sources are provided
-  -i match target case insensitive, only if no sources are provided
-     note, this will set the extendedglob option
-  -n for no-act (print commands only) and
-  -v for verbose mode"
+  -n, --dry-run  print actions only, change nothing
+  -v, --verbose  print each move
+  -f, --force    overwrite files that already exist in DEST (no checks)
+  -p, --prune    delete source dirs left empty (incl. the SOURCE dir itself)
+
+on a name collision the source file is skipped with a warning and kept in place
+for review, unless -f is given"
     return 1
   fi
-  tar="$1"
-  shift
-  if [[ -n "${1:-}" ]]; then
-    src=("$@")
-  elif ${wild}; then
-    if [[ -n "${ZSH_VERSION:-}" ]]; then
-      setopt extendedglob
-      if [[ $tar = */* ]]; then
-        src=(${ignore_case:+(#i)}"${tar%/*}"/*"${tar##*/}"*/)
-      else
-        src=(${ignore_case:+(#i)}*"${tar}"*/)
-      fi
-    else
-      if [[ $tar = */* ]]; then
-        src=("${tar%/*}"/*"${tar##*/}"*/)
-      else
-        src=(*"${tar}"*/)
-      fi
+
+  # Split args portably (no bash/zsh-specific indexing): the last arg is DEST.
+  local arg dest="" i=0
+  local -a sources=()
+  for arg in "$@"; do
+    i=$((i + 1))
+    if (( i == $# )); then dest="${arg%/}"; else sources+=("${arg%/}"); fi
+  done
+  [[ -z "${dest}" ]] && dest="/"          # a lone "/" survives the %/ strip
+
+  if ${_md_noact}; then
+    if [[ -e "${dest}" && ! -d "${dest}" ]]; then
+      cl::p_err "DEST exists and is not a directory: ${dest}"; return 2
     fi
   else
-    if [[ -n "${ZSH_VERSION:-}" ]]; then
-      setopt extendedglob
-      src=(${ignore_case:+(#i)}"${tar}"*/)
-    else
-      src=("${tar}"*/)
-    fi
-  fi
-  local dir_created=false
-  ${noact} || mkdir -p "${tar}" && dir_created=true
-  if [[ ! ${noact} && ! -d "${tar}" ]]; then
-    cl::p_err "unabe to create target directory [${tar}]"
-    return 2
+    mkdir -p -- "${dest}" \
+      || { cl::p_err "cannot create DEST: ${dest}"; return 2; }
   fi
 
-  ${verbose} && cl::p_msg "target: ${tar}"
-  ${verbose} && cl::p_msg "source(s): ${src[@]}"
-  [[ -n "${ZSH_VERSION:-}" ]] && setopt extendedglob
-  for d in "${src[@]}"; do
-    ${verbose} && cl::p_msg "processing: ${d}"
-    if [[ ! -d "${d}" ]]; then
-      ${verbose} && cl::p_msg "skipping, not a directory: ${d}"
+  local src
+  for src in "${sources[@]}"; do
+    if [[ ! -d "${src}" ]]; then
+      cl::p_war "skipping, not a directory: ${src}"
       continue
     fi
-    if [[ "${d}" -ef "${tar}" ]]; then
-      cl::p_war "skipping, source same as target: ${d}"
+    if [[ "${src}" -ef "${dest}" ]]; then
+      cl::p_war "skipping, SOURCE is DEST: ${src}"
       continue
     fi
-    find "${d}" -mindepth 1 -maxdepth 1 -exec $($noact && printf echo) /bin/mv -t "${tar}" -- {} +
-    ${noact} || rmdir "${d}"
+    case "${dest}/" in
+      "${src}"/*) cl::p_err "skipping, DEST is inside SOURCE: ${src} -> ${dest}"
+                  continue ;;
+    esac
+    ${_md_verbose} && cl::p_msg "merging ${src}/ -> ${dest}/"
+    _merge_dir_into "${src}" "${dest}"
+    if ${_md_prune}; then
+      if ${_md_noact}; then
+        cl::p_msg "(dry-run) would delete emptied source dirs under ${src}/"
+      else
+        find "${src}" -depth -type d -empty -delete -print
+      fi
+    fi
   done
-  ${dir_created} && rmdir --ignore-fail-on-non-empty "${tar}" 2>/dev/null
 }
-#
 
-# FIXME see comment above, uses merge_dir which may be bugged
+# Merge every group of the given DIRs that share the same leading "word" into one
+# (e.g. 'foo-a/' 'foo-b/' -> 'foo/'); a thin batch wrapper around merge_dir.
+# Options (-n/-v/-f/-p) are passed through. Local dirs only (no / or ../).
 merge_dirs_same_first_word() {
-  echo -e "\033[33mWARNING\033[0m: this function may be bugged. Possible alternatives e.g.:"
-  cat <<EOF
-
-# source with trailing slash!
-rsync -av --remove-source-files /path/to/folder_b/ /path/to/folder_a/
-
-# or simply using cp & rm
-cp -r -n /path/to/folder_b/* /path/to/folder_a/
-# caution: only delete source if copy was successful!
-#rm -rf /path/to/folder_b/
-
-EOF
-  cl::q_yesno "This function may be bugged, do you want to continue?" || return 1
-
   local pattern='^[^%#_+-]+'
-  local noact=false
-  if [[ "${1:-}" = "-n" ]]; then
-    noact=true
-    shift
-  fi
+  local -a opts=()
+  while [[ "${1:-}" == -* ]]; do
+    opts+=("$1"); shift
+  done
   if [[ -z "${1:-}" ]]; then
-    cl::p_usg "merge_dirs_same_first_word [-n] DIR.."
-    echo "merges all DIR.. having the same first word (actually only: ${pattern})"
-    echo "only local dircs allowed (no / or ../)"
-    echo "example: merge_dirs_same_first_word -n [a-z]*/"
+    cl::p_usg "$(cl::func_name) [-n|-v|-f|-p] DIR..
+
+merge all DIRs sharing the same first word (matched: ${pattern}) into that word
+example: $(cl::func_name) -n [a-z]*/"
+    return 1
   fi
-  ls -d "$@" | grep -vE '^(\.\.|\/)' | sed -r 's/^\.\///g' | grep -Eo "$pattern" \
-    | tr '/' '\0' | LC_ALL=C sort | LC_ALL=C uniq -c \
-    | while read c d; do
-        if (($c > 1)) && [[ -n "$d" ]]; then
-          if ${noact}; then
-            cl::p_msg "merge_dir \"$d\""
-          else
-            merge_dir "$d"
-          fi
-        fi
+  # count the leading word of each given dir (args are already shell-globbed, so
+  # no ls needed); merge every word shared by more than one dir into that word.
+  local count word
+  printf '%s\n' "$@" | grep -vE '^(\.\.|/)' | sed -r 's#^\./##; s#/.*$##' \
+    | grep -Eo "${pattern}" | LC_ALL=C sort | LC_ALL=C uniq -c \
+    | while read -r count word; do
+        (( count > 1 )) && [[ -n "${word}" ]] || continue
+        merge_dir "${opts[@]}" "${word}"*/ "${word}"
       done
 }
+
 # }}} - Renaming / Moving ----------------------------------------------------
 
 # {{{ - Duplicate Finding ----------------------------------------------------
