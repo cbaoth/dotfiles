@@ -98,6 +98,11 @@ alias -g ,gpi='| grep -Pi'
 alias -g ,egp='|& grep -P'
 alias -g ,egpi='|& grep -Pi'
 
+# grep (common filters)
+# filter meaningful code lines (best effort) to preserve only those that might hold semantic value
+# omit empty lines (ignore spaces) or comments ('#' or '//', ignore leading spaces)
+alias -g ,fc='| grep -Ev "^\s*(#|//)|^\s*$"'   # meaningful code lines only
+
 # highlight (non-filtering: colorize matches, pass the full stream through)
 alias -g ,hl='| colorize-text'      # e.g. cmd ,hl '(?i)error:red' '(?i)warn:yellow'
 
