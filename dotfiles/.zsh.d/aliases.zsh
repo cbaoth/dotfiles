@@ -87,11 +87,16 @@ alias -g ,el='| less'
 alias -g ,h='| head'
 alias -g ,t='| tail'
 
-# filter
+# grep (extended regex)
 alias -g ,g='| grep -E'
 alias -g ,gi='| grep -Ei'
 alias -g ,eg='|& grep -E'
 alias -g ,egi='|& grep -Ei'
+# grep (Perl regex)
+alias -g ,gp='| grep -P'
+alias -g ,gpi='| grep -Pi'
+alias -g ,egp='|& grep -P'
+alias -g ,egpi='|& grep -Pi'
 
 # highlight (non-filtering: colorize matches, pass the full stream through)
 alias -g ,hl='| colorize-text'      # e.g. cmd ,hl '(?i)error:red' '(?i)warn:yellow'
@@ -116,6 +121,7 @@ alias -g ,xl='| tr "\n" "\0" | xargs -0 -n 10000'   # NUL-split, batched xargs
 
 # text transforms
 alias -g ,s='| sed -E'
+alias -g ,es='|& sed -E'
 alias -g ,tr='| tr'
 alias -g ,tlo="| tr '[:upper:]' '[:lower:]'"
 alias -g ,tup="| tr '[:lower:]' '[:upper:]'"
