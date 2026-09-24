@@ -219,13 +219,16 @@ fi
 # apt-mark
 if [[ -n "$(command -v apt-mark 2>/dev/null)" ]]; then
   # change mark
-  alias ama="sudo apt-mark markauto"
+  alias ama="sudo apt-mark auto"
+  alias amm="sudo apt-mark manual"
+  alias ammm="sudo apt-mark minimize-manual"
+  alias amh="sudo apt-mark hold"
+  alias amhu="sudo apt-mark unhold"
 
-  # list
-  alias amlim="LC_ALL=C comm -23 <(LC_ALL=C apt-mark showmanual | LC_ALL=C sort -u) \
-                <(gzip -dc /var/log/installer/initial-status.gz \
-                    | sed -n 's/^Package: //p' | LC_ALL=C sort -u)"
-  alias amlimg="amlim | grep -iE --color"
+  # show by mark
+  alias amla="apt-mark showauto"
+  alias amlm="apt-mark showmanual"
+  alias amlh="apt-mark showhold"
 fi
 
 # apt-file
@@ -263,6 +266,10 @@ if [[ -n "$(command -v aptitude 2>/dev/null)" ]]; then
   # search / list
   alias atso='aptitude search \?obsolete'
   alias atsog='aptitude search \?obsolete | grep -iE --color'
+
+  # list — user-installed packages (manual, excluding base-priority set)
+  alias amlim="aptitude search -F '%p' '~i !~M !~prequired !~pimportant !~pstandard' | LC_ALL=C sort -u"
+  alias amlimg="amlim | grep -iE --color"
 fi
 
 # TODO finally decide if this is the prefered way, or if it should be removed (again)
