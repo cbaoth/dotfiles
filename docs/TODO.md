@@ -382,10 +382,6 @@ Just some quick unrefined notes, before I forget:
   - hints:
     - the script is used by a sway shortcut (`dotfiles/.config/sway/config.d/40-keybindings.conf`)
     - i verified that the claude code extension, opposed to copilot, always selects A2DP SBC-XQ after turning of voice input, no matter which profile was active before initiating voice input (including off). so it seems to choose the best profile automatically, which is the desired behavior (at least for WH-1000XM4)
-- evaluate auto-update setup on various hosts.
-  - usually unattended apt updates are enabled, but what about snap (rarely used but still relevant) and flatpak (various apps installed, nearly never updated manually unless prompted or otherwise reminded/needed).
-  - are there native options or existing tools that can be used, on both desktop and server hosts?
-  - generally have a look and evaluate the current shell functions/aliases (especially `pk*` like `pku` to update apt, snap, and flatpak packages).
 - evaluate if our custom dotfiles linking system is still the best option for all hosts
   - consider that i would like to have at least a minimal root user setup as well, which is currently not the case. i tried to use the dotfiles repo for root, the basics seem to work, but i think it's a bad idea unless we clearly separate certain things, ensure that no canonical paths to user space are used, and ensure that shell scripts and such are safe to run with root permissions (mostly not designed for that purpose, might be dangerous, mess with file permissions, or similar).
   - i had juast a very brief look into the following tools, there might be more, but i think they are worth a look and evaluation. all "claims" are just anecdotes i read online, vague from memory (so not necessarily accurate):
@@ -399,3 +395,55 @@ Just some quick unrefined notes, before I forget:
   - related things to consider, if not already covered by the current solution, or a potential future solution (open topic, see previous point:
     - orphan pruning of symlinks (see `tools/link.sh`), potentially empty dirs as well (this can however be dangerous, unless we know that i dir is only used for dotfile repo purposes).
     - potentially an uninstall option, to remove all symlinks (and other fs objects that were created by the dotfiles setup, and that can safely be removed)
+
+# 7. System Updates — Reminders & Auto-Update
+
+**Open for a planning session (not started).** Goal: stop relying on memory to
+keep software current across hosts. Decide per source and per host what should
+update automatically, what should only produce a reminder, and how that
+reminder reaches the user.
+
+**Trigger (2026-09-24):** the Tailscale client on the vserver (11001001) was
+outdated without anyone noticing. It only came up because `tailscale get
+operator` failed with an unknown subcommand; `sudo tailscale update` fixed it.
+Without that accident it would have stayed outdated for a long time.
+
+**Current state, as far as known:**
+
+- Only **apt** is auto-updated, via unattended-upgrades, and not everywhere:
+  it is **disabled on motoko** (boot-time updates were a nuisance), so apt is
+  updated by hand there. Options and the "fold into bedtime-shutdown" idea are
+  in [docs/setup/unattended-upgrades.md](setup/unattended-upgrades.md); verify
+  each host's actual state. Also check which origins are allowed: third-party
+  repos (Tailscale, browsers, Netdata) are probably not covered by the default
+  config.
+- **flatpak**: several desktop apps, practically never updated unless an app
+  prompts or something breaks.
+- **snap**: rarely used, but present.
+- **Containers** (docker on saito and the vserver): images updated only by hand.
+- **Software outside package managers** (installers with their own updater,
+  static binaries, tools like `tailscale update`, `uv`, Claude Code, ...): no
+  overview, no reminders.
+- There is no regular habit of checking for updates. In practice updates happen
+  only when a tool nags or when something breaks or is missing.
+- Existing helpers: the `pk*` shell functions/aliases (e.g. `pku` updates apt,
+  snap and flatpak in one go). They only run when invoked by hand.
+
+**Questions for the session:**
+
+- [ ] [L] Inventory per host (puppet, motoko, saito, 11001001): what is installed
+      from which source, and how does each source update today?
+- [ ] [M] Where is auto-update safe and reasonable (e.g. flatpak apps on
+      desktops, security-only on servers), and where should it stay a
+      reminder only (e.g. containers with state, anything on the public vserver)?
+- [ ] [M] Native options first: unattended-upgrades origins, flatpak's own
+      update timer or GNOME Software, snap refresh (already automatic?), and
+      container options (Watchtower or similar; or just a "newer image
+      available" check).
+- [ ] [M] Reminder channel: login/MOTD message, zsh startup hint, waybar/tray
+      indicator on desktops, ntfy (already used for Netdata alerts; see
+      [docs/setup/monitoring.md](setup/monitoring.md)), or a periodic report.
+- [ ] [S] Review the `pk*` functions: keep, extend (flatpak/snap/containers/
+      non-package tools), or replace with whatever comes out of this.
+- [ ] [S] If parts are idempotent: `setup/` module(s) plus a `docs/setup/` note,
+      as usual.
