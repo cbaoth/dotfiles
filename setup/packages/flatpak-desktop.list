@@ -49,6 +49,8 @@ md.obsidian.Obsidian
 io.github.ungoogled_software.ungoogled_chromium
 
 # VPN
+# Trayscale: tray icon applet for Tailscale (the client itself comes from
+# setup/modules/35-tailscale.sh).
 dev.deedles.Trayscale
 
 # Ebooks
