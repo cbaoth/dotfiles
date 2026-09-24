@@ -145,10 +145,6 @@
         <Command>cm_SortBySize</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Enter</Shortcut>
-        <Command>cm_AddFilenameToCmdLine</Command>
-      </Hotkey>
-      <Hotkey>
         <Shortcut>Ctrl+PgDn</Shortcut>
         <Command>cm_OpenArchive</Command>
       </Hotkey>
@@ -501,6 +497,11 @@
       <Hotkey>
         <Shortcut>Alt+Z</Shortcut>
         <Command>cm_ChangeDirToParent</Command>
+        <Control>Files Panel</Control>
+      </Hotkey>
+      <Hotkey>
+        <Shortcut>Shift+Alt+F</Shortcut>
+        <Command>cm_ConfigFavoriteTabs</Command>
         <Control>Files Panel</Control>
       </Hotkey>
     </Form>
