@@ -1,3 +1,7 @@
+// -*- mode: c; indent-tabs-mode: nil; tab-width: 4 -*-
+// vim: ft=xkb:et:ts=4:sts=4:sw=4
+// code: language=c insertSpaces=true tabSize=4
+
 // Custom XKB symbols
 //
 // https://xkbcommon.org/doc/current/keymap-text-format-v1-v2.html
