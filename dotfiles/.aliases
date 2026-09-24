@@ -1165,6 +1165,26 @@ fi
 
 # {{{ - PYTHON / UV -----------------------------------------------------------
 # https://docs.astral.sh/uv/getting-started/features/
+# Bootstrap/update uv itself. Deliberately defined *outside* the `command -v uv`
+# guard below — this is what you run when uv is not there yet.
+# UV_NO_MODIFY_PATH=1: ~/.local/bin is already on PATH (.common_env). Without it
+# the installer appends `. "$HOME/.local/share/../bin/env"` to .profile, .bashrc,
+# .bash_profile and .zshrc — all symlinks into this repo, so it dirties tracked
+# files. Its "already on PATH?" check compares the unnormalized install dir
+# ($XDG_DATA_HOME/../bin) against $PATH literally, so it never matches here.
+uv-setup() {
+  if command -v uv >/dev/null 2>&1; then
+    echo "uv already installed ($(uv --version)) at $(command -v uv), updating ..."
+    uv self update
+    return $?
+  fi
+  echo "Installing uv from https://astral.sh/uv/ ..."
+  curl -LsSf https://astral.sh/uv/install.sh \
+    | env UV_NO_MODIFY_PATH=1 XDG_BIN_HOME="${HOME}/.local/bin" sh
+}
+alias uv-install=uv-setup
+alias uv-update=uv-setup   # uv self update; the plain command is `uv self update`
+
 if command -v uv >/dev/null 2>&1; then
   # project env (./.venv)
   alias uvs="uv sync --all-extras"
