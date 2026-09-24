@@ -20,6 +20,12 @@ verbosity in the terminal that they must read and retype is not.
 
 ## The runner contract
 
+The shared core of this contract — stage `~/.ccrun`, dry-run by default, tee to
+`~/.ccrun.log`, self-verify, end with `STATUS:` — is now always-loaded project
+instruction (`AGENTS.md` → *Privileged & interactive steps*). It applies in
+every session, phone or not. What follows is that core plus the phone-specific
+ergonomics; keep the two in step when either changes.
+
 Stage every manual step at the **fixed path `~/.ccrun`**, always overwritten,
 always `chmod +x`. The path never changes, so after the first time they recall
 it from history with `↑` instead of typing it.

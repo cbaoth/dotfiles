@@ -270,3 +270,55 @@ trailing-slash semantics also produced nested `_local/_local/` and
 
 Agents run in zsh with `setopt EXTENDED_GLOB` and `setopt INTERACTIVECOMMENTS`
 enabled.
+
+## Privileged & interactive steps (you have no sudo, no tty)
+
+Agents in this repo run **without root**, and the Bash tool has **no controlling
+terminal**. Two independent walls, both of which are easy to forget and waste a
+round-trip on:
+
+- A `sudo` call is either refused by the permission layer or fails with
+  *"interactive authentication is required"* — there is no tty to prompt on, and
+  no setting changes that. Even a command the layer allows through (e.g. `sudo`
+  *inside* `system-setup`) cannot complete a password or FIDO touch.
+- Interactive prompts (`Continue? [y/N]`, a password, a hardware-key tap) cannot
+  be answered from a tool call — the command aborts or hangs.
+
+So **never drive a privileged or interactive step through the Bash tool.** Hand
+it to the user, and make the hand-off cost one line rather than a copy-paste
+relay of commands and their output:
+
+- **A single, self-explanatory command** (`sudo ufw allow …`): give them the
+  exact line to run, then read the result back — from what they paste, or from a
+  log the command tees.
+- **Anything multi-step, or where the output matters**: stage a script at the
+  fixed path **`~/.ccrun`** (`chmod +x`, always overwritten) that
+  - **defaults to a dry run**, acting only on an explicit `apply` argument
+    (`[[ ${1:-} == apply ]] || DRY=1`) — mirrors `system-setup --dry-run`;
+  - **logs everything, appended** to `~/.ccrun.log`
+    (`exec > >(tee -a "$HOME/.ccrun.log") 2>&1`) — you read that yourself; the
+    user never selects or pastes output. Append, so a dry-run-then-apply keeps
+    both as evidence;
+  - **verifies its own pre/post state** — anything you would otherwise ask them
+    to check by hand is a line in the script;
+  - **ends with one machine-readable `STATUS: …` line**, so the outcome is
+    unambiguous even when the log is long.
+
+  Then tell them the single line `~/.ccrun` (dry run), and `~/.ccrun apply` once
+  it looks right. You read `~/.ccrun.log` with your own tools — optionally
+  `Monitor` it so you pick up the result without being told.
+
+The fixed path is shared on purpose: after the first run the user recalls it
+with `↑` instead of typing. The **`mobile-mode`** skill extends this same
+contract for phone/tablet sessions (a detached `tmux` window to give sudo a real
+tty, chords instead of typing); the pattern above is the shared core, so keep
+the two in step when either changes.
+
+**Tools & permissions.** Stage the script with the **Write** tool and read the
+log back with the **Read** tool, both by absolute path (`/home/cbaoth/.ccrun*`).
+Verified in a fresh `default`-mode session (2026-09-24): the committed
+`Edit(//home/cbaoth/.ccrun*)` rule in `.claude/settings.json` makes the write
+silent, the read needs no rule of its own, and a non-matching write still
+prompts — so the pattern works out of the box on any host using this repo. Do
+**not** read the log via Bash: the `~` trips the shell-expansion approval prompt
+and `tail`/`sed` are not allow-listed regardless.

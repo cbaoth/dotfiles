@@ -15,6 +15,7 @@
       "Read(//sys/power/**)",
       "Edit(//home/cbaoth/dotfiles/.claude/skills/**)",
       "Edit(//home/cbaoth/dotfiles/dotfiles/.claude/skills/**)",
+      "Edit(//home/cbaoth/.ccrun*)",
       "Bash(getent hosts *)",
       "Bash(python3 -c ' *)",
       "Bash(python3 -c \" *)",
