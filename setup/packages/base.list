@@ -27,6 +27,8 @@ wget
 curl
 aria2
 rsync
+# Previously only a gnome-shell dependency (auto); see desktop.list.
+sshfs
 gnupg
 ca-certificates
 

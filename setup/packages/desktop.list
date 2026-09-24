@@ -43,6 +43,17 @@ geeqie
 # both silently. (This is why a past switch to the flatpak was reverted.)
 mpv
 
+# Wayland session core — needed by any compositor, not just sway.
+# These used to arrive only as dependencies of gnome-shell (marked auto), so
+# purging GNOME made `apt autoremove` take them along. Listed explicitly so a
+# fresh host without GNOME gets them. On an existing host an install here is
+# skipped (already present), so also run: sudo apt-mark manual <pkg>
+# X11 apps (class=… window rules) run through it; sway does not depend on it.
+xwayland
+# xkbcomp (compile/check xkb layouts, e.g. ~/.config/xkb/symbols/custom) and
+# setxkbmap (keyboard layout for XWayland clients).
+x11-xkb-utils
+
 # Sway WM and related tools
 sway
 swayidle
