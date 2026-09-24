@@ -179,7 +179,7 @@ Some of the shell functions contained in `lib/functions.sh` will be described in
 | **`p_msg`** _MSG.._ | Print an info message. |
 | **`p_war`** _MSG.._ | Print a warning message. |
 | **`p_err`** _MSG.._ | Print an error message _(stderr)_. |
-| **`p_dbg`** _DBG_LVL SHOW_AT_LVL MSG.._ | Print a debug msg if the given debug level is reached. A global debug level can be set via the `DBG_LVL` variable, in this case `p_dbg` will use the higher level `max(arg-level, global-level)`, meaning whichever is larger. As a result the global level can be used to globally raise, but never to lower the locally used debug level. So simply set the `DBG_LVL` argument to `0` if only the global level should be considered. |
+| **`p_dbg`** _DBG_LVL SHOW_AT_LVL MSG.._ | Print a debug msg if the given debug level is reached. A global debug level can be set via the `DEBUG_LVL` variable, in this case `p_dbg` will use the higher level `max(arg-level, global-level)`, meaning whichever is larger. As a result the global level can be used to globally raise, but never to lower the locally used debug level. So simply set the `DBG_LVL` argument to `0` if only the global level should be considered. |
 | **`p_yes`** / **`p_no`** | Print _yes_ in green and _no_ in red color. |
 | **`py_print`** [-i import] PY_CODE.. | Route the given `code` through the _python3_ `print` function. Use `-i` to import additional packages. |
 
