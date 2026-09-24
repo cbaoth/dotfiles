@@ -25,6 +25,19 @@ declare -r CONFIG_DST="${BSS_INSTALL_CONFIG_DST:-/etc/bedtime-shutdown.conf}"
 declare -r SERVICE_DST="${BSS_INSTALL_SERVICE_DST:-/etc/systemd/system/bedtime.service}"
 declare -r TIMER_DST="${BSS_INSTALL_TIMER_DST:-/etc/systemd/system/bedtime.timer}"
 
+# Self-defense pieces (re-arm timer, lock helpers).
+declare -r REARM_SRC="$SCRIPT_DIR/bedtime-rearm.sh"
+declare -r REARM_SERVICE_SRC="$SCRIPT_DIR/bedtime-rearm.service"
+declare -r REARM_TIMER_SRC="$SCRIPT_DIR/bedtime-rearm.timer"
+declare -r LOCK_SRC="$SCRIPT_DIR/bedtime-lock"
+declare -r UNLOCK_SRC="$SCRIPT_DIR/bedtime-unlock"
+
+declare -r REARM_DST="${BSS_INSTALL_REARM_DST:-/opt/bin/bedtime-rearm.sh}"
+declare -r REARM_SERVICE_DST="${BSS_INSTALL_REARM_SERVICE_DST:-/etc/systemd/system/bedtime-rearm.service}"
+declare -r REARM_TIMER_DST="${BSS_INSTALL_REARM_TIMER_DST:-/etc/systemd/system/bedtime-rearm.timer}"
+declare -r LOCK_DST="${BSS_INSTALL_LOCK_DST:-/opt/bin/bedtime-lock}"
+declare -r UNLOCK_DST="${BSS_INSTALL_UNLOCK_DST:-/opt/bin/bedtime-unlock}"
+
 # File ownership (overridable for sandbox testing; real deploys are root:root).
 declare -r OWNER="${BSS_INSTALL_OWNER:-root}"
 declare -r GROUP="${BSS_INSTALL_GROUP:-root}"
@@ -62,7 +75,9 @@ Targets:
   script   Deploy the script  -> $SCRIPT_DST
   config   Deploy the config  -> $CONFIG_DST
   units    Deploy service+timer, daemon-reload, enable + restart the timer.
-  all      Deploy script + config + units.
+  rearm    Deploy the self-heal re-arm script + lock helpers + rearm units,
+           daemon-reload, enable + start bedtime-rearm.timer.
+  all      Deploy script + config + units + rearm.
 
 Options:
   -f, --force     Overwrite existing files without prompting.
@@ -146,6 +161,25 @@ deploy_units() {
   ok "Timer active:"
   systemctl list-timers bedtime.timer --no-pager || true
 }
+
+deploy_rearm() {
+  deploy_one "$REARM_SRC"  "$REARM_DST"  700 "rearm script"   true
+  deploy_one "$LOCK_SRC"   "$LOCK_DST"   700 "bedtime-lock"   true
+  deploy_one "$UNLOCK_SRC" "$UNLOCK_DST" 700 "bedtime-unlock" true
+  deploy_one "$REARM_SERVICE_SRC" "$REARM_SERVICE_DST" 644 "rearm service unit"
+  deploy_one "$REARM_TIMER_SRC"   "$REARM_TIMER_DST"   644 "rearm timer unit"
+
+  # Reload/enable/start only on a real deploy to real system paths.
+  if ! is_write_run; then return 0; fi
+  if [[ "$OWNER" != root ]]; then return 0; fi   # sandbox test: skip systemctl
+
+  info "Reloading systemd, enabling and starting the re-arm timer..."
+  systemctl daemon-reload
+  systemctl enable bedtime-rearm.timer >/dev/null 2>&1 || true
+  systemctl start bedtime-rearm.timer || true
+  ok "Re-arm timer active:"
+  systemctl list-timers bedtime-rearm.timer --no-pager || true
+}
 # }}} = HELPERS ==============================================================
 
 # {{{ = ARGUMENT PARSING =====================================================
@@ -155,7 +189,7 @@ while [[ $# -gt 0 ]]; do
     -n|--dry-run) DRY_RUN=true ;;
     --diff)       DIFF_ONLY=true ;;
     -h|--help)    usage; exit 0 ;;
-    script|config|units|all)
+    script|config|units|rearm|all)
       [[ "$TARGET" != default ]] && { err "only one target allowed (got '$TARGET' and '$1')"; exit 1; }
       TARGET=$1 ;;
     *) err "unknown argument: $1"; usage >&2; exit 1 ;;
@@ -181,10 +215,11 @@ main() {
     script) deploy_script ;;
     config) deploy_config ;;
     units)  deploy_units ;;
-    all)    deploy_script; deploy_config; deploy_units ;;
+    rearm)  deploy_rearm ;;
+    all)    deploy_script; deploy_config; deploy_units; deploy_rearm ;;
     default)
-      # Safe, non-destructive: always refresh the (artifact) script; install
-      # config/units only when they are missing. Use explicit targets to update.
+      # Safe, non-destructive: always refresh the (artifact) scripts; install
+      # config/units/rearm only when missing. Use explicit targets to update.
       deploy_script
       if [[ ! -e "$CONFIG_DST" ]]; then
         deploy_config
@@ -197,6 +232,14 @@ main() {
         deploy_units
       else
         ok "units present - left as-is (use 'units' to update)"
+      fi
+      if [[ ! -e "$REARM_DST" || ! -e "$REARM_TIMER_DST" ]]; then
+        deploy_rearm
+      else
+        deploy_one "$REARM_SRC"  "$REARM_DST"  700 "rearm script"   true
+        deploy_one "$LOCK_SRC"   "$LOCK_DST"   700 "bedtime-lock"   true
+        deploy_one "$UNLOCK_SRC" "$UNLOCK_DST" 700 "bedtime-unlock" true
+        ok "rearm units present - left as-is (use 'rearm' to update)"
       fi
       ;;
   esac

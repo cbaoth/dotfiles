@@ -1,0 +1,16 @@
+[Unit]
+Description=Re-arm the bedtime shutdown system (08:00, 12:00, 16:00 + on boot)
+
+[Timer]
+# Daytime "sensible-brain" hours: any evening disable of bedtime.timer is undone
+# well before the next night, but this timer is unlikely to be disabled itself.
+OnCalendar=*-*-* 08,12,16:00
+
+# Extra fail-safe: also re-arm shortly after boot (covers reboot / power-loss).
+OnBootSec=2min
+
+# Catch runs missed while the machine was off.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

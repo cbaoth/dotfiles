@@ -1,0 +1,9 @@
+[Unit]
+Description=Bedtime re-arm (re-enable + enforce state of the bedtime shutdown system)
+Documentation=file:/opt/bin/bedtime-rearm.sh
+
+[Service]
+Type=oneshot
+ExecStart=/opt/bin/bedtime-rearm.sh
+
+# Triggered by bedtime-rearm.timer only (no [Install] section -> static).

@@ -3,7 +3,7 @@ title: Power management, sleep, and digital detox
 hosts: [motoko]
 status: workaround
 tags: [power, sleep, systemd, pam, sudoers, logind]
-updated: 2026-07-23
+updated: 2026-09-24
 automated_by: setup/modules/50-power.sh
 ---
 
@@ -176,6 +176,33 @@ sudo visudo -f /etc/sudoers.d/power-states
 Consider `sudo chattr +i /etc/sudoers.d/power-states` to make it immutable
 (remove with `-i` before editing) — this is a file whose whole purpose is to be
 hard for a tired, motivated version of yourself to undo.
+
+### Self-healing & tamper-resistance (partly automated)
+
+The bare `pam_time` rule above has two operational failure modes: (1) if you
+disable the bedtime timer or comment the rule out to work late, it stays off for
+*days* until you remember to restore it correctly; (2) a **pre-opened root shell**
+left running before the auth cutoff can kill the shutdown service outright.
+
+The [`bedtime-shutdown`
+module](../../system-scripts/bedtime-shutdown/README.md#️-self-defense--self-healing)
+now automates the recovery side (the *how*; this note is the *why*):
+
+- **`bedtime-rearm.timer`** (08:00/12:00/16:00 + boot) re-enables the shutdown
+  timer, restores file `root:root`/modes, optionally re-applies `chattr +i`, and
+  optionally **re-asserts the `time.conf` rule inside a managed marker block**
+  (`BSS_REARM_ENFORCE_PAM`, off by default). It is *enable-only* — it never turns
+  anything off, so a same-evening disable is undone before the next night.
+- **`bedtime-lock` / `bedtime-unlock`** toggle immutability on all the files.
+- A **root-shell terminator** (opt-in) kills interactive root shells at the hard
+  shutdown so a stale `sudo -s` cannot abort it.
+
+**Still manual, on purpose** (the lock-out-risk parts): the
+`account required pam_time.so` line in `common-account` and the
+`/etc/sudoers.d/power-states` escape hatch above. Re-arm *verifies* `pam_time` is
+active but will not edit `common-account`. Recovery from a bad rule is a grub
+root/rescue shell → delete the managed block from `/etc/security/time.conf`
+(`chattr -i` first if locked).
 
 ## Sleep state reference
 

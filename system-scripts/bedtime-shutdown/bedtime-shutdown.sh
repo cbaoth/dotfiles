@@ -646,6 +646,71 @@ _cleanup_mounts() {
   _log_info "Mount cleanup completed"
 }
 
+# Terminates interactive ROOT shells at the hard-shutdown phase so a pre-opened
+# `sudo -s` (or a root shell in tmux/TTY) cannot abort the in-progress shutdown
+# or disable the timer. Opt-in via BSS_KILL_ROOT_SHELLS (false | list | true).
+# Deliberately conservative + best-effort: selects EUID-0 processes that own a
+# controlling tty AND are a shell (comm in BSS_KILL_ROOT_SHELLS_COMMS) or a
+# direct child of sudo/su/login, excluding this script's own tree and PID 1.
+# It cannot stop a grub/rescue-shell or install-media bypass (out of scope).
+_terminate_root_shells() {
+  local -r mode="${BSS_KILL_ROOT_SHELLS:-false}"
+  case "$mode" in
+    false|"") _log_debug "Root-shell terminator disabled."; return 0 ;;
+    list|true) ;;
+    *) _log_warn "Invalid BSS_KILL_ROOT_SHELLS ['$mode'] (expected false|list|true); treating as false."; return 0 ;;
+  esac
+
+  local -a shell_comms
+  read -r -a shell_comms <<< "${BSS_KILL_ROOT_SHELLS_COMMS:-bash zsh sh dash fish}"
+
+  local -ri self=$$ parent=$PPID
+  local -a targets=()
+  local pid ppid euid tty comm
+  while read -r pid ppid euid tty comm; do
+    [[ "$euid" == "0" ]] || continue
+    [[ -n "$tty" && "$tty" != "?" ]] || continue    # must own a controlling terminal
+    (( pid == self || pid == parent || pid == 1 )) && continue
+
+    local is_shell=false c
+    for c in "${shell_comms[@]}"; do
+      [[ "$comm" == "$c" ]] && { is_shell=true; break; }
+    done
+    if [[ "$is_shell" != true ]]; then
+      local pcomm
+      pcomm=$(ps -o comm= -p "$ppid" 2>/dev/null || true)
+      case "$pcomm" in sudo|su|login) is_shell=true ;; esac
+    fi
+    [[ "$is_shell" == true ]] && targets+=("$pid")
+  done < <(ps -eo pid=,ppid=,euid=,tty=,comm= 2>/dev/null || true)
+
+  if (( ${#targets[@]} == 0 )); then
+    _log_info "Root-shell terminator: no interactive root shells found."
+    return 0
+  fi
+
+  if [[ "$mode" == "list" || "$DRY_RUN" == "true" ]]; then
+    _log "Root-shell terminator [no-kill]: would terminate PID(s): ${targets[*]}"
+    return 0
+  fi
+
+  _log "Root-shell terminator: SIGTERM to root shell PID(s): ${targets[*]}"
+  kill -TERM "${targets[@]}" 2>/dev/null || true
+  sleep 2
+
+  local -a survivors=()
+  for pid in "${targets[@]}"; do
+    kill -0 "$pid" 2>/dev/null && survivors+=("$pid")
+  done
+  if (( ${#survivors[@]} > 0 )); then
+    _log_warn "Root-shell terminator: SIGKILL survivors: ${survivors[*]}"
+    kill -KILL "${survivors[@]}" 2>/dev/null || true
+  fi
+
+  # Drop cached sudo credentials so a fresh sudo must re-auth (which PAM blocks).
+  rm -f /run/sudo/ts/* 2>/dev/null || true
+}
+
 # Sleep sequence: notify, wait out the sleep grace, then put the machine into
 # BSS_SLEEP_MODE. There is intentionally NO force fallback - a failed sleep just
 # retries on the next timer tick, and self-escalates to the shutdown phase by
@@ -696,6 +761,10 @@ _run_shutdown_sequence() {
   # 2. Shutdown Sequence
   _log "User grace period complete. Proceeding to shutdown."
   _notify_user "Shutting down now!"
+
+  # Neutralise pre-opened interactive root shells before powering off (opt-in;
+  # hard-shutdown phase only, never the softer sleep phase).
+  _terminate_root_shells
 
   # Stage 1: Polite but firm (Ignore Inhibitors, Non-blocking)
   # -i | --ignore-inhibitors: Ignore inhibitors (e.g. "stay awake" apps like Caffeine)

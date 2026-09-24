@@ -419,6 +419,119 @@ Edit `/etc/pam.d/common-account` and add the following line near the beginning t
 > [!NOTE]
 > Depending on your distribution, the relevant PAM file may differ. There are usually also individual service configuration and `@include` files (e.g. `/etc/pam.d/sudo`, `/etc/pam.d/login`, etc.) in case you want to apply the time restriction only to specific services instead of globally via `common-account`. By running `grep -r common-account /etc/pam.d/` you can find out which files include the global configuration we edited above.
 
+# 🛡️ Self-Defense / Self-Healing
+
+The hardening tips above are manual and static. The pieces below make the system
+**bias toward *on*** — it recovers from any disable/reboot on its own, re-asserts
+its own file state and PAM rules, and can neutralise the easiest bypass (a
+pre-opened root shell). Everything ships **off/conservative by default**; you opt
+in via `/etc/bedtime-shutdown.conf`. Deploy it all with:
+
+``` shell
+sudo ./install.sh rearm      # or 'all' (script + config + units + rearm)
+```
+
+## 🔁 Auto re-arm (`bedtime-rearm.timer`)
+
+The problem: a disabled `bedtime.timer` stays off for days (and across reboots),
+and re-enabling it needs remembering *and* doing it right (`enable` **and**
+`start`; unmask if masked).
+
+`bedtime-rearm.timer` fires at **08:00, 12:00, 16:00 and ~2 min after boot** and
+runs `bedtime-rearm.sh`, which is **enable-only** — it never stops or disables
+anything. Each run:
+
+1. Unmasks / enables / starts `bedtime.timer` (and itself), so any evening disable
+   is undone well before the next night; the daytime schedule means *this* timer
+   is unlikely to be disabled in a low-introspection moment.
+2. `BSS_REARM_ENFORCE_PERMS=true` (default): restores `root:root` + expected modes
+   (script `0700`, config `0600`, units `0644`) if they drifted.
+3. `BSS_REARM_ENFORCE_IMMUTABLE=true` (default off): re-applies `chattr +i` to the
+   script/config/unit files.
+4. `BSS_REARM_ENFORCE_PAM=true` (default off): re-asserts the PAM rules (below).
+
+Test it without touching anything:
+
+``` shell
+sudo /opt/bin/bedtime-rearm.sh --dry-run -vv
+```
+
+## 🔒 Lock / unlock the files
+
+`bedtime-lock` / `bedtime-unlock` toggle `chattr +i` on all bedtime files
+(script, config, units, rearm units, the lock helpers themselves), so editing
+them is a deliberate act:
+
+``` shell
+sudo bedtime-unlock      # clear immutability to edit / redeploy
+sudo bedtime-lock        # re-lock (the next re-arm also re-locks if ENFORCE_IMMUTABLE=true)
+```
+
+`install.sh` is immutability-aware: it warns and skips a target that is still
+`+i`, so run `bedtime-unlock` before redeploying locked files.
+
+## 🔐 PAM re-assert (managed block)
+
+When `BSS_REARM_ENFORCE_PAM=true`, re-arm renders the rules from config into a
+**managed marker block** at the tail of `/etc/security/time.conf`:
+
+```
+# >>> bedtime-rearm managed >>> DO NOT EDIT BELOW THIS LINE
+...
+*; *; <user>; !Al21:00-05:00
+# <<< bedtime-rearm managed <<<
+```
+
+Everything from the begin-marker to EOF is overwritten on each run, so manual
+edits below it are reverted. Because **pam_time enforces *all* matching rules
+(logical AND)**, an appended deny can never be overridden by an earlier "allow"
+line. Rules come from:
+
+- `BSS_PAM_BLOCK_AUTH` — block *all* auth in this window (e.g. `!Al21:00-05:00`).
+- `BSS_PAM_BLOCK_SUDO` — additionally block `sudo` (e.g. `!Al20:00-05:00`); empty
+  by default so you can still do legitimate evening admin.
+
+Re-arm **verifies** `account required pam_time.so` is active in
+`/etc/pam.d/common-account` and refuses to write the block otherwise (it will not
+edit `common-account` for you — that is `pam-auth-update` territory; add the line
+by hand once, see *Advanced Lock-in (PAM)* above).
+
+> [!WARNING]
+> A bad `time.conf` rule can lock you out. Test with `--dry-run` first, and keep a
+> `sudo -i` shell open on the first live run. **Recovery:** boot into a grub
+> root/rescue shell and delete the managed block (or the offending line) from
+> `/etc/security/time.conf`; `chattr -i` it first if immutable.
+
+## 💀 Root-shell terminator (opt-in)
+
+The weakest link is a **pre-opened root shell** (`sudo -s`, or a root shell in
+tmux/TTY) left running before the auth cutoff: at bedtime it can `systemctl stop
+bedtime.service` / disable the timer with near-zero effort. When
+`BSS_KILL_ROOT_SHELLS` is enabled, the **hard-shutdown phase** (never the softer
+sleep phase) terminates them after the user grace notification:
+
+- Selects `EUID 0` processes that **own a controlling tty** *and* are a shell
+  (`BSS_KILL_ROOT_SHELLS_COMMS`, default `bash zsh sh dash fish`) *or* a direct
+  child of `sudo`/`su`/`login`; **excludes** this script's own process tree and
+  PID 1.
+- `SIGTERM` → wait → `SIGKILL`, then drops cached `sudo` timestamps
+  (`/run/sudo/ts/*`) so a fresh `sudo` must re-auth (which PAM then blocks).
+
+Values: `false` (default) · `list` (log the PIDs it *would* kill, kill nothing —
+safe observation) · `true` (actually terminate). It cannot stop a grub/rescue
+shell or install-media bypass — those are accepted as out of scope.
+
+**Test the selection safely** before enabling for real: set
+`BSS_KILL_ROOT_SHELLS=list`, open a `sudo -s` in another pane, and run the script
+in the shutdown window with `--dry-run -vv` — confirm it lists that shell and
+**not** the bedtime process tree, PID 1, or your normal (non-root) shells.
+
+## Rollout order (recommended)
+
+1. `rearm` with perms/immutability — pure safety, no behaviour change.
+2. Root-shell terminator — first `list`, then `true`.
+3. PAM re-assert — last, `sudo -i` held open on the first live test.
+
 # ❓ FAQ
 
 **Q: What about DST (Daylight Saving Time) changes?**

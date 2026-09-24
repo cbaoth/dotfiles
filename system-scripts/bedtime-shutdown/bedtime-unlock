@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Clear immutability (chattr -i) on the bedtime-shutdown files so they can be
+# edited/redeployed. Thin wrapper around bedtime-rearm.sh --unlock.
+# NOTE: the next re-arm re-locks them if BSS_REARM_ENFORCE_IMMUTABLE=true.
+
+exec /opt/bin/bedtime-rearm.sh --unlock "$@"
