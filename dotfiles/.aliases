@@ -435,7 +435,8 @@ alias mailq-del-all='sudo postsuper -d ALL'
 alias mailq-del-deref='sudo postsuper -d ALL deferred'
 # }}} - MAIL -----------------------------------------------------------------
 
-# {{{ - DEV ------------------------------------------------------------------
+# {{{ = DEV ==================================================================
+# {{{ - DEV TOOLS ------------------------------------------------------------
 alias ocamli='ledit ocaml'
 alias cmucl="rlwrap -b \$BREAK_CHARS cmucl"
 alias python-profile="python -m cProfile -s time"
@@ -532,10 +533,11 @@ print-color256() {
   done
   echo
 }
-# }}} - DEV ------------------------------------------------------------------
+# }}} - DEV TOOLS ------------------------------------------------------------
 
-# {{{ - AI / CLAUDE CODE -----------------------------------------------------
-# Claude Code launchers. Name scheme: cc[r][d|n|s][m]
+# {{{ - CLAUDE CODE (AI) -----------------------------------------------------
+# Claude Code launchers. Name scheme: aic[r][d|n|s][m]
+#   u = update the local Claude Code installation
 #   r = resume a previous session (-r, no id -> session picker)
 #   d = run in the dotfiles workspace (this repo); cwd is restored on exit
 #   n = run in the private notes repo ($NOTES_DIR or ~/notes)
@@ -546,44 +548,55 @@ print-color256() {
 #       type. See ~/.claude/skills/mobile-mode/SKILL.md.
 
 if command -v claude >/dev/null 2>&1; then
-
-  # `cc` shadows the C compiler, but only in interactive shells - Makefiles and
-  # build scripts run non-interactively and never see aliases.
-  alias cc='claude'
-  alias ccr='claude -r'
+  alias aic='claude'
+  alias aicu='claude update'
+  alias aicr='claude -r'
 
   # Mobile mode is injected via --append-system-prompt rather than as an initial
   # `/mobile-mode` prompt, because -r/--resume takes an OPTIONAL session id and
   # would otherwise swallow the positional argument.
   CC_MOBILE='Mobile mode is active for this entire session: read and follow ~/.claude/skills/mobile-mode/SKILL.md before your first reply.'
-  alias ccm='claude --append-system-prompt "$CC_MOBILE"'
-  alias ccrm='claude -r --append-system-prompt "$CC_MOBILE"'
+  alias aicm='claude --append-system-prompt "$CC_MOBILE"'
+  alias aicrm='claude -r --append-system-prompt "$CC_MOBILE"'
 
   # Workspace variants: subshell so the caller's cwd survives. Repo roots come
   # from _repo_dotfiles/_repo_notes (REPO SYNC below, resolved at call time), so
   # a clone outside ~/dotfiles works too. dotfiles needs no guard: this file is
   # part of it.
-  ccd()   { ( cd "$(_repo_dotfiles)" && claude "$@" ); }
-  ccrd()  { ( cd "$(_repo_dotfiles)" && claude -r "$@" ); }
-  ccdm()  { ( cd "$(_repo_dotfiles)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-  ccrdm() { ( cd "$(_repo_dotfiles)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+  aicd()   { ( cd "$(_repo_dotfiles)" && claude "$@" ); }
+  aicrd()  { ( cd "$(_repo_dotfiles)" && claude -r "$@" ); }
+  aicdm()  { ( cd "$(_repo_dotfiles)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+  aicrdm() { ( cd "$(_repo_dotfiles)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
 
   if [[ -d "${NOTES_DIR:-${HOME}/notes}" ]]; then
-    ccn()   { ( cd "$(_repo_notes)" && claude "$@" ); }
-    ccrn()  { ( cd "$(_repo_notes)" && claude -r "$@" ); }
-    ccnm()  { ( cd "$(_repo_notes)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-    ccrnm() { ( cd "$(_repo_notes)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+    aicn()   { ( cd "$(_repo_notes)" && claude "$@" ); }
+    aicrn()  { ( cd "$(_repo_notes)" && claude -r "$@" ); }
+    aicnm()  { ( cd "$(_repo_notes)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+    aicrnm() { ( cd "$(_repo_notes)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
   fi
   # Guarded by the dir rather than living in the vserver's host file, so any
   # host that gets a SilverBullet space later picks these up without a copy.
   if [[ -d "/srv/silverbullet/space" ]]; then
-    ccs()   { ( cd /srv/silverbullet/space && claude "$@" ); }
-    ccrs()  { ( cd /srv/silverbullet/space && claude -r "$@" ); }
-    ccsm()  { ( cd /srv/silverbullet/space && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-    ccrsm() { ( cd /srv/silverbullet/space && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+    aics()   { ( cd /srv/silverbullet/space && claude "$@" ); }
+    aicrs()  { ( cd /srv/silverbullet/space && claude -r "$@" ); }
+    aicsm()  { ( cd /srv/silverbullet/space && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+    aicrsm() { ( cd /srv/silverbullet/space && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
   fi
 fi
-# }}} - AI / CLAUDE CODE -----------------------------------------------------
+# }}} - CLAUDE CODE  (AI) ----------------------------------------------------
+
+# {{{ - GITHUB COPILOT (AI) --------------------------------------------------
+# GitHub Copilot launchers. Name scheme: aip[r][u]
+#   u = update the local Copilot installation
+#   r = resume a previous session (-r, no id -> session picker)
+if command -v copilot >/dev/null 2>&1; then
+  alias aip='copilot'
+  alias aipu='copilot update'
+  alias aipr='copilot -r'
+fi
+# }}} - GITHUB COPILOT (AI) --------------------------------------------------
+
+# }}} = DEV ==================================================================
 
 # {{{ - NETWORK --------------------------------------------------------------
 # shellcheck disable=SC2139  # $UAGENT intentionally baked in at definition time (it's a constant)
