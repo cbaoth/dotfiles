@@ -447,3 +447,27 @@ Without that accident it would have stayed outdated for a long time.
       non-package tools), or replace with whatever comes out of this.
 - [ ] [S] If parts are idempotent: `setup/` module(s) plus a `docs/setup/` note,
       as usual.
+
+# 8. system-setup — Profiles & Host Targeting
+
+Not urgent; for a later discussion. Context: saito still has a full desktop
+installed (historically a TV box with a VNC server), is being slimmed down to a
+server, and may later run a few GUI apps remotely only (Wayland remote
+protocol). The profile system has to cope with hosts like that.
+
+- [ ] [M] **Per-host profile override.** Pin a host to a profile (e.g. saito →
+      `server`) so `--profile auto` or a mistyped `--profile desktop` cannot
+      apply desktop-only steps there. Discuss other use cases (per-host module
+      opt-in/opt-out, host-specific values), pros/cons, and how it relates to
+      the linking system's host overrides (§4 *Host-Specific Configuration*).
+- [ ] [M] **Desktop detection.** `st::is_desktop` now only checks for a
+      graphical session (`WAYLAND_DISPLAY`/`DISPLAY`); the `gnome-shell` check
+      was dropped (2026-09-24) because leftover desktop packages made servers
+      look like desktops. Modules now use the chosen `--profile` via
+      `st::profile` rather than guessing again. Open: a fresh desktop install
+      may be set up from a TTY/SSH (auto then detects `server`). Goal both ways:
+      no server-specific steps on a desktop, no desktop-specific steps
+      (e.g. the Tailscale operator) on a server.
+- [ ] [S] Revisit the Ansible question (`setup/README.md` *Why bash and not
+      Ansible*; also the tool evaluation in §6 *Quick Notes*) if host targeting
+      makes the bash runner noticeably more complex.
