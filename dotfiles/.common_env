@@ -191,7 +191,7 @@ fi
 _export_to_first_cmd() {
   if [[ -z "${1-}" || $# -lt 2 ]]; then
     echo "Usage: $0 var-name command.."
-    (( ${DEBUG_LVL:0} > 0 )) && echo "DEBUG: $0 var-name command.." >&2
+    (( ${DBG_LVL:-0} > 0 )) && echo "DEBUG: _export_to_first_cmd -> Called without enough arguments, skipping ..." >&2
     return 1
   fi
   local var_name="$1"
@@ -200,12 +200,12 @@ _export_to_first_cmd() {
   for cmd in "$@"; do
     cmd_bin="${cmd%% *}"  # first word only, for command availability check
     if command -v "$cmd_bin" >/dev/null 2>&1; then
-      (( ${DEBUG_LVL:0} > 0 )) && echo "DEBUG: Exporting '$var_name' to command '$cmd' ..." 2>&1
+      (( ${DBG_LVL:-0} > 0 )) && echo "DEBUG: _export_to_first_cmd -> Exporting '$var_name' to command '$cmd' ..." >&2
       export "$var_name=$cmd"
       return 0
     fi
   done
-  (( ${DEBUG_LVL:0} > 0 )) && echo "DEBUG: No matching command found to export '$var_name' to. Provided commands: $*" 2>&1
+  (( ${DBG_LVL:-0} > 0 )) && echo "DEBUG: _export_to_first_cmd -> No matching command found to export '$var_name' to. Provided commands: $*" >&2
   return 1
 }
 
