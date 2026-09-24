@@ -38,7 +38,7 @@ module_run() {
   # it). Hint only, never set here — it hands that user control over the
   # host's network routing without sudo. Fine on a single-user desktop or
   # notebook (puppet, motoko); not wanted on saito or the vserver.
-  st::is_desktop || return 0
+  [[ "$(st::profile)" == "desktop" ]] || return 0
   if tailscale debug prefs 2>/dev/null \
        | st::grep_q -E "\"OperatorUser\": *\"${USER}\""; then
     st::noop "${USER} is already the tailscale operator"

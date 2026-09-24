@@ -76,7 +76,7 @@ module_run() {
   # {{{ - Packages ------------------------------------------------------------
   st::apt_install_list base
 
-  case "$(st::guess_profile)" in
+  case "$(st::profile)" in
     desktop) st::apt_install_list desktop ;;
     server)  st::apt_install_list server ;;
     wsl)     st::apt_install_list wsl ;;

@@ -199,6 +199,7 @@ parse_args() {
       "${profile}" "${ST_PROFILES[*]}" >&2
     exit 1
   fi
+  ST_PROFILE="${profile}"  # read by modules via st::profile
 }
 
 # }}} = ARGUMENT PARSING ======================================================

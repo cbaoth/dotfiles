@@ -17,6 +17,7 @@
 
 # Set by bin/system-setup before sourcing a module.
 declare -i ST_DRY_RUN="${ST_DRY_RUN:-0}"
+declare ST_PROFILE="${ST_PROFILE:-}"  # --profile as given/resolved; see st::profile
 declare -i ST_CHANGED=0   # mutations actually applied (or would be, in dry-run)
 declare -i ST_SKIPPED=0   # no-ops: already in the desired state
 declare -i ST_FAILED=0    # steps that ran and returned non-zero
@@ -511,9 +512,11 @@ st::is_wsl() {
   [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi microsoft /proc/version 2>/dev/null
 }
 
-# Is a graphical session / desktop profile plausible here?
+# Is a graphical session running? Only a hint for --profile auto: it is false
+# on a desktop reached via TTY/SSH. Installed packages (gnome-shell used to be
+# checked) are worse: a server with leftover desktop packages looks like one.
 st::is_desktop() {
-  [[ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]] || st::have_cmd gnome-shell
+  [[ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]]
 }
 
 # Guess the profile for --profile auto
@@ -524,6 +527,17 @@ st::guess_profile() {
     printf 'desktop'
   else
     printf 'server'
+  fi
+}
+
+# The profile this run is for: the one passed via --profile, else a guess
+# (e.g. when modules are named explicitly). Modules use this, not a guess of
+# their own, so an explicit --profile always wins.
+st::profile() {
+  if [[ -n "${ST_PROFILE}" ]]; then
+    printf '%s' "${ST_PROFILE}"
+  else
+    st::guess_profile
   fi
 }
 
