@@ -116,9 +116,6 @@ Follow-ups after the zplug → zinit migration:
 - [ ] [S] Turbo-load `zsh-autosuggestions` and `zaw` too (currently loaded
   synchronously so their keybindings resolve). Move their `bindkey` calls into
   `atload'…'` ice so the widgets exist when bound, then drop the sync loads.
-- [ ] [S] Explore starship beyond the defaults (`starship preset --list`,
-  `~/.config/starship.toml`); drop leftover p10k state once settled:
-  `zinit delete romkatv/powerlevel10k` and `rm -f ~/.cache/p10k-*`.
 - [ ] [S] Clean up leftover zplug state once the migration is confirmed good:
   `rm -rf ~/.zplug ~/.zplug-skip-install-prompt ~/.zplug-force-install`.
 - [ ] [S] Re-evaluate `zsh-expand` config vars (`ZPWR_EXPAND*`, `ZPWR_CORRECT`,
@@ -489,3 +486,83 @@ See `docs/setup/ssh-hardening.md`; host-specific addresses in
       open from Anywhere, on every interface including `tailscale0`
 - [ ] [M] motoko: narrow ufw rule `[11]` (`ALLOW IN 10.0.24.0/24`, the direct
       link to saito) to the services that link actually carries
+
+# 10. Prompt, Terminal Theme & Shell Startup (added 2026-09-25)
+
+**State:** powerlevel10k replaced by starship (zinit `gh-r`, config
+`dotfiles/.config/starship.toml`, based on the `tokyo-night` preset + username/
+hostname for ssh/root). foot has two palettes: Tango in `[colors]` (default)
+and Tokyo Night in `[colors2]`, toggled with `Ctrl+Shift+t` — kept on purpose
+as a side-by-side comparison tool (no scrolling, no second window).
+
+## Terminal palette (foot)
+
+- [ ] [M] Research foot themes + starship presets online and find a combo that
+      works as a whole. Constraints learned so far:
+  - Pure black background preferred (`000000`); a grey one (foot's default
+    `242424`) is not wanted.
+  - **`ls` type contrast matters most:** Tokyo Night was rejected on this —
+    regular files turn bluish and blur into blue directories, symlinks sit
+    in between with no clear hue difference. Tango keeps white files.
+  - Light text on mid/bright backgrounds is hard to read (see prompt below).
+- [ ] [S] Once decided, move the winner into `[colors]`. `[colors2]` counts as
+      the *light* theme for apps querying mode 2031, so it must not be the
+      permanent dark choice. Keep the toggle for future comparisons if useful.
+- [ ] [S] Consider `LS_COLORS` / `dircolors` tuning if the palette alone
+      doesn't give distinct file types.
+- [ ] [S] Consider an explicit foot font (`font=FiraMono Nerd Font:pixelsize=12`):
+      `monospace` resolves to DejaVu Sans Mono, Nerd Font glyphs only render
+      via fallback.
+- [ ] [S] Evaluate foot server mode (`foot --server` + `footclient`; units
+      `foot-server.{service,socket}` are installed and enabled by the package
+      but inactive — sway's `$term` is plain `foot`). Pros: faster window
+      startup, one shared font/glyph cache (less RAM). Cons: all windows die if
+      the server crashes; config changes need a server restart; windows inherit
+      the server's environment, not the launching shell's.
+
+## Starship prompt — build our own, step by step
+
+Liked facets per preset: tokyo-night (current base; left edge "emerges" from
+the window border with `░▒▓`), catppuccin-powerline (black text), gruvbox-rainbow
+(calm warm tint, prompt on its own line), pastel-powerline (triangular
+separators, time segment). Hard requirements: input on its **own line** in a
+fixed column; see when it's **not my user** (root/other/ssh) and which host
+over ssh.
+
+- [ ] [S] Path segment readability: preset uses `#e3e5e5` on `#769ff0`
+      (contrast 2.08). Dark text fixes it: `#1a1b26` → 6.5, `#090c0c` → 7.5.
+      Same idea for any light-text-on-bright segment.
+- [ ] [S] Prompt character: the old style — a solid block with a background
+      color ending in a triangular tip, `λ` inside (or a compact variant);
+      color reflects state (error, vi command mode, sudo cached, root).
+- [ ] [S] Re-add modules the preset dropped and the old prompt had: exit
+      status, command duration, sudo indicator, background jobs, battery
+      (notebook), plus language/tool modules beyond the preset's five
+      (python, docker, …).
+- [ ] [S] Separators: triangles instead of rounded ends (optional; rounded is
+      fine for now).
+- [ ] [S] Root: decide on a separate, lightweight root shell setup instead of
+      root using this repo (see §6 *Quick Notes* — root setup / linking).
+- [ ] [S] Drop leftover p10k state once settled (every host):
+      `zinit delete romkatv/powerlevel10k` and `rm -f ~/.cache/p10k-*`.
+- [ ] [S] Maybe: foot `prompt-prev`/`prompt-next` (`Ctrl+Shift+z/x`, jump
+      between prompts in scrollback) need OSC 133 prompt marks — check whether
+      starship emits them or a small precmd hook is needed.
+
+## Shell startup time
+
+Measured on motoko: ~1.6 s full, ~1.5 s even with `PLUGIN_MODE=skip` — plugins
+and prompt are no longer the bottleneck.
+
+- [ ] [S] `.common_env`: cache `determinate-nixd completion zsh` output to a
+      file, regenerate only when the binary changes (**0.6 s** per start).
+- [ ] [S] `.common_env`: lazy-load nvm on first `node`/`npm`/`nvm` use
+      (~0.17 s). Benefits bash too.
+- [ ] [M] Profile the remaining ~0.7 s of `.zshrc` (zprof, or
+      `PS4='+%D{%s.%6.} %N:%i> ' zsh -xic exit`); `compinit` without a
+      cache check is a suspect.
+- [ ] [S] Simplify plugin modes: drop `mini` (only differs by OMZ git aliases
+      and ssh-agent), keep `full` and `skip` (debugging kill switch, Termux).
+- [ ] [S] Keep the one-line fallback prompt (`$IS_STARSHIP || prompt fade 0`),
+      but drop the per-host `prompt fade N` overrides in `zshrc-motoko.zsh` /
+      `zshrc-puppet.zsh` (only matter without starship).
