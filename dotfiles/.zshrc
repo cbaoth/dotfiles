@@ -309,10 +309,12 @@ _PLUGIN_MODE_WSL="full"       # load all plugins in WSL
 _PLUGIN_MODE_DOCKER="mini"    # load fewer plugins inside Docker containers
 _PLUGIN_MODE_ANDROID="skip"   # skip plugins on Android (too slow / unstable)
 
-PLUGIN_MODE=$_PLUGIN_MODE_DEFAULT
-${IS_ANDROID:-false} && PLUGIN_MODE=${_PLUGIN_MODE_ANDROID:-$_PLUGIN_MODE_DEFAULT}
-${IS_WSL:-false}     && PLUGIN_MODE=${_PLUGIN_MODE_WSL:-$_PLUGIN_MODE_DEFAULT}
-${IS_DOCKER:-false}  && PLUGIN_MODE=${_PLUGIN_MODE_DOCKER:-$_PLUGIN_MODE_DEFAULT}
+if [[ -z "${PLUGIN_MODE:-}" ]]; then
+  PLUGIN_MODE=$_PLUGIN_MODE_DEFAULT
+  ${IS_ANDROID:-false} && PLUGIN_MODE=${_PLUGIN_MODE_ANDROID:-$_PLUGIN_MODE_DEFAULT}
+  ${IS_WSL:-false}     && PLUGIN_MODE=${_PLUGIN_MODE_WSL:-$_PLUGIN_MODE_DEFAULT}
+  ${IS_DOCKER:-false}  && PLUGIN_MODE=${_PLUGIN_MODE_DOCKER:-$_PLUGIN_MODE_DEFAULT}
+fi
 [[ $PLUGIN_MODE != $_PLUGIN_MODE_DEFAULT ]] \
   && cl::p_dbg -t 0 1 "Using non-default plugin mode '$PLUGIN_MODE' (default: $_PLUGIN_MODE_DEFAULT)."
 
@@ -642,6 +644,10 @@ zt; zinit light djui/alias-tips
 # syntax highlighting: declared LAST so it highlights everything loaded before.
 # https://github.com/zdharma-continuum/fast-syntax-highlighting
 # (lighter alternative to zsh-users/zsh-syntax-highlighting)
+# Known upstream bug: balanced command substitutions can mangle editing state
+# (duplicated input / broken highlighting), including backtick form. If a
+# recalled or pasted command starts duplicating keystrokes and then turns plain
+# white, test with `PLUGIN_MODE=skip zsh -i` or comment this plugin first.
 #
 # atinit runs once all earlier plugins are loaded (this is the last one), in both
 # turbo and sync modes: rebuild the completion cache so plugin-provided
