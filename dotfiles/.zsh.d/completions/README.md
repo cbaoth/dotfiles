@@ -8,6 +8,7 @@ Deployed to `~/.zsh.d/completions/` on every host by `dotfiles-link`.
 | File | Completes |
 | ---- | --------- |
 | `_system-setup` | `bin/system-setup` — options, `--profile` values, and module names (discovered live from `setup/modules/`) |
+| `_starship-preset-test` | the `starship-preset-test` function (`.zsh.d/aliases.zsh`) — preset names (read live from `starship preset --list`) |
 | `_check_script` | the `check_script` function (`lib/functions.sh`) |
 | `_exif-sanitize` | `bin/exif-sanitize` — options, plus `--profile`/`--strip`/`--keep` values (read live from `--list-profiles` / `--list-topics`) |
 | `_rename-timestamp-prefix` | `bin/rename-timestamp-prefix` — options, plus `--time` and `--move-to` values |

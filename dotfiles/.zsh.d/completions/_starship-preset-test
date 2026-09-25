@@ -1,0 +1,10 @@
+#compdef starship-preset-test
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for starship-preset-test (function in ~/.zsh.d/aliases.zsh).
+# Preset names are read live from `starship preset --list`, so presets added by
+# a starship update need no edit here.
+
+local -a presets
+presets=( ${(f)"$(starship preset --list 2>/dev/null)"} )
+_describe -t presets 'starship preset' presets

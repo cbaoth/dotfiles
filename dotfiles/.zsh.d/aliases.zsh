@@ -44,6 +44,28 @@ zsh-history-fix() {
 alias zplugup='zinit self-update && zinit update --all --parallel'
 # }}} - PLUGIN MANAGEMENT (ZINIT) --------------------------------------------
 
+# {{{ - PROMPT (STARSHIP) ----------------------------------------------------
+# Try a starship preset in a throwaway child shell (`exit` to return); the real
+# ~/.config/starship.toml is never touched. No argument lists the presets.
+#   starship-preset-test tokyo-night
+starship-preset-test() {
+  if [[ -z "${1:-}" ]]; then
+    print -r -- "Usage: $0 <PRESET>" >&2
+    print -r -- $'\nAvailable presets (starship preset --list):\n' >&2
+    starship preset --list | sed 's/^/  /' >&2
+    return 1
+  fi
+  local tmp_config
+  tmp_config="$(mktemp "${TMPDIR:-/tmp}/starship-preset.XXXXXX")" || return 1
+  # --force: mktemp already created the (empty) file
+  if starship preset --force --output "${tmp_config}" "$1"; then
+    print -r -- "starship preset '$1' (${tmp_config}), exit to return"
+    STARSHIP_CONFIG="${tmp_config}" zsh
+  fi
+  command rm -f -- "${tmp_config}"
+}
+# }}} - PROMPT (STARSHIP) ----------------------------------------------------
+
 # {{{ - SUFFIX ALIASES -------------------------------------------------------
 # e.g. 'alias -s txt=vim' makes 'foo.txt' open in vim
 #alias -s {txt,ini,conf,html,htm,xml}='vim -N'
