@@ -16,9 +16,32 @@
 # ~/.common_rc), and portal backend selection is unaffected -- portals.conf,
 # matched last, still picks wlr, so file pickers and screen share still work.
 
-case ":${XDG_CURRENT_DESKTOP:-}:" in
-  *:GNOME:*|*:KDE:*) ;;   # already lists a recognised desktop, leave as-is
-  *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+${XDG_CURRENT_DESKTOP}:}GNOME" ;;
-esac
+_code_wrapper() {
+  local script_dir modified_path code_executable IFS
 
-exec /usr/share/code/code "$@"
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  # Remove script directory from PATH to avoid recursion
+  modified_path=""
+  IFS=:
+  for dir in $PATH; do
+    if [[ "$dir" != "$script_dir" ]]; then
+      modified_path="${modified_path:+${modified_path}:}${dir}"
+    fi
+  done
+
+  # Find code in modified PATH
+  code_executable="$(PATH="$modified_path" command -v code)" || {
+    printf "error: could not find code executable in PATH\n" >&2
+    return 127
+  }
+
+  case ":${XDG_CURRENT_DESKTOP:-}:" in
+    *:GNOME:*|*:KDE:*) ;;   # already lists a recognised desktop, leave as-is
+    *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+${XDG_CURRENT_DESKTOP}:}GNOME" ;;
+  esac
+
+  exec "$code_executable" "$@"
+}
+
+_code_wrapper "$@"
