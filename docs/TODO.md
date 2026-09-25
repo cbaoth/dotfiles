@@ -422,8 +422,9 @@ Without that accident it would have stayed outdated for a long time.
 - **snap**: rarely used, but present.
 - **Containers** (docker on saito and the vserver): images updated only by hand.
 - **Software outside package managers** (installers with their own updater,
-  static binaries, tools like `tailscale update`, `uv`, Claude Code, ...): no
+  static binaries, tools like `tailscale update`, `uv`, `zinit` zsh plugin manager, `claude` Claude Code, ...): no
   overview, no reminders.
+  - One exception is `nix`, which prints a "MOD" message when opening a new shell, or connecting remotely via SSH. Which can be a bit annoying at times (rather regularly, maybe a weekly or bi-weekly cadence would suffice), but at least it is a reminder. Auto update would surely be convenient, if it can be done reliably and safely (e.g. weekly cron/timer early in the morning, or on next startup when the system was down, which is likely the case for desktop and notebook).
 - There is no regular habit of checking for updates. In practice updates happen
   only when a tool nags or when something breaks or is missing.
 - Existing helpers: the `pk*` shell functions/aliases (e.g. `pku` updates apt,
