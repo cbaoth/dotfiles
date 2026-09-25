@@ -267,8 +267,11 @@ _reassert_pam() {
   block+="# Manual edits from the begin-marker to EOF are overwritten on re-arm."$'\n'
   block+="# pam_time ANDs all matching rules, so these denies cannot be undone by"$'\n'
   block+="# an earlier allow line. Format: <services>; <ttys>; <users>; <times>"$'\n'
-  [[ -n "${BSS_PAM_BLOCK_AUTH:-}" ]] && block+="*; *; ${BSS_USER_NAME}; ${BSS_PAM_BLOCK_AUTH}"$'\n'
-  [[ -n "${BSS_PAM_BLOCK_SUDO:-}" ]] && block+="sudo; *; ${BSS_USER_NAME}; ${BSS_PAM_BLOCK_SUDO}"$'\n'
+  # pam_time wants HHMM with NO colons (man 5 time.conf: "two 24-hour times
+  # HHMM"). Accept HH:MM in config for readability and normalise here, matching
+  # how bedtime-shutdown.sh already treats HH:MM and HHMM interchangeably.
+  [[ -n "${BSS_PAM_BLOCK_AUTH:-}" ]] && block+="*; *; ${BSS_USER_NAME}; ${BSS_PAM_BLOCK_AUTH//:/}"$'\n'
+  [[ -n "${BSS_PAM_BLOCK_SUDO:-}" ]] && block+="sudo; *; ${BSS_USER_NAME}; ${BSS_PAM_BLOCK_SUDO//:/}"$'\n'
   block+="${end}"
 
   # Compose the desired file: everything above the begin-marker + the fresh block.
