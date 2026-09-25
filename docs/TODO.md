@@ -116,9 +116,9 @@ Follow-ups after the zplug → zinit migration:
 - [ ] [S] Turbo-load `zsh-autosuggestions` and `zaw` too (currently loaded
   synchronously so their keybindings resolve). Move their `bindkey` calls into
   `atload'…'` ice so the widgets exist when bound, then drop the sync loads.
-- [ ] [S] Consider p10k *instant prompt*: run `p10k configure` to generate
-  `~/.p10k.zsh`, then add the instant-prompt preamble at the top of `.zshrc`
-  (biggest perceived-startup win on slow machines).
+- [ ] [S] Explore starship beyond the defaults (`starship preset --list`,
+  `~/.config/starship.toml`); drop leftover p10k state once settled:
+  `zinit delete romkatv/powerlevel10k` and `rm -f ~/.cache/p10k-*`.
 - [ ] [S] Clean up leftover zplug state once the migration is confirmed good:
   `rm -rf ~/.zplug ~/.zplug-skip-install-prompt ~/.zplug-force-install`.
 - [ ] [S] Re-evaluate `zsh-expand` config vars (`ZPWR_EXPAND*`, `ZPWR_CORRECT`,
@@ -369,8 +369,6 @@ For now, cross-host coordination = git (dotfiles + `~/notes`) as the bus, plus
 
 Just some quick unrefined notes, before I forget:
 
-- improve contrasts in zsh prompt (p10k) and maybe shell in general. for example the default (non-home) path segment shows cyan background and silver text which is barely readable.
-  - consider potentially existing color themes, maybe there are better ones (used this one for ages with p9k and now p10k)
 - `bin/bt-audio-reset` fails when no profile is active
   - `ERROR: card 'bluez_card.AC_80_0A_15_0E_96' has no active A2DP profile (currently: off)`
   - example scenario (with WH-1000XM4):

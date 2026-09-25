@@ -372,17 +372,10 @@ zt() {
 autoload colors && colors
 
 # {{{ - BASIC ----------------------------------------------------------------
-# activate basic prompt (fallback if powerlevel9k is not availlable)
-
-#export PS1="$(print '%{\e[0;37m%}(%~)%{\e[0m%}
-#[%{\e[0;34m%}%n%{\e[0m%}@%{\e[0;38m%}%m%{\e[0m%}]%# ')"
-#export RPS1="$(print '%{\e[2;37m%}[%T]%{\e[0m%}')"
-
-# load prompt theme from /usr/share/zsh/functions/Prompts/
+# prompt themes from /usr/share/zsh/functions/Prompts/ (the fallback prompt is
+# activated in the STARSHIP section below, only if starship is unavailable)
 autoload -U promptinit
 promptinit
-#prompt yasuo 0 >/dev/null || prompt fade 0
-prompt fade 0
 
 export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump"
 
@@ -417,144 +410,33 @@ autoload -Uz compinit && compinit
 autoload -Uz zargs
 # }}} - BASIC ----------------------------------------------------------------
 
-# {{{ - PL9K -----------------------------------------------------------------
-#https://github.com/bhilburn/powerlevel9k/wiki/About-Fonts
-#POWERLEVEL9K_MODE=awesome-fontconfig
-#POWERLEVEL9K_MODE=nerdfont-complete
-# fonts: fira code, deb: fonts-powerline fonts-inconsolata
-# sudo fc-cache -vf ~/.local/share/fonts
-#ZSH_THEME="powerlevel9k/powerlevel9k"
-ZSH_THEME="powerlevel10k/powerlevel10k"
-
-# load pewerlevel9k (if availlable)
-# apt: zsh-theme-powerlevel9k - https://github.com/bhilburn/powerlevel9k
-#source_ifex /usr/share/powerlevel9k/powerlevel9k.zsh-theme
-POWERLEVEL9K_ISACTIVE=false  # for backward compatibility (deprecated)
-POWERLEVEL10K_ISACTIVE=false
+# {{{ - STARSHIP -------------------------------------------------------------
+# https://starship.rs — config: ~/.config/starship.toml (dotfiles/.config/)
+# Installed per user by zinit from the GitHub release binary: no sudo, same
+# version on every host, updated with the other plugins via `zplugup`.
+# `starship init zsh` is rendered to a file at install/update time and sourced
+# from there, so startup doesn't fork starship just to print its init code.
+# The prompt must load immediately (never turbo), else it isn't the prompt.
+IS_STARSHIP=false
 if $IS_ZINIT; then
-  # the prompt must load immediately (never turbo), else it isn't the prompt
-  zinit ice depth=1
-  zinit light romkatv/powerlevel10k
-  POWERLEVEL9K_ISACTIVE=true
-  POWERLEVEL10K_ISACTIVE=true
+  zinit ice as"command" from"gh-r" \
+    atclone"./starship init zsh > init.zsh; ./starship completions zsh > _starship" \
+    atpull"%atclone" src"init.zsh"
+  zinit light starship/starship
+  (( ${+functions[prompt_starship_precmd]} )) && IS_STARSHIP=true
 fi
 
-# {{{ - - General ------------------------------------------------------------
-# TODO review after switching to powerlevel10k. are all these variables  still used? consider migrating to powerlevel10k variables instead (where applicable).
-# The 9K parameters should be backward compatible but in it's current state it
-# is not identical to the original 9k layout (parts are missing).
-# The default seems fine though, so we'll keep it for now until i have more
-# time to investigate/improve.
-
-POWERLEVEL9K_DISABLE_RPROMPT=false
-POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(host dir dir_writable vcs) # disk_usage
-# POWERLEVEL9K_LEFT_PROMPT_ELEMENTS+=(newline context) # root_indicator
-POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time \
-                                    background_jobs docker_machine)
-#[[ "$HOST:l" =~ ^(puppet|weyera).*$ ]]
-$MODE_IS_FULL && POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(battery)
-POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(time)
-
-#export DEFAULT_USER="$USER" # not an options, lambda should always be shown
-#POWERLEVEL9K_CONTEXT_TEMPLATE="$(is_me || print -P '%n ')\u03bb"
-#POWERLEVEL9K_USER_TEMPLATE="%n"
-POWERLEVEL9K_HOST_TEMPLATE="$(cl::is_ssh && print -P %2m | tr 'a-z' 'A-Z' || print -P "%m")"
-POWERLEVEL9K_HOST_ICON="" # \ufa01 \ufcbe
-POWERLEVEL9K_SSH_ICON="\u260D " # \uf9c0 \uf996 \uf96a \u21cc \u21f5
-#POWERLEVEL9K_RAM_ELEMENTS=(ram_free)
-POWERLEVEL9K_SHORTEN_DIR_LENGTH=3
-POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
-POWERLEVEL9K_PROMPT_ON_NEWLINE=true
-POWERLEVEL9K_RPROMPT_ON_NEWLINE=false
-POWERLEVEL9K_TIME_FORMAT="%D{%H:%M}"
-#POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX="\u256D"
-POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX=""
-#POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="\u2570[$USER]\u03bb"
-cl::is_sudo && _PROMPT_SUDO_ICON="▲" || _PROMPT_SUDO_ICON=""
-_PROMPT_USER_NAME="$(is_me || print -P '%n ')"
-if (cl::is_su); then
-  POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="%B%K{red}%F{white}$_PROMPT_SUDO_ICON"
-  POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX+=" $_PROMT_USER_NAME\u03bb %f%k%b%F{red}\uE0B0%f "
-else
-  _PROMPT_BG_COLOR="$(cl::is_sudo_cached && print "yellow" || print "white")"
-  POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="%K{$_PROMPT_BG_COLOR}%F{black}$_PROMPT_SUDO_ICON"
-  POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX+=" $_PROMPT_USER_NAME\u03bb %f%k%F{$_PROMPT_BG_COLOR}\uE0B0%f "
-fi
-unset _PROMPT_SUDO_ICON _PROMPT_BG_COLOR _PROMPT_USER_NAME
-POWERLEVEL9K_STATUS_VERBOSE=false
-#POWERLEVEL9K_BACKGROUND_JOBS_VERBOSE=false # default: true
-#POWERLEVEL9K_BACKGROUND_JOBS_VERBOSE_ALWAYS=true # default: false
-#POWERLEVEL9K_COMMAND_EXECUTION_TIME_THRESHOLD=0 # default: 3
-POWERLEVEL9K_COMMAND_EXECUTION_TIME_PRECISION=0 # default: 2
-POWERLEVEL9K_DISK_USAGE_ONLY_WARNING=true
-# hide user/context if current user
-#POWERLEVEL9K_VCS_GIT_HOOKS=(vcs-detect-changes git-untracked git-aheadbehind \
-#  git-stash git-remotebranch git-tagname)
-# }}} - - General ------------------------------------------------------------
-# {{{ - - Colors -------------------------------------------------------------
-#POWERLEVEL9K_USER_DEFAULT_BACKGROUND="black"
-#POWERLEVEL9K_USER_DEFAULT_FOREGROUND="249"
-#POWERLEVEL9K_USER_SUDO_BACKGROUND="black"
-#POWERLEVEL9K_USER_SUDO_FOREGROUND="yellow"
-#POWERLEVEL9K_USER_ROOT_BACKGROUND="black"
-#POWERLEVEL9K_USER_ROOT_FOREGROUND="red"
-
-POWERLEVEL9K_HOST_LOCAL_BACKGROUND="white"
-POWERLEVEL9K_HOST_LOCAL_FOREGROUND="black"
-POWERLEVEL9K_HOST_REMOTE_BACKGROUND="yellow"
-POWERLEVEL9K_HOST_REMOTE_FOREGROUND="black"
-
-POWERLEVEL9K_CONTEXT_DEFAULT_BACKGROUND="white"
-POWERLEVEL9K_CONTEXT_DEFAULT_FOREGROUND="black"
-POWERLEVEL9K_CONTEXT_REMOTE_BACKGROUND="white"
-POWERLEVEL9K_CONTEXT_REMOTE_FOREGROUND="black"
-POWERLEVEL9K_CONTEXT_SUDO_BACKGROUND="yellow"
-POWERLEVEL9K_CONTEXT_SUDO_FOREGROUND="black"
-POWERLEVEL9K_CONTEXT_REMOTE_SUDO_BACKGROUND="yellow"
-POWERLEVEL9K_CONTEXT_REMOTE_SUDO_FOREGROUND="black"
-POWERLEVEL9K_CONTEXT_ROOT_FOREGROUND="white"
-POWERLEVEL9K_CONTEXT_ROOT_BACKGROUND="red"
-
-POWERLEVEL9K_DIR_DEFAULT_FOREGROUND="black"
-POWERLEVEL9K_DIR_DEFAULT_BACKGROUND="blue"
-POWERLEVEL9K_DIR_HOME_FOREGROUND="black"
-POWERLEVEL9K_DIR_HOME_BACKGROUND="green"
-POWERLEVEL9K_DIR_HOME_SUBFOLDER_FOREGROUND="black"
-POWERLEVEL9K_DIR_HOME_SUBFOLDER_BACKGROUND="green"
-POWERLEVEL9K_DIR_ETC_FOREGROUND="black"
-POWERLEVEL9K_DIR_ETC_BACKGROUND="cyan"
-POWERLEVEL9K_DIR_WRITABLE_FORBIDDEN_FOREGROUND="black"
-POWERLEVEL9K_DIR_WRITABLE_FORBIDDEN_BACKGROUND="red"
-
-#POWERLEVEL9K_ROOT_INDICATOR_BACKGROUND="red"
-#POWERLEVEL9K_ROOT_INDICATOR_FOREGROUND="white"
-
-POWERLEVEL9K_TIME_BACKGROUND="clear"
-POWERLEVEL9K_TIME_FOREGROUND="249"
-
-POWERLEVEL9K_COMMAND_EXECUTION_TIME_FOREGROUND="white"
-
-#POWERLEVEL9K_CUSTOM_PROMPT="printf '%s\u03bb' '%($(issu)-%B%F{red}-%F{white})%F'"
-#POWERLEVEL9K_CUSTOM_PROMPT_FOREGROUND="black"
-#POWERLEVEL9K_CUSTOM_PROMPT_BACKGROUND="249"
-
-POWERLEVEL9K_BACKGROUND_JOBS_FOREGROUND="yellow"
-
-POWERLEVEL9K_VCS_CLEAN_FOREGROUND='black'
-POWERLEVEL9K_VCS_CLEAN_BACKGROUND='green'
-POWERLEVEL9K_VCS_UNTRACKED_FOREGROUND='black'
-POWERLEVEL9K_VCS_UNTRACKED_BACKGROUND='blue'
-POWERLEVEL9K_VCS_MODIFIED_FOREGROUND='black'
-POWERLEVEL9K_VCS_MODIFIED_BACKGROUND='yellow'
-# }}} - - Colors -------------------------------------------------------------
-# }}} - PL9K -----------------------------------------------------------------
+# fallback: basic prompt theme from /usr/share/zsh/functions/Prompts/
+# (hosts may pick another color in ~/.zsh.d/zshrc-<host>.zsh)
+$IS_STARSHIP || prompt fade 0
+# }}} - STARSHIP -------------------------------------------------------------
 # }}} = PROMPT ===============================================================
 
 # {{{ = ZINIT PLUGINS ========================================================
 # TODO consider https://github.com/zsh-users/zsh-completions
 #
 # Loading strategy:
-# - powerlevel10k (above) and the widget plugins below (autosuggestions, zaw)
+# - starship (above) and the widget plugins below (autosuggestions, zaw)
 #   load immediately, so their keybindings further down are always available.
 # - everything else is turbo-loaded (async) via `zt` when $ZINIT_TURBO is set.
 # - fast-syntax-highlighting is declared last so it highlights everything.
@@ -849,8 +731,8 @@ bindkey -M viins '^Xa'  _expand_alias           # ctrl-x a: expand alias on dema
 # {{{ - CURSOR SHAPE = MODE INDICATOR ----------------------------------------
 # Visible mode indicator independent of the prompt: beam bar while typing
 # (insert), solid block in command mode. Uses add-zle-hook-widget so it
-# coexists with powerlevel10k's own zle-line-init / keymap-select hooks
-# (a raw `zle -N zle-line-init` would clobber them and break transient prompt).
+# # coexists with starship's own zle-keymap-select widget, which switches the
+# prompt symbol in vi command mode (a raw `zle -N` would clobber it).
 autoload -Uz add-zle-hook-widget
 _cb_cursor_shape() {
   case ${KEYMAP:-main} in

@@ -1,0 +1,59 @@
+#:schema https://starship.rs/config-schema.json
+# ~/.config/starship.toml — starship prompt configuration
+# Mostly starship defaults, as a starting point to explore from. Only overrides
+# are listed; everything else keeps the default.
+# Reference: https://starship.rs/config/ — presets: `starship preset --list`
+#
+# Try a preset without touching this file (it is a symlink into dotfiles):
+#   starship preset tokyo-night -o /tmp/s.toml && STARSHIP_CONFIG=/tmp/s.toml zsh
+
+# Line 1: context modules left, status info right-aligned via $fill.
+# $all expands to every module not named explicitly, so language/tool modules
+# (python, node, rust, docker_context, ...) still appear when relevant.
+# Line 2: the input line.
+format = """
+$all\
+$fill\
+$cmd_duration\
+$status\
+$jobs\
+$battery\
+$time\
+$line_break\
+$sudo\
+$character"""
+
+[fill]
+symbol = " "
+
+[character]
+success_symbol = "[λ](bold green)"
+error_symbol = "[λ](bold red)"
+vimcmd_symbol = "[λ](bold yellow)"  # vi command mode (bindkey -v)
+
+[directory]
+truncation_length = 3
+truncation_symbol = "…/"
+
+# Show the host everywhere, not only over ssh: with three hosts in daily use it
+# answers "where am I" at a glance.
+[hostname]
+ssh_only = false
+format = "[$ssh_symbol$hostname]($style) in "
+
+# Cached sudo credentials: a sudo right now would not ask for a password.
+[sudo]
+disabled = false
+symbol = "▲ "
+style = "bold yellow"
+format = "[$symbol]($style)"
+
+# Exit code of the last command (only shown on failure).
+[status]
+disabled = false
+
+[time]
+disabled = false
+format = "[$time]($style)"
+time_format = "%H:%M"
+style = "dimmed white"
