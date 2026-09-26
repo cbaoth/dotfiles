@@ -322,7 +322,7 @@ if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
   ZSH_AUTO_REHASH_CMDS+=(sni snu)
   alias snl='snap list'
   alias snlg='snap list | grep -iE --color'
-  alias snd='snap info'
+  alias snn='snap info'
   alias snh='snap changes'
 fi
 # }}} - SNAP -----------------------------------------------------------------
@@ -335,11 +335,11 @@ if [[ -n "$(command -v flatpak 2>/dev/null)" ]]; then
   alias fpi='flatpak install'
   alias fpu='flatpak update'
   alias fpr='flatpak uninstall'
-  alias fpil='flatpak info --show-location'
   ZSH_AUTO_REHASH_CMDS+=(fpi fpu)
   alias fpl='flatpak list'
   alias fplg='flatpak list | grep -i --color'
-  alias fpd='flatpak info'
+  alias fpn='flatpak info'
+  alias fpnl='flatpak info --show-location'
   alias fph='flatpak history'
 fi
 
