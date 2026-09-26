@@ -275,9 +275,17 @@ _reassert_pam() {
   block+="${end}"
 
   # Compose the desired file: everything above the begin-marker + the fresh block.
+  # Trailing blank lines above the marker are trimmed so the single separator we
+  # add is idempotent - otherwise each run would append one more blank line,
+  # rewrite the file, and log "Updated" forever.
   local tmp
   tmp=$(mktemp) || { _log_error "mktemp failed."; return 1; }
-  { awk -v b="$begin" 'index($0,b){exit} {print}' "$conf"; printf '\n%s\n' "$block"; } > "$tmp"
+  local -a above
+  mapfile -t above < <(awk -v b="$begin" 'index($0,b){exit} {print}' "$conf")
+  while (( ${#above[@]} > 0 )) && [[ -z "${above[-1]}" ]]; do
+    unset 'above[-1]'
+  done
+  { (( ${#above[@]} > 0 )) && printf '%s\n' "${above[@]}"; printf '\n%s\n' "$block"; } > "$tmp"
 
   if cmp -s "$tmp" "$conf"; then
     _log_debug "time.conf managed block already current."
