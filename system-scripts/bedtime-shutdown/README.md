@@ -472,24 +472,31 @@ sudo bedtime-lock        # re-lock (the next re-arm also re-locks if ENFORCE_IMM
 
 ## 🔐 PAM re-assert (managed block)
 
-When `BSS_REARM_ENFORCE_PAM=true`, re-arm renders the rules from config into a
-**managed marker block** at the tail of `/etc/security/time.conf`:
+When `BSS_REARM_ENFORCE_PAM=true`, re-arm writes the `BSS_PAM_BLOCK` rules
+**verbatim** into a **managed marker block** at the tail of
+`/etc/security/time.conf`:
 
 ```
 # >>> bedtime-rearm managed >>> DO NOT EDIT BELOW THIS LINE
 ...
-*; *; <user>; !Al21:00-05:00
+*;    *; <user>; !Al2100-0500
+sudo; *; <user>; !Al1900-0500
 # <<< bedtime-rearm managed <<<
 ```
 
 Everything from the begin-marker to EOF is overwritten on each run, so manual
 edits below it are reverted. Because **pam_time enforces *all* matching rules
 (logical AND)**, an appended deny can never be overridden by an earlier "allow"
-line. Rules come from:
+line.
 
-- `BSS_PAM_BLOCK_AUTH` — block *all* auth in this window (e.g. `!Al21:00-05:00`).
-- `BSS_PAM_BLOCK_SUDO` — additionally block `sudo` (e.g. `!Al20:00-05:00`); empty
-  by default so you can still do legitimate evening admin.
+`BSS_PAM_BLOCK` is an **array of complete `time.conf` rule lines** — full control
+(restrict by tty/service, use logic lists `& |`, add as many rules as you like),
+one element per line. `${BSS_USER_NAME}` expands, so the username is not
+hardcoded. Format is pam_time's own: `<services>; <ttys>; <users>; <times>`, and
+the time range is **two 24-hour `HHMM` values with no colon** (`2100-0500`, *not*
+`21:00-05:00`). Re-arm writes lines as-is but **warns and skips** a line that is
+clearly malformed (wrong field count, or an `HH:MM` colon in the time) rather than
+write a rule that could misparse and lock you out.
 
 Re-arm **verifies** `account required pam_time.so` is active in
 `/etc/pam.d/common-account` and refuses to write the block otherwise (it will not
