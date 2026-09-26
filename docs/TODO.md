@@ -123,6 +123,9 @@ Follow-ups after the zplug → zinit migration:
   with the new space-key behavior.
 - [ ] [S] Audit the OMZ plugin list — several were loaded but rarely used; prune
   what you don't need to further cut startup cost.
+  2026-09: broken/redundant ones removed (catimg, docker, git, git-extras, mvn,
+  tmux, vagrant, web-search). Never-used ones are commented out as "ON TRIAL"
+  in `.zshrc` (encode64, jsontools, systemd, urltools, vscode): try or delete.
 
 # 3. Desktop / Sway Setup
 
@@ -561,8 +564,9 @@ and prompt are no longer the bottleneck.
 - [ ] [M] Profile the remaining ~0.7 s of `.zshrc` (zprof, or
       `PS4='+%D{%s.%6.} %N:%i> ' zsh -xic exit`); `compinit` without a
       cache check is a suspect.
-- [ ] [S] Simplify plugin modes: drop `mini` (only differs by OMZ git aliases
-      and ssh-agent), keep `full` and `skip` (debugging kill switch, Termux).
+- [ ] [S] Simplify plugin modes: drop `mini` — since the OMZ `git` plugin was
+      removed (2026-09), `full` now differs from it only by `ssh-agent`. Keep
+      `full` and `skip` (debugging kill switch, Termux).
 - [ ] [S] Keep the one-line fallback prompt (`$IS_STARSHIP || prompt fade 0`),
       but drop the per-host `prompt fade N` overrides in `zshrc-motoko.zsh` /
       `zshrc-puppet.zsh` (only matter without starship).

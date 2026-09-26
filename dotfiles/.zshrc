@@ -454,33 +454,26 @@ zinit light zsh-users/zaw
 # {{{ - OH MY ZSH ------------------------------------------------------------
 # oh-my-zsh plugins as individual zinit snippets (no full OMZ framework).
 # https://github.com/ohmyzsh/ohmyzsh/wiki/Plugins
-zt; zinit snippet OMZP::catimg
-#OMZP::common-aliases
+# A snippet fetches ONE file: OMZ plugins that ship helper files, or call OMZ
+# lib/ functions (open_command, omz_urlencode, git_current_branch), break
+# silently. Check before adding one (removed that way: catimg, tmux,
+# web-search; wd is loaded from upstream below for the same reason).
 zt; zinit snippet OMZP::command-not-found
-#OMZP::debian
-zt; zinit snippet OMZP::dirhistory
-zt; zinit snippet OMZP::docker         # docker completion
-zt; zinit snippet OMZP::encode64       # encode64/decode64
-# https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/git
-if $MODE_IS_FULL; then
-  zt; zinit snippet OMZP::git
-  zt; zinit snippet OMZP::git-extras   # completion for apt:git-extras
-fi
+zt; zinit snippet OMZP::dirhistory     # alt-left/right/up/down: dir history
 # httpie: OMZ ships only a completion file (_httpie), no *.plugin.zsh
 zt as"completion"; zinit snippet OMZP::httpie/_httpie   # completion for https://httpie.io/ (apt/snap: httpie)
-zt; zinit snippet OMZP::jsontools      # *_json
-zt; zinit snippet OMZP::mvn            # maven completion
 zt; zinit snippet OMZP::sudo           # add sudo via 2xESC
-zt; zinit snippet OMZP::systemd        # systemd sc-* aliases
-#zt; zinit snippet OMZP::tmux           # FIXME bugged, error when starting zsh in tmux: /home/cbaoth/.local/share/zinit/snippets/OMZP::tmux/tmux.extra.conf: No such file or directory
-zt; zinit snippet OMZP::urltools       # urlencode/-decode
-zt; zinit snippet OMZP::vagrant
-zt; zinit snippet OMZP::vscode         # vs* aliases
-zt; zinit snippet OMZP::web-search
+# ON TRIAL: added to try out, never used (2026-09 shell history audit).
+# Re-enable one if you miss it, then decide soon: keep and use, or delete.
+# See docs/TODO.md "Audit the OMZ plugin list".
+#zt; zinit snippet OMZP::encode64       # encode64/decode64
+#zt; zinit snippet OMZP::jsontools      # pp_json, is_json, url*_json
+#zt; zinit snippet OMZP::systemd        # systemd sc-* aliases
+#zt; zinit snippet OMZP::urltools       # urlencode/-decode
+#zt; zinit snippet OMZP::vscode         # vs* aliases
 # wd (warp directory): loaded from upstream, not OMZP::wd — the OMZ plugin is
 # multi-file (wd.plugin.zsh sources wd.sh) and a single-file snippet breaks it.
 zt; zinit light mfaerevaag/wd
-#zt; zinit snippet OMZP::history-substring-search
 
 # ssh-agent: https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/ssh-agent
 # do not load if
@@ -539,15 +532,6 @@ zinit light zdharma-continuum/fast-syntax-highlighting
 
 fi  # $IS_ZINIT
 # }}} = ZINIT PLUGINS ========================================================
-
-# {{{ = PLUGIN SETTINGS ======================================================
-# tmux (OMZP::tmux)
-#ZSH_TMUX_AUTOSTART # default: false, auto start tmux on login
-#ZSH_TMUX_AUTOSTART_ONCE # default: true, start for ever (nested) zsh session
-#ZSH_TMUX_AUTOCONNECT # default: true, try connect to existing else new
-#ZSH_TMUX_AUTOQUIT # default: ZSH_TMUX_AUTOSTART, close session if tmux exits
-#ZSH_TMUX_FIXTERM # default: true, set TERM=screen(256color)
-# }}} = PLUGIN SETTINGS ======================================================
 
 # {{{ ZSH SETTINGS ===========================================================
 # load zmv extension (http://zshwiki.org/home/builtin/functions/zmv)
@@ -757,10 +741,6 @@ bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working
 #bindkey ' ' magic-space
 #bindkey '^ ' globalias
 
-#if $IS_ZINIT; then  # (enable OMZP::history-substring-search above first)
-#  bindkey '^[OA' history-substring-search-up # up (vs. up-line-or-history)
-#  bindkey '^[OB' history-substring-search-down # down (vs. down-line-or-history)
-#fi
 #bindkey '^[[A' history-beginning-search-backward # up (vs. up-line-or-history)
 #bindkey '^[OA' history-beginning-search-backward # up (vs. up-line-or-history)
 #bindkey '^[[B' history-beginning-search-forward # down (vs. down-line-or-history)
