@@ -146,6 +146,99 @@ alias rsync-clone='rsync -axWS --numeric-ids --info=progress2'
 alias rsync-diff='rsync -axvnc'
 alias rsync-diff-quick='rsync -axvnu'
 # }}} - GENERAL --------------------------------------------------------------
+
+# {{{ - TIME / SCHEDULING ----------------------------------------------------
+# sleep-until — block until a wall-clock time of day (optionally N days ahead),
+# then return 0. Fills the gap `sleep` (durations only) and `at` (a batch
+# daemon, not a foreground wait) leave, for one-shot "run X at HH:MM":
+#   sleep-until 19:00 && do-something
+#   sleep-until -d 1 05:10 && do-something        # tomorrow at 05:10
+#
+# TIME is HH:MM or bare HHMM (colon optional; 1900 == 19:00), also HH:MM:SS /
+# HHMMSS. 24-hour is ALWAYS assumed, so "01:00" is 1 AM, never PM; an explicit
+# "1:00 PM" is still honoured (passed through to date(1)). With no -d and TIME
+# already past today, it rolls to tomorrow (with a note). It recomputes the
+# remaining time each minute, so it stays wall-clock-accurate across a
+# suspend/resume or a clock change instead of overshooting.
+sleep-until() {
+  local days=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -d|--days)
+        [[ -n "${2:-}" ]] || { echo "sleep-until: -d needs a non-negative integer" >&2; return 2; }
+        days="$2"; shift 2 ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: sleep-until [-d DAYS] TIME
+Block until TIME (time of day), then return 0.
+
+  TIME     HH:MM or HHMM (colon optional; also HH:MM:SS / HHMMSS). 24-hour, so
+           "01:00" is 1 AM. An explicit "1:00 PM" is honoured too.
+  -d DAYS  Wait until DAYS days from today at TIME (integer >= 0, default 0).
+
+With no -d and TIME already past today, waits until tomorrow (prints a note).
+
+Examples:
+  sleep-until 19:00 && echo "it is 7 PM"
+  sleep-until 1900  && echo "same thing"
+  sleep-until -d 1 05:10 && echo "tomorrow morning"
+EOF
+        return 0 ;;
+      --) shift; break ;;
+      -*) echo "sleep-until: unknown option: $1 (see --help)" >&2; return 2 ;;
+      *)  break ;;
+    esac
+  done
+
+  local time_arg="${1:-}"
+  [[ -n "$time_arg" ]] || { echo "sleep-until: missing TIME (see --help)" >&2; return 2; }
+  [[ "$days" =~ ^[0-9]+$ ]] || { echo "sleep-until: DAYS must be a non-negative integer: $days" >&2; return 2; }
+
+  # Normalise a colon-less clock (1900 -> 19:00, 190030 -> 19:00:30). Anything
+  # with a ':' or AM/PM/letters is passed through to date(1) untouched.
+  local t="$time_arg"
+  if [[ "$t" =~ ^[0-9]{4}$ ]]; then
+    t="${t:0:2}:${t:2:2}"
+  elif [[ "$t" =~ ^[0-9]{6}$ ]]; then
+    t="${t:0:2}:${t:2:2}:${t:4:2}"
+  fi
+
+  local now_epoch ymd
+  local -i target_epoch
+  now_epoch=$(date +%s)
+  ymd=$(date -d "+${days} days" +%Y-%m-%d) || { echo "sleep-until: date failed" >&2; return 1; }
+  if ! target_epoch=$(date -d "${ymd} ${t}" +%s 2>/dev/null); then
+    echo "sleep-until: could not parse TIME '${time_arg}'" >&2
+    return 1
+  fi
+
+  # No -d and the time already passed today: roll to tomorrow.
+  if (( days == 0 && target_epoch <= $(date +%s) )); then
+    ymd=$(date -d "+1 day" +%Y-%m-%d)
+    target_epoch=$(date -d "${ymd} ${t}" +%s)
+    echo "sleep-until: ${t} already passed today; waiting until tomorrow" >&2
+  fi
+
+  local -i delta=$(( target_epoch - now_epoch ))
+  if (( delta < 0 )); then
+    echo "sleep-until: target is in the past" >&2
+    return 1
+  fi
+  printf 'sleep-until: waiting %dh %dm %ds until %s\n' \
+    $(( delta / 3600 )) $(( (delta % 3600) / 60 )) $(( delta % 60 )) \
+    "$(date -d "@${target_epoch}" '+%Y-%m-%d %H:%M:%S')" >&2
+
+  # Recompute against the wall clock each iteration (cap 60s) so a suspend or a
+  # clock jump does not make us overshoot the target time.
+  local -i remaining
+  while :; do
+    remaining=$(( target_epoch - $(date +%s) ))
+    (( remaining <= 0 )) && break
+    (( remaining > 60 )) && remaining=60
+    sleep "$remaining"
+  done
+}
+# }}} - TIME / SCHEDULING ----------------------------------------------------
 # editors
 # the debian/ubuntu `editor` command uses the system wide default (not always under our control)
 # so let's shadow it to ensure it's always our prefered $EDITOR
