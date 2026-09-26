@@ -112,13 +112,24 @@ alias -g ,t='| tail'
 # grep (extended regex)
 alias -g ,g='| grep -E'
 alias -g ,gi='| grep -Ei'
+alias -g ,gc='| grep -E -C'          # Print  NUM  lines  of  output  context (ignored with -o)
+alias -g ,gic='| grep -Ei -C'
+
 alias -g ,eg='|& grep -E'
 alias -g ,egi='|& grep -Ei'
-# grep (Perl regex)
+alias -g ,egc='|& grep -E -C'
+alias -g ,egic='|& grep -Ei -C'
+
+# grep (same as above but using Perl regex)
 alias -g ,gp='| grep -P'
 alias -g ,gpi='| grep -Pi'
+alias -g ,gpc='| grep -P -C'
+alias -g ,gpci='| grep -Pi -C'
+
 alias -g ,egp='|& grep -P'
-alias -g ,egpi='|& grep -Pi'
+alias -g ,egpi='|& grep -Pi -C'
+alias -g ,egpc='|& grep -P -C'
+alias -g ,egpic='|& grep -Pi -C'
 
 # grep (common filters)
 # filter meaningful code lines (best effort) to preserve only those that might hold semantic value
