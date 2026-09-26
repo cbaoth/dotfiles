@@ -570,3 +570,25 @@ and prompt are no longer the bottleneck.
 - [ ] [S] Keep the one-line fallback prompt (`$IS_STARSHIP || prompt fade 0`),
       but drop the per-host `prompt fade N` overrides in `zshrc-motoko.zsh` /
       `zshrc-puppet.zsh` (only matter without starship).
+
+# 11. Root shell dotfiles (added 2026-09-26)
+
+A separate, stripped-down, safer dotfiles deployment for `root`, used on every
+host (irrelevant elsewhere). Motivated by the tmux auto-attach trial: parked
+`sudo -i` root shells can live for days in a session, and my own risk tolerance
+for that is "fine for now" — but a root-only profile lets us add a root-only
+idle timeout without touching the interactive user shell (where an idle timeout
+is unwanted: I deliberately leave prepared commands sitting at a prompt).
+
+- [ ] [M] Design a root profile with **no canonical references to a user's
+      `$HOME`** — no sourcing `/home/<user>/...`, no files owned by root landing
+      in a user home. Decide the mechanism (own `bin/` deploy target, or a
+      guarded minimal set of files) so `dotfiles-link` can deploy it as root
+      without dragging in the full user config.
+- [ ] [S] Once the root profile exists: add a **root-only idle timeout**
+      (`(( EUID == 0 )) && TMOUT=<n>` in the root rc). Covers `sudo -i`,
+      `sudo -s`, `su -`. Best-effort only — `TMOUT` fires at an idle prompt,
+      not while a foreground program (vim, `journalctl -f`) is running.
+- [ ] [S] Revisit after living with tmux auto-attach on saito / 11001001:
+      if forgotten root shells actually bite, raise priority; if not, this can
+      stay parked.

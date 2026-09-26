@@ -7,13 +7,15 @@
 #
 # Unlike .common_env (safe for all shell invocations), this file is intended
 # only for interactive shells. It provides shell-agnostic sourcing helpers
-# used to conditionally load aliases and functions.
+# used to conditionally load aliases and functions, plus the opt-in tmux
+# auto-attach run at the end of both rc files.
 #
 # Load order in .bashrc / .zshrc:
 #   1. .common_env  (env vars, PATH, detection booleans — already loaded)
 #   2. commons.sh   (cl:: utility functions — already loaded)
 #   3. .common_rc   (this file — sourcing helpers)
-#   4. .aliases, lib/functions.sh, lib/aliases-*.sh, ...
+#   4. .aliases, lib/functions.sh, lib/env-*.sh, lib/aliases-*.sh, ...
+#      (per-host env files load before the alias files, so vars can gate aliases)
 
 # {{{ = SOURCING HELPERS =====================================================
 
@@ -75,7 +77,12 @@ source_ifex_custom() {
   fi
   [[ -z "${1-}" ]] && { cl::p_usg "source_ifex_custom [-e EXT] PREFIX.."; return 1; }
 
-  # HOST and OS are already normalized to lowercase by .common_env; just replace dots.
+  # HOST and OS are already normalized to lowercase by .common_env. Collapse
+  # dots to underscores so a FQDN host (e.g. "11001001.org") maps to a clean
+  # file token ("11001001_org"): keeps `-` as the sole structural field
+  # separator in the built names (prefix-host-os...) and stops a mid-name ".org"
+  # from reading as a file extension to editors/tooling (Emacs Org-mode, and any
+  # `${f##*.}` logic). Purely cosmetic — sourcing a dotted path would work too.
   local host="${HOST//./_}"
   local os="${OS:-}"
 
@@ -113,5 +120,48 @@ source_ifex_custom() {
 }
 
 # }}} = SOURCING HELPERS =====================================================
+
+# {{{ = TMUX AUTO-ATTACH =====================================================
+
+# Attach to (or create) one persistent tmux session on interactive SSH logins.
+#
+# Opt-in per host: set CB_TMUX_AUTOATTACH=1 in ~/lib/env-<host>.sh (the
+# shell-agnostic host env file, sourced before this runs). Called last in the
+# FINAL EXECUTIONS of .bashrc and .zshrc. Skipped when any of these hold:
+#   - already inside tmux, or no terminal (scp, rsync, `ssh host cmd`, agents)
+#   - not an SSH login (local console), or a nested shell (SHLVL > 1)
+#   - root: never park a root shell in a session that lives for weeks
+#   - VS Code / Emacs terminals (they manage their own sessions)
+#
+# Not exec'd: detaching (prefix d) drops back to this plain shell, which is
+# the escape hatch if tmux misbehaves; `exit` there ends the login.
+#
+# SSH agent forwarding: panes keep the SSH_AUTH_SOCK of the connection that
+# created them, which is dead after a reconnect. Hand tmux a stable symlink
+# instead and re-aim it at every attach (last login wins; if that connection
+# closes, re-attaching from a live one repairs it).
+#
+# Globals:
+#   CB_TMUX_AUTOATTACH  1 = enabled (default: unset, off)
+#   CB_TMUX_SESSION     session name (default: main)
+cb_tmux_autoattach() {
+  [[ "${CB_TMUX_AUTOATTACH:-0}" == 1 ]] || return 0
+  [[ -z "${TMUX:-}" ]] || return 0
+  [[ -t 0 && -t 1 ]] || return 0
+  cl::is_ssh || return 0
+  (( SHLVL == 1 )) || return 0
+  (( EUID != 0 )) || return 0
+  [[ "${TERM_PROGRAM:-}" != vscode && -z "${INSIDE_EMACS:-}" ]] || return 0
+  command -v tmux > /dev/null 2>&1 || return 0
+
+  local -r agent_link="${HOME}/.ssh/agent-tmux.sock"
+  if [[ -S "${SSH_AUTH_SOCK:-}" && "${SSH_AUTH_SOCK}" != "${agent_link}" \
+        && -d "${HOME}/.ssh" ]]; then
+    ln -sfn "${SSH_AUTH_SOCK}" "${agent_link}" && SSH_AUTH_SOCK="${agent_link}"
+  fi
+  tmux new-session -A -s "${CB_TMUX_SESSION:-main}"
+}
+
+# }}} = TMUX AUTO-ATTACH =====================================================
 
 return 0

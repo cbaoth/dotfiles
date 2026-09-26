@@ -61,7 +61,8 @@ export PS1="\[\e[0;37m\](\w)\[\\033[0;39m\]
 source "$HOME/.aliases"
 # shellcheck source=/dev/null
 [[ -f "$HOME/lib/functions.sh" ]] && source "$HOME/lib/functions.sh"
-# shell-agnostic os/host alias files
+# shell-agnostic os/host env vars first (may gate the aliases below), then aliases
+source_ifex_custom "$HOME/lib/env"
 source_ifex_custom "$HOME/lib/aliases"
 # }}} = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 
@@ -108,4 +109,7 @@ if (( SHLVL == 1 )); then
   printf "%s\n" "$(cl::fx b)$(cl::fx white)Time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), Uptime: $(cl::fx green)$(uptime -p)$(cl::fx white) since $(cl::fx green)$(uptime -s)$(cl::fx white)$(cl::fx reset)"
 fi
 # }}} - MOTD -----------------------------------------------------------------
+
+# opt-in per host via CB_TMUX_AUTOATTACH (see ~/.common_rc); keep this last
+command -v cb_tmux_autoattach > /dev/null && cb_tmux_autoattach
 # }}} = FINAL EXECUTIONS =====================================================

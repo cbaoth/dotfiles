@@ -982,7 +982,7 @@ _repo_notes() { echo "${NOTES_DIR:-${HOME}/notes}"; }
 # On a read-only replica the stored credential can only fetch, so `git push`
 # can only ever 403 — attempting it is just noise before the prompt that was
 # always going to be needed. Hosts opt in by setting CB_PUSH_NEEDS_TOKEN=1 in
-# their own ~/lib/aliases-<host>.sh (see aliases-11001001_org.sh); everywhere
+# their own ~/lib/env-<host>.sh (see env-11001001_org.sh); everywhere
 # else pushes stay plain. Default is deliberately the permissive one, so a new
 # host behaves normally until it says otherwise.
 _repo_push_needs_token() {

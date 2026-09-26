@@ -817,7 +817,8 @@ fi
 # {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 fpath=("$HOME/.zsh.d/functions" "${fpath[@]}")
 
-# shell-agnostic os/host alias files (bash + zsh)
+# shell-agnostic os/host env vars first (may gate the aliases below), then aliases
+source_ifex_custom $HOME/lib/env
 source_ifex_custom $HOME/lib/aliases
 # zsh-specific os/host alias and rc files
 source_ifex_custom -e .zsh $HOME/.zsh.d/aliases
@@ -875,6 +876,9 @@ if (( SHLVL == 1 )); then
   printf "%s\n" "$(cl::fx b)$(cl::fx white)Time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), Uptime: $(cl::fx green)$(uptime -p)$(cl::fx white) since $(cl::fx green)$(uptime -s)$(cl::fx white)$(cl::fx reset)"
 fi
 # }}} - MOTD -----------------------------------------------------------------
+
+# opt-in per host via CB_TMUX_AUTOATTACH (see ~/.common_rc); keep this last
+command -v cb_tmux_autoattach > /dev/null && cb_tmux_autoattach
 
 # PROFILING (DEBUG)
 #echo "zprof result: $(date)"

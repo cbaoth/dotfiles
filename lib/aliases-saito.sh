@@ -4,6 +4,7 @@
 # shellcheck shell=bash disable=SC2148
 #
 # ~/lib/aliases-saito.sh: Host-specific aliases for saito.
+# Host-specific env vars live in ~/lib/env-saito.sh (sourced first).
 
 # {{{ - SYSTEM ---------------------------------------------------------------
 alias open-stash="sudo cryptsetup open /dev/md1 stash"
