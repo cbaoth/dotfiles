@@ -646,9 +646,11 @@ _cleanup_mounts() {
   _log_info "Mount cleanup completed"
 }
 
-# Terminates interactive ROOT shells at the hard-shutdown phase so a pre-opened
-# `sudo -s` (or a root shell in tmux/TTY) cannot abort the in-progress shutdown
-# or disable the timer. Opt-in via BSS_KILL_ROOT_SHELLS (false | list | true).
+# Terminates interactive ROOT shells so a pre-opened `sudo -s` (or a root shell
+# in tmux/TTY) cannot be used to abort the shutdown or disable the timer. Called
+# via _maybe_terminate_root_shells on every tick inside its own window (see
+# below), NOT only at the hard shutdown. Opt-in via BSS_KILL_ROOT_SHELLS
+# (false | list | true).
 # Deliberately conservative + best-effort: selects EUID-0 processes that own a
 # controlling tty AND are a shell (comm in BSS_KILL_ROOT_SHELLS_COMMS) or a
 # direct child of sudo/su/login, excluding this script's own tree and PID 1.
@@ -711,6 +713,28 @@ _terminate_root_shells() {
   rm -f /run/sudo/ts/* 2>/dev/null || true
 }
 
+# Runs the root-shell terminator on EVERY tick within its own window
+# [BSS_KILL_ROOT_SHELLS_START, BSS_SHUTDOWN_END) - independent of the sleep and
+# shutdown phases. This clears lingering root shells EARLY (ideally from the sudo
+# cutoff, e.g. 19:00) and repeatedly, long before any bedtime notification -
+# which is when the "just stop the timer" impulse strikes and an open root shell
+# is the easy way out. Falls back to BSS_SHUTDOWN_START when START is unset.
+_maybe_terminate_root_shells() {
+  local -r mode="${BSS_KILL_ROOT_SHELLS:-false}"
+  case "$mode" in
+    list|true) ;;
+    *) return 0 ;;   # false/unset/invalid: _terminate_root_shells also re-checks
+  esac
+
+  local -r kstart="${BSS_KILL_ROOT_SHELLS_START:-$BSS_SHUTDOWN_START}"
+  local -r now=$(date +%H%M)
+  if ! _in_window "$now" "$kstart" "$BSS_SHUTDOWN_END"; then
+    _log_debug "Root-shell terminator: $(_format_time "$now") outside kill window [$(_format_time "${kstart//:/}"), $(_format_time "${BSS_SHUTDOWN_END//:/}")); skipping."
+    return 0
+  fi
+  _terminate_root_shells
+}
+
 # Sleep sequence: notify, wait out the sleep grace, then put the machine into
 # BSS_SLEEP_MODE. There is intentionally NO force fallback - a failed sleep just
 # retries on the next timer tick, and self-escalates to the shutdown phase by
@@ -762,10 +786,6 @@ _run_shutdown_sequence() {
   _log "User grace period complete. Proceeding to shutdown."
   _notify_user "Shutting down now!"
 
-  # Neutralise pre-opened interactive root shells before powering off (opt-in;
-  # hard-shutdown phase only, never the softer sleep phase).
-  _terminate_root_shells
-
   # Stage 1: Polite but firm (Ignore Inhibitors, Non-blocking)
   # -i | --ignore-inhibitors: Ignore inhibitors (e.g. "stay awake" apps like Caffeine)
   # --no-block: Send the command and returns IMMEDIATELY (asynchronous), don't wait for response.
@@ -803,6 +823,10 @@ main() {
   _log_debug "Configuration: User=$BSS_USER_NAME, Grace periods: user=${BSS_GRACE_PERIOD_USER}s, system=${BSS_GRACE_PERIOD_SYSTEM}s, sleep=${BSS_SLEEP_GRACE}s"
 
   _validate_sleep_config
+
+  # Clear lingering root shells on every tick within the kill window - runs
+  # regardless of the phase below (including the "safe" evening before sleep).
+  _maybe_terminate_root_shells
 
   local -r phase="$(_current_phase)"
   _log_debug "Resolved phase: $phase"
