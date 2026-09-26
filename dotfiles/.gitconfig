@@ -21,6 +21,14 @@
 	# and so has nothing cached to fall back on.
 	username = cbaoth
 
+[core]
+	# No pager by default: git commands dump straight to the terminal instead
+	# of opening less. Matches the global PAGER=cat trial in ~/.common_env and
+	# the everyday habit of appending the `,l` alias (| less) only when needed.
+	# Overrides $PAGER/$GIT_PAGER for git specifically; drop this to restore the
+	# default pager, or page one command with `git -p <cmd>` / `git <cmd> ,l`.
+	pager = cat
+
 [init]
 	defaultBranch = main
 

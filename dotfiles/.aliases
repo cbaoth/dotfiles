@@ -635,6 +635,86 @@ print-color256() {
 }
 # }}} - DEV TOOLS ------------------------------------------------------------
 
+# {{{ - GIT ------------------------------------------------------------------
+# Short git wrappers, prefix `gi` (Colemak: g=left hand, i=right hand, so the
+# digraph alternates hands; `gg`/`gt` are same-finger and worse). Shortest
+# names go to the most-used commands (diff/status/commit per shell history).
+#
+# No installed-command clash: aliases are expanded before command lookup in
+# both bash and zsh, so `gid` runs even though id-utils *could* ship /usr/bin/gid
+# (it is not installed here); the binary stays reachable as `command gid`.
+#
+# Pager is off by default (core.pager=cat in ~/.gitconfig, see also the global
+# PAGER=cat trial in ~/.common_env); append the `,l` global alias to page.
+
+# status / show
+alias gis='git status -sb'          # short + branch — the everyday one
+alias giss='git status'             # full status
+alias gish='git show'
+
+# diff
+alias gid='git diff'                # unstaged (most-used git command)
+alias gids='git diff --staged'      # staged (what a commit would capture)
+
+# add / commit
+alias gia='git add'
+alias giap='git add --patch'        # stage hunk by hunk
+alias gic='git commit'
+alias gicm='git commit -m'
+alias gica='git commit --amend'
+alias gicn='git commit --amend --no-edit'
+
+# log — bounded by default since the pager is off; append ,l for the full walk
+alias gil='git log --graph --oneline --decorate -20'
+alias gila='git log --graph --oneline --decorate --all'
+alias gilp='git log --patch'        # patch per commit, e.g. gilp -- FILE
+
+# fetch / pull / push (pull rebase+autostash are set in ~/.gitconfig)
+alias gif='git fetch --all --prune'
+alias gipl='git pull'
+alias gipu='git push'
+alias gipf='git push --force-with-lease'
+alias gipt='git push-token'         # bin/git-push-token, for read-only replicas
+
+# branch / switch / checkout
+alias gibm='git branch -vv'         # list local branches (--list is implied)
+alias giba='git branch --all -vv'   # list all branches
+alias gibd='git branch --delete'
+alias gisw='git switch'
+alias giswc='git switch --create'   # create new then switch
+alias gico='git checkout'           # files, detached HEAD, or old habit
+
+# stash
+alias gista='git stash push'
+alias gistp='git stash pop'
+alias gistl='git stash list'
+
+# rebase
+alias girb='git rebase'
+alias girbi='git rebase --interactive'
+alias girbc='git rebase --continue'
+alias girba='git rebase --abort'
+
+# restore / undo
+alias girs='git restore'
+alias gius='git restore --staged'       # unstage, keep working-tree changes
+alias giundo='git reset --soft HEAD~1'  # undo last commit, keep changes staged
+
+# misc
+alias gicl='git clone'
+alias girv='git remote -v'
+alias girl='git reflog -n 20'
+alias giwt='git worktree'
+
+# cd to the repository root (top-level working directory)
+giroot() {
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" \
+    || { echo "not inside a git repository" >&2; return 1; }
+  cd "${root}" || return 1
+}
+# }}} - GIT ------------------------------------------------------------------
+
 # {{{ - CLAUDE CODE (AI) -----------------------------------------------------
 # Claude Code launchers. Name scheme: aic[r][d|n|s][m]
 #   u = update the local Claude Code installation

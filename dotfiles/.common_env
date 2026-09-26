@@ -320,6 +320,17 @@ export DEBUG_LVL=0
 # when pide, but some support e.g. `--color=always`)
 export LESS="-R"
 
+# Pagers off by default (ON TRIAL 2026-09): tools dump straight to the terminal
+# instead of auto-opening less; page on demand with the `,l` global alias
+# (| less). PAGER=cat covers well-behaved tools (git also via core.pager in
+# ~/.gitconfig; systemd via its $PAGER fallback). Trade-off: `journalctl` /
+# `systemctl` run bare now dump in full — use `-n`/`,np` (--no-pager) or `,l`.
+# man is exempt (paging IS its interface): it reads $MANPAGER first and, via
+# $LESS above, still gets -R. To page everything again, drop these two lines.
+# (~/.lessfilter is unaffected — it only runs when less opens a file argument.)
+export PAGER=cat
+export MANPAGER=less
+
 # Enable general highlighting in less (if tools available on system)
 # https://superuser.com/a/337640
 # Note: Ensure that ~/.lessfilter is executable: chmod u+x ~/.lessfilter
