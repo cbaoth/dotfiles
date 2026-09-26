@@ -29,6 +29,10 @@ libpcsclite1
 gufw
 
 # Image/media CLI
+# terminal image viewers; chafa renders true sixel images in foot, catimg is
+# block-only but tiny. (Replaced the broken OMZP::catimg zinit snippet.)
+catimg
+chafa
 imagemagick
 # libimage-exiftool-perl, not exiftool: `exiftool` is only a virtual name that
 # this package Provides. See the 7zip note in base.list for why that matters.
@@ -37,6 +41,7 @@ mpg123
 
 # Image/media GUI
 geeqie
+feh
 # mpv — MUST be apt, not flatpak.
 # bin/mpv-find and the @MPV global alias in .zsh.d/aliases.zsh both pipe into
 # `xargs ... mpv`, which needs a real binary on $PATH. The flatpak build breaks

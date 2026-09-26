@@ -242,10 +242,13 @@ if ${IS_X:-false}; then
       com.brave.Browser \
       links2 links lynx w3m 'wget -q -O -' 'curl -S'
   _export_to_first_cmd IMGVIEWER com.xnview.XnViewMP xnviewmp \
-      geeqie feh catimg
+  geeqie feh "magick display" chafa catimg
+  # custom variable for lightweight image viewers
+  _export_to_first_cmd IMGVIEWERMIN feh "magick display" chafa catimg
 else
   _export_to_first_cmd BROWSER links2 links lynx w3m 'wget -O -' 'curl -S'
-  _export_to_first_cmd IMGVIEWER catimg
+  _export_to_first_cmd IMGVIEWER chafa catimg
+  _export_to_first_cmd IMGVIEWERMIN chafa catimg
 fi
 unset -f _export_to_first_cmd
 # }}} - DEFAULT APPS ---------------------------------------------------------

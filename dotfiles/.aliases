@@ -284,6 +284,13 @@ fi
 # sudoedit priority: $SUDO_EDITOR -> $VISUAL -> $EDITOR
 # we intentionally use single quotes to ensur that $EDITOR is expanded at runtime (when alias is used) and not at definition time (here) since the value of EDITOR can be changed at a later stage
 alias sudoedit-editor='env SUDO_EDITOR="$EDITOR" sudoedit'
+
+# view images using lightweight (minimal), fall back to simply file info if no viewer is provided
+if [[ -n "${ZSH_VERSION-}" ]]; then
+  alias img='${=IMGVIEWERMIN:-file}'
+else
+  alias img='${IMGVIEWERMIN:-file}'
+fi
 # }}} - DEFAULT APPS ---------------------------------------------------------
 
 # {{{ - SYSTEM ---------------------------------------------------------------
