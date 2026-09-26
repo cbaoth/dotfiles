@@ -5,8 +5,8 @@
 #
 # ~/.zsh.d/zshrc-saito.zsh: Host-specific zshrc settings for saito.
 
-# Set basic prompt theme if PowerLevel10K not available
-if ! ${POWERLEVEL10K_ISACTIVE:-false}; then
+# Set basic prompt theme if starship is not available
+if ! ${IS_STARSHIP:-false}; then
   #export PS1="$(print '%{\e[0;37m%}(%~)%{\e[0m%}
   #[%{\e[0;34m%}%n%{\e[0m%}@%{\e[0;33m%}%m%{\e[0m%}]%# ')"
   #export RPS1="$(print '%{\e[2;37m%}[%T]%{\e[0m%}')"
