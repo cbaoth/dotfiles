@@ -556,6 +556,13 @@ bash /tmp/vl.sh
 For these it might be sensible to reference the official install doc or repo page so the user can have quick look to confirm that the install procedure is still the recommended one. Or alternatively just show or open the url (basically a bookmark instead of a adding the code to our repo). On the other hand we already have a few such cases (e.g. `bin/ffmpeg-install`, `setup/modules/27-wine.sh`, `setup/modules/35-tailscale.sh`, and more).
 
 
+**Ubuntu Pro (free personal subscription, 2026-09-27):** attached on motoko,
+saito and 11001001 (`sudo pro attach <token>`, then `apt update` +
+`full-upgrade`): ESM Apps/Infra security updates plus Livepatch (snap).
+
+- [ ] [S] puppet: attach Ubuntu Pro too (token in the Ubuntu One account),
+      then `apu!; agupf`; check `pro status`.
+
 **Questions for the session:**
 
 - [ ] [L] Inventory per host (puppet, motoko, saito, 11001001): what is installed
@@ -577,10 +584,10 @@ For these it might be sensible to reference the official install doc or repo pag
 
 # 8. system-setup — Profiles & Host Targeting
 
-Not urgent; for a later discussion. Context: saito still has a full desktop
-installed (historically a TV box with a VNC server), is being slimmed down to a
-server, and may later run a few GUI apps remotely only (Wayland remote
-protocol). The profile system has to cope with hosts like that.
+Not urgent; for a later discussion. Context: saito (historically a TV box with
+a VNC server) had its desktop purged 2026-09-26 and is now headless, running
+the odd GUI app remotely only (xpra). The profile system has to cope with
+hosts like that.
 
 - [ ] [M] **Per-host profile override.** Pin a host to a profile (e.g. saito →
       `server`) so `--profile auto` or a mistyped `--profile desktop` cannot
