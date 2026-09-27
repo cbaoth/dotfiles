@@ -87,9 +87,12 @@ umask 022
 # {{{ - SYSTEM/ENV STATE -----------------------------------------------------
 # these version variables are mutuable and they could also be inherited from parent process
 # but this is unlikely and should not cause issues in practice
-[[ -n "${ZSH_VERSION:-}" ]] && IS_ZSH=true || IS_ZSH=false
-[[ -n "${BASH_VERSION:-}" ]] && IS_BASH=true || IS_BASH=false
-export IS_BASH IS_ZSH
+IS_ZSH=false
+IS_BASH=false
+SHELL_TYPE=""  # empty only in a shell that is neither bash nor zsh
+[[ -n "${BASH_VERSION:-}" ]] && IS_BASH=true && SHELL_TYPE="bash"
+[[ -n "${ZSH_VERSION:-}" ]] && IS_ZSH=true && SHELL_TYPE="zsh"
+export IS_BASH IS_ZSH SHELL_TYPE
 
 # Set core system variables if not already set
 : "${OS:=$(uname 2> /dev/null)}"
@@ -334,9 +337,9 @@ export MANPAGER=less
 # Enable general highlighting in less (if tools available on system)
 # https://superuser.com/a/337640
 # Note: Ensure that ~/.lessfilter is executable: chmod u+x ~/.lessfilter
-[[ -x ~/.lessfilter ]] \
-  && command -v pygmentize >& /dev/null \
-  && export LESSOPEN="|~/.lessfilter %s"
+if [[ -x ~/.lessfilter ]] && command -v pygmentize >& /dev/null; then
+  export LESSOPEN="|~/.lessfilter %s"
+fi
 # Enable auto extraction of zip files (e.g.: less log.gz)
 # This supports a custom ~/.lessfilter as well
 command -v lesspipe >& /dev/null \
@@ -379,47 +382,37 @@ export XDG_DATA_DIRS
 # }}} = X11/WAYLAND SESSIONS AND RELATED =====================================
 
 # {{{ = SOURCE/INITIALIZE DEV TOOLS ==========================================
-# Load NodeJS if existing
-# - https://nodejs.org/en/download
-# - https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
-# nvm dir differs per host: the XDG path ~/.config/nvm on some, the installer
-# default ~/.nvm on others. Prefer XDG, fall back to the default. The braces are
-# required — without them, `A && B || C && D` runs D unconditionally and clobbers
-# NVM_DIR back to ~/.nvm even when only ~/.config/nvm exists.
-if { [[ -d "${HOME}/.config/nvm" ]] && export NVM_DIR="${HOME}/.config/nvm"; } \
-    || { [[ -d "${HOME}/.nvm" ]] && export NVM_DIR="${HOME}/.nvm"; }; then
-  if [[ -s "${NVM_DIR}/nvm.sh" ]]; then
-    # shellcheck source=/dev/null
-    source "${NVM_DIR}/nvm.sh"
-  fi
-  if [[ -s "${NVM_DIR}/bash_completion" ]]; then
-    # shellcheck source=/dev/null
-    source "${NVM_DIR}/bash_completion"
+# ENV/PATH setup ONLY. This file is sourced via .zshenv on every zsh invocation
+# (including non-interactive) and BEFORE compinit, so it must not produce output,
+# assume a tty, or register completions. Shell COMPLETIONS for these tools need
+# the completion system initialized (zsh: after compinit) and therefore live in
+# cb_devtools_completions() in ~/.common_rc, called from the rc files.
+
+# fnm -- NodeJS version manager (replaces nvm). https://github.com/Schniz/fnm
+# `fnm env` sets FNM_* and puts the active node on PATH (needed here so node is
+# available to non-interactive shells too). Its completion is separate (see
+# cb_devtools_completions); `--use-on-cd` would add an interactive chdir hook.
+if [[ -d "${HOME}/.local/share/fnm" ]]; then
+  export FNM_PATH="${HOME}/.local/share/fnm"
+  export PATH="${FNM_PATH}:${PATH}"
+  if [[ -n "${SHELL_TYPE}" ]]; then
+    eval "$(fnm env --shell "${SHELL_TYPE}")"
+  else
+    eval "$(fnm env)"
   fi
 fi
 
-# determinate-nix > official nix CLI
-if command -v determinate-nixd >/dev/null 2>&1; then
-  # activate determinate-nixd auto completion subcommand
-  # https://docs.determinate.systems/determinate-nix/#determinate-nixd-completion
-  if ${IS_ZSH}; then
-    eval "$(determinate-nixd completion zsh)"
-  elif ${IS_BASH}; then
-    eval "$(determinate-nixd completion bash)"
-  fi
-else
-  # source Nix profile (official version, see below for Determinate Nix)
-  if ! command -v nix >/dev/null 2>&1 && [[ -f "${HOME}/.nix-profile/etc/profile.d/nix.sh" ]]; then
-    # shellcheck source=/dev/null
-    source "${HOME}/.nix-profile/etc/profile.d/nix.sh"
-  fi
+# Nix: Determinate Nix (determinate-nixd) puts nix on PATH system-wide, so only
+# its shell completion is per-user (see cb_devtools_completions). Without it, fall
+# back to sourcing the official single-user profile (PATH/env), if present.
+if ! command -v determinate-nixd >/dev/null 2>&1 \
+    && ! command -v nix >/dev/null 2>&1 \
+    && [[ -f "${HOME}/.nix-profile/etc/profile.d/nix.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "${HOME}/.nix-profile/etc/profile.d/nix.sh"
 fi
 
-# # angular CLI autocompletion, if ng is avaiable
-# if command -v ng >/dev/null 2>&1; then
-#   source <(ng completion script)
-# fi
-
+# Rust/Cargo env (adds ~/.cargo/bin to PATH), if installed
 # shellcheck source=/dev/null
 [[ -f "${HOME}/.cargo/env" ]] && source "${HOME}/.cargo/env"
 # }}} = SOURCE/INITIALIZE DEV TOOLS ==========================================

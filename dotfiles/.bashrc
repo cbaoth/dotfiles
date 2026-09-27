@@ -99,6 +99,11 @@ export PATH
 LD_LIBRARY_PATH="$(printf '%s\n' "${LD_LIBRARY_PATH}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd ':')"
 export LD_LIBRARY_PATH
 # }}} - FINAL PATH UPDATE ----------------------------------------------------
+# {{{ - DEV TOOL COMPLETIONS -------------------------------------------------
+# Dev-tool shell completions (fnm, determinate-nix, ...) -- defined in
+# ~/.common_rc, kept out of ~/.common_env (which sets only ENV/PATH).
+command -v cb_devtools_completions > /dev/null && cb_devtools_completions
+# }}} - DEV TOOL COMPLETIONS -------------------------------------------------
 # {{{ - MOTD -----------------------------------------------------------------
 # Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)
 if (( SHLVL == 1 )); then

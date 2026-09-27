@@ -121,6 +121,43 @@ source_ifex_custom() {
 
 # }}} = SOURCING HELPERS =====================================================
 
+# {{{ = DEV TOOL COMPLETIONS =================================================
+
+# Load shell completions for dev tools whose ENV/PATH is set in ~/.common_env
+# (fnm, Determinate Nix, ...).
+#
+# Kept out of .common_env on purpose: that file is sourced via .zshenv on every
+# zsh invocation (incl. non-interactive) and BEFORE compinit, where `compdef`
+# does not yet exist -- so completion evals there error out or are silently
+# dropped (e.g. determinate-nixd completion never actually loaded in zsh). Call
+# this AFTER the completion system is ready instead: in .zshrc after compinit,
+# in .bashrc near the end (the `complete` builtin is always available in bash).
+#
+# Requires: $SHELL_TYPE (set to "bash" or "zsh" by .common_env).
+cb_devtools_completions() {
+  local -r shell="${SHELL_TYPE:-}"
+  [[ -n "$shell" ]] || return 0
+
+  # fnm -- NodeJS version manager. https://github.com/Schniz/fnm
+  if command -v fnm > /dev/null 2>&1; then
+    eval "$(fnm completions --shell "$shell" 2> /dev/null)"
+  fi
+
+  # Determinate Nix CLI.
+  # https://docs.determinate.systems/determinate-nix/#determinate-nixd-completion
+  if command -v determinate-nixd > /dev/null 2>&1; then
+    eval "$(determinate-nixd completion "$shell" 2> /dev/null)"
+  fi
+
+  # # Angular CLI (kept for when Angular development resumes)
+  # if command -v ng > /dev/null 2>&1; then
+  #   # shellcheck source=/dev/null
+  #   source <(ng completion script)
+  # fi
+}
+
+# }}} = DEV TOOL COMPLETIONS =================================================
+
 # {{{ = TMUX AUTO-ATTACH =====================================================
 
 # Attach to (or create) one persistent tmux session on interactive SSH logins.
