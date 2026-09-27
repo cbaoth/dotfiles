@@ -419,14 +419,55 @@ Without that accident it would have stayed outdated for a long time.
   prompts or something breaks.
 - **snap**: rarely used, but present.
 - **Containers** (docker on saito and the vserver): images updated only by hand.
-- **Software outside package managers** (installers with their own updater,
-  static binaries, tools like `tailscale update`, `uv`, `zinit` zsh plugin manager, `claude` Claude Code, ...): no
-  overview, no reminders.
+- **Software outside package managers** (software with their own update features,
+  static binaries, vrious package managers, etc.), e.g.:
+```bash
+# should work unless it is installed via deb package, which it should not
+yt-dlp --update
+
+# zsh plugin manager (--all is implied by default)
+# note that per repo the git log is shown using a pager (per default)
+# in this case (other may exist) it might be helpful to check for fatal git errors (e.g. "fatal: Not possible to fast-forward, aborting.") since from what i can tell, the zinit command still success in such a case.
+zinit update
+
+# claude code cli may notify, and i'm not sure what happens when updating while instances are running (update may exit, not sure)
+claude update   # Claude Code
+
+# npm update npm -g  # nodejs `node`, `nvm`, 'npm`
+# presumably best to only use fnm where possible instead of installing a single nodejs version into a fixed location in home
+fnm install --lts && fnm default lts-latest` (no update iirc, but install, and maybe uninstall e.g. the previous version?)
+
+# at least assuming the user is tailscale operator (see `tailscale get operator`, either `cbaoth` or empty), which should be the case on desktop and notebook, but is currently not the case for servers (saito, vserver).
+tailscale update
+
+# python pip: `pip install --upgrade pip` (or `python -m pip install --upgrade pip`) but wouldn't work with system python (deb package), so unless conda, venv, or similar is currently used (not done by default), this may be worth an alias but presumably not an auto update mechanism. also consider that from what i know `uv` should always be the prefered method nowadays.
+uv self update
+
+# rust/cargo
+rustup update
+```
   - One exception is `nix`, which prints a "MOD" message when opening a new shell, or connecting remotely via SSH. Which can be a bit annoying at times (rather regularly, maybe a weekly or bi-weekly cadence would suffice), but at least it is a reminder. Auto update would surely be convenient, if it can be done reliably and safely (e.g. weekly cron/timer early in the morning, or on next startup when the system was down, which is likely the case for desktop and notebook).
 - There is no regular habit of checking for updates. In practice updates happen
   only when a tool nags or when something breaks or is missing.
 - Existing helpers: the `pk*` shell functions/aliases (e.g. `pku` updates apt,
   snap and flatpak in one go). They only run when invoked by hand.
+- Consider that some updaters may install script snippets into .zshrc, .bashrc, .profile, or similar. this should be avoided since the current config should already handle these cases. And there is a presumably low risk, that an update requires a change in the way the tool environments are set up.
+
+On a somewhat related note, it would be good if there were some kind of install mechanism for at least some of the tools mentioned above (vs. searching online), since it's usually just a `curl | bash` or similar command that could easily be added to a script or alias. Examples:
+
+```bash
+# https://docs.astral.sh/uv/getting-started/installation/
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# https://github.com/Schniz/fnm
+curl -fsSL https://fnm.vercel.app/install | bash
+
+# https://github.com/DeterminateSystems/nix-installer
+curl -fsSL https://install.determinate.systems/nix | sh -s -- install
+
+# https://doc.rust-lang.org/cargo/getting-started/installation.html
+curl https://sh.rustup.rs -sSf | sh
+```
 
 **Questions for the session:**
 
