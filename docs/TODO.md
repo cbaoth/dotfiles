@@ -386,6 +386,23 @@ Current implementation documented in `docs/linking-system.md`. Low priority; rev
 
 ## Observability & Debugging
 
+- [ ] [S] **`--dry-run` must report pending work.** It currently prints
+      `Dry-run completed successfully. No changes were made.` and nothing else,
+      even when links *are* missing — the pending creations only show under
+      `-vv`. Found 2026-09-28 on puppet: the tokyo-night starship prompt was not
+      active because `~/.config/starship.toml` had never been linked, and a plain
+      `--dry-run` reported nothing wrong while four symlinks were pending
+      (`starship.toml`, `_starship-preset-test`, `lib/env-saito.sh`,
+      `lib/env-11001001_org.sh`). A dry run whose whole purpose is previewing
+      work should summarise it by default: *N to create, N to replace, N stale to
+      remove*, with the list. Same class of silent inertness as
+      `check-release-updates` never being scheduled (§7) — the tool existed, ran,
+      and said nothing.
+- [ ] [S] Consider a `--verify` / status mode for the same reason: answer "is
+      this host fully linked?" without a dry run and without `-vv` parsing. Would
+      have surfaced the drift above at any point in the weeks it existed. Folds
+      naturally into the checksum-verification item below — one command answering
+      "is this host correct?" beats two.
 - [ ] [M] Add optional JSON output mode (`--format=json`) for automation/dashboards
 - [ ] [S] Checksum-based verification to detect if a symlink target has been modified on disk vs. repo
 - [ ] [M] Optional hook system: `run_before_link()` / `run_after_link()` for custom setup steps
