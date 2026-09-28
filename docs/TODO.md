@@ -129,26 +129,55 @@ Follow-ups after the zplug → zinit migration:
 
 # 3. Desktop / Sway Setup
 
-GDM is currently required only to provide a graphical login. Since Sway is started manually from a TTY (`sudo systemctl stop gdm && sway-start`), GDM adds overhead with no benefit.
+**Decided and done (2026-09-28): no display manager.** `gdm3` and `gnome-shell`
+are purged on puppet; sway is started from a TTY via `sway-start`.
 
-**Prerequisite:** Sway must be confirmed stable (waybar, keyring, key bindings all verified working) before making any change permanent.
+Why purge rather than `systemctl disable gdm`: on motoko a disabled gdm came
+*back* after an update — a reboot landed on the gdm greeter instead of a TTY.
+Disabling is not durable state; not having the package is. The trigger was the
+25.10 → 26.04 upgrade asking for a gdm conffile merge, which is a prompt worth
+never seeing again.
 
-Options (in order of preference):
+**Do not reinstall `ubuntu-desktop-minimal` or `ubuntu-desktop`** to get a GNOME
+app back: both have a hard `Depends: gdm3`, so either drags the display manager
+in again. Install the specific package instead.
 
-- **No display manager** — TTY auto-login via systemd drop-in + auto-start sway from `~/.zprofile`
-  - Pros: minimal, no extra packages, full control
-  - Cons: no graphical greeter (acceptable if YubiKey unlock happens inside sway)
-- **greetd + tuigreet** — modern Wayland-native session manager; proper PAM/keyring integration; designed for wlroots compositors
-- **LightDM** — familiar, well-supported on Ubuntu; more overhead; X11-centric but Wayland sessions work
+What survived the purge and needs no action — verified 2026-09-28, none of these
+depend on `gnome-shell`: `gnome-keyring` (running, secrets + pkcs11/ssh),
+`libsecret`, `seahorse`, `gnome-control-center`, `gnome-settings-daemon`,
+`gnome-session-bin`, `gnome-session-canberra` (marked manual, so safe from
+autoremove — `sway/config` needs it for sounds), `xdg-desktop-portal-{gtk,wlr}`.
+`apt autoremove` currently queues 41 packages, all of them GNOME introspection
+typelibs and folks/telepathy leftovers; the only judgement calls are
+`gstreamer1.0-pipewire` (`apt-mark manual` it if GStreamer-based screen capture
+is ever wanted) and `switcheroo-control` (genuinely useless — Intel iGPU only,
+no discrete GPU).
+
+`xdg-desktop-portal-gnome` is still installed but unused: `portals.conf` sets
+`[preferred] default=wlr;gtk` with ScreenCast/Screenshot/GlobalShortcuts pinned
+to `wlr`, and an explicit `[preferred]` overrides `UseIn=` backend matching.
+Removable as dead weight, not a correctness issue.
 
 ## Tasks
 
-- [ ] [S] Decide on approach (no-DM vs greetd vs LightDM)
-- [ ] [S] `sudo systemctl disable gdm` — stop GDM from starting at boot
-- [ ] [M] Configure chosen session startup method
-- [ ] [S] Update `docs/setup/sway.md` with chosen approach and steps
+- [x] [S] Decide on approach — **no display manager** (2026-09-28)
+- [x] [S] Remove GDM — purged outright rather than disabled (see above)
+- [x] [S] Start a **polkit authentication agent** from sway. gnome-shell used to
+      provide it; without one, GUI privilege prompts never appear.
+      **Done 2026-09-28:** `exec /usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1`
+      in `config.d/90-launch-apps.conf`. Its own XDG autostart entry cannot do
+      the job — `OnlyShowIn=XFCE;Unity;X-Cinnamon`, so sway is excluded, and
+      `xdg-desktop-autostart.target` is inactive in this session anyway.
+- [ ] [S] Verify the polkit agent actually prompts after the next sway restart
+      (`nm-connection-editor` → edit and save a connection is the quickest test).
+- [ ] [M] TTY auto-login: systemd `getty@tty1` drop-in + start sway from
+      `~/.zprofile`, so a boot lands in sway without typing a password twice.
+      Currently still a manual `sway-start` after logging in at the TTY.
+- [ ] [S] Update `docs/setup/sway.md` with the no-DM approach, the purge (and the
+      `ubuntu-desktop-minimal` → `gdm3` trap), and the polkit agent.
 - [ ] [S] Verify YubiKey unlock still works (KeePassXC prompt visible at login)
-- [ ] [S] Verify GNOME remains usable if needed (`sudo systemctl enable gdm`)
+- [ ] [S] Apply the same purge to motoko, where the gdm-came-back incident
+      happened — it is still installed and merely disabled there.
 
 ## Conky
 
