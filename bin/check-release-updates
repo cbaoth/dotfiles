@@ -4,7 +4,7 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# Check Ubuntu release-upgrade status and available updates.
+# Check Ubuntu release-upgrade status and end-of-life headroom.
 
 set -euo pipefail  # Fail if any command in a pipeline fails
 
@@ -14,6 +14,21 @@ set -euo pipefail  # Fail if any command in a pipeline fails
 #p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
 #p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 #p_dbg() { (( "${1:-0}" <= "${DEBUG_LVL:-0}" )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+# {{{ = CONSTANTS ============================================================
+
+# Warn this many days before the running release reaches EOL. An interim release
+# only lives 9 months, so 60 days is about its last sixth: enough lead time to
+# plan an upgrade, late enough not to nag for months on end.
+declare -ri EOL_WARN_DAYS="${CRU_EOL_WARN_DAYS:-60}"
+
+# Exit codes. A scheduled run (timer, MOTD hook) keys off these, so treat them
+# as contract rather than incidental.
+declare -ri EX_OK=0      # nothing to do
+declare -ri EX_ERR=1     # status could not be determined
+declare -ri EX_ACTION=2  # a new release is available, or EOL is near/passed
+
+# }}} = CONSTANTS ============================================================
 
 # Usage
 p_usg() { printf 'Usage: %s  [ACTION|OPTIONS]\n' "$(basename "$0")"; }
@@ -27,21 +42,38 @@ Action:
   check           Only check for updates without suggesting upgrade (default)
 
 Options:
+  -q, --quiet     Print nothing unless something needs attention (for timers
+                  and login hints); the exit code still reports the verdict
   -v, --verbose   Increase verbosity (can be used multiple times)
   -h, --help      Show this help message and exit
+
+Exit codes:
+  ${EX_OK}  nothing to do
+  ${EX_ERR}  status could not be determined
+  ${EX_ACTION}  a new release is available, or EOL is within ${EOL_WARN_DAYS} days / already passed
+
+Environment:
+  CRU_EOL_WARN_DAYS   days of EOL headroom before warning (default: 60)
 EOF
 }
 
 # Parse arguments
 declare CHECK_STATUS=true  # default action, currently the only action implemented
+declare QUIET=false
 declare -i VERBOSE=0
 parse_args() {
-  if [[ $# -gt 0 ]]; then
+  # A loop, not a single case: the help above promises that -v can be repeated,
+  # and options must be combinable with each other.
+  while [[ $# -gt 0 ]]; do
     case "$1" in
       # check)
       #   CHECK_ONLY=true
       #   shift
       #   ;;
+      -q|--quiet)
+        QUIET=true
+        shift
+        ;;
       -v|--verbose)
         VERBOSE=$((VERBOSE + 1))
         shift
@@ -61,9 +93,7 @@ parse_args() {
         exit 1
         ;;
     esac
-  else
-    CHECK_STATUS=true  # Default action is to check only
-  fi
+  done
 }
 
 command_exists() {
@@ -82,11 +112,10 @@ command_exists() {
 }
 
 check_precondition() {
-  # Check if the script is run with root privileges
-  if [[ "$EUID" -ne 0 ]]; then
-    echo "ERROR: This script must be run as root. Please use sudo."
-    exit 1
-  fi
+  # Deliberately NOT root-only. Everything below reads public metadata:
+  # `do-release-upgrade -c` only consults the meta-release file, and lsb_release
+  # and ubuntu-distro-info read local data. Requiring sudo would rule out the
+  # two ways this is actually useful — a user timer and a shell/MOTD hint.
 
   # Check if the script is run on an Ubuntu system
   if ! [[ -f /etc/os-release ]] || ! grep -q "Ubuntu" /etc/os-release; then
@@ -97,52 +126,117 @@ check_precondition() {
   # Check if required commands are available
   command_exists "do-release-upgrade" "ubuntu-release-upgrader-core"
   command_exists "lsb_release" "lsb-release"
-  #command_exists "ubuntu-security-status" "update-manager-core"  # Replaced with `pro` command
-  command_exists "pro" "ubuntu-pro-client"
-  command_exists "jq" "jq"
+  command_exists "ubuntu-distro-info" "distro-info"
+}
+
+# Days until MILESTONE (default: eol) for SERIES; negative once it has passed.
+#
+# Source is distro-info-data, not `pro security-status`. The latter cannot do
+# this job twice over: Ubuntu Pro does not cover interim releases at all, and
+# its JSON summary has no eol_date field even on an LTS host — the old lookup
+# resolved to the literal string "null" everywhere, so the EOL warning could
+# never fire on any host, LTS included.
+get_eol_days() {
+  local -r series="$1"
+  local -r milestone="${2:-eol}"
+  local days
+  days="$(ubuntu-distro-info --series="${series}" --days="${milestone}" 2>/dev/null)" || return 1
+  [[ "${days}" =~ ^-?[0-9]+$ ]] || return 1
+  printf '%s' "${days}"
 }
 
 get_release_status() {
-  # Check for new Ubuntu release
-  local -r current_release=$(lsb_release -rs)
-  local -r is_lts=$(lsb_release -a | grep "Description:.*LTS" > /dev/null && echo true || echo false)
-  local -r current_date=$(date +%Y-%m-%d)
-  local -r check_dist_upgrade_output=$(do-release-upgrade -c 2>&1)
+  local series release description
+  series="$(lsb_release -cs)"
+  release="$(lsb_release -rs)"
+  description="$(lsb_release -ds)"
+  local -r series release description
+
+  local is_lts=false
+  [[ "${description}" == *LTS* ]] && is_lts=true
+  local -r is_lts
+  local -r lts_str="$( ${is_lts} && echo "LTS" || echo "non-LTS" )"
+
+  # `-c` exits 1 when there is no new release, which is not an error. Swallow it
+  # explicitly: it previously survived `set -e` only by accident, because
+  # `local var=$(cmd)` discards the command's exit status.
+  local upgrade_check=""
+  upgrade_check="$(do-release-upgrade -c 2>&1)" || true
+  local -r upgrade_check
+
+  # The message is: New release '26.10' available.
+  # Strip the quotes rather than taking $3 of it, which kept them and also lost
+  # the 'LTS' suffix of a release like '26.04.1 LTS'.
+  local new_release=""
+  new_release="$(sed -n "s/.*New release '\([^']*\)'.*/\1/p" <<<"${upgrade_check}" | head -n1)"
+  local -r new_release
+
+  local eol_days_raw=""
+  eol_days_raw="$(get_eol_days "${series}")" || eol_days_raw=""
+  local -ri eol_days="${eol_days_raw:-0}"
+
+  (( VERBOSE > 0 )) && echo "DEBUG: Current release: ${release} (${series}) ${lts_str}," \
+    "New release: ${new_release:-n/a}, Days to EOL: ${eol_days_raw:-unknown}," \
+    "Warn threshold: ${EOL_WARN_DAYS}"
+
+  local -a findings=()
+  local -a notes=()
+  local -i rc="${EX_OK}"
+
+  # {{{ - End of life ---------------------------------------------------------
+  if [[ -z "${eol_days_raw}" ]]; then
+    findings+=("Could not determine the EOL date for '${series}'. Is distro-info-data current?")
+    rc="${EX_ERR}"
+  elif (( eol_days < 0 )); then
+    findings+=("Ubuntu ${release} (${series}) reached END OF LIFE $(( -eol_days )) days ago"
+               "  → no security updates are being delivered. Upgrade: do-release-upgrade")
+    rc="${EX_ACTION}"
+  elif (( eol_days <= EOL_WARN_DAYS )); then
+    findings+=("Ubuntu ${release} (${series}) reaches EOL in ${eol_days} days ($(date -d "+${eol_days} days" +%F))")
+    rc="${EX_ACTION}"
+  else
+    notes+=("Ubuntu ${release} ${lts_str} is supported for another ${eol_days} days ($(date -d "+${eol_days} days" +%F)).")
+  fi
+
+  # Interim releases get no ESM, so the Pro subscription is worth nothing there;
+  # saying so beats letting an attached account imply a safety net.
   if ${is_lts}; then
-    local -r lts_str="LTS"
-    #local -r eol_date=$(ubuntu-security-status | grep "Support for base system" | awk '{print $6}')
-    # Ubuntu Pro is not available for non-LTS releases. So we can only check EOL status for LTS releases using `pro security-status`.
-    local -r eol_date=$(pro security-status --format json | jq -r '.summary.eol_date')
+    local esm_days=""
+    esm_days="$(get_eol_days "${series}" eol-esm)" || esm_days=""
+    [[ -n "${esm_days}" ]] && (( esm_days > 0 )) \
+      && notes+=("Ubuntu Pro ESM extends that to $(date -d "+${esm_days} days" +%F).")
   else
-    local -r lts_str="non-LTS"
-    local -r eol_date="n/a"
+    notes+=("Interim release: no Ubuntu Pro ESM after EOL, whatever the account covers.")
   fi
-  local -r new_release=$(grep "New release" <<<"${check_dist_upgrade_output}" | awk '{print $3}' || echo "n/a")
-  [[ ${VERBOSE} -gt 0 ]] && echo "DEBUG: Current release: ${current_release} ${lts_str}, New release: ${new_release}, EOL date: ${eol_date}, Current date: ${current_date}"
+  # }}} - End of life ---------------------------------------------------------
 
-  # Check if the current release is nearing end of life
-  if [[ -n "${current_date}" && "${eol_date}" != "n/a" && "${current_date}" > "${eol_date}" ]]; then
-      echo "Your current Ubuntu release (${current_release}) is no longer supported. Consider upgrading."
-  fi
-
-  # Check if a new release is available
-  if [[ -n "${new_release}" && "${new_release}" != "n/a" && "${new_release}" != "${current_release}" ]]; then
-      echo -e "A new Ubuntu release is available:\n  ${new_release} (current: ${current_release})"
-      echo -e "Consider upgrading your system:\n  do-release-upgrade"
-      if ! command -v do-release-upgrade &> /dev/null; then
-          echo "It seems that do-release-upgrade is missing. To install it, use:"
-          echo "  sudo apt-get install -y ubuntu-release-upgrader-core"
-      fi
+  # {{{ - New release ---------------------------------------------------------
+  if [[ -n "${new_release}" && "${new_release}" != "${release}" ]]; then
+    findings+=("A new Ubuntu release is available: ${new_release} (current: ${release})"
+               "  → upgrade with: do-release-upgrade")
+    (( rc == EX_OK )) && rc="${EX_ACTION}"
   else
-      echo "Your current Ubuntu release ${current_release} ${lts_str} is up to date."
+    notes+=("No new release offered on this host's channel (see /etc/update-manager/release-upgrades).")
   fi
+  # }}} - New release ---------------------------------------------------------
+
+  # Quiet mode exists for timers and login hints: report only what needs acting
+  # on, so a healthy host stays silent and the reminder keeps its signal value.
+  if (( ${#findings[@]} > 0 )); then
+    printf '%s\n' "${findings[@]}"
+  fi
+  if ! ${QUIET} && (( ${#notes[@]} > 0 )); then
+    printf '%s\n' "${notes[@]}"
+  fi
+
+  return "${rc}"
 }
 
 main() {
   parse_args "$@"
   check_precondition
   if $CHECK_STATUS; then
-    echo "Checking for Ubuntu release updates..."
+    ${QUIET} || echo "Checking for Ubuntu release updates..."
     get_release_status
   fi
 }

@@ -487,17 +487,27 @@ Just some quick unrefined notes, before I forget:
     - orphan pruning of symlinks (see `tools/link.sh`), potentially empty dirs as well (this can however be dangerous, unless we know that i dir is only used for dotfile repo purposes).
     - potentially an uninstall option, to remove all symlinks (and other fs objects that were created by the dotfiles setup, and that can safely be removed)
 
-# 7. System Updates — Reminders & Auto-Update
+# 7. System Updates — Reminders, Auto-Update & Release Upgrades
 
 **Open for a planning session (not started).** Goal: stop relying on memory to
 keep software current across hosts. Decide per source and per host what should
 update automatically, what should only produce a reminder, and how that
-reminder reaches the user.
+reminder reaches the user. Two scopes, likely with different answers:
+**package/app updates** (below) and **Ubuntu release upgrades** (own
+subsection at the end) — the latter is the one that can silently strand a host
+on an unsupported release.
 
 **Trigger (2026-09-24):** the Tailscale client on the vserver (11001001) was
 outdated without anyone noticing. It only came up because `tailscale get
 operator` failed with an unknown subcommand; `sudo tailscale update` fixed it.
 Without that accident it would have stayed outdated for a long time.
+
+**Trigger (2026-09-28):** puppet (notebook) was found running **Ubuntu 25.10
+(questing), two months past EOL** — no security updates since July 2026. It
+surfaced only because `foot.ini`, written against foot 1.25 on motoko, failed
+on puppet's foot 1.21 (`[colors2]` and `color-theme-toggle` rejected,
+`foot --check-config` exit 230). Nothing was tracking the release itself.
+Upgraded to 26.04.1 the same day.
 
 **Current state, as far as known:**
 
@@ -551,6 +561,9 @@ uv self update
 rustup update
 ```
   - One exception is `nix`, which prints a "MOD" message when opening a new shell, or connecting remotely via SSH. Which can be a bit annoying at times (rather regularly, maybe a weekly or bi-weekly cadence would suffice), but at least it is a reminder. Auto update would surely be convenient, if it can be done reliably and safely (e.g. weekly cron/timer early in the morning, or on next startup when the system was down, which is likely the case for desktop and notebook).
+- **Ubuntu release upgrades**: nothing tracks them at all — see the subsection
+  below. `bin/check-release-updates` exists for exactly this and is inert
+  (never scheduled, and blind on non-LTS).
 - There is no regular habit of checking for updates. In practice updates happen
   only when a tool nags or when something breaks or is missing.
 - Existing helpers: the `pk*` shell functions/aliases (e.g. `pku` updates apt,
@@ -610,6 +623,97 @@ saito and 11001001 (`sudo pro attach <token>`, then `apt update` +
       non-package tools), or replace with whatever comes out of this.
 - [ ] [S] If parts are idempotent: `setup/` module(s) plus a `docs/setup/` note,
       as usual.
+
+## Ubuntu release upgrades (added 2026-09-28)
+
+**Policy (decided 2026-09-28):** desktop and notebook (motoko, puppet) track
+the **interim** releases — recent kernels and drivers for current hardware are
+worth the 9-month cadence, and past breakage has been rare and manageable under
+no time pressure. Servers (saito, 11001001) stay on **LTS**: containers have
+removed the old reason to chase runtime versions (PHP and friends no longer need
+backports or manual installs), and services being down under time pressure is a
+far worse trade than a cosmetic desktop glitch. motoko's current `Prompt=lts` is
+an artifact of 26.04 being an LTS, not a decision.
+
+What the interim half of that policy costs, and therefore needs:
+
+- **Interim releases get no Ubuntu Pro ESM.** ESM covers LTS only, so the
+  attached Pro account is worth nothing on an interim host. Miss the upgrade
+  window and there are *zero* security updates — precisely what happened to
+  puppet.
+- 26.10 (stonking) releases **2026-10-15** and reaches **EOL 2027-07-15**.
+  For comparison, 26.04 LTS is supported to 2031-05-29 (ESM 2036-04-23).
+- Upgrades are **sequential**: from 26.04 only 26.10 is offered; 27.04 cannot be
+  reached without passing through 26.10. Skipping an interim release is not an
+  option, only delaying it.
+- Every release bumps the **codename-pinned third-party repos**. puppet carries
+  ~19 apt sources; winehq, netdata, tailscale and the Launchpad PPAs
+  (safeeyes, ulauncher, cryptomator) are per-series, while the browser/vscode
+  ones pin a fixed `stable` suite and only need re-enabling. Small PPAs are
+  also likeliest to lag on an interim release. `do-release-upgrade` disables all
+  of them, so this is a 9-monthly chore on interim hosts instead of 2-yearly.
+- **Cross-host config skew stops being incidental.** With desktops a release
+  ahead of the servers, any dotfile written against the newer package breaks the
+  LTS hosts — the flat symlink layout has no per-host layer. foot.ini is the
+  first case; the version guard in `lib/aliases-linux.sh` is the pattern that
+  handles it, and foot's `include=` is an escape hatch where a guard will not do.
+- Worth knowing for the risk assessment: the churn on interim releases has moved
+  from application versions down into **core userland** — uutils coreutils,
+  findutils, diffutils, sudo-rs, and dbus-broker replacing dbus-daemon in 26.10.
+  That is the layer this repo's scripts and configs *are*, so breakage now lands
+  closer to home than the old "newer Firefox" tradeoff suggested. The uutils
+  guard is first-hand evidence; it cost three lines, but it was not free.
+
+Tasks:
+
+- [x] [S] **Manage `Prompt=` in `/etc/update-manager/release-upgrades`.**
+      **Done 2026-09-28:** `setup/modules/05-release-upgrades.sh`, keyed to
+      `st::profile` — desktop → `normal`, server/wsl → `lts`. `wsl` is grouped
+      with the servers on purpose (work machine); flip it in the module if that
+      changes. Note `docs/setup/release-upgrades.md`. Ties into §8 *Per-host
+      profile override* — a host pinned to the wrong profile flips its upgrade
+      channel, which is now a real consequence rather than a cosmetic one.
+      Confirmed while writing it: the 25.10 → 26.04 upgrade **rewrote** puppet's
+      `Prompt=normal` to `lts` on its own, which is the argument for managing it.
+- [x] [M] **Fix the EOL check in `bin/check-release-updates`.**
+      **Done 2026-09-28.** It was worse than the "non-LTS blind spot" recorded
+      here earlier: `pro security-status --format json` has **no `eol_date` field
+      at all** (verified on 26.04 with Pro attached), so the LTS path read
+      `"null"` and compared `"2026-09-28" > "null"` — false, since `2` sorts
+      below `n`. The EOL warning therefore could not fire on *any* host, and the
+      non-LTS branch skipped it explicitly on top. Now uses
+      `ubuntu-distro-info --days=eol` (distro-info-data: offline, and correct for
+      interim releases), warns `CRU_EOL_WARN_DAYS` (default 60) *ahead of* EOL,
+      and exits `2` when action is needed so a timer or MOTD hook can key off it.
+      Also fixed in passing: the root requirement was unnecessary and blocked
+      exactly the unattended use this needs (nothing here writes anything);
+      `-v` could not actually be repeated despite the help saying so; and the
+      release-name parse kept the quotes and dropped the `LTS` suffix
+      (`'26.04.1` instead of `26.04.1 LTS`). Added `-q/--quiet` for timers.
+- [ ] [M] **Schedule it.** Still nothing runs `check-release-updates`
+      periodically — no cron, no timer, no module — which was the actual cause of
+      the puppet incident, not the script's logic. Now that it no longer needs
+      root, a **user** timer is on the table alongside a system one, which makes
+      reaching the desktop user's session easier. Blocked on the channel decision
+      below; the two should be designed together rather than bolting a timer onto
+      an undecided output path.
+- [ ] [S] Decide the reminder channel for release EOL specifically. It needs a
+      louder one than "a newer package is available" (see *Reminder channel*
+      above): the deadline is fixed, known months ahead, and the consequence is
+      no security updates at all. `check-release-updates -q` is built for this —
+      silent when healthy, exit `2` and a short message when not.
+- [ ] [S] Give `docs/` notes a **release dimension**. `hosts:` frontmatter alone
+      stops being sufficient once desktops and servers run different releases;
+      several notes already treat "Ubuntu 26.04" as an implicit global
+      (`docs/setup/dark-theme.md`,
+      `system-scripts/nordvpn-ipv6-watcher/README.adoc`, and the `ubuntu-26.04`
+      tag on `docs/troubleshooting/uutils-ls-group-directories-first.md`).
+- [x] [S] Write up the release-upgrade procedure as a note. **Done 2026-09-28:**
+      `docs/setup/release-upgrades.md` — the channel policy, what the interim
+      cadence costs, why `Prompt=` is managed, and the post-upgrade third-party
+      repo split (codename-pinned vs suite-pinned). Anything host-specific from
+      `_local/dist-upgrade-notes.md` still belongs in `~/notes/systems/puppet/`
+      rather than `_local/`, which is synced by nothing.
 
 # 8. system-setup — Profiles & Host Targeting
 
