@@ -136,6 +136,7 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | `bin/netshare-bench` | Benchmark mounted network shares (NFS/CIFS/SMB) using `fio` and `iozone`. Tests sequential/random I/O, parallel photo-app reads (Lightroom/XnView MP workload), directory traversal (readdir/getattr RPC load), and network latency. Useful for comparing protocols and configuration tuning (LAN vs. Wi-Fi, server/client settings). All output is logged to a timestamped file alongside stdout. |
 | `bin/rsync-parallel-backup` | Parallel rsync backup. |
 | `bin/rsynclt` | rsync with limited throughput. |
+| `bin/voice-note` | Dictate a quick note: records with `pw-record`, transcribes locally with whisper.cpp (`start`/`stop`/`toggle`/`status`), and appends it to today's file in `~/notes/inbox/`. No text injection and no focused window needed. Bound to AltGr-F6 (toggle) and AltGr-F5 (hold) in sway. |
 | `bin/video-cycle` | Turn a video into a seamless ping-pong loop by appending the reversed frames (the video counterpart of `anim-cycle`), using ffmpeg. |
 | `bin/wget-p` | Parallel file fetching wrapper for wget. |
 | `bin/while-read` | Execute a command for each line read from stdin. |
