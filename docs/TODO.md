@@ -283,6 +283,25 @@ piling up in the centre on resume
 
 Remaining:
 
+Done 2026-09-30: `bin/sway-arrange` ($mod+Alt+x mode: 1 vscode, 2 browser,
+0 all) sweeps each app's windows onto their mapped workspace and sets the tab
+order, from `dotfiles/.config/sway/window-map.conf` (rule order = tab order).
+Two measurements shaped it: a VS Code title is still **null** at `window::new`,
+so per-folder placement can never be a rule; and `move container to mark`
+inserts after the mark, so ordering needs no `move left/right` walking.
+Grouping into a tabbed container needed no code — `workspace_layout tabbed`
+already does it.
+
+- [ ] [M] Two sibling tabbed containers on one workspace (ws3: code tabbed
+      left, browsers tabbed right). `workspace_layout tabbed` puts every child
+      of a workspace in ONE tabbed container, so a newly built container lands
+      *inside* it rather than beside it (measured). Needs a per-workspace
+      `workspace_layout` override, or building the split above sway's automatic
+      container. This is the one piece of the original "place + tab + order"
+      goal still done by hand.
+- [ ] [S] Ordering across two apps sharing a workspace is undefined —
+      `sway-arrange` orders each app within itself only. Currently worked around
+      by running the apps in the desired order.
 - [ ] [M] `bin/sway-layout` — snapshot/restore the container tree of
       **already-running** windows: workspace, nesting, `tabbed`/`stacked`, order,
       split ratios. Never relaunches anything, so `con_id` matching is exact

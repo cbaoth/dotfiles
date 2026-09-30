@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Sweep an app's windows onto their mapped workspaces, in a defined tab order.
+#
+# For the post-reboot case: launch VS Code and the browsers, let them restore
+# their many windows wherever they land, then run this once per app instead of
+# switching through each window and moving it by hand.
+#
+# Why this is a script and not sway rules: per-project placement cannot be
+# expressed as a rule. At the window::new event a VS Code window's title is
+# still null (measured live), and the folder name only arrives in a later title
+# event -- so `assign`, which is evaluated once at map time, can never see it.
+# `for_window` does see it, but re-fires afterwards and drags windows back (see
+# the header of 70-window-rules.conf). An explicit sweep sidesteps both.
+#
+# Grouping into a tabbed container is NOT done here: `workspace_layout tabbed`
+# (20-styles.conf) already makes sway wrap each workspace's children in one
+# tabbed container. This script only places and orders.
+#
+# Tab order relies on `move container to mark` inserting immediately AFTER the
+# marked container (verified live). Placing window N, then advancing the mark to
+# it before placing N+1, therefore builds the order in a single pass -- no
+# `move left`/`move right` walking.
+#
+# Map file: ~/.config/sway/window-map.conf  (see that file for the format)
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="${0##*/}"
+
+# -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+declare -r MAP_DEFAULT="${XDG_CONFIG_HOME:-${HOME}/.config}/sway/window-map.conf"
+# Underscore-prefixed marks are never drawn by sway (same convention as the
+# `_sheer` mark in bin/sway-wstate).
+declare -r MARK='_arrange_cursor'
+# Internal field separator for the TSV-ish pipelines below. Deliberately ASCII
+# US (0x1f) and not a tab: tab counts as IFS whitespace, so `read` collapses
+# runs of it and an empty field (XWayland windows have no app_id, Wayland ones
+# no class) would silently shift every later field left.
+declare -r SEP=$'\037'
+
+# {{{ = HELPERS ===============================================================
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_war() { printf '\033[33mWARN\033[0m: %s\n' "$*" >&2; }
+p_msg() { printf '%s\n' "$*"; }
+p_dbg() { (( verbose )) && printf '\033[90m%s\033[0m\n' "$*" >&2; return 0; }
+
+# The mark is a transient cursor; never leave it behind on a window, or the next
+# run (and `swaymsg -t get_marks`) sees a stale one.
+_on_exit() { swaymsg "unmark ${MARK}" > /dev/null 2>&1 || true; }
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] [APP...]
+
+Move each APP's windows to the workspace mapped in the map file, then set the
+tab order within each workspace. With no APP, or with 'all', sweeps every app
+defined in the map.
+
+Options:
+  -m, --map FILE      map file  [${MAP_DEFAULT}]
+  -n, --dry-run       print the plan, change nothing
+  -v, --verbose       report every window moved
+  -l, --list          print the parsed map and the live windows it matches,
+                      then exit (use this to check a regex actually matches)
+  -h, --help          show this help and exit
+
+Only tiled windows are considered; floating and scratchpad windows are left
+alone, since neither participates in a tabbed container.
+
+Windows matching an app but no rule are left where they are -- a missing rule
+never moves a window somewhere arbitrary.
+
+When two apps map to the same workspace each is ordered within itself; their
+tabs are not interleaved in a defined way. Run them in the order you want the
+groups to appear.
+
+Examples:
+  ${SCRIPT_FILE} -l                  # what would match, without touching anything
+  ${SCRIPT_FILE} -n code             # plan for VS Code only
+  ${SCRIPT_FILE} code                # sweep VS Code
+  ${SCRIPT_FILE}                     # sweep everything
+EOF
+}
+
+# Resolve \$wsN to the real workspace name. Reuses bin/sway-ws, which already
+# parses `set \$ws<N>` out of the sway config and follows `include` directives
+# (with a cycle guard) -- not worth duplicating here. Falls back to the literal
+# string, so a plain workspace name in the map file also works.
+declare -A WS_CACHE=()
+resolve_ws() {
+  local -r want="$1"
+  [[ "${want}" == \$ws* ]] || { printf '%s' "${want}"; return 0; }
+
+  if (( ${#WS_CACHE[@]} == 0 )); then
+    local num name
+    while IFS= read -r line; do
+      # `sway-ws list` prints e.g. "     3. 3:#3 Devel" (current marked with *)
+      [[ "${line}" =~ ^[[:space:]]*\*?[[:space:]]*([0-9]+)\.[[:space:]]+(.+)$ ]] || continue
+      num="${BASH_REMATCH[1]}"; name="${BASH_REMATCH[2]}"
+      WS_CACHE["\$ws${num}"]="${name}"
+    done < <(sway-ws list 2>/dev/null || true)
+    (( ${#WS_CACHE[@]} > 0 )) || p_war "could not read workspace names via 'sway-ws list'; using literals"
+  fi
+
+  printf '%s' "${WS_CACHE[${want}]:-${want}}"
+}
+
+# Parse the map file into the globals APP_CRIT (alias -> "key=regex") and the
+# ordered RULES array ("alias<SEP>title-regex<SEP>workspace").
+declare -A APP_CRIT=()
+declare -a RULES=()
+read_map() {
+  local -r file="$1"
+  [[ -r "${file}" ]] || { p_err "map file not readable: ${file}"; exit 1; }
+
+  local section="" line alias_ rest
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line="${line%%#*}"                       # strip comments
+    line="${line#"${line%%[![:space:]]*}"}"  # ltrim
+    line="${line%"${line##*[![:space:]]}"}"  # rtrim
+    [[ -n "${line}" ]] || continue
+
+    if [[ "${line}" =~ ^\[(.+)\]$ ]]; then
+      section="${BASH_REMATCH[1]}"
+      continue
+    fi
+
+    case "${section}" in
+      apps)
+        read -r alias_ rest <<< "${line}"
+        [[ "${rest}" == *=* ]] || { p_war "[apps] ignoring malformed line: ${line}"; continue; }
+        APP_CRIT["${alias_}"]="${rest}"
+        ;;
+      rules)
+        # alias, title-regex, workspace -- the title regex may contain spaces, so
+        # take the FIRST and LAST fields and treat everything between as the regex.
+        local -a f=()
+        read -r -a f <<< "${line}"
+        (( ${#f[@]} >= 3 )) || { p_war "[rules] ignoring malformed line: ${line}"; continue; }
+        local a="${f[0]}" ws="${f[-1]}"
+        local title="${line#"${a}"}"; title="${title%"${ws}"}"
+        title="${title#"${title%%[![:space:]]*}"}"; title="${title%"${title##*[![:space:]]}"}"
+        RULES+=("${a}${SEP}${title}${SEP}${ws}")
+        ;;
+      *) p_war "ignoring line outside any [section]: ${line}" ;;
+    esac
+  done < "${file}"
+
+  (( ${#APP_CRIT[@]} > 0 )) || { p_err "no [apps] defined in ${file}"; exit 1; }
+  (( ${#RULES[@]}    > 0 )) || { p_err "no [rules] defined in ${file}"; exit 1; }
+}
+
+# Live TILED leaf windows, SEP-separated: con_id, workspace, app_id, class, title.
+# Floating and scratchpad windows are excluded -- neither is part of a tabbed
+# container, so moving or ordering them here would be wrong.
+live_windows() {
+  swaymsg -t get_tree | jq -r '
+    .. | objects | select(.type? == "workspace")
+    | select(((.name // "") | startswith("__i3")) | not)
+    | .name as $ws
+    | [ (.nodes // [])[] | recurse(.nodes[]?) ]
+    | .[]
+    | select(.type? == "con")
+    | select((.nodes // []) | length == 0)
+    | select(.app_id != null or .window_properties != null)
+    | [ .id, $ws, (.app_id // ""), (.window_properties.class // ""), (.name // "") ]
+    | map(tostring) | join("\u001f")'
+}
+
+# Windows of one app, in current tree order: "con_id<SEP>workspace<SEP>title"
+app_windows() {
+  local -r crit="${APP_CRIT[$1]}"
+  local -r key="${crit%%=*}" rx="${crit#*=}"
+  local cid ws app cls title
+  while IFS="${SEP}" read -r cid ws app cls title; do
+    local subject=""
+    case "${key}" in
+      app_id) subject="${app}" ;;
+      class)  subject="${cls}" ;;
+      *) p_war "unsupported criteria key '${key}' for app '$1'"; return 0 ;;
+    esac
+    [[ -n "${subject}" ]] || continue
+    # jq's test() gives the same PCRE-ish, unanchored semantics as sway criteria.
+    if jq -ne --arg s "${subject}" --arg r "${rx}" '$s | test($r)' > /dev/null 2>&1; then
+      printf '%s%s%s%s%s\n' "${cid}" "${SEP}" "${ws}" "${SEP}" "${title}"
+    fi
+  done < <(live_windows)
+}
+
+# }}} = HELPERS ===============================================================
+
+# {{{ = PLANNING ==============================================================
+
+# For one app, emit the placement plan in final tab order, grouped by target
+# workspace: "workspace<SEP>con_id<SEP>current_ws<SEP>title".
+#
+# Rule order IS tab order: rules are walked top to bottom and each claims the
+# windows it matches, so a window can only be claimed once (first match wins).
+plan_app() {
+  local -r app="$1"
+  local -a wins=()
+  local line
+  while IFS= read -r line; do [[ -n "${line}" ]] && wins+=("${line}"); done < <(app_windows "${app}")
+  (( ${#wins[@]} > 0 )) || return 0
+
+  local -A claimed=()
+  local -a out=()
+  local rule a title ws target cid cws ctitle
+  # Pass 1: explicit rules, in file order.
+  for rule in "${RULES[@]}"; do
+    IFS="${SEP}" read -r a title ws <<< "${rule}"
+    [[ "${a}" == "${app}" ]] || continue
+    [[ "${title}" != "-" ]] || continue
+    target="$(resolve_ws "${ws}")"
+    for line in "${wins[@]}"; do
+      IFS="${SEP}" read -r cid cws ctitle <<< "${line}"
+      [[ -z "${claimed[${cid}]:-}" ]] || continue
+      jq -ne --arg s "${ctitle}" --arg r "${title}" '$s | test($r)' > /dev/null 2>&1 || continue
+      claimed["${cid}"]=1
+      out+=("${target}${SEP}${cid}${SEP}${cws}${SEP}${ctitle}")
+    done
+  done
+  # Pass 2: the catch-all, for whatever is left, keeping tree order.
+  for rule in "${RULES[@]}"; do
+    IFS="${SEP}" read -r a title ws <<< "${rule}"
+    [[ "${a}" == "${app}" && "${title}" == "-" ]] || continue
+    target="$(resolve_ws "${ws}")"
+    for line in "${wins[@]}"; do
+      IFS="${SEP}" read -r cid cws ctitle <<< "${line}"
+      [[ -z "${claimed[${cid}]:-}" ]] || continue
+      claimed["${cid}"]=1
+      out+=("${target}${SEP}${cid}${SEP}${cws}${SEP}${ctitle}")
+    done
+  done
+
+  # Group by workspace while preserving the order established above.
+  local -a seen=()
+  local w
+  for line in "${out[@]}"; do
+    w="${line%%"${SEP}"*}"
+    [[ " ${seen[*]-} " == *" ${w} "* ]] && continue
+    seen+=("${w}")
+    for rule in "${out[@]}"; do
+      [[ "${rule%%"${SEP}"*}" == "${w}" ]] && printf '%s\n' "${rule}"
+    done
+  done
+}
+
+# }}} = PLANNING ==============================================================
+
+# {{{ = APPLY =================================================================
+
+apply_app() {
+  local -r app="$1"
+  local -a plan=()
+  local line
+  while IFS= read -r line; do [[ -n "${line}" ]] && plan+=("${line}"); done < <(plan_app "${app}")
+
+  if (( ${#plan[@]} == 0 )); then
+    p_msg "${app}: no matching windows"
+    return 0
+  fi
+
+  local ws cid cws title prev_ws="" first=1
+  local -i moved=0
+
+  for line in "${plan[@]}"; do
+    IFS="${SEP}" read -r ws cid cws title <<< "${line}"
+
+    if [[ "${ws}" != "${prev_ws}" ]]; then
+      prev_ws="${ws}"; first=1
+      p_dbg "  -> ${ws}"
+    fi
+
+    if (( dry_run )); then
+      printf '  %-18s con_id=%-6s %s\n' "${ws}" "${cid}" "${title:0:70}"
+      first=0
+      continue
+    fi
+
+    # Move only when needed; ordering below still applies either way.
+    if [[ "${cws}" != "${ws}" ]]; then
+      swaymsg "[con_id=${cid}] move container to workspace \"${ws}\"" > /dev/null \
+        || { p_war "move failed: con_id=${cid} (${title:0:40})"; continue; }
+      moved+=1
+    fi
+
+    if (( first )); then
+      # Anchor: the first window defines the leftmost tab.
+      swaymsg "unmark ${MARK}" > /dev/null 2>&1 || true
+      swaymsg "[con_id=${cid}] mark --add ${MARK}" > /dev/null || true
+      first=0
+    else
+      # `move container to mark` inserts immediately after the mark; advancing
+      # the mark to each window in turn builds the order in one pass.
+      swaymsg "[con_id=${cid}] move container to mark ${MARK}" > /dev/null \
+        || p_war "order failed: con_id=${cid} (${title:0:40})"
+      swaymsg "unmark ${MARK}" > /dev/null 2>&1 || true
+      swaymsg "[con_id=${cid}] mark --add ${MARK}" > /dev/null || true
+    fi
+    p_dbg "     con_id=${cid}  ${title:0:70}"
+  done
+
+  swaymsg "unmark ${MARK}" > /dev/null 2>&1 || true
+
+  if (( dry_run )); then
+    p_msg "${app}: would place ${#plan[@]} window(s)"
+  else
+    p_msg "${app}: placed ${#plan[@]} window(s) (${moved} moved across workspaces)"
+  fi
+}
+
+cmd_list() {
+  p_msg "map: ${map_file}"
+  p_msg ""
+  p_msg "[apps]"
+  local a
+  for a in "${!APP_CRIT[@]}"; do
+    printf '  %-10s %s\n' "${a}" "${APP_CRIT[$a]}"
+    local -i n=0
+    local line cid ws title
+    while IFS="${SEP}" read -r cid ws title; do
+      [[ -n "${cid}" ]] || continue
+      printf '             live: con_id=%-6s %-18s %s\n' "${cid}" "${ws}" "${title:0:60}"
+      n+=1
+    done < <(app_windows "${a}")
+    (( n == 0 )) && printf '             live: (none matched)\n'
+  done
+  p_msg ""
+  p_msg "[rules]  (order = tab order)"
+  local rule app title ws
+  for rule in "${RULES[@]}"; do
+    IFS="${SEP}" read -r app title ws <<< "${rule}"
+    printf '  %-10s %-40s %-8s -> %s\n' "${app}" "${title}" "${ws}" "$(resolve_ws "${ws}")"
+  done
+}
+
+# }}} = APPLY =================================================================
+
+# {{{ = MAIN ==================================================================
+
+parse_args() {
+  map_file="${MAP_DEFAULT}"
+  dry_run=0
+  verbose=0
+  do_list=0
+  apps=()
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -m|--map)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        map_file="$2"; shift 2 ;;
+      -n|--dry-run) dry_run=1; shift ;;
+      -v|--verbose) verbose=1; shift ;;
+      -l|--list)    do_list=1; shift ;;
+      -h|--help)    p_usg; exit 0 ;;
+      --)           shift; while (( $# > 0 )); do apps+=("$1"); shift; done ;;
+      -*)
+        p_err "unknown option: $1"
+        p_usg >&2
+        exit 1 ;;
+      *) apps+=("$1"); shift ;;
+    esac
+  done
+}
+
+main() {
+  local map_file
+  local -i dry_run verbose do_list
+  local -a apps
+  parse_args "$@"
+
+  local dep
+  for dep in swaymsg jq; do
+    command -v "${dep}" > /dev/null 2>&1 \
+      || { p_err "required command not found: ${dep}"; exit 1; }
+  done
+  swaymsg -t get_version > /dev/null 2>&1 \
+    || { p_err "cannot reach sway (is SWAYSOCK set?)"; exit 1; }
+
+  read_map "${map_file}"
+
+  if (( do_list )); then cmd_list; exit 0; fi
+
+  # No app given, or 'all': every app in the map, in the order the rules mention
+  # them, so the sweep is deterministic.
+  if (( ${#apps[@]} == 0 )) || [[ "${apps[0]}" == "all" ]]; then
+    apps=()
+    local rule a seen_apps=""
+    for rule in "${RULES[@]}"; do
+      a="${rule%%"${SEP}"*}"
+      [[ " ${seen_apps} " == *" ${a} "* ]] && continue
+      seen_apps+=" ${a}"; apps+=("${a}")
+    done
+  fi
+
+  local app
+  for app in "${apps[@]}"; do
+    [[ -n "${APP_CRIT[${app}]:-}" ]] \
+      || { p_err "unknown app '${app}' (not in [apps] of ${map_file})"; exit 1; }
+  done
+
+  for app in "${apps[@]}"; do
+    apply_app "${app}"
+  done
+}
+
+trap _on_exit EXIT
+main "$@"
+
+# }}} = MAIN ==================================================================

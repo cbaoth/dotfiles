@@ -26,12 +26,22 @@ deployed by `dotfiles-link`. There is nothing idempotent to install.
 - **Floating geometry across suspend:** broken by sway, worked around by
   `bin/sway-float-geometry`. See
   [sway-floating-geometry-on-resume](../troubleshooting/sway-floating-geometry-on-resume.md).
+- **Per-project placement (folder → workspace):** cannot be a rule at all, and
+  not because of the re-fire bug. Measured 2026-09-30 on the `window::new`
+  event, VS Code's title is **null**; the folder name only arrives in a later
+  `title` event. `assign` is evaluated once at map time, so it can never see it.
+  `for_window` can, but then re-fires. Hence `bin/sway-arrange` — an explicit,
+  on-demand sweep bound to `$mod+Alt+x`.
+- **Tab order:** cheap, not hard. `move container to mark` inserts immediately
+  *after* the marked container, so advancing the mark window-by-window builds an
+  exact order in one pass.
 
 ## Feature availability
 
 | Feature | Availability | Effort | Notes |
 | ------- | ------------ | ------ | ----- |
 | Static app → workspace | **native** | XS | `assign`. ✅ in use |
+| Per-project → workspace (by folder) | **self-implemented** | M | Impossible as a rule: at `window::new` a VS Code title is still null. ✅ `bin/sway-arrange` |
 | Rule does not re-fire after a manual move | **native (partial)** | XS | `assign` fixes title-change + reload; a real remap still re-fires |
 | Launch app *onto* a workspace | **native** | XS | `swaymsg 'workspace 3; exec code'` — PID/xdg-activation. Fails for a 2nd window of a single-instance app |
 | Generic dialog/utility matching | **native** | S | `window_type` — see [Criteria](#criteria) |
@@ -39,8 +49,8 @@ deployed by `dotfiles-link`. There is nothing idempotent to install.
 | Distinguish identical-looking windows | **impossible** | — | If `app_id`+`class`+`instance`+`title` all match, sway cannot tell them apart. Only escape: `mark` them yourself |
 | Floating position/size restore | **native cmds + scripts** | S | `bin/sway-place`, `bin/sway-float-geometry` |
 | Reproduce container tree (splits, nesting) | **self-implemented** | L | No placeholders — see [append_layout](#append_layout-does-not-exist-in-sway) |
-| Reproduce `tabbed`/`stacked` | **self-implemented** | M | `layout tabbed` after the container exists |
-| Reproduce order within a container | **self-implemented** | M | `move left/right` walks; no "insert at index" |
+| Reproduce `tabbed`/`stacked` | **already configured** | — | `workspace_layout tabbed` (20-styles.conf) makes sway wrap each workspace's children in one tabbed container automatically |
+| Reproduce order within a container | **self-implemented** | S | `move container to mark` inserts immediately AFTER the mark, so advancing the mark per window builds any order in one pass. No `move left/right` walking needed (measured) |
 | Reproduce split ratios | **self-implemented** | M | `resize set <n> ppt` top-down, shallowest first, last child left unsized |
 | Snapshot/restore *running* windows | **self-implemented** | M | Planned: `bin/sway-layout`. `con_id` makes matching exact within a session |
 | Automatic periodic snapshot | **self-implemented** | S | systemd user timer over the above |
@@ -179,6 +189,41 @@ Everything else therefore has to build the tree imperatively with `splith` /
 `splitv` / `move` / `focus` / `layout tabbed`, which cannot create an empty
 container and has no "insert child at index" — hence the L-sized effort in the
 table.
+
+## `bin/sway-arrange` — the on-demand sweep
+
+Bound to `$mod+Alt+x` as a mode (`1` vscode, `2` browser, `0` all), matching the
+three existing mode blocks. Map: `dotfiles/.config/sway/window-map.conf`.
+
+What it does: moves each app's windows to their mapped workspace, then sets the
+tab order. It does **not** build the tabbed container — `workspace_layout tabbed`
+already does that.
+
+Design notes worth keeping:
+
+- **Rule order is tab order.** Rules are walked top to bottom and each claims the
+  windows it matches; first match wins. Catch-all (`-`) windows land after the
+  explicitly listed ones, keeping their relative order.
+- **Order is built with an advancing mark**, not `move left`/`move right`.
+  Verified: spawn order ALPHA, OTHER, ZEBRA with rules listing ZEBRA before
+  ALPHA produced ZEBRA, ALPHA — so rule order beats both spawn and alphabetical
+  order.
+- **Unmatched windows are never moved.** A window matching an app but no rule
+  stays where it is, so a missing rule cannot fling something somewhere odd.
+- **Tiled only.** Floating and scratchpad windows are skipped; neither is part of
+  a tabbed container.
+- **Internal field separator is ASCII US (0x1f), not tab.** Tab is IFS
+  whitespace, so `read` collapses runs of it — and an empty field (Wayland
+  windows have no `class`, XWayland ones no `app_id`) then silently shifts every
+  later field left. This cost one real debugging round; do not "simplify" it back
+  to `@tsv`.
+- **`$wsN` resolution reuses `sway-ws list`** rather than re-implementing the
+  config parse, which already follows `include` directives with a cycle guard.
+
+Not done (see `docs/TODO.md` §3): the two-sibling-container layout (code tabbed
+left, browsers tabbed right on ws3). `workspace_layout tabbed` puts everything in
+one container, so a new container lands *inside* it rather than beside it —
+measured. That needs a per-workspace `workspace_layout` override.
 
 ## Third-party tools
 
