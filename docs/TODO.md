@@ -483,6 +483,17 @@ Without that accident it would have stayed outdated for a long time.
   prompts or something breaks.
 - **snap**: rarely used, but present.
 - **Containers** (docker on saito and the vserver): images updated only by hand.
+  - Pinned to exact versions on purpose, so an update is an edit plus a
+    `compose up -d`, never a surprise. What is missing is the *notification*
+    that a new release exists — the pin means nothing tells you.
+  - **A container upgrade can carry a checklist item**, not just a new tag:
+    SilverBullet runs with `user: "1000:1000"` only because 2.10.0 silently
+    ignores `PUID`/`PGID` (the rust rewrite dropped the setup shim). If a later
+    release restores it, that line can go — and if the workaround ever stops
+    working, the space fills with root-owned `.md` files that SilverBullet and
+    `sb-sync` then cannot write. So whatever mechanism reports new images
+    should be able to carry a per-service "re-check this on upgrade" note.
+    Details: `~/notes/systems/11001001/silverbullet.md`.
 - **Software outside package managers** (software with their own update features,
   static binaries, vrious package managers, etc.), e.g.:
 ```bash
