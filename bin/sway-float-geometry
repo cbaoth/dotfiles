@@ -1,0 +1,424 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Save and restore the geometry of floating Sway windows across a suspend cycle.
+#
+# Why this exists: sway loses floating geometry whenever an output goes away and
+# comes back, which is exactly what a suspend/resume does (the DRM connector is
+# re-created). Traced in sway 1.11:
+#
+#   output_disable() -> output_evacuate()            (sway/tree/output.c:203)
+#     moves every workspace to root->fallback_output -- the NOOP output, 0x0.
+#   on re-add, output_add_workspace()                (sway/tree/output.c:70-81)
+#     tests each floater against the output box; arriving from a 0x0 output
+#     EVERY test trips, so container_floating_resize_and_center() runs.
+#   evacuate_sticky()                                (sway/tree/output.c:197)
+#     is worse -- it calls container_floating_move_to_center() unconditionally.
+#
+# This config marks a lot of windows sticky+floating ($stick, $poptray,
+# $poptray_sheer: KeePassXC, Nextcloud, pavucontrol, blueman, flameshot,
+# Safe Eyes, nm-applet, the calculators, sway-winfo), so on resume they all land
+# centered on top of each other. Upstream closed this as "not planned"
+# (swaywm/sway#7713), so it can only be fixed from outside: save before sleep,
+# restore after resume. Wired into the swayidle hooks in
+# ~/.config/sway/config.d/90-launch-apps.conf.
+# See also: docs/troubleshooting/sway-floating-geometry-on-resume.md
+#
+# Opacity is deliberately NOT touched. Evacuation resets geometry only, and
+# opacity is not readable over IPC anyway -- bin/sway-wstate tracks it with a
+# `_sheer*` mark. Since we only ever issue move/resize, those marks survive.
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="${0##*/}"
+
+# -e: exit on error  -u: unset vars are errors  -o pipefail: propagate pipe failures
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+declare -r STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/sway"
+declare -r STATE_FILE_DEFAULT="${STATE_DIR}/float-geometry.json"
+# This runs from swayidle hooks, whose stdout/stderr go nowhere -- without a log
+# a failing hook is invisible (which is exactly how the first wiring attempt
+# silently did nothing). Every run appends timestamped lines here regardless of
+# -v, which only controls what reaches the terminal; the per-window detail is
+# worth having on disk precisely because nobody is watching a suspend hook.
+declare -r LOG_FILE="${STATE_DIR}/float-geometry.log"
+
+# {{{ = HELPERS ===============================================================
+
+# Append to LOG_FILE, best-effort: a log that cannot be written must never abort
+# a suspend hook.
+_log() {
+  [[ -d "${STATE_DIR}" ]] || mkdir -p "${STATE_DIR}" 2> /dev/null || return 0
+  local ts; ts="$(date '+%F %T')"
+  # Split multi-line messages so the log stays one record per line and greps cleanly.
+  local line
+  while IFS= read -r line; do
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    printf '%s [%s] %s\n' "${ts}" "${cmd:-?}" "${line#"${line%%[![:space:]]*}"}" \
+      >> "${LOG_FILE}" 2> /dev/null || true
+  done <<< "$*"
+}
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; _log "ERROR: $*"; }
+p_war() { printf '\033[33mWARN\033[0m: %s\n' "$*" >&2; _log "WARN: $*"; }
+p_msg() { printf '%s\n' "$*"; _log "$*"; }
+p_dbg() { (( verbose )) && printf '\033[90m%s\033[0m\n' "$*" >&2; _log "debug: $*"; return 0; }
+
+_is_int() { [[ "$1" =~ ^-?[0-9]+$ ]]; }
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] <save|restore>
+
+Save the position/size of every floating window, and put them back after a
+suspend/resume cycle has re-centered them (see the header for the mechanism).
+
+Commands:
+  save      Record all floating windows to the state file
+  restore   Move/resize floating windows back to the recorded geometry
+
+Options:
+  -f, --file PATH     state file  [${STATE_FILE_DEFAULT}]
+  -w, --wait SECS     on restore, wait up to SECS for an active output before
+                      applying -- after resume the output may not be back yet
+                      (0 disables)                                        [5]
+  -p, --passes N      max correction passes per restore (see below)       [3]
+  -n, --dry-run       print what would be done, change nothing
+  -v, --verbose       report every window acted on
+  -h, --help          show this help and exit
+
+Matching is by con_id first, which is exact: suspend/resume does not destroy
+views, so the ids survive. For ids that did vanish it falls back to
+app_id+class+title, but only when that identifies exactly one window -- so a
+window closed and reopened between save and restore is repositioned, while two
+indistinguishable windows are left alone rather than guessed at.
+
+Correction passes: \`move absolute position\` and \`resize set\` address the
+container box INCLUDING its titlebar, while get_tree reports \`rect\` WITHOUT it
+-- so feeding a saved rect straight back lands the window off by the decoration
+size (verified live: position y+16 for \`border normal\`). Rather than hardcode
+per-border-style decoration math (which differs again for \`border pixel\`), each
+pass measures the actual result and corrects by the observed error, which
+converges in two passes for any border style. Apps that quantize their own size
+(foot snaps to character cells) never match exactly; the loop stops as soon as
+the error stops shrinking rather than fighting them.
+
+Scratchpad windows are skipped (their geometry is not meaningful), as is the
+workspace of a sticky window (it shows on all workspaces regardless).
+
+Examples:
+  ${SCRIPT_FILE} save
+  ${SCRIPT_FILE} restore -v
+  ${SCRIPT_FILE} save -n          # inspect what would be recorded
+EOF
+}
+
+# Emit the current floating windows as a JSON array (same shape as the state
+# file). Only top-level floating containers -- anything tiled inside one of them
+# moves with its parent. __i3_scratch is excluded.
+current_floats() {
+  swaymsg -t get_tree | jq -S '
+    [ .. | objects
+      | select(.type? == "workspace")
+      | select(((.name // "") | startswith("__i3")) | not)
+      | .name as $ws
+      | (.floating_nodes // [])[]
+      | { con_id:    .id,
+          app_id:    (.app_id // ""),
+          class:     (.window_properties.class // ""),
+          title:     (.name // ""),
+          pid:       (.pid // 0),
+          marks:     (.marks // []),
+          sticky:    (.sticky // false),
+          workspace: $ws,
+          x: .rect.x, y: .rect.y, w: .rect.width, h: .rect.height } ]'
+}
+
+# True once at least one output is active with a non-empty rect. After resume the
+# connector may still be gone, and restoring against the 0x0 NOOP output is
+# precisely the failure we are working around.
+outputs_ready() {
+  local n
+  n="$(swaymsg -t get_outputs \
+        | jq '[ .[] | select(.active == true and .rect.width > 0) ] | length')"
+  (( n > 0 ))
+}
+
+# Match saved entries against the live tree and emit one TSV row per window that
+# is not where it should be:
+#   con_id  tx ty tw th  cx cy cw ch  move_ws  workspace  label
+# (t* = target/saved, c* = current). Empty output means everything matches.
+measure() {
+  local -r state_file="$1"
+  current_floats | jq -r --slurpfile saved "${state_file}" '
+      ( map({ key: (.con_id | tostring), value: . }) | from_entries ) as $byid
+    | ( group_by([.app_id, .class, .title])
+        | map(select(length == 1) | .[0])
+        | map({ key: ([.app_id, .class, .title] | @json), value: . })
+        | from_entries ) as $bykey
+    | ( $saved[0] | map(.con_id | tostring) ) as $saved_ids
+    | $saved[0][]
+    | . as $s
+    | ( if $byid[$s.con_id | tostring] != null
+          then $byid[$s.con_id | tostring]
+          else $bykey[[($s.app_id // ""), ($s.class // ""),
+                       ($s.title // "")] | @json]
+        end ) as $c
+    | select($c != null)
+    # Never steal a window that some other saved entry owns by con_id.
+    | select((($c.con_id | tostring) == ($s.con_id | tostring))
+             or (($saved_ids | index($c.con_id | tostring)) == null))
+    | (($s.sticky | not) and ($c.workspace != $s.workspace)) as $move_ws
+    | select($move_ws
+             or $c.x != $s.x or $c.y != $s.y
+             or $c.w != $s.w or $c.h != $s.h)
+    | [ $c.con_id, $s.x, $s.y, $s.w, $s.h, $c.x, $c.y, $c.w, $c.h,
+        (if $move_ws then 1 else 0 end), $s.workspace,
+        ((if $s.app_id != "" then $s.app_id else $s.class end)
+         + " :: " + ($s.title // "")) ] | @tsv
+  '
+}
+
+# }}} = HELPERS ===============================================================
+
+# {{{ = COMMANDS ==============================================================
+
+cmd_save() {
+  local -r state_file="$1"
+  local floats
+  floats="$(current_floats)"
+
+  local -i count
+  count="$(jq 'length' <<< "${floats}")"
+
+  if (( dry_run )); then
+    p_msg "would write ${count} floating window(s) to ${state_file}:"
+    jq . <<< "${floats}"
+    return 0
+  fi
+
+  mkdir -p "${STATE_DIR}"
+  # Write via a temp file so an interrupted save never leaves a truncated state
+  # file -- this runs from swayidle's before-sleep hook, right before the box
+  # goes down.
+  local tmp
+  tmp="$(mktemp "${state_file}.XXXXXX")"
+  # shellcheck disable=SC2064
+  trap "rm -f '${tmp}'" RETURN
+  printf '%s\n' "${floats}" > "${tmp}"
+  mv -f "${tmp}" "${state_file}"
+
+  p_dbg "$(jq -r '.[] | "  \(.con_id)\t\(.x),\(.y) \(.w)x\(.h)\t\(if .app_id != "" then .app_id else .class end)"' <<< "${floats}")"
+  p_msg "saved ${count} floating window(s) to ${state_file}"
+}
+
+# Block until an output is back, so we do not place windows against the 0x0 NOOP
+# output. There is no IPC "wait for output", so this polls.
+wait_for_output() {
+  local -i waited=0
+  until outputs_ready; do
+    if (( waited >= wait_secs * 1000 )); then
+      p_war "no active output after ${wait_secs}s, restoring anyway"
+      return 0
+    fi
+    sleep 0.1
+    waited+=100   # keep in step with the sleep above
+  done
+  (( waited > 0 )) && p_dbg "waited ${waited}ms for an active output"
+  return 0
+}
+
+cmd_restore() {
+  local -r state_file="$1"
+
+  [[ -f "${state_file}" ]] \
+    || { p_err "no saved state: ${state_file}"; exit 1; }
+  jq -e 'type == "array"' "${state_file}" > /dev/null 2>&1 \
+    || { p_err "state file is not a JSON array: ${state_file}"; exit 1; }
+
+  local -i saved_count
+  saved_count="$(jq 'length' "${state_file}")"
+  (( saved_count > 0 )) || { p_msg "state file is empty, nothing to restore"; return 0; }
+
+  (( wait_secs > 0 )) && wait_for_output
+
+  # Values last handed to sway per container, so a later pass can correct by the
+  # observed error instead of re-sending the same (wrong) absolute numbers.
+  local -A sent_x=() sent_y=() sent_w=() sent_h=()
+  local -A touched=() inexact=()
+  local -i pass=0 prev_err=-1
+
+  while (( pass < passes )); do
+    local -a rows=()
+    local row
+    while IFS= read -r row; do
+      [[ -n "${row}" ]] && rows+=("${row}")
+    done < <(measure "${state_file}")
+
+    (( ${#rows[@]} == 0 )) && break
+
+    local cid tx ty tw th cx cy cw ch move_ws ws label
+    local -i total_err=0
+    for row in "${rows[@]}"; do
+      IFS=$'\t' read -r cid tx ty tw th cx cy cw ch move_ws ws label <<< "${row}"
+      total_err+=$(( cx > tx ? cx - tx : tx - cx ))
+      total_err+=$(( cy > ty ? cy - ty : ty - cy ))
+      total_err+=$(( cw > tw ? cw - tw : tw - cw ))
+      total_err+=$(( ch > th ? ch - th : th - ch ))
+    done
+
+    # The error stopped shrinking: the remainder is the app clamping its own size
+    # (foot's character cells), not something another pass can fix.
+    if (( prev_err >= 0 && total_err >= prev_err )); then
+      p_dbg "error no longer shrinking (${total_err}px), stopping"
+      for row in "${rows[@]}"; do
+        IFS=$'\t' read -r cid _ _ _ _ _ _ _ _ _ _ label <<< "${row}"
+        inexact["${cid}"]="${label}"
+      done
+      break
+    fi
+    prev_err=${total_err}
+
+    if (( dry_run )); then
+      p_msg "would place ${#rows[@]} of ${saved_count} window(s) (pass $(( pass + 1 ))):"
+      for row in "${rows[@]}"; do
+        IFS=$'\t' read -r cid tx ty tw th cx cy cw ch move_ws ws label <<< "${row}"
+        printf '  con_id=%-5s %s,%s %sx%s -> %s,%s %sx%s   %s\n' \
+          "${cid}" "${cx}" "${cy}" "${cw}" "${ch}" "${tx}" "${ty}" "${tw}" "${th}" "${label}"
+      done
+      return 0
+    fi
+
+    for row in "${rows[@]}"; do
+      IFS=$'\t' read -r cid tx ty tw th cx cy cw ch move_ws ws label <<< "${row}"
+
+      local -i vx vy vw vh
+      if [[ -n "${sent_x[${cid}]:-}" ]]; then
+        # Correct by the observed error: a value V produced rect C, so to land on
+        # T we need V + (T - C). Exact for any constant decoration offset.
+        vx=$(( sent_x[${cid}] + tx - cx ))
+        vy=$(( sent_y[${cid}] + ty - cy ))
+        vw=$(( sent_w[${cid}] + tw - cw ))
+        vh=$(( sent_h[${cid}] + th - ch ))
+      else
+        vx=${tx}; vy=${ty}; vw=${tw}; vh=${th}
+      fi
+      (( vw < 1 )) && vw=1
+      (( vh < 1 )) && vh=1
+
+      # One command list per window -- sway retains the criteria across ",", so
+      # it applies atomically. Resize BEFORE the move: resizing a floating window
+      # re-centers it, which would undo the positioning (verified live).
+      local cmd="[con_id=${cid}]"
+      (( move_ws )) && cmd+=" move container to workspace \"${ws}\","
+      cmd+=" resize set ${vw} px ${vh} px, move absolute position ${vx} px ${vy} px"
+
+      if swaymsg "${cmd}" > /dev/null 2>&1; then
+        sent_x["${cid}"]=${vx}; sent_y["${cid}"]=${vy}
+        sent_w["${cid}"]=${vw}; sent_h["${cid}"]=${vh}
+        touched["${cid}"]="${label}"
+        p_dbg "  pass $(( pass + 1 )): con_id=${cid} -> ${vx},${vy} ${vw}x${vh}  ${label}"
+      else
+        p_war "failed: ${cmd}  (${label})"
+      fi
+    done
+
+    pass+=1
+  done
+
+  local -i n_touched=${#touched[@]} n_inexact=${#inexact[@]}
+  if (( n_touched == 0 )); then
+    p_msg "all ${saved_count} saved window(s) already in place"
+  elif (( n_inexact > 0 )); then
+    p_msg "restored ${n_touched} of ${saved_count} window(s) (${n_inexact} not pixel-exact: app-clamped size)"
+    (( verbose )) && for cid in "${!inexact[@]}"; do p_dbg "  inexact: ${inexact[${cid}]}"; done
+  else
+    p_msg "restored ${n_touched} of ${saved_count} window(s)"
+  fi
+}
+
+# }}} = COMMANDS ==============================================================
+
+# {{{ = MAIN ==================================================================
+
+parse_args() {
+  cmd=""
+  state_file="${STATE_FILE_DEFAULT}"
+  dry_run=0
+  verbose=0
+  wait_secs=5
+  passes=3
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -f|--file)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        state_file="$2"; shift 2 ;;
+      -w|--wait)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        wait_secs="$2"; shift 2 ;;
+      -p|--passes)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        passes="$2"; shift 2 ;;
+      -n|--dry-run) dry_run=1; shift ;;
+      -v|--verbose) verbose=1; shift ;;
+      -h|--help)    p_usg; exit 0 ;;
+      --)           shift; break ;;
+      -*)
+        p_err "unknown option: $1"
+        p_usg >&2
+        exit 1 ;;
+      *)
+        [[ -z "${cmd}" ]] || { p_err "unexpected extra argument: $1"; p_usg >&2; exit 1; }
+        cmd="$1"; shift ;;
+    esac
+  done
+  [[ -n "${cmd}" || $# -eq 0 ]] || cmd="$1"
+
+  case "${cmd}" in
+    save|restore) ;;
+    "") p_err "a command is required"; p_usg >&2; exit 1 ;;
+    *)  p_err "unknown command: '${cmd}'"; p_usg >&2; exit 1 ;;
+  esac
+
+  local key val
+  for key in wait:"${wait_secs}" passes:"${passes}"; do
+    val="${key#*:}"
+    if ! _is_int "${val}" || (( val < 0 )); then
+      p_err "--${key%%:*} must be a non-negative integer (got '${val}')"
+      exit 1
+    fi
+  done
+  (( passes >= 1 )) || { p_err "--passes must be at least 1"; exit 1; }
+}
+
+main() {
+  # Numeric args stay plain strings until parse_args validates them; declaring
+  # them -i here would arithmetic-evaluate bad input under `set -u`.
+  local cmd state_file wait_secs passes
+  local -i dry_run verbose
+  parse_args "$@"
+
+  local dep
+  for dep in swaymsg jq; do
+    command -v "${dep}" > /dev/null 2>&1 \
+      || { p_err "required command not found: ${dep}"; exit 1; }
+  done
+  swaymsg -t get_version > /dev/null 2>&1 \
+    || { p_err "cannot reach sway (is SWAYSOCK set?)"; exit 1; }
+
+  case "${cmd}" in
+    save)    cmd_save "${state_file}" ;;
+    restore) cmd_restore "${state_file}" ;;
+  esac
+}
+
+main "$@"
+
+# }}} = MAIN ==================================================================

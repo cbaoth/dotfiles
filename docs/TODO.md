@@ -269,6 +269,51 @@ Why each was dropped, plus the Super/Mod4 and VS Code dead ends:
       adopted (GNOME, …). A chord prefix needs an evdev-level remapper; check
       first whether that compositor lets the remapper's own keymap survive.
 
+## Window Placement & Layout Persistence
+
+Background, with the sway-1.11 source traces behind every claim:
+[`docs/reference/sway-window-placement.md`](reference/sway-window-placement.md).
+
+Done 2026-09-30: workspace placement migrated from `for_window … move container
+to workspace` to `assign` (the former re-fires on title change after a reload and
+on every remap — that was the "window jumps back to its assigned workspace" bug),
+and `bin/sway-float-geometry` now brackets suspend to stop floating windows
+piling up in the centre on resume
+([note](troubleshooting/sway-floating-geometry-on-resume.md)).
+
+Remaining:
+
+- [ ] [M] `bin/sway-layout` — snapshot/restore the container tree of
+      **already-running** windows: workspace, nesting, `tabbed`/`stacked`, order,
+      split ratios. Never relaunches anything, so `con_id` matching is exact
+      within a session and there is no cross-boot identity problem. Build it with
+      `splith`/`splitv` + `move` + `focus` + `layout tabbed`, and
+      `resize set <n> ppt` applied top-down shallowest-first with the last child
+      left unsized. There is no `append_layout` in sway (PR #3022 closed
+      unmerged, 2020), so no placeholder/swallow shortcut exists.
+- [ ] [L] Only if the above proves insufficient: relaunch + cross-boot matching
+      via a hand-curated title-regex map, along the lines of `sway-layout` (Go)
+      or `sway-session-restore`. Note up front that this **cannot** be fully
+      automatic for VS Code and browsers — they serve N windows from one process,
+      so `/proc/<pid>/cmdline` cannot say which window is which.
+- [ ] [S] Evaluate `window_type=dialog` and `shell=xwayland` in
+      `70-window-rules.conf`. `window_type` is the generic "is this a dialog"
+      handle and would collapse the per-dialog rules; `shell` is a cleaner
+      XWayland discriminator than maintaining paired `app_id`/`class` twins.
+      Overlaps the `class` → `app_id` switch that winewayland forces (see the
+      *Clipboard* subsection above).
+- [ ] [S] Remaining `assign` gap: a genuine unmap/remap still re-fires the rule
+      (`view_unmap()` clears the per-view executed-criteria list), so an XWayland
+      window that remaps can still jump back. A full fix needs an IPC daemon that
+      marks manually-moved windows and refuses to re-place them. Deferred —
+      `assign` covers the common cases.
+- [ ] [S] Watch sway/wlroots for `xdg-session-management-v1` (already in KWin
+      6.4 and Mutter). It solves window identity across restarts properly and
+      obsoletes most of the above.
+- [ ] [S] Confirm the `after-resume` restore timing over a few real suspend
+      cycles; raise `--wait` before reaching for a `sleep` if windows still land
+      centred.
+
 # 4. Dotfiles Linking Enhancements
 
 Current implementation documented in `docs/linking-system.md`. Low priority; revisit only if requirements change.
