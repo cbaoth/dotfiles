@@ -202,7 +202,7 @@ app_windows() {
 # {{{ = PLANNING ==============================================================
 
 # For one app, emit the placement plan in final tab order, grouped by target
-# workspace: "workspace<SEP>con_id<SEP>current_ws<SEP>title".
+# workspace: "workspace<SEP>con_id<SEP>current_ws<SEP>title<SEP>claiming-rule-index".
 #
 # Rule order IS tab order: rules are walked top to bottom and each claims the
 # windows it matches, so a window can only be claimed once (first match wins).
@@ -215,10 +215,13 @@ plan_app() {
 
   local -A claimed=()
   local -a out=()
-  local rule a title ws target cid cws ctitle
-  # Pass 1: explicit rules, in file order.
-  for rule in "${RULES[@]}"; do
-    IFS="${SEP}" read -r a title ws <<< "${rule}"
+  local -i i
+  local a title ws target cid cws ctitle
+  # Pass 1: explicit rules, in file order. The claim field is the rule's INDEX,
+  # not its regex -- two rules may carry the same regex (and then the later one is
+  # dead), which a regex-keyed count cannot tell apart.
+  for i in "${!RULES[@]}"; do
+    IFS="${SEP}" read -r a title ws <<< "${RULES[$i]}"
     [[ "${a}" == "${app}" ]] || continue
     [[ "${title}" != "-" ]] || continue
     target="$(resolve_ws "${ws}")"
@@ -227,34 +230,37 @@ plan_app() {
       [[ -z "${claimed[${cid}]:-}" ]] || continue
       jq -ne --arg s "${ctitle}" --arg r "${title}" '$s | test($r)' > /dev/null 2>&1 || continue
       claimed["${cid}"]=1
-      out+=("${target}${SEP}${cid}${SEP}${cws}${SEP}${ctitle}")
+      out+=("${target}${SEP}${cid}${SEP}${cws}${SEP}${ctitle}${SEP}${i}")
     done
   done
   # Pass 2: the catch-all, for whatever is left, keeping tree order.
-  for rule in "${RULES[@]}"; do
-    IFS="${SEP}" read -r a title ws <<< "${rule}"
+  for i in "${!RULES[@]}"; do
+    IFS="${SEP}" read -r a title ws <<< "${RULES[$i]}"
     [[ "${a}" == "${app}" && "${title}" == "-" ]] || continue
     target="$(resolve_ws "${ws}")"
     for line in "${wins[@]}"; do
       IFS="${SEP}" read -r cid cws ctitle <<< "${line}"
       [[ -z "${claimed[${cid}]:-}" ]] || continue
       claimed["${cid}"]=1
-      out+=("${target}${SEP}${cid}${SEP}${cws}${SEP}${ctitle}")
+      out+=("${target}${SEP}${cid}${SEP}${cws}${SEP}${ctitle}${SEP}${i}")
     done
   done
 
   # Group by workspace while preserving the order established above.
   local -a seen=()
-  local w
+  local w row
   for line in "${out[@]}"; do
     w="${line%%"${SEP}"*}"
     [[ " ${seen[*]-} " == *" ${w} "* ]] && continue
     seen+=("${w}")
-    for rule in "${out[@]}"; do
-      [[ "${rule%%"${SEP}"*}" == "${w}" ]] && printf '%s\n' "${rule}"
+    for row in "${out[@]}"; do
+      [[ "${row%%"${SEP}"*}" == "${w}" ]] && printf '%s\n' "${row}"
     done
   done
 }
+
+# The regex of rule <index>, for display.
+rule_title() { local a t w; IFS="${SEP}" read -r a t w <<< "${RULES[$1]}"; printf '%s' "${t}"; }
 
 # }}} = PLANNING ==============================================================
 
@@ -271,11 +277,11 @@ apply_app() {
     return 0
   fi
 
-  local ws cid cws title prev_ws="" first=1
+  local ws cid cws title claim prev_ws="" first=1
   local -i moved=0
 
   for line in "${plan[@]}"; do
-    IFS="${SEP}" read -r ws cid cws title <<< "${line}"
+    IFS="${SEP}" read -r ws cid cws title claim <<< "${line}"
 
     if [[ "${ws}" != "${prev_ws}" ]]; then
       prev_ws="${ws}"; first=1
@@ -283,7 +289,8 @@ apply_app() {
     fi
 
     if (( dry_run )); then
-      printf '  %-18s con_id=%-6s %s\n' "${ws}" "${cid}" "${title:0:70}"
+      printf '  %-18s con_id=%-6s %-52s [rule: %s]\n' \
+        "${ws}" "${cid}" "${title:0:52}" "$(rule_title "${claim}")"
       first=0
       continue
     fi
@@ -337,11 +344,53 @@ cmd_list() {
     (( n == 0 )) && printf '             live: (none matched)\n'
   done
   p_msg ""
-  p_msg "[rules]  (order = tab order)"
-  local rule app title ws
-  for rule in "${RULES[@]}"; do
-    IFS="${SEP}" read -r app title ws <<< "${rule}"
-    printf '  %-10s %-40s %-8s -> %s\n' "${app}" "${title}" "${ws}" "$(resolve_ws "${ws}")"
+  p_msg "[rules]  (order = both match precedence AND tab order; first match wins)"
+
+  # Build, in ONE pass per app, which rule claimed each window. Rule order doubles
+  # as match precedence, so a broad regex above a narrow one silently swallows it
+  # (e.g. `dotfiles` above `saito` takes "config - dotfiles [SSH: saito] - ...").
+  # A rule claiming nothing whose regex DOES match a live window is shadowed, and
+  # that is worth saying out loud -- it looks correct and never fires.
+  local -A claims=()      # rule index -> how many windows it claimed
+  local -A owner=()       # "app<SEP>con_id" -> claiming rule index
+  local a line ws cid cws ctitle claim
+  for a in "${!APP_CRIT[@]}"; do
+    while IFS= read -r line; do
+      [[ -n "${line}" ]] || continue
+      IFS="${SEP}" read -r ws cid cws ctitle claim <<< "${line}"
+      claims["${claim}"]=$(( ${claims["${claim}"]:-0} + 1 ))
+      owner["${a}${SEP}${cid}"]="${claim}"
+    done < <(plan_app "${a}")
+  done
+
+  local -i i
+  local app title n shadow cid2 t2
+  for i in "${!RULES[@]}"; do
+    IFS="${SEP}" read -r app title ws <<< "${RULES[$i]}"
+    n="${claims[$i]:-0}"
+    printf '  %-10s %-40s %-8s -> %-16s claims=%s' \
+      "${app}" "${title}" "${ws}" "$(resolve_ws "${ws}")" "${n}"
+
+    if (( n == 0 )) && [[ "${title}" != "-" ]]; then
+      shadow=""
+      # shellcheck disable=SC2034  # the workspace field is read to be discarded
+      while IFS="${SEP}" read -r cid2 _ t2; do
+        [[ -n "${cid2}" ]] || continue
+        jq -ne --arg s "${t2}" --arg r "${title}" '$s | test($r)' > /dev/null 2>&1 || continue
+        shadow="${owner["${app}${SEP}${cid2}"]:-}"
+        [[ -n "${shadow}" ]] && break
+      done < <(app_windows "${app}")
+      if [[ -n "${shadow}" ]]; then
+        if (( shadow < i )); then
+          printf '  \033[33m<- SHADOWED by earlier rule #%s '"'"'%s'"'"'\033[0m' \
+            "${shadow}" "$(rule_title "${shadow}")"
+        else
+          printf '  \033[33m<- claimed by rule #%s '"'"'%s'"'"'\033[0m' \
+            "${shadow}" "$(rule_title "${shadow}")"
+        fi
+      fi
+    fi
+    printf '\n'
   done
 }
 
