@@ -512,7 +512,19 @@ curl -fsSL https://install.determinate.systems/nix | sh -s -- install
 
 # https://doc.rust-lang.org/cargo/getting-started/installation.html
 curl https://sh.rustup.rs -sSf | sh
+
+# https://github.com/VocaHQ/vocalinux/blob/main/docs/INSTALL.md
+curl -fsSL https://raw.githubusercontent.com/VocaHQ/vocalinux/main/install.sh -o /tmp/vl.sh
+bash /tmp/vl.sh
+# note: snap may be an option in the future (iirc still in review, thus old version or manual download only), in which case auto update would be convenient.
+#   at the the time of writing this, using the installer script is the recommended way
+#   flatpak and appimage exists as well, afaik both with manual update only
+
+
 ```
+
+For these it might be sensible to reference the official install doc or repo page so the user can have quick look to confirm that the install procedure is still the recommended one. Or alternatively just show or open the url (basically a bookmark instead of a adding the code to our repo). On the other hand we already have a few such cases (e.g. `bin/ffmpeg-install`, `setup/modules/27-wine.sh`, `setup/modules/35-tailscale.sh`, and more).
+
 
 **Questions for the session:**
 
