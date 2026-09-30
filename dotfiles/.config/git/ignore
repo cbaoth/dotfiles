@@ -4,3 +4,5 @@
 
 # Claude Code writes per-directory local settings we never commit.
 **/.claude/settings.local.json
+
+**/.claude/.cc-writes/
