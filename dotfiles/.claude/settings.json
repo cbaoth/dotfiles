@@ -3,6 +3,7 @@
     "allow": [
       "Bash(echo *)",
       "Bash(printf *)",
+      "Bash(:)",
       "Bash(if *)",
       "Bash(else *)",
       "Bash(elif *)",
