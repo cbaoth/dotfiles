@@ -246,6 +246,29 @@ cmd_restore() {
   saved_count="$(jq 'length' "${state_file}")"
   (( saved_count > 0 )) || { p_msg "state file is empty, nothing to restore"; return 0; }
 
+  # How many saved entries resolve to a live window at all. Without this, an entry
+  # whose window is gone is indistinguishable from one that is already correct --
+  # both simply produce no work, and "already in place" would be a lie.
+  local -i matched_count
+  matched_count="$(current_floats | jq --slurpfile saved "${state_file}" '
+      ( map({ key: (.con_id | tostring), value: . }) | from_entries ) as $byid
+    | ( group_by([.app_id, .class, .title])
+        | map(select(length == 1) | .[0])
+        | map({ key: ([.app_id, .class, .title] | @json), value: . })
+        | from_entries ) as $bykey
+    | ( $saved[0] | map(.con_id | tostring) ) as $saved_ids
+    | [ $saved[0][]
+        | . as $s
+        | ( if $byid[$s.con_id | tostring] != null
+              then $byid[$s.con_id | tostring]
+              else $bykey[[($s.app_id // ""), ($s.class // ""),
+                           ($s.title // "")] | @json]
+            end ) as $c
+        | select($c != null)
+        | select((($c.con_id | tostring) == ($s.con_id | tostring))
+                 or (($saved_ids | index($c.con_id | tostring)) == null)) ]
+    | length')"
+
   (( wait_secs > 0 )) && wait_for_output
 
   # Values last handed to sway per container, so a later pass can correct by the
@@ -335,14 +358,29 @@ cmd_restore() {
     pass+=1
   done
 
+  # Report the three outcomes separately. Collapsing them hid two things: a
+  # window that needed no change looked like a failure ("restored 2 of 3"), and a
+  # saved entry whose window no longer exists looked like success ("all 3 already
+  # in place") even though nothing was matched.
   local -i n_touched=${#touched[@]} n_inexact=${#inexact[@]}
-  if (( n_touched == 0 )); then
-    p_msg "all ${saved_count} saved window(s) already in place"
-  elif (( n_inexact > 0 )); then
-    p_msg "restored ${n_touched} of ${saved_count} window(s) (${n_inexact} not pixel-exact: app-clamped size)"
-    (( verbose )) && for cid in "${!inexact[@]}"; do p_dbg "  inexact: ${inexact[${cid}]}"; done
-  else
-    p_msg "restored ${n_touched} of ${saved_count} window(s)"
+  local -i n_unmatched=$(( saved_count - matched_count ))
+  local -i n_ok=$(( matched_count - n_touched ))
+  (( n_ok < 0 )) && n_ok=0
+
+  local -a parts=()
+  (( n_touched > 0 ))   && parts+=("moved ${n_touched}")
+  (( n_ok > 0 ))        && parts+=("${n_ok} already in place")
+  (( n_unmatched > 0 )) && parts+=("${n_unmatched} not found")
+  (( n_inexact > 0 ))   && parts+=("${n_inexact} not pixel-exact (app-clamped size)")
+  (( ${#parts[@]} == 0 )) && parts+=("nothing to do")
+
+  # ${parts[*]} joins on the FIRST character of IFS only, so IFS=", " would drop
+  # the space. Join explicitly.
+  local summary="${parts[0]}" i
+  for (( i = 1; i < ${#parts[@]}; i++ )); do summary+=", ${parts[$i]}"; done
+  p_msg "${saved_count} saved: ${summary}"
+  if (( verbose && n_inexact > 0 )); then
+    for cid in "${!inexact[@]}"; do p_dbg "  inexact: ${inexact[${cid}]}"; done
   fi
 }
 

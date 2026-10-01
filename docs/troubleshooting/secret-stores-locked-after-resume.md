@@ -219,12 +219,30 @@ after:  id=268 app_id=org.keepassxc.KeePassXC name="AWe - KeePassXC" focused=tru
 The repeated `Gcr: couldn't find the callback for prompting operation ...` lines
 in the journal are normal gcr noise on cancel, not an error worth chasing.
 
+## Confirmed end to end
+
+A real suspend (14:58 -> 20:13, ~5h15m), from
+`~/.local/state/unlock-secrets.log`:
+
+```
+20:13:42 --- run: unlock-secrets --wait-for-unlock (pid 2845293)
+20:13:42 wait: swaylock up, waiting up to 3600s
+20:13:52 wait: unlocked after 10s
+20:13:52 KeePassXC: raised (flatpak) -- unlock prompt should be on screen
+20:14:23 keyring: skipped Login: no user secrets (1 internal item(s))
+20:14:23 keyring: unlocked: Default keyring
+```
+
+Both prompts appeared, in order, *after* the screen unlock rather than behind it
+— which is the whole point of `--wait-for-unlock`. The 31s gap is the password
+entry. `Login` was skipped as intended.
+
 ## Open
 
-- End-to-end over a real suspend is still unconfirmed. Note that **swayidle must
-  be restarted** for a changed hook to take effect: `swaymsg reload` does not
-  re-run `exec` lines, so the running swayidle keeps the argument list it was
-  started with.
+- **swayidle must be restarted** for a changed hook to take effect: `swaymsg
+  reload` does not re-run `exec` lines, so the running swayidle keeps the
+  argument list it was started with. Verified twice the hard way — check with
+  `tr '\0' '\n' < /proc/$(pgrep -x swayidle)/cmdline`.
 - `--wait-for-unlock` assumes swaylock. Any other locker needs its process name
   added, or a switch to a logind `Unlock` signal — swaylock does not emit one,
   which is why polling is used.

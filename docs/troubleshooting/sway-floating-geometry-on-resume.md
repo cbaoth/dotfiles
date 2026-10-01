@@ -1,7 +1,7 @@
 ---
 title: Floating windows pile up in the centre after suspend/resume (sway)
 hosts: [motoko]
-status: workaround
+status: resolved
 tags: [sway, wayland, suspend, floating, output, swayidle]
 updated: 2026-09-30
 ---
@@ -148,14 +148,52 @@ as "not pixel-exact" instead of silently looping.
 Verified live: a window displaced to `1200,816 399x270` was restored to
 `900,316 714x540`, exactly matching the saved state, in two passes.
 
+## Confirmed on real suspends
+
+Two real cycles, from `~/.local/state/sway/float-geometry.log`:
+
+```
+2026-09-30 22:05:08 [save]    saved 1 floating window(s)
+2026-10-01 13:25:24 [restore] restored 1 of 1 window(s)
+
+2026-10-01 14:58:28 [save]    saved 3 floating window(s)
+2026-10-01 20:13:42 [restore] restored 2 of 3 window(s)
+```
+
+The `after-resume` timing works: `--wait` for an active output was sufficient and
+no sleep was needed. The correction passes behaved as designed, converging on
+pass 2 and stopping on pass 3 when the error stopped shrinking (foot quantises
+its height, so the last pixels never resolve — by design, not a failure).
+
+The "2 of 3" was **not** a miss: the third window was Steam, already at its saved
+`1104,196 1632x1231`, so nothing was issued for it. That exposed a reporting
+flaw worth more than the finding — see below.
+
+## Reporting: three outcomes, not one number
+
+`restored N of M` conflated two different things, and a later `restore -n` even
+claimed *"all 3 saved window(s) already in place"* when two of the three saved
+`con_id`s no longer existed (the foot windows had been replaced, and the
+uniqueness guard had correctly refused to match two identical `swayfloat/foot`
+windows). Nothing matched, and it read as success.
+
+The outcomes are now separated, because this message is the only evidence a
+resume leaves behind:
+
+```
+3 saved: moved 1, 2 already in place
+3 saved: 1 already in place, 2 not found
+3 saved: 3 already in place
+```
+
+`not found` is the honest answer for a saved entry whose window is gone or cannot
+be matched unambiguously.
+
 ## Open
 
-- The restore runs from `after-resume`, which may fire *before* sway has finished
-  re-adding the output. `restore` polls `swaymsg -t get_outputs` for an active
-  output with a non-zero rect (`--wait`, default 5s) rather than sleeping a
-  guessed interval, and the correction passes absorb a late re-centre. Whether
-  that is sufficient in practice needs a few real suspend cycles — if windows
-  still end up centred, raise `--wait` before adding a sleep.
+- Nothing outstanding on the mechanism. Residual sub-pixel mismatch on
+  size-quantising apps (foot) is expected and reported as
+  `not pixel-exact (app-clamped size)`.
 - Tiling layout is **not** covered. It survives suspend (only floaters are
   re-centred), so it is out of scope here; see `docs/TODO.md` §3 for the planned
   `bin/sway-layout`.
