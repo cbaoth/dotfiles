@@ -315,17 +315,20 @@ cmd_restore() {
       # One command list per window -- sway retains the criteria across ",", so
       # it applies atomically. Resize BEFORE the move: resizing a floating window
       # re-centers it, which would undo the positioning (verified live).
-      local cmd="[con_id=${cid}]"
-      (( move_ws )) && cmd+=" move container to workspace \"${ws}\","
-      cmd+=" resize set ${vw} px ${vh} px, move absolute position ${vx} px ${vy} px"
+      # NOT named `cmd`: that is the subcommand name in main(), which _log reads
+      # for its "[save]"/"[restore]" tag -- shadowing it tagged every log line
+      # with the whole swaymsg command instead.
+      local swaycmd="[con_id=${cid}]"
+      (( move_ws )) && swaycmd+=" move container to workspace \"${ws}\","
+      swaycmd+=" resize set ${vw} px ${vh} px, move absolute position ${vx} px ${vy} px"
 
-      if swaymsg "${cmd}" > /dev/null 2>&1; then
+      if swaymsg "${swaycmd}" > /dev/null 2>&1; then
         sent_x["${cid}"]=${vx}; sent_y["${cid}"]=${vy}
         sent_w["${cid}"]=${vw}; sent_h["${cid}"]=${vh}
         touched["${cid}"]="${label}"
         p_dbg "  pass $(( pass + 1 )): con_id=${cid} -> ${vx},${vy} ${vw}x${vh}  ${label}"
       else
-        p_war "failed: ${cmd}  (${label})"
+        p_war "failed: ${swaycmd}  (${label})"
       fi
     done
 
