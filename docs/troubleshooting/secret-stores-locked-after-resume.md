@@ -122,31 +122,112 @@ Backgrounded with `&` on purpose — the waiter can block for a long time.
 KeePassXC is handled before the keyring, so the SSH keys land in the agent as
 early as possible and a VS Code reconnect succeeds on the first retry.
 
+## The two keyrings, and why the password "did not work"
+
+A first live test failed repeatedly with a password that was definitely correct
+(confirmed independently against the account password via `sudo`). The cause was
+not the password:
+
+```
+14:06:33  gcr-prompter: completed password prompt ... secret=88xN/...   <- answered
+14:06:33  gcr-prompter: starting password prompt                        <- AGAIN
+14:06:34  gcr-prompter: completed password prompt      (no secret=)     <- dismissed
+          keyring: unlocked=0 still-locked: Login, Default keyring
+```
+
+`unlock_sync()` had been handed **both** collections at once, which produces two
+back-to-back dialogs with nothing on screen to say which keyring each belongs
+to. The correct password went to the wrong prompt. Unlocking one collection per
+call fixed it immediately:
+
+```
+keyring: unlocked: Default keyring
+```
+
+### They are not interchangeable
+
+```
+~/.local/share/keyrings/
+  default                   -> "Default_keyring"      (this is the default)
+  login.keyring             328 bytes   2026-05-27     1 item
+  Default_keyring.keyring   20763 bytes 2026-09-28    30 items
+  bak/login.keyring         10805 bytes 2026-03-13    (pre-migration)
+```
+
+Secrets were migrated out of `login` into `Default keyring` around 2026-05-26.
+What is left in `login` is a single item with an empty label and the attributes
+`gkr:compat:hashed:keyring` + `xdg:schema` — a gnome-keyring **internal marker**,
+not a user secret. Its password is not the account password.
+
+`Default keyring` holds everything that matters, including the entries behind the
+symptoms in this note:
+
+```
+Application key for code / com.visualstudio.code / vscode-test
+copilot-cli/https
+Chrome / Brave / Chromium Safe Storage, Nextcloud, GOA credentials, Claude, Signal
+```
+
+So `unlock-secrets` **skips collections with no user secrets** by default: it
+reads each locked collection's item attributes (readable while locked, verified)
+and skips any whose items are all `gkr:compat:*`. Otherwise every resume would
+raise an unanswerable dialog for `login`. `-a` includes them anyway.
+
+## Dead end: `exec 9>file 2>/dev/null`
+
+The single-waiter guard was first written as:
+
+```bash
+exec 9>"${LOCK_FILE}" 2>/dev/null || true
+```
+
+`exec` **with no command** applies its redirections to the shell itself, so that
+`2>/dev/null` silenced stderr for the entire rest of the run — every `p_warn`
+and all `set -x` output vanished, which is how a filter bug stayed invisible for
+several rounds. A failed `exec` redirection also exits a non-interactive shell
+outright, so it must not be attempted blind either. Correct form: probe
+writability with an ordinary command first (whose redirection is scoped), then
+`exec`.
+
 ## Verified
 
-Dry run correctly distinguished the two stores:
+Dry run distinguishes the stores and skips the useless keyring:
 
 ```
 KeePassXC: agent has identities, assuming unlocked (use -K to override)
-keyring: would unlock -- 2 locked: Login, Default keyring
+keyring: skipped Login: no user secrets (1 internal item(s))
+keyring: nothing to unlock
 ```
 
-A live run raised a real dialog and reported the outcome honestly
-(journal, prompt deliberately cancelled):
+Keyring unlock, one collection, correct password:
 
 ```
-13:53:27 gcr-prompter: Gcr: starting password prompt for callback .../p28
-13:53:39 gcr-prompter: Gcr: completed password prompt
-         keyring: unlocked=0 still-locked: Login, Default keyring
+$ unlock-secrets -v --keyring-only -c Default_keyring
+keyring: unlocked: Default keyring
+  'Login'            locked=True
+  'Default keyring'  locked=False
+```
+
+KeePassXC raise (`-K`, DB already unlocked — the trigger is the same either way):
+
+```
+before: (no window - hidden to tray)
+KeePassXC: raised (flatpak) -- unlock prompt should be on screen
+after:  id=268 app_id=org.keepassxc.KeePassXC name="AWe - KeePassXC" focused=true
 ```
 
 The repeated `Gcr: couldn't find the callback for prompting operation ...` lines
-are normal gcr noise on cancel, not an error worth chasing.
+in the journal are normal gcr noise on cancel, not an error worth chasing.
 
 ## Open
 
-- The success path (actually entering the password) is still unconfirmed; the
-  test above was cancelled on purpose.
-- `--wait-for-unlock` assumes swaylock. Any other locker would need its process
-  name added, or a switch to a logind `Unlock` signal — swaylock does not emit
-  one, which is why polling is used.
+- End-to-end over a real suspend is still unconfirmed. Note that **swayidle must
+  be restarted** for a changed hook to take effect: `swaymsg reload` does not
+  re-run `exec` lines, so the running swayidle keeps the argument list it was
+  started with.
+- `--wait-for-unlock` assumes swaylock. Any other locker needs its process name
+  added, or a switch to a logind `Unlock` signal — swaylock does not emit one,
+  which is why polling is used.
+- KeePassXC lock state remains a heuristic (SSH agent identities). If the agent
+  ever holds keys from another source, the heuristic silently stops being right;
+  `-K` is the escape hatch.
