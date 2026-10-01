@@ -2,7 +2,9 @@
 # -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
 # vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# shellcheck shell=bash
+# shellcheck shell=bash disable=SC2034
+# SC2034: VERBOSITY/SCRIPT_USER are consumed by the sourced bedtime-lib.sh,
+# which shellcheck cannot follow through the dynamic source loop.
 #
 # Self-heal the bedtime-shutdown system: re-enable its timer(s), enforce file
 # ownership/mode (and optionally immutability), and re-assert the PAM time rules.
@@ -13,6 +15,8 @@
 # -e: exit on error, -u: unset vars are errors, -o pipefail: fail on any pipe stage
 set -euo pipefail
 
+declare SCRIPT_DIR=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare CONFIG_FILE="/etc/bedtime-shutdown.conf"
 declare DRY_RUN=false
 declare MODE="rearm"     # rearm | lock | unlock
@@ -21,43 +25,18 @@ declare SCRIPT_USER=""
 SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")
 declare LOGFILE=""
 
-# Logging with timestamp and colored levels (mirrors bedtime-shutdown.sh).
-__log() {
-  [[ $# -lt 2 ]] && { echo "Usage: __log LEVEL MESSAGE" >&2; return 1; }
-  local -r level=$1; shift
-  local -r msg="$*"
-  local -r ts=$( date +"%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "????-??-?? ??:??:??" )
-  local -r ts_log=$( [[ -n "$LOGFILE" ]] && date -Ins 2>/dev/null || echo "$ts" )
-  case "$level" in
-    E|ERR|ERROR)
-      echo -e "$ts [\033[31mERROR\033[0m] $msg" >&2
-      [[ -n "$LOGFILE" ]] && echo "$ts_log ERROR ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-    W|WARN)
-      echo -e "$ts [\033[33mWARN\033[0m]  $msg"
-      [[ -n "$LOGFILE" ]] && echo "$ts_log WARN  ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-    I|INFO)
-      [[ "$VERBOSITY" -lt 1 ]] && return 0
-      echo -e "$ts [\033[32mINFO\033[0m]  $msg"
-      [[ -n "$LOGFILE" ]] && echo "$ts_log INFO  ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-    D|DEBUG)
-      [[ "$VERBOSITY" -lt 2 ]] && return 0
-      echo -e "$ts [\033[34mDEBUG\033[0m] $msg"
-      [[ -n "$LOGFILE" ]] && echo "$ts_log DEBUG ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-    *)
-      echo -e "$ts [*]     $msg"
-      [[ -n "$LOGFILE" ]] && echo "$ts_log *     ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-  esac
-}
-_log()       { __log "" "$*"; }
-_log_error() { __log "ERROR" "$*"; }
-_log_warn()  { __log "WARN"  "$*"; }
-_log_info()  { __log "INFO"  "$*"; }
-_log_debug() { __log "DEBUG" "$*"; }
+# Shared helpers (logging, _do, time math, PAM render). Prefer a repo-local copy
+# (when running from the repo) over the deployed one, so tests use the edited lib.
+declare _lib=""
+for _lib in "${SCRIPT_DIR}/bedtime-lib.sh" /opt/bin/bedtime-lib.sh; do
+  # shellcheck source=/dev/null
+  [[ -r "$_lib" ]] && { source "$_lib"; break; }
+done
+unset _lib
+if ! command -v __log >/dev/null 2>&1; then
+  printf "bedtime-lib.sh not found (looked in %s and /opt/bin); exiting.\n" "$SCRIPT_DIR" >&2
+  exit 1
+fi
 # }}} = COMMONS ==============================================================
 
 # {{{ = ARGUMENT PARSING =====================================================
@@ -128,12 +107,6 @@ declare BSS_USER_NAME="${BSS_USER_NAME:-}"
 # }}} = LOAD CONFIGURATION ===================================================
 
 # {{{ = HELPERS ==============================================================
-# Run a mutating command, or just log it in dry-run mode.
-_do() {
-  if [[ "$DRY_RUN" == "true" ]]; then _log "[DRY-RUN] would: $*"; return 0; fi
-  "$@"
-}
-
 _require_root() {
   if [[ $EUID -ne 0 && "$DRY_RUN" != "true" ]]; then
     _log_error "Must run as root (except --dry-run). Try: sudo $0"
@@ -146,6 +119,7 @@ _require_root() {
 _protected_files() {
   printf '%s\n' \
     "/opt/bin/bedtime-shutdown.sh|700" \
+    "/opt/bin/bedtime-lib.sh|644" \
     "/opt/bin/bedtime-rearm.sh|700" \
     "/opt/bin/bedtime-lock|700" \
     "/opt/bin/bedtime-unlock|700" \
@@ -236,103 +210,6 @@ _enforce_state() {
       [[ "$enforce_perms" == "true" ]] && _fix_perms "$path" "$mode"
     fi
   done < <(_protected_files)
-}
-
-# Re-assert the PAM time.conf rules inside a managed marker block (tail of file).
-# Verify-only for common-account (editing it risks breaking pam-auth-update).
-_reassert_pam() {
-  [[ "${BSS_REARM_ENFORCE_PAM:-false}" == "true" ]] || { _log_debug "PAM re-assert disabled."; return 0; }
-  local -r conf="/etc/security/time.conf"
-  local -r begin="# >>> bedtime-rearm managed >>> DO NOT EDIT BELOW THIS LINE"
-  local -r end="# <<< bedtime-rearm managed <<<"
-
-  if [[ ! -f "$conf" ]]; then
-    _log_warn "$conf not found; skipping PAM re-assert."
-    return 0
-  fi
-
-  # Enforcement point: without pam_time active in common-account the rules do
-  # nothing. Refuse to write a rule that would give a false sense of security.
-  if ! grep -Eq '^[[:space:]]*account[[:space:]]+(required|requisite)[[:space:]]+pam_time\.so' \
-        /etc/pam.d/common-account 2>/dev/null; then
-    _log_warn "pam_time.so is NOT active in /etc/pam.d/common-account; time.conf rules will not be enforced."
-    _log_warn "Add 'account required pam_time.so' there (see README), then re-run. Skipping time.conf edit."
-    return 0
-  fi
-
-  # Rules come verbatim from the BSS_PAM_BLOCK array (one element = one line).
-  # Nothing is rewritten; we only WARN + SKIP a line that is clearly malformed,
-  # so a bad rule can never lock the user out (fail toward access, not lockout).
-  if [[ -z "${BSS_PAM_BLOCK+x}" ]] || (( ${#BSS_PAM_BLOCK[@]} == 0 )); then
-    _log_warn "BSS_PAM_BLOCK is empty/unset; nothing to re-assert. Skipping time.conf edit."
-    return 0
-  fi
-
-  local -a valid=()
-  local line semis
-  for line in "${BSS_PAM_BLOCK[@]}"; do
-    [[ -z "${line//[[:space:]]/}" ]] && continue        # skip blank lines
-    # Expect exactly 4 ';'-separated fields (logic operators & | add no ';').
-    semis="${line//[^;]/}"
-    if (( ${#semis} != 3 )); then
-      _log_warn "PAM rule skipped (need 4 ';'-separated fields): $line"
-      continue
-    fi
-    # pam_time times are HHMM with NO colon (man 5 time.conf); an HH:MM colon is
-    # the classic footgun - refuse it rather than write a misparsing rule.
-    if [[ "$line" =~ [0-9]:[0-9] ]]; then
-      _log_warn "PAM rule skipped (colon in time; pam_time uses HHMM, e.g. 2100-0500): $line"
-      continue
-    fi
-    valid+=("$line")
-  done
-
-  if (( ${#valid[@]} == 0 )); then
-    _log_warn "No valid rules in BSS_PAM_BLOCK; leaving time.conf unchanged."
-    return 0
-  fi
-
-  # Build the managed block from the validated rules (written verbatim).
-  local block
-  block="${begin}"$'\n'
-  block+="# Regenerated by bedtime-rearm.sh from ${CONFIG_FILE} (BSS_PAM_BLOCK)."$'\n'
-  block+="# Manual edits from the begin-marker to EOF are overwritten on re-arm."$'\n'
-  block+="# pam_time ANDs all matching rules; format: <services>; <ttys>; <users>; <times>"$'\n'
-  for line in "${valid[@]}"; do
-    block+="${line}"$'\n'
-  done
-  block+="${end}"
-
-  # Compose the desired file: everything above the begin-marker + the fresh block.
-  # Trailing blank lines above the marker are trimmed so the single separator we
-  # add is idempotent - otherwise each run would append one more blank line,
-  # rewrite the file, and log "Updated" forever.
-  local tmp
-  tmp=$(mktemp) || { _log_error "mktemp failed."; return 1; }
-  local -a above
-  mapfile -t above < <(awk -v b="$begin" 'index($0,b){exit} {print}' "$conf")
-  while (( ${#above[@]} > 0 )) && [[ -z "${above[-1]}" ]]; do
-    unset 'above[-1]'
-  done
-  { (( ${#above[@]} > 0 )) && printf '%s\n' "${above[@]}"; printf '\n%s\n' "$block"; } > "$tmp"
-
-  if cmp -s "$tmp" "$conf"; then
-    _log_debug "time.conf managed block already current."
-    rm -f "$tmp"
-    return 0
-  fi
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    _log "[DRY-RUN] would update managed block in $conf:"
-    diff -u "$conf" "$tmp" 2>/dev/null || true
-    rm -f "$tmp"
-    return 0
-  fi
-
-  cp -a "$conf" "${conf}.bedtime.bak" 2>/dev/null && _log_debug "backed up -> ${conf}.bedtime.bak"
-  install -m 0644 -o root -g root "$tmp" "$conf"
-  rm -f "$tmp"
-  _log "Updated PAM managed block in $conf."
 }
 
 # --lock / --unlock: only toggle immutability on the protected files.

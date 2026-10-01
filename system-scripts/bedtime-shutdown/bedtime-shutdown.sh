@@ -34,49 +34,22 @@ declare SCRIPT_USER=""
 SCRIPT_USER=$(whoami 2>/dev/null || echo "unknown")
 declare -i VERBOSITY=$VERBOSITY_DEFAULT  # Effective verbosity after config/CLI merge
 declare -i VERBOSITY_CLI=0               # Tracks CLI-requested verbosity before config merge
+declare SCRIPT_DIR=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Logging function with timestamp and colored levels
-__log() {
-
-  declare -r __LOG_UNKNOWN_TIMESTAMP="????-??-?? ??:??:??"
-  [[ $# -lt 2 ]] && { echo "Usage: __log LEVEL MESSAGE" >&2; return 1; }
-  local -r level=$1; shift
-  local -r msg="$*"
-  local -r timestamp=$( date +"%Y-%m-%d %H:%M:%S" 2> /dev/null || echo "$__LOG_UNKNOWN_TIMESTAMP" )
-  local -r timestamp_log=$( [[ -n "$LOGFILE" ]] && date -Ins 2>/dev/null || echo "$__LOG_UNKNOWN_TIMESTAMP" )
-
-  case "$level" in
-    E|ERR|ERROR)
-      echo -e "$timestamp [\033[31mERROR\033[0m] $msg" >&2
-      [[ -n "$LOGFILE" ]] && echo "$timestamp_log ERROR ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-    W|WAR|WARN)
-      echo -e "$timestamp [\033[33mWARN\033[0m]  $msg"
-      [[ -n "$LOGFILE" ]] && echo "$timestamp_log WARN  ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-    I|INF|INFO)
-      [[ "$VERBOSITY" -lt 1 ]] && return 0  # Skip info messages if verbosity < 1
-      echo -e "$timestamp [\033[32mINFO\033[0m]  $msg"
-      [[ -n "$LOGFILE" ]] && echo "$timestamp_log INFO  ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-    D|DEB|DEBUG)
-      [[ "$VERBOSITY" -lt 2 ]] && return 0  # Skip debug messages if verbosity < 2
-      echo -e "$timestamp [\033[34mDEBUG\033[0m] $msg"
-      [[ -n "$LOGFILE" ]] && echo "$timestamp_log DEBUG ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-    *)
-      echo -e "$timestamp [*]     $msg"
-      [[ -n "$LOGFILE" ]] && echo "$timestamp_log *     ${SCRIPT_USER}: $msg" >> "$LOGFILE" 2>/dev/null || true
-      ;;
-  esac
-}
-# Convenience wrappers
-_log()       { __log "" "$*"; }      # Always shown (no level)
-_log_error() { __log "ERROR" "$*"; } # Always shown
-_log_warn()  { __log "WARN"  "$*"; } # Always shown
-_log_info()  { __log "INFO"  "$*"; } # Shown if VERBOSITY >= 1
-_log_debug() { __log "DEBUG" "$*"; } # Shown if VERBOSITY >= 2
-# {{{ = COMMONS ==============================================================
+# Shared helpers (logging, _do, time math, PAM render). Prefer a repo-local copy
+# (when running from the repo) over the deployed one, so tests use the edited lib.
+declare _lib=""
+for _lib in "${SCRIPT_DIR}/bedtime-lib.sh" /opt/bin/bedtime-lib.sh; do
+  # shellcheck source=/dev/null
+  [[ -r "$_lib" ]] && { source "$_lib"; break; }
+done
+unset _lib
+if ! command -v __log >/dev/null 2>&1; then
+  printf "bedtime-lib.sh not found (looked in %s and /opt/bin); exiting.\n" "$SCRIPT_DIR" >&2
+  exit 1
+fi
+# }}} = COMMONS ==============================================================
 
 # {{{ = ARGUMENT PARSING =====================================================
 # Loop through arguments
@@ -224,11 +197,6 @@ if [[ -z "$BSS_USER_NAME" ]]; then
   exit 1
 fi
 
-# Helper function to convert HHMM (24-hour) to HH:MM format (must be defined before use in logging)
-_format_time() {
-  printf "%s:%s" "${1:0:2}" "${1:2:2}"
-}
-
 # Get the user ID of BSS_USER_NAME
 declare USER_ID=""
 USER_ID=$(id -u "$BSS_USER_NAME")
@@ -268,28 +236,6 @@ _power_action() {
 
   _log "Executing: systemctl ${verb} ${args[*]}"
   systemctl "$verb" "${args[@]}"
-}
-
-# Converts an HHMM / HH:MM time string to minutes since midnight (0-1439).
-_hhmm_to_min() {
-  local -r t="${1//:/}"
-  printf "%d" "$(( 10#${t:0:2} * 60 + 10#${t:2:2} ))"
-}
-
-# Returns 0 (true) if `now` is within the half-open window [start, end),
-# handling windows that wrap over midnight. All args in HHMM / HH:MM form.
-_in_window() {
-  local -r now=$((10#${1//:/}))
-  local -r start=$((10#${2//:/}))
-  local -r end=$((10#${3//:/}))
-
-  if (( start <= end )); then
-    # Non-wrapping window (same day), e.g. [05:00, 21:30)
-    (( now >= start && now < end ))
-  else
-    # Wrapping window (spans midnight), e.g. [21:30, 05:00)
-    (( now >= start || now < end ))
-  fi
 }
 
 # Resolves the current phase, echoing one of: shutdown | sleep | safe.

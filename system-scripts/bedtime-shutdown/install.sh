@@ -16,10 +16,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Repo source -> system target pairs. Targets are overridable via env only to
 # allow sandbox testing (see the test harness); leave them unset in normal use.
 declare -r SCRIPT_SRC="$SCRIPT_DIR/bedtime-shutdown.sh"
+declare -r LIB_SRC="$SCRIPT_DIR/bedtime-lib.sh"
 declare -r CONFIG_SRC="$SCRIPT_DIR/bedtime-shutdown.conf"
 declare -r SERVICE_SRC="$SCRIPT_DIR/bedtime.service"
 declare -r TIMER_SRC="$SCRIPT_DIR/bedtime.timer"
 
+declare -r LIB_DST="${BSS_INSTALL_LIB_DST:-/opt/bin/bedtime-lib.sh}"
 declare -r SCRIPT_DST="${BSS_INSTALL_SCRIPT_DST:-/opt/bin/bedtime-shutdown.sh}"
 declare -r CONFIG_DST="${BSS_INSTALL_CONFIG_DST:-/etc/bedtime-shutdown.conf}"
 declare -r SERVICE_DST="${BSS_INSTALL_SERVICE_DST:-/etc/systemd/system/bedtime.service}"
@@ -143,7 +145,10 @@ deploy_one() {
   ok "$label deployed -> $dst"
 }
 
-deploy_script() { deploy_one "$SCRIPT_SRC" "$SCRIPT_DST" 700 "script" true; }
+# Shared lib, sourced by both the tick and the re-arm script. Deployed with
+# either (both need it); idempotent, so the duplicate call under 'all' is a no-op.
+deploy_lib()    { deploy_one "$LIB_SRC" "$LIB_DST" 644 "shared lib" true; }
+deploy_script() { deploy_lib; deploy_one "$SCRIPT_SRC" "$SCRIPT_DST" 700 "script" true; }
 deploy_config() { deploy_one "$CONFIG_SRC" "$CONFIG_DST" 600 "config"; }
 
 deploy_units() {
@@ -163,6 +168,7 @@ deploy_units() {
 }
 
 deploy_rearm() {
+  deploy_lib
   deploy_one "$REARM_SRC"  "$REARM_DST"  700 "rearm script"   true
   deploy_one "$LOCK_SRC"   "$LOCK_DST"   700 "bedtime-lock"   true
   deploy_one "$UNLOCK_SRC" "$UNLOCK_DST" 700 "bedtime-unlock" true
