@@ -3,7 +3,7 @@ title: Secret stores stay locked and silent after resume (keyring, KeePassXC)
 hosts: [motoko]
 status: workaround
 tags: [keyring, keepassxc, secrets, suspend, dbus, sway, swayidle]
-updated: 2026-10-01
+updated: 2026-10-03
 ---
 
 # Secret stores stay locked and silent after resume
@@ -237,6 +237,45 @@ Both prompts appeared, in order, *after* the screen unlock rather than behind it
 — which is the whole point of `--wait-for-unlock`. The 31s gap is the password
 entry. `Login` was skipped as intended.
 
+## 2026-10-03: KeePassXC skipped, keys survived the lock
+
+After the first resume of the day, every later one skipped KeePassXC:
+
+```
+11:29:34 KeePassXC: agent has identities, assuming unlocked (use -K to override)
+11:56:24 KeePassXC: agent has identities, assuming unlocked (use -K to override)
+```
+
+The database *was* locked; the heuristic was wrong because the keys outlived the
+lock. A live `busctl ... lockAllDatabases` (exit 0) left both identities in the
+agent for 5s+, and minutes later SSH to saito and the vserver still worked.
+Quitting KeePassXC removed them. A freshly started instance then added and
+removed them correctly on every unlock/lock, across a real suspend too: the
+per-entry settings ("add on unlock", "remove on lock") were never the problem.
+
+The trigger was a **Nextcloud sync while the database was open**:
+
+| Time | Event |
+| ---- | ----- |
+| 02:05 | `private.kdbx` changed on another device (motoko asleep) |
+| 11:24:30 | first resume; stale local copy unlocked, keys added |
+| 11:28:19 | Nextcloud downloads the new file; KeePassXC reloads the database |
+| 11:28:57 | suspend; `lock-secrets` locks the database, keys stay |
+
+KeePassXC remembers which database each added key came from and on lock removes
+only the keys of the database being locked; on quit it removes all of them. A
+reload swaps in a new database instance, so the old instance's keys match
+nothing any more and stay in the agent until KeePassXC exits. (Inferred from
+the behaviour, not from the source. Not reproduced on purpose yet: edit an
+entry elsewhere while unlocked here, wait for the sync, lock, `ssh-add -L`.)
+
+**Fix:** both swayidle lock hooks now run `lock-secrets --ssh`, which empties
+the agent (`ssh-add -D`) after locking. That closes the security gap (keys
+usable through a suspend with every store locked) and makes the
+`unlock-secrets` heuristic true again. KeePassXC re-adds the keys on the next
+unlock. `lock-secrets` now also logs to `~/.local/state/lock-secrets.log`;
+before, nothing proved it had run at all.
+
 ## Open
 
 - **swayidle must be restarted** for a changed hook to take effect: `swaymsg
@@ -246,6 +285,8 @@ entry. `Login` was skipped as intended.
 - `--wait-for-unlock` assumes swaylock. Any other locker needs its process name
   added, or a switch to a logind `Unlock` signal — swaylock does not emit one,
   which is why polling is used.
-- KeePassXC lock state remains a heuristic (SSH agent identities). If the agent
-  ever holds keys from another source, the heuristic silently stops being right;
-  `-K` is the escape hatch.
+- KeePassXC lock state remains a heuristic (SSH agent identities). It broke once
+  already (see 2026-10-03), which is why the lock hooks now flush the agent. Any
+  path that locks KeePassXC *without* `lock-secrets --ssh` (its own idle lock,
+  a manual lock) can still leave keys behind after a reload; `-K` is the escape
+  hatch.
