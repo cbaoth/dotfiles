@@ -52,6 +52,9 @@ Claude Code and VS Code Copilot, `~/.copilot/.github/instructions/` (with
   Consult it before writing a new shell script if it is not already loaded.
 - `cb-python.instructions.md` — Python (uv, Ruff, pyright, pytest)
 - `cb-commit-messages.instructions.md` — commit conventions (always loaded)
+- `cb-response-format.instructions.md` — reply shape for the human: conditions
+  before steps, scannable lists, closing `Your next steps` checklist (always
+  loaded)
 
 The extended human-readable shell guide is `docs/shell-style-guide.md` —
 reference documentation only; for agents the instruction files above are

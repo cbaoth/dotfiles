@@ -59,6 +59,7 @@ CLAUDE.md                                  # thin: "@AGENTS.md" import + Claude 
   cb-shell-script.instructions.md          # canonical shell style summary (path-scoped)
   cb-python.instructions.md                # canonical python style (path-scoped)
   cb-commit-messages.instructions.md       # canonical commit conventions (always on)
+  cb-response-format.instructions.md       # reply shape for the human (always on)
 docs/shell-style-guide.md                  # full human-readable guide (NOT agent-loaded)
 ----
 
