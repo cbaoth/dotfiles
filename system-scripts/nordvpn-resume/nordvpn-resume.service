@@ -1,0 +1,18 @@
+[Unit]
+Description=Repair NordVPN tunnel after resume from sleep
+Documentation=file:/opt/bin/nordvpn-resume.sh
+# Pulled in by the sleep targets (see [Install]) but ordered after them: the
+# job is queued on the way into sleep and runs once suspend.target is reached,
+# i.e. after resume. Unlike a system-sleep hook it gets its own cgroup, so it
+# is not killed when systemd-suspend.service exits.
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+After=nordvpnd.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/bin/nordvpn-resume.sh
+# Link wait (120s) + settle (30s) + up to 3 reconnect/check rounds.
+TimeoutStartSec=8min
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

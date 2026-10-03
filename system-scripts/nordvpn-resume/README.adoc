@@ -1,0 +1,95 @@
+= nordvpn-resume
+:description: Repair a NordVPN tunnel that comes back broken after resume
+
+Checks the NordVPN tunnel after every resume from sleep and reconnects only if
+it is actually broken.
+
+== Background
+
+After resume, `nordvpnd` reconnects on its own (NordWhisper) about a second
+after wifi is back, and the GUI shows *Connected*. The tunnel is not usable,
+though: `systemd-resolved` logs thousands of DNSSEC validation failures a
+minute against Nord's DNS, so most name lookups fail. A manual
+`nordvpn connect luxembourg` fixes it. Journal evidence from 2026-09-29 to
+2026-10-01: every resume followed the same pattern, and every fix was a manual
+reconnect, 1 to 5 minutes later.
+
+== Why the old hook never worked
+
+The predecessor was `/etc/systemd/system-sleep/nordvpn-reconnect`. It never
+ran, not once: the journal has no line from it in all the resumes checked.
+Two independent bugs:
+
+. *Wrong directory.* This systemd (259, Ubuntu 26.04) runs sleep hooks from
+  `/usr/lib/systemd/system-sleep/` only; `/etc/systemd/system-sleep/` is not
+  scanned. (`strings /usr/lib/systemd/systemd-sleep` lists only the `/usr/lib`
+  path.)
+. *Background job in a dying cgroup.* Even in the right place, `reconnect &`
+  runs inside `systemd-suspend.service`, which exits about 70 ms after resume.
+  systemd then kills the whole cgroup, the waiting background job included.
+
+A oneshot service avoids both: it is a normal unit with its own cgroup, ordered
+after the sleep targets.
+
+One trap remains for any root service calling the CLI: `nordvpn` refuses to
+run without `$HOME` (`[Fatal] cannot get user home dir`), and systemd sets no
+`HOME` for a service without `User=`. The first install failed silently on
+exactly that, with an empty journal. The script now falls back to the passwd
+home dir and logs any `nordvpn status` failure instead of aborting quietly.
+
+== What it does
+
+. If `nordvpn status` says *Disconnected*, the VPN was off before sleep:
+  leave it off.
+. Wait for a physical default route (wifi or LAN), max 120 s.
+. Give `nordvpnd` up to 30 s to finish its own reconnect.
+. Health check: resolve 4 probe names via `resolvectl query --cache=no`
+  (at least 3 must resolve), then fetch an HTTPS URL. Retried 4 times, 5 s
+  apart.
+. If unhealthy: `nordvpn connect <country>`, using the country from
+  `nordvpn status` (fallback `luxembourg`), then check again. At most 3 rounds.
+  If the tunnel is still broken after that, the unit exits as failed.
+
+The probe names exclude `nordvpn.com`: it fails DNSSEC validation through
+Nord's DNS even when the tunnel is healthy.
+
+== Files
+
+[cols="1,2"]
+|===
+| File | Description
+
+| `nordvpn-resume.sh`
+| The check-and-repair script (`--check` reports health only, `--force`
+  reconnects without checking).
+
+| `nordvpn-resume.service`
+| Oneshot unit, `WantedBy` and `After` the sleep targets: runs once per resume.
+
+| `install.sh`
+| Installs both and removes the old system-sleep hook.
+|===
+
+== Install
+
+[source,bash]
+----
+sudo ./install.sh
+----
+
+Installs `/opt/bin/nordvpn-resume.sh` and
+`/etc/systemd/system/nordvpn-resume.service`, enables the unit, and removes
+`/etc/systemd/system-sleep/nordvpn-reconnect`.
+
+== Verify
+
+[source,bash]
+----
+journalctl -u nordvpn-resume -b    # after a suspend/resume cycle
+sudo /opt/bin/nordvpn-resume.sh --check
+----
+
+Check whether it says *healthy without intervention* or *healthy after
+reconnect*. If most resumes need the reconnect, the health check is doing its
+job. If it never does, while DNS is still broken after resume, the probes are
+too lenient.
