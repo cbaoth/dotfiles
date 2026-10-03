@@ -14,7 +14,16 @@ desktop.ini
 !.vscode/extensions.json
 .idea/
 
+# Image viewer artifacts
+.thumbnails/
+
 # Temp / scratch artifacts
+temp/
+.temp/
+tmp/
+.tmp/
+bak/
+.bak/
 *.tmp
 *.temp
 *.bak
@@ -46,19 +55,16 @@ desktop.ini
 # Environment files — may contain secrets
 .env
 .env.*
+!.env.example
 
 # Local scratch space — never commit
 # Convention: _local/ dirs are for test dumps, scratch work, ad-hoc experiments
 _local/
 
-# Raw Obsidian notes staged for migration into docs/ — NOT sanitized.
-# Contains real WiFi SSIDs, disk UUIDs, and MAC addresses; this repo is public.
-# Migrate into docs/{setup,troubleshooting,reference}/ (see docs/setup/MIGRATION.md),
-# then delete. Never commit the raw notes.
-Obsidian_Example/
-
 # Local config overrides — may contain sensitive data (e.g., credentials, API keys)
 # Convention: foo.local or foo.local.conf overrides the tracked foo config (not committed)
+#.local
+*.local
 *.local.*
 # ...but *.local.example templates ARE tracked — they document the local file.
 !*.local.example
