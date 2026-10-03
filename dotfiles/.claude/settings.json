@@ -529,7 +529,6 @@
   "model": "opus",
   "worktree": {},
   "enableWorkflows": true,
-  "outputStyle": "Concise",
   "sandbox": {
     "enabled": true
   },
