@@ -720,3 +720,41 @@ is unwanted: I deliberately leave prepared commands sitting at a prompt).
 - [ ] [S] Revisit after living with tmux auto-attach on saito / 11001001:
       if forgotten root shells actually bite, raise priority; if not, this can
       stay parked.
+
+
+## Text to speeck (TTS)
+
+look into TTS options. it should help reading longer texts; including AI agent responses (e.g. claude code), articles, and documentation.
+
+basice piper test setup already done:
+
+```shell
+cd ~/
+# common venv already created in the past
+# use `uv venv` to create a new one if needde
+. ./.venv/bin/activate
+uv pip install piper-tts
+
+# download some default voices into a new local data dir
+# official voices can be found here: https://huggingface.co/rhasspy/piper-voices/tree/main
+mkdir -p ~/.cache/piper-tts
+cd ~/.cache/piper-tts
+
+python3 -m piper.download_voices en_US-amy-medium
+piper -m en_US-amy-medium --data-dir ~/.cache/piper-tts --cuda -- This is a test of the Piper TTS-Stimme "Amy".
+
+python3 -m piper.download_voices de_DE-thorsten-high
+piper -m de_DE-thorsten-high --data-dir ~/.cache/piper-tts --cuda -- Das ist ein Test der Piper TTS-Stimme "Thorsten".
+```
+
+- consider tool or custom script
+- read:
+  - selected text (e.g. in terminal window / shell, editor, browser)
+  - from cursor location
+  - entire document
+  - file (e.g. by filename in clipboard, selected file or file name in in editor, nautilus, doublecmd, terminal window / shell)
+- tool or sway keyboard shortcuts
+  - play any of the above read modes (auto detect would be nice if possible, otherwise one per mode in case there are multiple, at least selected test should be supported)
+  - stop playback
+  - if possible forward/rewind (e.g. by word, paragraph, or similar)
+  - increase/decrease/reset playback speed (+/- 0.25 increments seem reasonable). default should be to remember the last used speed, and fallback should be 1.0 for starters but that may change (could also be voice specific, e.g. `"length_scale": 1` in voice's json)
