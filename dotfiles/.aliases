@@ -617,8 +617,12 @@ tm() {
     echo "TPM not found at ~/.tmux/plugins/tpm. To install run tmp-tpm-install."
     echo "Starting tmux without TPM..."
   fi
+  # tmux defaults to creating a new session
   tmux "$@"
 }
+
+# tmux attach
+alias tma='tmux attach'
 
 print-color256() {
   local fg_color
