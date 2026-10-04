@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Request a one-evening bedtime extension from the allowance: a FIXED
+# postponement of tonight's sleep + hard-shutdown by BSS_EXTEND_DELTA. Runs as
+# YOU (no sudo). Previews base->projected windows + remaining weekly budget and,
+# on confirmation, drops a request marker the root bedtime tick applies within
+# ~5 min. Must be requested BEFORE the window opens (static postponement, once
+# per day, N per week - enforced root-side). See the module README.
+
+set -euo pipefail
+
+declare STATUS_FILE="${BSS_STATUS_FILE:-/run/bedtime-shutdown/status}"
+declare ASSUME_YES=false
+declare STATUS_ONLY=false
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-y] [-s] [-h]
+
+Request a fixed-delta bedtime extension for tonight (postpones sleep + shutdown).
+Enforced root-side: only in the safe zone (before the window), once per day, a
+configurable number of times per week.
+
+  -y, --yes      Skip the confirmation prompt.
+  -s, --status   Show the current allowance status and exit (no request).
+  -h, --help     Show this help.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -y|--yes)    ASSUME_YES=true ;;
+    -s|--status) STATUS_ONLY=true ;;
+    -h|--help)   usage; exit 0 ;;
+    *) echo "bedtime-extra: unknown option: $1 (see --help)" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+declare -A S=()
+if [[ -r "$STATUS_FILE" ]]; then
+  while IFS='=' read -r k v; do
+    [[ -z "$k" || "$k" == \#* ]] && continue
+    S["$k"]="$v"
+  done < "$STATUS_FILE"
+else
+  echo "bedtime-extra: no status at $STATUS_FILE (the bedtime service may not have run yet)." >&2
+  echo "You can still request; the service validates it on its next run." >&2
+fi
+
+declare now; now="$(date '+%H:%M:%S')"; declare -r now
+declare -ri max=${S[BEDTIME_WEEKLY_MAX]:-0}
+declare -ri used=${S[BEDTIME_WEEK_COUNT]:-0}
+declare -ri left=$(( max - used < 0 ? 0 : max - used ))
+
+if [[ "$STATUS_ONLY" == true ]]; then
+  echo "Bedtime extension allowance (now ${now}):"
+  echo "  enabled:         ${S[BEDTIME_ENABLE]:-unknown}"
+  echo "  active today:    ${S[BEDTIME_ACTIVE_TODAY]:-unknown}"
+  echo "  delta:           ${S[BEDTIME_DELTA]:-?}"
+  echo "  used this week:  ${used}/${max} (resets ${S[ALLOWANCE_RESET_DOW]:-?} ${S[ALLOWANCE_RESET_TIME]:-?})"
+  echo "  sleep start:     ${S[BEDTIME_BASE_SLEEP]:-n/a} -> ${S[BEDTIME_PROJECTED_SLEEP]:-n/a}"
+  echo "  shutdown start:  ${S[BEDTIME_BASE_SHUTDOWN]:-?} -> ${S[BEDTIME_PROJECTED_SHUTDOWN]:-?}"
+  exit 0
+fi
+
+if [[ "${S[BEDTIME_ENABLE]:-false}" != "true" ]]; then
+  echo "bedtime-extra: bedtime extension is disabled (BSS_EXTEND_ENABLE); nothing to do." >&2
+  exit 1
+fi
+if [[ "${S[BEDTIME_ACTIVE_TODAY]:-false}" == "true" ]]; then
+  echo "bedtime-extra: already extended today. Nothing to do." >&2
+  exit 0
+fi
+if (( max > 0 && left == 0 )); then
+  echo "bedtime-extra: no extensions left this week (${used}/${max}; resets ${S[ALLOWANCE_RESET_DOW]:-?} ${S[ALLOWANCE_RESET_TIME]:-?})." >&2
+  exit 1
+fi
+
+echo "Extend bedtime for tonight (+${S[BEDTIME_DELTA]:-?}):"
+echo "  now:             ${now}"
+[[ -n "${S[BEDTIME_BASE_SLEEP]:-}" ]] && \
+  echo "  sleep start:     ${S[BEDTIME_BASE_SLEEP]} -> ${S[BEDTIME_PROJECTED_SLEEP]:-?}"
+echo "  shutdown start:  ${S[BEDTIME_BASE_SHUTDOWN]:-?} -> ${S[BEDTIME_PROJECTED_SHUTDOWN]:-?}"
+echo "  weekly budget:   ${used}/${max} used -> ${left} left before this"
+echo "  NOTE: request BEFORE the window opens - the service rejects it once you are"
+echo "        already in the sleep/shutdown window (a static postponement, not a reprieve)."
+
+if [[ "$ASSUME_YES" != true ]]; then
+  read -r -p "Request this extension? [y/N] " ans
+  [[ "$ans" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+fi
+
+declare REQ_DIR="${S[REQUEST_DIR]:-$HOME/.local/state/bedtime}"
+mkdir -p "$REQ_DIR"
+date -Is > "$REQ_DIR/request.bedtime"
+echo "Requested. Applies within ~5 min (next bedtime service tick); 'bedtime-extra -s' to check."

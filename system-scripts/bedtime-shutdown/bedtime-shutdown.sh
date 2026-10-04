@@ -2,7 +2,9 @@
 # -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
 # vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# shellcheck shell=bash
+# shellcheck shell=bash disable=SC2034
+# SC2034: some globals (BASE_* windows, allowance ledger vars) are produced here
+# but consumed by the sourced bedtime-lib.sh, which shellcheck cannot follow.
 #
 # Force system shutdown at a configured bedtime.
 # For installation and configuration, see README.md or run: sudo ./install.sh
@@ -795,6 +797,67 @@ _process_sudo_request() {
   _do rm -f "$req"
 }
 
+# Grant a pending bedtime-extension request: a FIXED postponement of tonight's
+# sleep + shutdown. Only while still in the SAFE zone (a static postponement, not
+# a mid-shutdown reprieve - checked against the BASE windows, before _apply shifts
+# them). Daily (1) + weekly limits enforced against the root-owned ledger.
+_process_bedtime_request() {
+  [[ "${BSS_EXTEND_ENABLE:-false}" == "true" ]] || return 0
+  local -r req=$(_allowance_request_file bedtime)
+  [[ -e "$req" ]] || return 0
+  _log "Bedtime-extension request found ($req)."
+
+  if [[ "${BEDTIME_LAST_DAY:-}" == "${ALLOWANCE_TODAY:-}" ]]; then
+    _log_info "Bedtime extension already active today; ignoring duplicate request."
+    _do rm -f "$req"; return 0
+  fi
+  if [[ "$(_current_phase)" != "safe" ]]; then
+    _log_warn "Bedtime extension DENIED: too late (already in the sleep/shutdown window)."
+    _notify_user "Bedtime extension denied: too late - already in the bedtime window."
+    _do rm -f "$req"; return 0
+  fi
+  local -ri max=${BSS_EXTEND_WEEKLY_MAX:-3}
+  if (( BEDTIME_WEEK_COUNT >= max )); then
+    _log_warn "Bedtime extension DENIED: weekly limit reached (${BEDTIME_WEEK_COUNT}/${max})."
+    _notify_user "Bedtime extension denied: weekly limit reached (${BEDTIME_WEEK_COUNT}/${max})."
+    _do rm -f "$req"; return 0
+  fi
+
+  BEDTIME_LAST_DAY="${ALLOWANCE_TODAY}"
+  BEDTIME_WEEK_COUNT=$(( BEDTIME_WEEK_COUNT + 1 ))
+  _allowance_save
+  _log "Bedtime extension GRANTED (+${BSS_EXTEND_DELTA}, ${BEDTIME_WEEK_COUNT}/${max} this week)."
+  _notify_user "Bedtime extension granted (+${BSS_EXTEND_DELTA} tonight; ${BEDTIME_WEEK_COUNT}/${max} this week)."
+  _do rm -f "$req"
+}
+
+# When today's bedtime grant is active, postpone sleep + shutdown by the fixed
+# delta (keep BSS_SHUTDOWN_END). Applied every tick while active. The shift is
+# validated non-fatally first (subshell _validate_sleep_config); if the delta
+# would collapse a window it is NOT applied and the base windows stand.
+_apply_bedtime_extension() {
+  _bedtime_extended_active || return 0
+  local -ri delta=$(_duration_to_min "${BSS_EXTEND_DELTA:-0}")
+  (( delta > 0 )) || return 0
+
+  local new_sd new_ss new_se
+  new_sd=$(_shift_hhmm "$BSS_SHUTDOWN_START" "$delta")
+  if [[ "$SLEEP_ENABLED" == "true" ]]; then
+    new_ss=$(_shift_hhmm "$BSS_SLEEP_START" "$delta")
+    new_se=$(_shift_hhmm "$BSS_SLEEP_END" "$delta")
+  fi
+
+  if ( BSS_SHUTDOWN_START="$new_sd"
+       if [[ "$SLEEP_ENABLED" == "true" ]]; then BSS_SLEEP_START="$new_ss"; BSS_SLEEP_END="$new_se"; fi
+       _validate_sleep_config >/dev/null 2>&1 ); then
+    BSS_SHUTDOWN_START="$new_sd"
+    if [[ "$SLEEP_ENABLED" == "true" ]]; then BSS_SLEEP_START="$new_ss"; BSS_SLEEP_END="$new_se"; fi
+    _log "Bedtime extension active (+${BSS_EXTEND_DELTA}): shutdown_start now $(_format_time "$BSS_SHUTDOWN_START"), sleep_start $(_format_time "${BSS_SLEEP_START:-0000}")."
+  else
+    _log_warn "Bedtime extension (+${BSS_EXTEND_DELTA}) would make an invalid window; NOT shifting tonight."
+  fi
+}
+
 # Main function: acquire the lock, validate, resolve the current phase, dispatch.
 main() {
   # Server guard: never power off / sleep a listed server (installed by mistake).
@@ -807,10 +870,17 @@ main() {
   _log_debug "Configuration: User=$BSS_USER_NAME, Grace periods: user=${BSS_GRACE_PERIOD_USER}s, system=${BSS_GRACE_PERIOD_SYSTEM}s, sleep=${BSS_SLEEP_GRACE}s"
 
   # Allowance + PAM re-assert, every tick (each piece self-gates on its *_ENABLE):
-  # load the ledger, apply a pending sudo request, re-render time.conf, publish
-  # the status snapshot the bedtime-*-extra commands read.
+  # load the ledger, apply pending requests, re-render time.conf, publish the
+  # status snapshot the bedtime-*-extra commands read.
   _allowance_load
+  # Capture the BASE (config) windows before any shift, so the status snapshot
+  # can show base-vs-projected and _write_status computes the projection.
+  BASE_SLEEP_START="${BSS_SLEEP_START:-}"
+  BASE_SLEEP_END="${BSS_SLEEP_END:-}"
+  BASE_SHUTDOWN_START="${BSS_SHUTDOWN_START}"
   _process_sudo_request
+  _process_bedtime_request      # safe-zone check uses the base windows (pre-shift)
+  _apply_bedtime_extension      # shift sleep/shutdown if a grant is active + valid
   _reassert_pam
   _write_status
 

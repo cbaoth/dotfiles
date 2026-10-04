@@ -95,6 +95,19 @@ _shift_hhmm() {
   local -ri m=$(( ( base + delta + 1440 ) % 1440 ))
   printf "%02d%02d" "$(( m / 60 ))" "$(( m % 60 ))"
 }
+
+# Parse a duration ("H:MM", "HH:MM", or plain minutes) to minutes. 0 on garbage.
+_duration_to_min() {
+  local -r d="${1:-0}"
+  if [[ "$d" =~ ^[0-9]+:[0-9]{1,2}$ ]]; then
+    printf '%d' "$(( 10#${d%%:*} * 60 + 10#${d##*:} ))"
+  elif [[ "$d" =~ ^[0-9]+$ ]]; then
+    printf '%d' "$(( 10#$d ))"
+  else
+    printf '0'
+    _log_warn "Invalid duration ['$d']; treating as 0." >&2   # >&2 so it never pollutes $() capture
+  fi
+}
 # }}} = TIME MATH ============================================================
 
 # {{{ = ALLOWANCE (ledger + accounting) ======================================
@@ -198,6 +211,12 @@ _sudo_extended_active() {
   [[ -n "${SUDO_LAST_DAY:-}" && "${SUDO_LAST_DAY:-}" == "${ALLOWANCE_TODAY:-}" ]]
 }
 
+# True when today's bedtime grant is active (so the tick shifts the windows).
+_bedtime_extended_active() {
+  [[ "${BSS_EXTEND_ENABLE:-false}" == "true" ]] || return 1
+  [[ -n "${BEDTIME_LAST_DAY:-}" && "${BEDTIME_LAST_DAY:-}" == "${ALLOWANCE_TODAY:-}" ]]
+}
+
 # Publish a world-readable status snapshot for the bedtime-*-extra commands.
 # Written key=value (the commands PARSE, never source, so unquoted spaces and the
 # ';' in rule lines are fine). No-op in dry-run.
@@ -206,6 +225,15 @@ _write_status() {
   if [[ "${DRY_RUN:-false}" == "true" ]]; then _log_debug "[DRY-RUN] would update status: $f"; return 0; fi
   mkdir -p "$(dirname "$f")" 2>/dev/null || true
   local tmp; tmp=$(mktemp) || return 1
+  # Bedtime extension display values: base vs projected (base + delta) windows.
+  # BASE_* are captured by the tick before it shifts; fall back to the config
+  # values (e.g. when re-arm writes the status).
+  local -ri _ext_min=$(_duration_to_min "${BSS_EXTEND_DELTA:-0}")
+  local _b_sd="${BASE_SHUTDOWN_START:-${BSS_SHUTDOWN_START:-}}"
+  local _b_ss="${BASE_SLEEP_START:-${BSS_SLEEP_START:-}}"
+  local _p_sd="" _p_ss=""
+  [[ -n "$_b_sd" ]] && _p_sd=$(_shift_hhmm "$_b_sd" "$_ext_min")
+  [[ -n "$_b_ss" ]] && _p_ss=$(_shift_hhmm "$_b_ss" "$_ext_min")
   {
     echo "# bedtime-shutdown status ($(date -Is 2>/dev/null)); read by bedtime-*-extra"
     echo "REQUEST_DIR=$(dirname "$(_allowance_request_file sudo)")"
@@ -219,6 +247,15 @@ _write_status() {
     echo "SUDO_ACTIVE_TODAY=$([[ "${SUDO_LAST_DAY:-}" == "${ALLOWANCE_TODAY:-}" ]] && echo true || echo false)"
     echo "SUDO_DEFAULT_RULE=${BSS_PAM_SUDO_DEFAULT:-}"
     echo "SUDO_EXTENDED_RULE=${BSS_PAM_SUDO_EXTENDED:-}"
+    echo "BEDTIME_ENABLE=${BSS_EXTEND_ENABLE:-false}"
+    echo "BEDTIME_WEEKLY_MAX=${BSS_EXTEND_WEEKLY_MAX:-3}"
+    echo "BEDTIME_WEEK_COUNT=${BEDTIME_WEEK_COUNT}"
+    echo "BEDTIME_ACTIVE_TODAY=$([[ "${BEDTIME_LAST_DAY:-}" == "${ALLOWANCE_TODAY:-}" ]] && echo true || echo false)"
+    echo "BEDTIME_DELTA=${BSS_EXTEND_DELTA:-}"
+    echo "BEDTIME_BASE_SHUTDOWN=${_b_sd:+$(_format_time "$_b_sd")}"
+    echo "BEDTIME_PROJECTED_SHUTDOWN=${_p_sd:+$(_format_time "$_p_sd")}"
+    echo "BEDTIME_BASE_SLEEP=${_b_ss:+$(_format_time "$_b_ss")}"
+    echo "BEDTIME_PROJECTED_SLEEP=${_p_ss:+$(_format_time "$_p_ss")}"
   } > "$tmp"
   install -m 0644 "$tmp" "$f" 2>/dev/null || mv "$tmp" "$f"
   rm -f "$tmp" 2>/dev/null || true

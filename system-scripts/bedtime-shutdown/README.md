@@ -635,6 +635,31 @@ there's nothing to gain). The grant reverts to `DEFAULT` automatically at the
 next allowance-day. `bedtime-sudo-extra` is a user command deployed by
 `dotfiles-link` (it needs no root); the rest deploys with `install.sh`.
 
+## Bedtime extension — `bedtime-extra`
+
+Postpones tonight's **sleep + hard-shutdown** by a **fixed delta** (no per-night
+fiddling — you decide whether a whole extra hour is worth it). `BSS_SHUTDOWN_END`
+(the safe-zone start) is unchanged. Config:
+
+```bash
+BSS_EXTEND_ENABLE=true
+BSS_EXTEND_DELTA="1:00"     # fixed postponement (H:MM or minutes), 30-min multiple
+BSS_EXTEND_WEEKLY_MAX=3
+```
+
+```shell
+bedtime-extra        # preview base->projected windows + budget, confirm, request
+bedtime-extra -s     # status only
+```
+
+Rules: it must be requested **before** the window opens — the tick rejects it
+once you're already in the sleep/shutdown window (a static postponement, not a
+mid-shutdown reprieve), so there's no "reboot and extend to keep going". It does
+**not** touch PAM — the 21:00 auth block stays put, so a late idle-lock still
+locks you out (by design). The shift reverts at the next allowance-day. The shift
+is validated first; a delta that would collapse a window is refused (base windows
+stand). `bedtime-extra` deploys via `dotfiles-link`.
+
 # ❓ FAQ
 
 **Q: What about DST (Daylight Saving Time) changes?**
