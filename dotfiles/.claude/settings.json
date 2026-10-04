@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "agentPushNotifEnabled": false,
+  "agentPushNotifEnabled": true,
   "askUserQuestionTimeout": "never",
   "editorMode": "vim",
   "enableWorkflows": true,
@@ -530,6 +530,7 @@
   },
   "preferredNotifChannel": "auto",
   "remoteControlAtStartup": true,
+  "respectGitignore": false,
   "sandbox": {
     "enabled": false
   },
