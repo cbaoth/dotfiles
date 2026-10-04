@@ -63,7 +63,7 @@ sudo apt install \
 |----|----|
 | Package | Purpose |
 | `sway`, `swaylock`, `swaynag`, `swayidle` | Core Sway components |
-| `foot` | Primary terminal emulator (Wayland-native, default `$term`) |
+| [`foot`](https://codeberg.org/dnkl/foot) | Primary terminal emulator (Wayland-native, default `$term`) |
 | `waybar` | Status bar (replaces i3bar/i3status) |
 | `rofi` | Application/run launcher (`mod+r`, `mod+space`) |
 | `mako-notifier` | Notification daemon (`org.freedesktop.Notifications`) |
