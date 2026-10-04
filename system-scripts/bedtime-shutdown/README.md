@@ -594,6 +594,47 @@ sudo ./uninstall.sh          # stop/disable units, clear chattr +i, remove files
 `/etc/pam.d/common-account` is never edited; a `pam_time.so` line there is only
 reported. Tamper protection applies (see above).
 
+# ⏳ Allowance (bounded "extra time")
+
+A sanctioned, bounded way to buy a little extra time so the finish-this-one-thing
+urge doesn't force an all-or-nothing disable. Two **independent**, count-based
+allowances — **one grant per day, N grants per week** — not minute budgets. The
+shared week is defined by `BSS_ALLOWANCE_RESET_DOW` + `BSS_ALLOWANCE_RESET_TIME`
+(a morning reset, so a late-night grant counts for that evening).
+
+How a grant flows: you run a user command (**no sudo** — you ask when sudo may
+already be blocked), it previews the effect + remaining budget and, on
+confirmation, drops a request marker in `~/.local/state/bedtime/`. The root
+bedtime tick (every 5 min) validates it against the **root-owned ledger**
+(`/var/lib/bedtime-shutdown/allowance.ledger`, so the limits can't be faked),
+applies it, and publishes a status snapshot (`/run/bedtime-shutdown/status`) the
+command reads. So a grant takes effect **within ~5 min**, not instantly.
+
+## Sudo extension — `bedtime-sudo-extra`
+
+Pushes the sudo cutoff later for the rest of **today** by swapping the managed
+sudo rule from `BSS_PAM_SUDO_DEFAULT` to `BSS_PAM_SUDO_EXTENDED` (no time math —
+just which verbatim line is written). Config:
+
+```bash
+BSS_PAM_SUDO_ENABLE=true
+BSS_PAM_SUDO_DEFAULT="sudo; *; ${BSS_USER_NAME}; !Al1900-0500"   # normal cutoff 19:00
+BSS_PAM_SUDO_EXTENDED="sudo; *; ${BSS_USER_NAME}; !Al2000-0500"  # granted cutoff 20:00
+BSS_PAM_SUDO_WEEKLY_MAX=3
+```
+
+```shell
+bedtime-sudo-extra        # preview (extended rule + local time + budget), confirm, request
+bedtime-sudo-extra -s     # show status only
+bedtime-sudo-extra -y     # skip the confirmation prompt
+```
+
+The preview shows the extended rule and the current time so you can sanity-check
+the window before confirming (e.g. if it's already past the extended start,
+there's nothing to gain). The grant reverts to `DEFAULT` automatically at the
+next allowance-day. `bedtime-sudo-extra` is a user command deployed by
+`dotfiles-link` (it needs no root); the rest deploys with `install.sh`.
+
 # ❓ FAQ
 
 **Q: What about DST (Daylight Saving Time) changes?**

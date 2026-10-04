@@ -762,6 +762,39 @@ _run_shutdown_sequence() {
   fi
 }
 
+# Grant a pending sudo-extension request if within the daily (1) + weekly limit.
+# The request is a marker the user writes WITHOUT sudo (bedtime-sudo-extra); the
+# limits are enforced here against the root-owned ledger, so they can't be faked.
+# The marker is consumed either way (grant or deny). State globals come from
+# _allowance_load; _reassert_pam (called after) renders the resulting sudo rule.
+_process_sudo_request() {
+  [[ "${BSS_PAM_SUDO_ENABLE:-false}" == "true" ]] || return 0
+  local -r req=$(_allowance_request_file sudo)
+  [[ -e "$req" ]] || return 0
+  _log "Sudo-extension request found ($req)."
+
+  if [[ "${SUDO_LAST_DAY:-}" == "${ALLOWANCE_TODAY:-}" ]]; then
+    _log_info "Sudo extension already active today; ignoring duplicate request."
+    _do rm -f "$req"
+    return 0
+  fi
+
+  local -ri max=${BSS_PAM_SUDO_WEEKLY_MAX:-3}
+  if (( SUDO_WEEK_COUNT >= max )); then
+    _log_warn "Sudo extension DENIED: weekly limit reached (${SUDO_WEEK_COUNT}/${max})."
+    _notify_user "Sudo extension denied: weekly limit reached (${SUDO_WEEK_COUNT}/${max})."
+    _do rm -f "$req"
+    return 0
+  fi
+
+  SUDO_LAST_DAY="${ALLOWANCE_TODAY}"
+  SUDO_WEEK_COUNT=$(( SUDO_WEEK_COUNT + 1 ))
+  _allowance_save
+  _log "Sudo extension GRANTED (${SUDO_WEEK_COUNT}/${max} this week)."
+  _notify_user "Sudo extension granted (${SUDO_WEEK_COUNT}/${max} this week): ${BSS_PAM_SUDO_EXTENDED}"
+  _do rm -f "$req"
+}
+
 # Main function: acquire the lock, validate, resolve the current phase, dispatch.
 main() {
   # Server guard: never power off / sleep a listed server (installed by mistake).
@@ -772,6 +805,14 @@ main() {
   _acquire_lock
   _log_info "Starting bedtime sequence..."
   _log_debug "Configuration: User=$BSS_USER_NAME, Grace periods: user=${BSS_GRACE_PERIOD_USER}s, system=${BSS_GRACE_PERIOD_SYSTEM}s, sleep=${BSS_SLEEP_GRACE}s"
+
+  # Allowance + PAM re-assert, every tick (each piece self-gates on its *_ENABLE):
+  # load the ledger, apply a pending sudo request, re-render time.conf, publish
+  # the status snapshot the bedtime-*-extra commands read.
+  _allowance_load
+  _process_sudo_request
+  _reassert_pam
+  _write_status
 
   _validate_sleep_config
 

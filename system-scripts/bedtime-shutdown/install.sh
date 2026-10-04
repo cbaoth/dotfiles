@@ -189,6 +189,10 @@ deploy_rearm() {
   if ! is_write_run; then return 0; fi
   if [[ "$OWNER" != root ]]; then return 0; fi   # sandbox test: skip systemctl
 
+  # Allowance ledger dir (root-only; the ledger itself is 0600).
+  mkdir -p /var/lib/bedtime-shutdown && chmod 700 /var/lib/bedtime-shutdown
+  ok "Allowance state dir ready: /var/lib/bedtime-shutdown"
+
   info "Reloading systemd, enabling and starting the re-arm timer..."
   systemctl daemon-reload
   systemctl enable bedtime-rearm.timer >/dev/null 2>&1 || true

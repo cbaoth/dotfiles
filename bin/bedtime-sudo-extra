@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Request a one-evening sudo-cutoff extension from the bedtime allowance.
+# Runs as YOU (no sudo - you'd ask for this when sudo is already blocked): it
+# previews the effect + remaining weekly budget, and on confirmation drops a
+# request marker that the root bedtime tick applies within ~5 min (once per day,
+# N per week - enforced root-side). See system-scripts/bedtime-shutdown/README.md.
+
+set -euo pipefail
+
+declare STATUS_FILE="${BSS_STATUS_FILE:-/run/bedtime-shutdown/status}"
+declare ASSUME_YES=false
+declare STATUS_ONLY=false
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-y] [-s] [-h]
+
+Request a sudo-cutoff extension for tonight (swaps the sudo time.conf rule to its
+EXTENDED variant for the rest of today). Enforced root-side: once per day, a
+configurable number of times per week.
+
+  -y, --yes      Skip the confirmation prompt.
+  -s, --status   Show the current allowance status and exit (no request).
+  -h, --help     Show this help.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -y|--yes)    ASSUME_YES=true ;;
+    -s|--status) STATUS_ONLY=true ;;
+    -h|--help)   usage; exit 0 ;;
+    *) echo "bedtime-sudo-extra: unknown option: $1 (see --help)" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+# Parse the root-published status snapshot (key=value; parsed, never sourced -
+# values may contain spaces and ';' from the rule lines).
+declare -A S=()
+if [[ -r "$STATUS_FILE" ]]; then
+  while IFS='=' read -r k v; do
+    [[ -z "$k" || "$k" == \#* ]] && continue
+    S["$k"]="$v"
+  done < "$STATUS_FILE"
+else
+  echo "bedtime-sudo-extra: no status at $STATUS_FILE (the bedtime service may not have run yet)." >&2
+  echo "You can still request; the service validates it on its next run." >&2
+fi
+
+declare now; now="$(date '+%H:%M:%S')"; declare -r now
+declare -ri max=${S[SUDO_WEEKLY_MAX]:-0}
+declare -ri used=${S[SUDO_WEEK_COUNT]:-0}
+declare -ri left=$(( max - used < 0 ? 0 : max - used ))
+
+if [[ "$STATUS_ONLY" == true ]]; then
+  echo "Bedtime sudo allowance (now ${now}):"
+  echo "  enabled:        ${S[SUDO_ENABLE]:-unknown}"
+  echo "  active today:   ${S[SUDO_ACTIVE_TODAY]:-unknown}"
+  echo "  used this week: ${used}/${max} (resets ${S[ALLOWANCE_RESET_DOW]:-?} ${S[ALLOWANCE_RESET_TIME]:-?})"
+  echo "  default rule:   ${S[SUDO_DEFAULT_RULE]:-?}"
+  echo "  extended rule:  ${S[SUDO_EXTENDED_RULE]:-?}"
+  exit 0
+fi
+
+if [[ "${S[SUDO_ENABLE]:-false}" != "true" ]]; then
+  echo "bedtime-sudo-extra: sudo extension is disabled (BSS_PAM_SUDO_ENABLE); nothing to do." >&2
+  exit 1
+fi
+if [[ "${S[SUDO_ACTIVE_TODAY]:-false}" == "true" ]]; then
+  echo "bedtime-sudo-extra: already extended today. Nothing to do." >&2
+  exit 0
+fi
+if (( max > 0 && left == 0 )); then
+  echo "bedtime-sudo-extra: no extensions left this week (${used}/${max}; resets ${S[ALLOWANCE_RESET_DOW]:-?} ${S[ALLOWANCE_RESET_TIME]:-?})." >&2
+  exit 1
+fi
+
+echo "Extend sudo for tonight:"
+echo "  now:            ${now}"
+echo "  rule becomes:   ${S[SUDO_EXTENDED_RULE]:-<unknown; service will apply configured value>}"
+echo "  weekly budget:  ${used}/${max} used -> ${left} left before this"
+echo "  (sanity-check the rule's window against the time above before confirming)"
+
+if [[ "$ASSUME_YES" != true ]]; then
+  read -r -p "Request this extension? [y/N] " ans
+  [[ "$ans" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+fi
+
+# Write the request marker where the tick looks (status publishes the dir).
+declare REQ_DIR="${S[REQUEST_DIR]:-$HOME/.local/state/bedtime}"
+mkdir -p "$REQ_DIR"
+date -Is > "$REQ_DIR/request.sudo"
+echo "Requested. Applies within ~5 min (next bedtime service tick); 'bedtime-sudo-extra -s' to check."

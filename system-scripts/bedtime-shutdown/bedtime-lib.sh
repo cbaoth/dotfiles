@@ -97,15 +97,162 @@ _shift_hhmm() {
 }
 # }}} = TIME MATH ============================================================
 
+# {{{ = ALLOWANCE (ledger + accounting) ======================================
+# Count-based allowances (bedtime + sudo): one grant/day, N grants/week. The
+# root-owned ledger holds the counts (so the limits cannot be faked from the
+# user-writable request file); a world-readable status file lets the no-sudo
+# bedtime-*-extra commands preview remaining budget. These primitives live here
+# because both the tick (which grants + renders) and re-arm (which renders) need
+# the current state; the tick owns request processing (it also notifies the user).
+declare BSS_ALLOWANCE_LEDGER_DEFAULT="/var/lib/bedtime-shutdown/allowance.ledger"
+declare BSS_STATUS_FILE_DEFAULT="/run/bedtime-shutdown/status"
+
+# Map a day-of-week (name or ISO 1-7, case-insensitive) to ISO number 1..7, or
+# empty on an unrecognised value.
+_dow_to_iso() {
+  case "${1,,}" in
+    1|mo|mon|monday)     echo 1 ;;
+    2|tu|tue|tuesday)    echo 2 ;;
+    3|we|wed|wednesday)  echo 3 ;;
+    4|th|thu|thursday)   echo 4 ;;
+    5|fr|fri|friday)     echo 5 ;;
+    6|sa|sat|saturday)   echo 6 ;;
+    7|su|sun|sunday)     echo 7 ;;
+    *)                   echo "" ;;
+  esac
+}
+
+# The current allowance-day (YYYY-MM-DD), rolling at BSS_ALLOWANCE_RESET_TIME:
+# shifting "now" back by the reset time puts the hours before it on the previous
+# day, so a 23:00 grant and its post-midnight life share one allowance-day.
+_allowance_today() {
+  local -ri reset_min=$(_hhmm_to_min "${BSS_ALLOWANCE_RESET_TIME:-08:00}")
+  date -d "-${reset_min} minutes" +%F
+}
+
+# The week-anchor date = the most recent RESET_DOW on/before the allowance-day.
+# The week "rolls" (counts reset) when this value changes.
+_allowance_anchor() {
+  local -r today=$1
+  local -i target
+  target=$(_dow_to_iso "${BSS_ALLOWANCE_RESET_DOW:-monday}")
+  if [[ -z "$target" ]]; then
+    _log_warn "Invalid BSS_ALLOWANCE_RESET_DOW ['${BSS_ALLOWANCE_RESET_DOW:-}']; defaulting to monday."
+    target=1
+  fi
+  local -ri today_dow=$(date -d "$today" +%u)
+  local -ri back=$(( ( today_dow - target + 7 ) % 7 ))
+  date -d "$today -${back} days" +%F
+}
+
+# Load the ledger into globals (ALLOWANCE_TODAY/ANCHOR + per-feature counts),
+# rolling each feature's week in-memory when the anchor has changed. Safe to call
+# from both the tick and re-arm.
+_allowance_load() {
+  local -r ledger="${BSS_ALLOWANCE_LEDGER:-$BSS_ALLOWANCE_LEDGER_DEFAULT}"
+  SUDO_WEEK_ANCHOR="" SUDO_WEEK_COUNT=0 SUDO_LAST_DAY=""
+  BEDTIME_WEEK_ANCHOR="" BEDTIME_WEEK_COUNT=0 BEDTIME_LAST_DAY=""
+  if [[ -r "$ledger" ]]; then
+    # shellcheck source=/dev/null
+    source "$ledger"
+  fi
+  ALLOWANCE_TODAY=$(_allowance_today)
+  ALLOWANCE_ANCHOR=$(_allowance_anchor "$ALLOWANCE_TODAY")
+  [[ "${SUDO_WEEK_ANCHOR:-}" != "$ALLOWANCE_ANCHOR" ]] && { SUDO_WEEK_ANCHOR="$ALLOWANCE_ANCHOR"; SUDO_WEEK_COUNT=0; }
+  [[ "${BEDTIME_WEEK_ANCHOR:-}" != "$ALLOWANCE_ANCHOR" ]] && { BEDTIME_WEEK_ANCHOR="$ALLOWANCE_ANCHOR"; BEDTIME_WEEK_COUNT=0; }
+  return 0   # the && tests above must not become this function's (set -e) exit status
+}
+
+# Persist the ledger globals (atomic, 0600 root). No-op in dry-run.
+_allowance_save() {
+  local -r ledger="${BSS_ALLOWANCE_LEDGER:-$BSS_ALLOWANCE_LEDGER_DEFAULT}"
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then _log_debug "[DRY-RUN] would update ledger: $ledger"; return 0; fi
+  mkdir -p "$(dirname "$ledger")" 2>/dev/null || true
+  local tmp; tmp=$(mktemp) || { _log_error "mktemp failed."; return 1; }
+  {
+    echo "# bedtime-shutdown allowance ledger (managed; do not edit by hand)"
+    echo "SUDO_WEEK_ANCHOR=${SUDO_WEEK_ANCHOR}"
+    echo "SUDO_WEEK_COUNT=${SUDO_WEEK_COUNT}"
+    echo "SUDO_LAST_DAY=${SUDO_LAST_DAY}"
+    echo "BEDTIME_WEEK_ANCHOR=${BEDTIME_WEEK_ANCHOR}"
+    echo "BEDTIME_WEEK_COUNT=${BEDTIME_WEEK_COUNT}"
+    echo "BEDTIME_LAST_DAY=${BEDTIME_LAST_DAY}"
+  } > "$tmp"
+  install -m 0600 -o root -g root "$tmp" "$ledger" 2>/dev/null || mv "$tmp" "$ledger"
+  rm -f "$tmp" 2>/dev/null || true
+}
+
+# BSS_USER_NAME's home (for the user-writable request files).
+_user_home() { getent passwd "$BSS_USER_NAME" 2>/dev/null | cut -d: -f6; }
+
+# Path of a feature's request marker ($1 = sudo|bedtime).
+_allowance_request_file() {
+  local dir="${BSS_ALLOWANCE_REQUEST_DIR:-}"
+  [[ -z "$dir" ]] && dir="$(_user_home)/.local/state/bedtime"
+  printf '%s/request.%s' "$dir" "$1"
+}
+
+# True when today's sudo grant is active (so the render emits the EXTENDED rule).
+_sudo_extended_active() {
+  [[ "${BSS_PAM_SUDO_ENABLE:-false}" == "true" ]] || return 1
+  [[ -n "${SUDO_LAST_DAY:-}" && "${SUDO_LAST_DAY:-}" == "${ALLOWANCE_TODAY:-}" ]]
+}
+
+# Publish a world-readable status snapshot for the bedtime-*-extra commands.
+# Written key=value (the commands PARSE, never source, so unquoted spaces and the
+# ';' in rule lines are fine). No-op in dry-run.
+_write_status() {
+  local -r f="${BSS_STATUS_FILE:-$BSS_STATUS_FILE_DEFAULT}"
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then _log_debug "[DRY-RUN] would update status: $f"; return 0; fi
+  mkdir -p "$(dirname "$f")" 2>/dev/null || true
+  local tmp; tmp=$(mktemp) || return 1
+  {
+    echo "# bedtime-shutdown status ($(date -Is 2>/dev/null)); read by bedtime-*-extra"
+    echo "REQUEST_DIR=$(dirname "$(_allowance_request_file sudo)")"
+    echo "ALLOWANCE_TODAY=${ALLOWANCE_TODAY}"
+    echo "ALLOWANCE_ANCHOR=${ALLOWANCE_ANCHOR}"
+    echo "ALLOWANCE_RESET_DOW=${BSS_ALLOWANCE_RESET_DOW:-monday}"
+    echo "ALLOWANCE_RESET_TIME=${BSS_ALLOWANCE_RESET_TIME:-08:00}"
+    echo "SUDO_ENABLE=${BSS_PAM_SUDO_ENABLE:-false}"
+    echo "SUDO_WEEKLY_MAX=${BSS_PAM_SUDO_WEEKLY_MAX:-3}"
+    echo "SUDO_WEEK_COUNT=${SUDO_WEEK_COUNT}"
+    echo "SUDO_ACTIVE_TODAY=$([[ "${SUDO_LAST_DAY:-}" == "${ALLOWANCE_TODAY:-}" ]] && echo true || echo false)"
+    echo "SUDO_DEFAULT_RULE=${BSS_PAM_SUDO_DEFAULT:-}"
+    echo "SUDO_EXTENDED_RULE=${BSS_PAM_SUDO_EXTENDED:-}"
+  } > "$tmp"
+  install -m 0644 "$tmp" "$f" 2>/dev/null || mv "$tmp" "$f"
+  rm -f "$tmp" 2>/dev/null || true
+}
+# }}} = ALLOWANCE (ledger + accounting) ======================================
+
 # {{{ = PAM RE-ASSERT ========================================================
+# Returns 0 if a time.conf rule line looks well-formed; warns + returns 1 if not.
+# Keeps a malformed rule (wrong field count, or an HH:MM colon pam_time would
+# misparse) OUT of the file, so a typo can never lock the user out.
+_pam_rule_valid() {
+  local -r line=$1
+  local -r semis="${line//[^;]/}"
+  if (( ${#semis} != 3 )); then
+    _log_warn "PAM rule skipped (need 4 ';'-separated fields): $line"
+    return 1
+  fi
+  if [[ "$line" =~ [0-9]:[0-9] ]]; then
+    _log_warn "PAM rule skipped (colon in time; pam_time uses HHMM, e.g. 2100-0500): $line"
+    return 1
+  fi
+  return 0
+}
+
 # Re-assert the PAM time.conf rules inside a managed marker block (tail of file).
 # Verify-only for common-account (editing it risks breaking pam-auth-update).
-# Rules come verbatim from the BSS_PAM_BLOCK array; a clearly malformed line is
-# warned-and-skipped so a bad rule can never lock the user out. Callable from
-# both the re-arm (08/12/16+boot) and the tick (to apply an evening sudo grant).
+# Static rules come verbatim from BSS_PAM_BLOCK; the sudo rule is appended from
+# the DEFAULT/EXTENDED pair per the current allowance state (so the sudo-extension
+# grant takes effect just by swapping which line is written). Callable from both
+# re-arm (08/12/16+boot) and the tick (to apply an evening sudo grant).
 _reassert_pam() {
   [[ "${BSS_REARM_ENFORCE_PAM:-false}" == "true" ]] || { _log_debug "PAM re-assert disabled."; return 0; }
-  local -r conf="/etc/security/time.conf"
+  local -r conf="${BSS_PAM_TIME_CONF:-/etc/security/time.conf}"
+  local -r common_account="${BSS_PAM_COMMON_ACCOUNT:-/etc/pam.d/common-account}"
   local -r begin="# >>> bedtime-rearm managed >>> DO NOT EDIT BELOW THIS LINE"
   local -r end="# <<< bedtime-rearm managed <<<"
 
@@ -117,45 +264,45 @@ _reassert_pam() {
   # Enforcement point: without pam_time active in common-account the rules do
   # nothing. Refuse to write a rule that would give a false sense of security.
   if ! grep -Eq '^[[:space:]]*account[[:space:]]+(required|requisite)[[:space:]]+pam_time\.so' \
-        /etc/pam.d/common-account 2>/dev/null; then
+        "$common_account" 2>/dev/null; then
     _log_warn "pam_time.so is NOT active in /etc/pam.d/common-account; time.conf rules will not be enforced."
     _log_warn "Add 'account required pam_time.so' there (see README), then re-run. Skipping time.conf edit."
     return 0
   fi
 
-  if [[ -z "${BSS_PAM_BLOCK+x}" ]] || (( ${#BSS_PAM_BLOCK[@]} == 0 )); then
-    _log_warn "BSS_PAM_BLOCK is empty/unset; nothing to re-assert. Skipping time.conf edit."
-    return 0
+  # Static rules (verbatim from the array) ...
+  local -a valid=()
+  local line
+  if [[ -n "${BSS_PAM_BLOCK+x}" ]]; then
+    for line in "${BSS_PAM_BLOCK[@]}"; do
+      [[ -z "${line//[[:space:]]/}" ]] && continue      # skip blank lines
+      _pam_rule_valid "$line" && valid+=("$line")
+    done
   fi
 
-  local -a valid=()
-  local line semis
-  for line in "${BSS_PAM_BLOCK[@]}"; do
-    [[ -z "${line//[[:space:]]/}" ]] && continue        # skip blank lines
-    # Expect exactly 4 ';'-separated fields (logic operators & | add no ';').
-    semis="${line//[^;]/}"
-    if (( ${#semis} != 3 )); then
-      _log_warn "PAM rule skipped (need 4 ';'-separated fields): $line"
-      continue
+  # ... plus the sudo rule from the DEFAULT/EXTENDED pair (allowance-driven).
+  if [[ "${BSS_PAM_SUDO_ENABLE:-false}" == "true" ]]; then
+    local sudo_line
+    if _sudo_extended_active; then
+      sudo_line="${BSS_PAM_SUDO_EXTENDED:-}"
+      _log_debug "Sudo extension active today; emitting EXTENDED sudo rule."
+    else
+      sudo_line="${BSS_PAM_SUDO_DEFAULT:-}"
     fi
-    # pam_time times are HHMM with NO colon (man 5 time.conf); an HH:MM colon is
-    # the classic footgun - refuse it rather than write a misparsing rule.
-    if [[ "$line" =~ [0-9]:[0-9] ]]; then
-      _log_warn "PAM rule skipped (colon in time; pam_time uses HHMM, e.g. 2100-0500): $line"
-      continue
+    if [[ -n "${sudo_line//[[:space:]]/}" ]] && _pam_rule_valid "$sudo_line"; then
+      valid+=("$sudo_line")
     fi
-    valid+=("$line")
-  done
+  fi
 
   if (( ${#valid[@]} == 0 )); then
-    _log_warn "No valid rules in BSS_PAM_BLOCK; leaving time.conf unchanged."
+    _log_warn "No valid PAM rules (BSS_PAM_BLOCK + sudo pair); leaving time.conf unchanged."
     return 0
   fi
 
   # Build the managed block from the validated rules (written verbatim).
   local block
   block="${begin}"$'\n'
-  block+="# Regenerated by bedtime-rearm.sh from ${CONFIG_FILE} (BSS_PAM_BLOCK)."$'\n'
+  block+="# Regenerated from ${CONFIG_FILE:-/etc/bedtime-shutdown.conf} (BSS_PAM_BLOCK + sudo pair) by the bedtime tick / re-arm."$'\n'
   block+="# Manual edits from the begin-marker to EOF are overwritten on re-arm."$'\n'
   block+="# pam_time ANDs all matching rules; format: <services>; <ttys>; <users>; <times>"$'\n'
   for line in "${valid[@]}"; do
@@ -190,8 +337,12 @@ _reassert_pam() {
   fi
 
   cp -a "$conf" "${conf}.bedtime.bak" 2>/dev/null && _log_debug "backed up -> ${conf}.bedtime.bak"
-  install -m 0644 -o root -g root "$tmp" "$conf"
-  rm -f "$tmp"
+  # Real deploys run as root (-o root); the plain-install / mv fallbacks only
+  # matter for non-root tests against a temp BSS_PAM_TIME_CONF.
+  install -m 0644 -o root -g root "$tmp" "$conf" 2>/dev/null \
+    || install -m 0644 "$tmp" "$conf" 2>/dev/null \
+    || mv "$tmp" "$conf"
+  rm -f "$tmp" 2>/dev/null || true
   _log "Updated PAM managed block in $conf."
 }
 # }}} = PAM RE-ASSERT ========================================================

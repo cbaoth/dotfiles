@@ -254,7 +254,9 @@ main() {
   _ensure_unit "bedtime.timer"
   _ensure_unit "bedtime-rearm.timer"
   _enforce_state
+  _allowance_load       # so the PAM render reflects an active sudo grant, if any
   _reassert_pam
+  _write_status
 
   _log_info "Re-arm complete."
 }
