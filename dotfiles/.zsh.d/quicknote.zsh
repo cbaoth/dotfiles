@@ -37,29 +37,71 @@ add-zle-hook-widget line-finish _qn_raw_line
 # }}} = RAW TEXT AFTER ' -- ' =================================================
 
 # {{{ = MULTI-LINE PROMPT =====================================================
-# A vared keymap where Enter inserts a newline and Ctrl-Enter or Ctrl-D save.
-# Terminals only send a distinct Ctrl-Enter when asked (modifyOtherKeys, see
-# _qn_read) and only if they support it (foot yes, Termius no), so Ctrl-D is
-# the portable key. Alt-Enter deliberately inserts a newline: elsewhere (e.g.
-# chat prompts) it means "newline", so it must never save by accident.
+# A small vared editor, deliberately NOT a shell prompt: no completion, no
+# history, no autosuggestions or highlighting, no alias expansion on Space.
+# The keymap starts from the minimal .safe keymap (every key inserts itself)
+# plus plain editing keys, all bound to the builtin .widget forms, which the
+# plugins' wrappers never touch. Tab inserts a literal tab.
+#
+# Enter inserts a newline; Ctrl-Enter or Ctrl-D save. Terminals only send a
+# distinct Ctrl-Enter when asked (modifyOtherKeys, see _qn_read) and only if
+# they support it (foot yes, Termius no), so Ctrl-D is the portable key.
+# Alt-Enter deliberately inserts a newline: elsewhere (e.g. chat prompts) it
+# means "newline", so it must never save by accident.
 _qn_newline() { LBUFFER+=$'\n'; }
 zle -N _qn_newline
 
 _qn_keymap() {
   bindkey -l _qn_input &> /dev/null && return 0
-  bindkey -N _qn_input viins
-  bindkey -M _qn_input '^M'          _qn_newline
-  bindkey -M _qn_input '^J'          _qn_newline
-  bindkey -M _qn_input '^[[27;5;13~' accept-line   # ctrl-enter (modifyOtherKeys)
-  bindkey -M _qn_input '^[[13;5u'    accept-line   # ctrl-enter (kitty/CSI u)
-  # alt-enter; unbound, ESC would switch to vicmd, where Enter submits
-  bindkey -M _qn_input '^[^M'        _qn_newline
-  bindkey -M _qn_input '^D'          accept-line
+  bindkey -N _qn_input .safe
+  local -A keys=(
+    '^M'          _qn_newline
+    '^J'          _qn_newline
+    '^[^M'        _qn_newline                 # alt-enter
+    '^[[27;5;13~' .accept-line                # ctrl-enter (modifyOtherKeys)
+    '^[[13;5u'    .accept-line                # ctrl-enter (kitty/CSI u)
+    '^D'          .accept-line
+    '^?'          .backward-delete-char
+    '^H'          .backward-delete-char
+    '^[[3~'       .delete-char
+    '^W'          .backward-kill-word
+    '^U'          .backward-kill-line
+    '^K'          .kill-line
+    '^Y'          .yank
+    '^A'          .beginning-of-line
+    '^E'          .end-of-line
+    '^[[H'        .beginning-of-line
+    '^[[F'        .end-of-line
+    '^[OH'        .beginning-of-line
+    '^[OF'        .end-of-line
+    '^[[1~'       .beginning-of-line
+    '^[[4~'       .end-of-line
+    '^[[D'        .backward-char
+    '^[[C'        .forward-char
+    '^[OD'        .backward-char
+    '^[OC'        .forward-char
+    '^[[A'        .up-line                    # within the note, not history
+    '^[[B'        .down-line
+    '^[OA'        .up-line
+    '^[OB'        .down-line
+    '^[[1;5D'     .backward-word
+    '^[[1;5C'     .forward-word
+    '^[b'         .backward-word
+    '^[f'         .forward-word
+    '^[d'         .kill-word
+    '^_'          .undo
+    '^[[200~'     .bracketed-paste
+  )
+  local k
+  for k in "${(@k)keys}"; do bindkey -M _qn_input "${k}" "${keys[${k}]}"; done
 }
 
 # Read a multi-line note into the variable named $1. Ctrl-C cancels.
 _qn_read() {
   local _qn_text=''
+  # Switch the plugins off for this prompt only (both are re-checked per key).
+  local _ZSH_AUTOSUGGEST_DISABLED=1      # zsh-autosuggestions
+  local ZSH_HIGHLIGHT_MAXLENGTH=0        # fast-syntax-highlighting
   _qn_keymap
   print -P "%F{8}${2:-note}: Ctrl-Enter / Ctrl-D save, Ctrl-C cancel%f"
   # modifyOtherKeys mode 1 for the duration of the prompt: Ctrl-Enter then
@@ -68,7 +110,8 @@ _qn_read() {
   # Inside tmux this also needs `extended-keys on` (~/.tmux.conf).
   print -n '\e[>4;1m' > /dev/tty
   {
-    vared -M _qn_input -p '%F{cyan}>%f ' _qn_text || return 1
+    # No prompt string: what you see is exactly what gets saved.
+    vared -M _qn_input -p '' _qn_text || return 1
   } always {
     print -n '\e[>4m' > /dev/tty
   }
