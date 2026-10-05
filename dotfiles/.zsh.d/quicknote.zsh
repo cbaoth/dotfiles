@@ -37,9 +37,11 @@ add-zle-hook-widget line-finish _qn_raw_line
 # }}} = RAW TEXT AFTER ' -- ' =================================================
 
 # {{{ = MULTI-LINE PROMPT =====================================================
-# A vared keymap where Enter inserts a newline and submitting needs a modified
-# Enter. Terminals only send a distinct Ctrl-Enter with modifyOtherKeys or the
-# kitty protocol (foot does), so Alt-Enter and Ctrl-D are the portable keys.
+# A vared keymap where Enter inserts a newline and Ctrl-Enter or Ctrl-D save.
+# Terminals only send a distinct Ctrl-Enter when asked (modifyOtherKeys, see
+# _qn_read) and only if they support it (foot yes, Termius no), so Ctrl-D is
+# the portable key. Alt-Enter deliberately inserts a newline: elsewhere (e.g.
+# chat prompts) it means "newline", so it must never save by accident.
 _qn_newline() { LBUFFER+=$'\n'; }
 zle -N _qn_newline
 
@@ -50,7 +52,8 @@ _qn_keymap() {
   bindkey -M _qn_input '^J'          _qn_newline
   bindkey -M _qn_input '^[[27;5;13~' accept-line   # ctrl-enter (modifyOtherKeys)
   bindkey -M _qn_input '^[[13;5u'    accept-line   # ctrl-enter (kitty/CSI u)
-  bindkey -M _qn_input '^[^M'        accept-line   # alt-enter
+  # alt-enter; unbound, ESC would switch to vicmd, where Enter submits
+  bindkey -M _qn_input '^[^M'        _qn_newline
   bindkey -M _qn_input '^D'          accept-line
 }
 
@@ -58,7 +61,7 @@ _qn_keymap() {
 _qn_read() {
   local _qn_text=''
   _qn_keymap
-  print -P "%F{8}${2:-note}: Ctrl-Enter / Alt-Enter / Ctrl-D save, Ctrl-C cancel%f"
+  print -P "%F{8}${2:-note}: Ctrl-Enter / Ctrl-D save, Ctrl-C cancel%f"
   # modifyOtherKeys mode 1 for the duration of the prompt: Ctrl-Enter then
   # arrives as CSI 27;5;13~ instead of a plain \r. Mode 1 (not 2, not the kitty
   # protocol) on purpose: it leaves Ctrl-C/Ctrl-D as the usual control bytes.
