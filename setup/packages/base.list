@@ -66,6 +66,12 @@ python-is-python3
 
 # Development tools
 shellcheck
+# Claude Code's sandboxed Bash tool needs both on Linux; without them the CLI
+# still runs but warns, and sandboxing is unavailable. The CLI itself is not an
+# apt package here: setup/modules/28-claude-code.sh (which warns if these are
+# missing, since it can run without 00-apt-base).
+bubblewrap
+socat
 
 # Cron & scheduling
 # cronic wraps a cron job so output is mailed only on failure. Crontabs

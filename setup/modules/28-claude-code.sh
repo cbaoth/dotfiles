@@ -76,6 +76,14 @@ module_run() {
     return 0
   fi
 
+  # The sandboxed Bash tool needs bubblewrap + socat (both in base.list). Warn
+  # only: the CLI works without them, just unsandboxed.
+  local dep
+  for dep in bwrap socat; do
+    st::have_cmd "${dep}" \
+      || st::war "${dep} not found — Claude Code sandboxing unavailable (run '00-apt-base' first)"
+  done
+
   claude_cli_warn_conflicts
 
   # Present means done: the native install keeps itself current, so there is

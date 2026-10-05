@@ -34,6 +34,7 @@ declare -ra FILES=(
   /etc/systemd/system/bedtime-rearm.service
   /etc/systemd/system/bedtime-rearm.timer
   /run/bedtime-shutdown.lock
+  /run/bedtime-shutdown      # allowance status snapshot (tmpfs; skipped if absent)
   /var/lib/bedtime-shutdown
 )
 declare -r TIME_CONF="/etc/security/time.conf"
