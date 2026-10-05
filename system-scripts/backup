@@ -5,6 +5,19 @@
 # shellcheck shell=bash
 #
 # Run full or incremental system backups.
+#
+# SUPERSEDED 2026-10-04 — nothing runs this any more.
+#
+# It was saito's self-backup (tar full/inc to /media/backup, Mondays via
+# /etc/crontab). Replaced by a restic job; the deployed copy at /opt/bin/backup
+# is deleted and the cron lines are commented out.
+#
+# Kept here because the tooling is still sound and it documents what the
+# replacement has to cover. Before reusing it anywhere, know how it failed:
+# it was wrapped in `cronic`, which reports only by MAILING ROOT. When a
+# desktop purge removed the cronic package (2026-09-26), every run died with
+# "cronic: not found" and nothing noticed for two weeks. Any scheduled job
+# needs a positive success signal, not just a failure channel.
 
 PATH=/opt/bin:/usr/local/bin:/usr/bin:/bin
 

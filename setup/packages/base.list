@@ -22,11 +22,12 @@ lsof
 git
 git-lfs
 
-# Transfer
+# Transfer & backup
 wget
 curl
 aria2
 rsync
+restic
 # Previously only a gnome-shell dependency (auto); see desktop.list.
 sshfs
 gnupg
@@ -65,6 +66,15 @@ python-is-python3
 
 # Development tools
 shellcheck
+
+# Cron & scheduling
+# cronic wraps a cron job so output is mailed only on failure. Crontabs
+# reference it directly, so its absence breaks them *silently* — a desktop
+# purge removed it from saito on 2026-09-26 and took the backups down for two
+# weeks unnoticed. Tiny (21 kB installed, no deps beyond a shell).
+# NOTE: it reports by mailing root, which nobody reads. It is not alerting;
+# that is the ntfy heartbeat in the backup jobs.
+cronic
 
 # File maintenance
 jdupes
