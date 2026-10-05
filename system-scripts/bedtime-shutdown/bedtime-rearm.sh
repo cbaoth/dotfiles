@@ -216,6 +216,15 @@ _enforce_state() {
 _toggle_immutable() {
   local -r flag=$1   # +i or -i
   _require_root
+  # Unlocking weakens the protection: gate it (locking never is).
+  if [[ "$flag" == "-i" ]]; then
+    # A real unlock must be judged by the deployed config, not a hand-picked one.
+    if [[ $EUID -eq 0 && "$CONFIG_FILE" != /etc/bedtime-shutdown.conf ]]; then
+      _log_error "--unlock as root only works with the deployed config (/etc/bedtime-shutdown.conf)."
+      exit 1
+    fi
+    _tamper_gate "unlock" || exit 1
+  fi
   local -r verb=$([[ "$flag" == "+i" ]] && echo "Locking" || echo "Unlocking")
   _log "$verb (chattr $flag) the protected bedtime files..."
   local path mode
@@ -235,6 +244,11 @@ main() {
   esac
 
   _require_root
+  # Server guard: do not re-enable timers or edit PAM on a listed server.
+  if _is_server_host; then
+    _log_error "Host '$(_bss_hostname)' is a known server (BSS_SERVER_HOSTS); refusing to re-arm. Uninstall bedtime-shutdown here."
+    exit 0
+  fi
   _log_info "Starting bedtime re-arm (config: $CONFIG_FILE, dry-run: $DRY_RUN)..."
 
   _ensure_unit "bedtime.timer"

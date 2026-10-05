@@ -539,6 +539,61 @@ in the shutdown window with `--dry-run -vv` — confirm it lists that shell and
 2. Root-shell terminator — first `list`, then `true`.
 3. PAM re-assert — last, `sudo -i` held open on the first live test.
 
+## 🖥️ Server guard
+
+Installing this on a server by accident (e.g. from a VS Code / SSH session you
+did not realise was remote) turns into a nightly outage — and a box that powers
+off ~60 s after every boot inside the window. Two layers prevent that:
+
+- **Runtime:** `bedtime-shutdown.sh` and `bedtime-rearm.sh` refuse to act on
+  hosts in `BSS_SERVER_HOSTS` (a constant in `bedtime-lib.sh`, matched against
+  the full and short hostname). They log an error and exit 0: no poweroff, no
+  sleep, no PAM edit.
+- **Install:** `install.sh` shows a red banner when the host is listed, has no
+  graphical hint (default target, display manager, x11/wayland session), or the
+  session is remote (sshd in the process tree). A real deploy then asks you to
+  **type the hostname** — it makes you check *which* machine this is.
+
+## 🧱 Tamper protection
+
+Friction against the impulsive way out (uninstall / unlock / redeploy while
+sudo still works, or from a rescue shell). Configured by the `BSS_TAMPER_*`
+settings; unset = off, and an invalid setting counts as off (it never locks you
+out). Skipped on the server hosts above.
+
+| Action | Inside the window | Outside the window |
+| ------ | ----------------- | ------------------ |
+| `uninstall.sh` | refused (rescue/emergency mode too) | cooling-off, then typing challenge |
+| `bedtime-unlock` | refused | typing challenge |
+| `install.sh` redeploy | refused | allowed |
+| lock / re-arm | never gated — they only strengthen | |
+
+- **Cooling-off:** the first `uninstall.sh` run only files a request
+  (`/var/lib/bedtime-shutdown/uninstall-request`). A later run between
+  `BSS_TAMPER_UNINSTALL_DELAY_H` (24) and `BSS_TAMPER_REQUEST_EXPIRY_H` (72)
+  hours after it may proceed. `uninstall.sh --cancel` withdraws it.
+- **Typing challenge:** random text (`words` or `chars`, up to 1000 chars),
+  typed over a dim reference: green = right, red = wrong. Backspace fixes typos,
+  Enter only works once everything is correct, Ctrl-C aborts. Pasting is ignored
+  (bracketed paste, or a burst of queued keys). Optionally,
+  `BSS_TAMPER_CHALLENGE_MAX_ERRORS_PCT` swaps in a new text after too many typos.
+- **Validation:** the window must leave at least 60 min/day unprotected, and the
+  expiry must be ≥ delay + 24 h, so an uninstall slot always exists. `install.sh`
+  asks for a typed confirmation before deploying a config that breaks this.
+
+None of this stops a determined root user — it buys the impulse time to pass.
+
+## 🗑️ Uninstall
+
+``` shell
+./uninstall.sh --dry-run     # preview (no root needed)
+sudo ./uninstall.sh          # stop/disable units, clear chattr +i, remove files,
+                             # PAM managed block, root cron entry, lock + log
+```
+
+`/etc/pam.d/common-account` is never edited; a `pam_time.so` line there is only
+reported. Tamper protection applies (see above).
+
 # ❓ FAQ
 
 **Q: What about DST (Daylight Saving Time) changes?**

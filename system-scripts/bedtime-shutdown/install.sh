@@ -56,7 +56,17 @@ declare TARGET="default"
 declare FORCE=false
 declare DRY_RUN=false
 declare DIFF_ONLY=false
+
+# Globals bedtime-lib.sh expects (it logs to LOGFILE when set; keep it empty).
+declare LOGFILE="" SCRIPT_USER="${USER:-root}"
+declare -i VERBOSITY=0
 # }}} = CONSTANTS ============================================================
+
+# {{{ = LIBRARY ==============================================================
+# Server guard + tamper protection helpers, from the repo (the source of truth).
+# shellcheck source=bedtime-lib.sh
+source "$LIB_SRC" || { echo "missing $LIB_SRC" >&2; exit 1; }
+# }}} = LIBRARY ==============================================================
 
 # {{{ = HELPERS ==============================================================
 ok()   { echo -e "${GREEN}✓${NC} $*"; }
@@ -186,6 +196,48 @@ deploy_rearm() {
   ok "Re-arm timer active:"
   systemctl list-timers bedtime-rearm.timer --no-pager || true
 }
+# {{{ - Guards ---------------------------------------------------------------
+# Server guard: warn prominently when this looks like a server, and make a real
+# deploy type the hostname (yesterday's accident: deployed via a remote session).
+server_guard() {
+  local -a reasons=()
+  mapfile -t reasons < <(_server_signals)
+  (( ${#reasons[@]} > 0 )) || return 0
+  local -a extra=("" "bedtime-shutdown powers this machine off every night (and shortly after"
+                  "every boot inside the window). On a server that means an outage.")
+  _is_server_host && extra+=("This host is on the server list: the installed scripts will refuse to act.")
+  _warn_banner "This looks like a SERVER: $(_bss_hostname)" "${reasons[@]}" "${extra[@]}"
+  if ! is_write_run; then warn "preview only - a real deploy asks you to type the hostname"; return 0; fi
+  _confirm_hostname || { err "not confirmed; nothing deployed."; exit 1; }
+}
+
+# Tamper guard: no redeploy (which could weaken the setup) inside the protected
+# window of the DEPLOYED config. Fresh installs are never blocked.
+tamper_guard() {
+  [[ -r "$CONFIG_DST" ]] || return 0
+  _is_server_host && return 0
+  # shellcheck source=/dev/null
+  if ( source "$CONFIG_DST"; _tamper_active ); then
+    # shellcheck source=/dev/null
+    ( source "$CONFIG_DST"; _tamper_refuse "install.sh (redeploy)" )
+    exit 1
+  fi
+}
+
+# Config guard: tamper settings in the REPO config that would (nearly) always
+# block uninstall/unlock need an explicit, typed confirmation before deploying.
+config_guard() {
+  local problems
+  # shellcheck source=/dev/null
+  problems=$( source "$CONFIG_SRC"; _tamper_enabled || exit 0; _tamper_validate ) && return 0
+  local -a lines=()
+  mapfile -t lines <<<"$problems"
+  _warn_banner "Tamper protection settings in $CONFIG_SRC look wrong" "${lines[@]}" "" \
+    "Deployed like this, tamper protection is treated as OFF at runtime (never a lockout)."
+  if ! is_write_run; then return 0; fi
+  _confirm_hostname || { err "not confirmed; nothing deployed."; exit 1; }
+}
+# }}} - Guards ---------------------------------------------------------------
 # }}} = HELPERS ==============================================================
 
 # {{{ = ARGUMENT PARSING =====================================================
@@ -209,6 +261,12 @@ main() {
   if is_write_run && [[ $EUID -ne 0 && "$OWNER" == root ]]; then
     err "deploying needs root; re-run with sudo (or preview with --dry-run / --diff)."
     exit 1
+  fi
+
+  server_guard
+  is_write_run && tamper_guard
+  if [[ "$TARGET" == config || "$TARGET" == all || ( "$TARGET" == default && ! -e "$CONFIG_DST" ) ]]; then
+    config_guard
   fi
 
   echo "===================================="

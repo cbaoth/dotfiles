@@ -764,6 +764,11 @@ _run_shutdown_sequence() {
 
 # Main function: acquire the lock, validate, resolve the current phase, dispatch.
 main() {
+  # Server guard: never power off / sleep a listed server (installed by mistake).
+  if _is_server_host; then
+    _log_error "Host '$(_bss_hostname)' is a known server (BSS_SERVER_HOSTS); refusing to act. Uninstall bedtime-shutdown here."
+    exit 0
+  fi
   _acquire_lock
   _log_info "Starting bedtime sequence..."
   _log_debug "Configuration: User=$BSS_USER_NAME, Grace periods: user=${BSS_GRACE_PERIOD_USER}s, system=${BSS_GRACE_PERIOD_SYSTEM}s, sleep=${BSS_SLEEP_GRACE}s"
