@@ -503,6 +503,8 @@ Just some quick unrefined notes, before I forget:
   - related things to consider, if not already covered by the current solution, or a potential future solution (open topic, see previous point:
     - orphan pruning of symlinks (see `tools/link.sh`), potentially empty dirs as well (this can however be dangerous, unless we know that i dir is only used for dotfile repo purposes).
     - potentially an uninstall option, to remove all symlinks (and other fs objects that were created by the dotfiles setup, and that can safely be removed)
+- [ ] quicknote: mobile voice/AI notes to saito (sftp), ingest via `quicknote --stdin --at <mtime> --suffix mobile` (or an `inbox/_incoming/` drop dir) _(2026-10-05)_
+  - the backend already supports --at/--suffix; only the transport and an ingest loop are missing
 
 # 7. System Updates — Reminders, Auto-Update & Release Upgrades
 

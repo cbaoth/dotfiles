@@ -134,6 +134,7 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | `bin/image-concat` | Concatenate images. |
 | `bin/mpv-find` | Find media files and play with mpv. |
 | `bin/netshare-bench` | Benchmark mounted network shares (NFS/CIFS/SMB) using `fio` and `iozone`. Tests sequential/random I/O, parallel photo-app reads (Lightroom/XnView MP workload), directory traversal (readdir/getattr RPC load), and network latency. Useful for comparing protocols and configuration tuning (LAN vs. Wi-Fi, server/client settings). All output is logged to a timestamped file alongside stdout. |
+| `bin/quicknote` | Append timestamped quick notes to the logical day's file in `~/notes/inbox/` (day starts at 04:00, `QN_DAY_START`), or as a `- [ ]` bullet to *Quick Notes* in `docs/TODO.md`. Zsh front-end in `.zsh.d/quicknote.zsh`: `qn TEXT` / `qn -- RAW TEXT` (quotes, backticks and `\n` taken literally) / `qn` (multi-line prompt) / `qne` (new note in `$EDITOR`) / `qnee [DATE]` (edit a day file, 3-way merge on save); `qt`/`qte` target the TODO. Drafts survive a killed editor; `quicknote --resolve` recovers them. `voice-note` saves through it. |
 | `bin/rsync-parallel-backup` | Parallel rsync backup. |
 | `bin/rsynclt` | rsync with limited throughput. |
 | `bin/voice-note` | Dictate a quick note: records with `pw-record`, transcribes locally with whisper.cpp (`start`/`stop`/`toggle`/`status`), and appends it to today's file in `~/notes/inbox/`. No text injection and no focused window needed. Bound to AltGr-F6 (toggle) and AltGr-F5 (hold) in sway. |

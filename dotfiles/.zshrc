@@ -817,6 +817,9 @@ fi
 # {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
 fpath=("$HOME/.zsh.d/functions" "${fpath[@]}")
 
+# quick notes front-end (qn, qne, qnee, qt, qte); after keybindings + plugins
+source_ifex $HOME/.zsh.d/quicknote.zsh
+
 # shell-agnostic os/host env vars first (may gate the aliases below), then aliases
 source_ifex_custom $HOME/lib/env
 source_ifex_custom $HOME/lib/aliases

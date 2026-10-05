@@ -1,0 +1,46 @@
+#compdef quicknote
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for quicknote (bin/quicknote in the dotfiles repo), also bound to
+# the qn/qt/qne/qnee/qte front-end functions (~/.zsh.d/quicknote.zsh).
+# Autoloaded by compinit via the #compdef tag above.
+#
+# Keep in sync with bin/quicknote: options mirror usage(). Dates for --edit
+# are discovered live from the inbox directory.
+
+_quicknote_dates() {
+  local dir="${QN_DIR:-${NOTES_DIR:-${HOME}/notes}/inbox}"
+  local -a dates
+  dates=( ${dir}/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.md(N:t:r) )
+  dates=( ${dates:#*.conflict-*} )
+  _describe -t dates 'day file' dates
+  compadd -- today yesterday
+}
+
+_quicknote() {
+  local -a args=(
+    '(-t --target)'{-t,--target}'[target]:target:(inbox todo)'
+    '(-d --dir)'{-d,--dir}'[target directory]:directory:_directories'
+    '(-f --file)'{-f,--file}'[target filename]:file:_files'
+    '(-s --suffix)'{-s,--suffix}'[suffix for YYYY-MM-DD-S.md]:suffix:'
+    '(-a --at)'{-a,--at}'[note time (date -d string)]:time:'
+    '--day-start[time a new day begins]:HH\:MM:'
+    '(-n --dry-run)'{-n,--dry-run}'[print, change nothing]'
+    '(-q --quiet)'{-q,--quiet}'[only errors and warnings]'
+    '(- *)'{-h,--help}'[show help]'
+  )
+  case "${service}" in
+    qne|qte|qn|qt) _arguments -s "${args[@]}" ;;
+    qnee)          _arguments -s "${args[@]}" '1:day:_quicknote_dates' ;;
+    *)
+      _arguments -s "${args[@]}" \
+        '(--edit-new --edit --resolve)--stdin[read the note from stdin]' \
+        '(--stdin --edit --resolve)--edit-new[write a new note in $EDITOR]' \
+        '(--stdin --edit-new --resolve)--edit[edit a day file in $EDITOR]:day:_quicknote_dates' \
+        '(--stdin --edit-new --edit)--resolve[recover drafts, merge conflicts]' \
+        '--raw[note text as one argument]:text:'
+      ;;
+  esac
+}
+
+_quicknote "$@"

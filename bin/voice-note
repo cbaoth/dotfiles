@@ -16,7 +16,7 @@ set -o nounset
 
 # {{{ = CONSTANTS =============================================================
 
-declare -r NOTE_DIR="${VOICE_NOTE_DIR:-${HOME}/notes/inbox}"
+declare -r NOTE_DIR="${VOICE_NOTE_DIR:-${QN_DIR:-${NOTES_DIR:-${HOME}/notes}/inbox}}"
 
 # Recording state lives in the runtime dir: tmpfs, per-user, wiped on logout, so
 # a crashed recording can never resurrect as a stale lock on the next boot.
@@ -77,7 +77,8 @@ Commands:
   -h, --help  This help
 
 Environment:
-  VOICE_NOTE_DIR          Note directory (default: \${HOME}/notes/inbox)
+  VOICE_NOTE_DIR          Note directory (default: \$QN_DIR, else \${HOME}/notes/inbox);
+                          notes are saved via quicknote when it is installed
   VOICE_NOTE_MODEL        ggml model file (default: vocalinux's ggml-small.bin)
   VOICE_NOTE_PWCPP        pwcpp binary (default: vocalinux venv)
   VOICE_NOTE_LANG         Language code or 'auto' (default: auto)
@@ -274,11 +275,19 @@ do_stop() {
     return 1
   fi
 
-  mkdir -p "${NOTE_DIR}" || { p_err "cannot create ${NOTE_DIR}"; return 1; }
-  note_file="${NOTE_DIR}/$(date +%F).md"
-  {
-    printf '\n## %s\n\n%s\n' "$(date --iso-8601=seconds)" "${text}"
-  } >> "${note_file}" || { p_err "cannot append to ${note_file}"; return 1; }
+  # quicknote owns the note format, the day rollover and the locking shared by
+  # every writer (qn, qne, ...); the inline append is only a fallback for a
+  # host without it, in the same format.
+  if command -v quicknote > /dev/null 2>&1; then
+    printf '%s' "${text}" | QN_DIR="${NOTE_DIR}" quicknote -q --stdin 9>&- \
+      || { p_err "quicknote failed to save the note"; return 1; }
+  else
+    mkdir -p "${NOTE_DIR}" || { p_err "cannot create ${NOTE_DIR}"; return 1; }
+    note_file="${NOTE_DIR}/$(date +%F).md"
+    {
+      printf '\n## %s\n\n%s\n' "$(date --iso-8601=seconds)" "${text}"
+    } >> "${note_file}" || { p_err "cannot append to ${note_file}"; return 1; }
+  fi
 
   # Clipboard too: the thought is usable immediately, wherever you are.
   # 9>&- again: wl-copy daemonizes to serve the clipboard, so without it the
