@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# ssh-wait-agent: ssh_config `Match exec` hook; let non-interactive ssh wait for agent keys.
+#
+# Wired in ~/.ssh/config, ahead of the Host blocks:
+#
+#   Match originalhost saito,saito-lan,... exec "~/bin/ssh-wait-agent -k SHA256:<fp> %n"
+#
+# The Match block holds no options: it is only a hook that runs inside every
+# ssh to those hosts, before authentication. Why: after a resume, VS Code
+# Remote-SSH reconnects within seconds, while the keys only reach the agent once
+# KeePassXC is unlocked (lock-secrets --ssh flushes them before sleep). Without
+# keys the attempt fails with "Permission denied (publickey)", which VS Code
+# treats as permanent: no retry, just the "cannot reconnect" dialog. Waiting
+# here turns that into a reconnect that succeeds right after the unlock.
+#
+# Not remote.SSH.preconnect: Remote-SSH runs that only on the first connection
+# of a window, never on reconnect attempts (verified 2026-10-03). Every attempt
+# spawns a new ssh, though, so this hook sees all of them.
+#
+# -k waits for one specific key (fingerprint or comment, matched against
+# `ssh-add -l`) instead of any key. Needed: KeePassXC adds its keys one by one,
+# and on 2026-10-04 the reconnect caught the agent holding only the GitHub key;
+# "any key" let it through and saito rejected it ("Connection closed by
+# authenticating user [preauth]", then accepted the hosts key 7s later).
+#
+# The host argument (%n) is for the log only. VS Code's Remote-SSH evaluates
+# `Match exec` itself before spawning ssh, without expanding tokens, so the log
+# shows a literal "%n" for those runs.
+#
+# Interactive ssh (stderr on a terminal) never waits: a silent hang in a shell
+# is worse than an immediate auth error. VS Code's own timer must outlast the
+# wait: it is remote.SSH.connectTimeout + 2s (set to 180 in settings.json).
+#
+# Always exits 0; the Match result is irrelevant, the block sets nothing.
+
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = CONSTANTS =============================================================
+
+declare -ri TIMEOUT="${SSH_WAIT_AGENT_TIMEOUT:-150}"   # s to wait for keys
+declare -ri INTERVAL=1
+# After having waited, give the agent a moment before ssh uses the key. On
+# 2026-10-06 the wanted key was listed (2 in agent) and saito still rejected the
+# ssh started in the same second; a reload 2s later worked. Only paid when the
+# hook actually waited, never in the common already-unlocked case.
+declare -ri SETTLE="${SSH_WAIT_AGENT_SETTLE:-5}"
+
+declare WANT_KEY=""
+
+declare -r LOG_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}"
+declare -r LOG_FILE="${LOG_DIR}/ssh-wait-agent.log"
+
+# }}} = CONSTANTS =============================================================
+
+# {{{ = FUNCTIONS =============================================================
+
+# Best effort: nobody sees the output of a hook run from VS Code, so the file is
+# the record. A log that cannot be written must not affect the connection.
+p_log() {
+  [[ -d "${LOG_DIR}" ]] || mkdir -p "${LOG_DIR}" 2>/dev/null || return 0
+  printf '%s [%d] %s\n' "$(date '+%F %T')" "$$" "$*" >> "${LOG_FILE}" 2>/dev/null || true
+}
+
+usage() {
+  cat <<EOF2
+Usage: ssh-wait-agent [-k KEY] [HOST]
+
+  -k, --key KEY   wait for this key (fingerprint or comment substring as shown
+                  by ssh-add -l) instead of any key
+  HOST            only used in the log
+EOF2
+}
+
+# The wanted key, or any key when -k was not given.
+agent_ready() {
+  local listing
+  listing="$(ssh-add -l 2>/dev/null)" || return 1
+  [[ -z "${WANT_KEY}" ]] || grep -qF -- "${WANT_KEY}" <<<"${listing}"
+}
+
+# }}} = FUNCTIONS =============================================================
+
+# {{{ = MAIN ==================================================================
+
+main() {
+  while (( $# > 0 )); do
+    case "$1" in
+      -k|--key)   WANT_KEY="${2:-}"; shift ;;
+      -h|--help)  usage; return 0 ;;
+      *)          break ;;
+    esac
+    shift
+  done
+  local -r host="${1:-?}"
+  local -r what="${WANT_KEY:-any key}"
+  local -i elapsed=0
+
+  [[ -n "${SSH_AUTH_SOCK:-}" ]] || return 0
+  agent_ready && return 0       # the common case: silent and instant
+  [[ -t 2 ]] && return 0        # interactive: fail fast instead of hanging
+
+  p_log "${host}: waiting up to ${TIMEOUT}s for ${what} (unlock KeePassXC)"
+  until agent_ready; do
+    if (( elapsed >= TIMEOUT )); then
+      p_log "${host}: still no ${what} after ${TIMEOUT}s, connecting anyway"
+      return 0
+    fi
+    sleep "${INTERVAL}"
+    elapsed+=INTERVAL
+  done
+  p_log "${host}: ${what} available after ${elapsed}s ($(ssh-add -l 2>/dev/null | wc -l) in agent), settling ${SETTLE}s"
+  sleep "${SETTLE}"
+}
+
+main "$@"
+exit 0
+
+# }}} = MAIN ==================================================================
