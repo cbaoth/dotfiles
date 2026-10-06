@@ -2,8 +2,8 @@
 title: Claude Code CLI and Claude Desktop
 hosts: [motoko, saito, 11001001]
 status: resolved
-tags: [claude, anthropic, apt, gpg, cli, desktop, ai]
-updated: 2026-09-07
+tags: [claude, anthropic, apt, gpg, cli, desktop, ai, sandbox, apparmor]
+updated: 2026-10-06
 automated_by: setup/modules/28-claude-code.sh, setup/modules/29-claude-desktop.sh
 ---
 
@@ -90,6 +90,76 @@ installed deliberately is a worse surprise than the warning. Keep one:
 sudo apt remove claude-code                    # or
 npm uninstall -g @anthropic-ai/claude-code
 ```
+
+### Manual: the Bash sandbox on Ubuntu 26.04 (AppArmor)
+
+**Not automated, on purpose:** it relaxes a distro hardening default. Done on
+motoko (2026-10-06). **Deliberately skipped on servers** (saito, the vserver):
+there Claude runs with the sandbox off, which is the better trade than weakening
+a multi-service host's userns restriction.
+
+The sandboxed Bash tool needs `bubblewrap` and `socat` (in `base.list`, and the
+CLI module warns if missing), but on Ubuntu 26.04 that is not enough. Every
+sandboxed command fails, even `echo`:
+
+```text
+apply-seccomp: write /proc/self/setgroups (nested userns is capability-restricted;
+caller must provide CAP_SYS_ADMIN): Permission denied
+```
+
+Why: `kernel.apparmor_restrict_unprivileged_userns=1` (the Ubuntu default), and
+the shipped `/etc/apparmor.d/bwrap-userns-restrict` confines `/usr/bin/bwrap`.
+Everything bwrap starts drops into the `unpriv_bwrap` child profile, which
+carries `audit deny capability`. Claude's seccomp helper runs *inside* the
+sandbox and needs a nested user namespace, so the deny kills it. A deny can't be
+overridden by an allow, and the helper is bundled in the `claude` binary, so
+skipping the optional seccomp step is not an option either.
+
+Anthropic's documented fix, an unconfined `/etc/apparmor.d/bwrap` profile, does
+**not** work on its own: the shipped profile defines the same name `bwrap` and
+stays loaded alongside it. The shipped one has to be disabled:
+
+```bash
+# 1) our profile: bwrap unconfined, allowed to create user namespaces
+sudo tee /etc/apparmor.d/bwrap >/dev/null <<'EOF'
+abi <abi/4.0>,
+include <tunables/global>
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+  include if exists <local/bwrap>
+}
+EOF
+
+# 2) disable the shipped profile persistently (survives package upgrades), unload it, load ours
+sudo ln -s /etc/apparmor.d/bwrap-userns-restrict /etc/apparmor.d/disable/
+sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict
+sudo apparmor_parser -r /etc/apparmor.d/bwrap
+
+# 3) verify: only "bwrap (unconfined)", no unpriv_bwrap
+sudo grep -E '^(bwrap|unpriv_bwrap) ' /sys/kernel/security/apparmor/profiles
+```
+
+Then, from Claude, a sandboxed `echo ok` must succeed. A write outside the
+allowed paths must still fail with *Read-only file system*: that checks the
+sandbox actually confines, not just that it starts.
+
+**The trade:** Ubuntu ships that profile so bwrap can't be used as a gadget to
+get capabilities in a user namespace, a known local-privilege-escalation
+surface. Disabling it returns bwrap to the upstream behaviour Anthropic's docs
+assume. On a single-user desktop where every local account is you, that is a
+modest increase. Flatpak keeps working (it uses bwrap too), and `glycin.bwrap`
+is a separate profile that stays untouched.
+
+Rollback:
+
+```bash
+sudo rm /etc/apparmor.d/disable/bwrap-userns-restrict /etc/apparmor.d/bwrap
+sudo systemctl reload apparmor
+```
+
+**Known noise, unrelated:** shell init inside the sandbox prints
+`fnm ... Can't create the symlink for multishells ... Read-only file system`,
+because `/run/user/<uid>` is read-only there. Commands still run; it's cosmetic.
 
 ## Desktop: apt, because there is no other Linux channel
 
@@ -178,3 +248,4 @@ sudo apt remove claude-desktop     # also removes its repo entry and key
 - [`bin/claude-desktop`](../../bin/claude-desktop) — the Sway keyring wrapper
 - [Desktop on Linux](https://code.claude.com/docs/en/desktop-linux) — upstream install instructions
 - [Advanced setup](https://code.claude.com/docs/en/setup) — every CLI install channel, key verification
+- [Sandboxing](https://code.claude.com/docs/en/sandboxing) — what the Bash sandbox enforces, Linux prerequisites
