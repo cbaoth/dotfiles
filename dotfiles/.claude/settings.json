@@ -1,5 +1,17 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "agentPushNotifEnabled": false,
+  "askUserQuestionTimeout": "never",
+  "editorMode": "vim",
+  "enableWorkflows": true,
+  "inputNeededNotifEnabled": true,
   "permissions": {
+    "additionalDirectories": [
+      "/home/cbaoth/dotfiles/**",
+      "/home/cbaoth/git/**",
+      "/home/cbaoth/notes/**",
+      "/home/cbaoth/.*/**"
+    ],
     "allow": [
       "Bash(echo *)",
       "Bash(printf *)",
@@ -19,7 +31,6 @@
       "Bash(local *)",
       "Bash(unalias *)",
       "Bash(unfunction *)",
-      "Bash(printf *)",
       "Bash(export)",
       "Bash(* --help *)",
       "Bash(* --version *)",
@@ -198,7 +209,6 @@
       "Bash(apt why-not *)",
       "Bash(apt-cache depends *)",
       "Bash(apt-cache pkgnames *)",
-      "Bash(apt-cache policy *)",
       "Bash(apt-cache policy *)",
       "Bash(apt-cache rdepends *)",
       "Bash(apt-cache search *)",
@@ -454,14 +464,8 @@
       "Bash(source *)",
       "Bash(. *)",
       "Read(//home/cbaoth/.config/systemd/user/**)",
-      "Read(//home/cbaoth/dotfiles/**)",
       "Read(//home/cbaoth/notes/**)",
-      "Read(//home/cbaoth/git/**)",
       "Read(//home/cbaoth/.*)"
-    ],
-    "deny": [
-      "Bash(sudo *)",
-      "Bash(su *)"
     ],
     "ask": [
       "Bash(* --force*)",
@@ -519,39 +523,19 @@
       "Bash(scp *)"
     ],
     "defaultMode": "auto",
-    "additionalDirectories": [
-      "/home/cbaoth/dotfiles/**",
-      "/home/cbaoth/git/**",
-      "/home/cbaoth/notes/**",
-      "/home/cbaoth/.*/**"
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(su *)"
     ]
   },
-  "worktree": {},
-  "enableWorkflows": true,
+  "preferredNotifChannel": "auto",
+  "remoteControlAtStartup": true,
   "sandbox": {
     "enabled": true
   },
-  "effortLevel": "high",
-  "modelSettings": {
-    "claude-sonnet-5": {
-      "effortLevel": "medium"
-    },
-    "claude-opus-5": {
-      "effortLevel": "medium"
-    },
-    "claude-opus-5-5": {
-      "effortLevel": "medium"
-    }
-  },
-  "askUserQuestionTimeout": "never",
-  "tui": "fullscreen",
   "theme": "dark",
-  "editorMode": "vim",
-  "preferredNotifChannel": "auto",
-  "remoteControlAtStartup": true,
-  "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": false,
+  "tui": "fullscreen",
   "useAutoModeDuringPlan": true,
   "voiceEnabled": true,
-  "model": "opus"
+  "worktree": {}
 }

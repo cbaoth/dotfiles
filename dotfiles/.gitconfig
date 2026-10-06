@@ -56,6 +56,15 @@
 	process = git-lfs filter-process
 	required = true
 
+# Claude Code settings: commit with sorted keys and without per-host values
+# (model, effort), so reorders and /model or effort switches never show as
+# changes. Opt-in per file via .gitattributes (filter=claude-settings). Not
+# required: on a host without this config (e.g. before dotfiles-link on a fresh
+# machine) git simply passes the file through unfiltered.
+[filter "claude-settings"]
+	clean = jq -S --indent 2 'del(.model, .effortLevel, .modelSettings)'
+	smudge = cat
+
 # Loaded last, so machine-local settings win over the defaults above. A missing
 # file is silently ignored, so this is safe on a host that has no local config.
 [include]

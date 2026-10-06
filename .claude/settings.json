@@ -1,5 +1,14 @@
 {
   "permissions": {
+    "additionalDirectories": [
+      "/home/cbaoth/notes/",
+      "/home/cbaoth/notes/systems/",
+      "/home/cbaoth/notes/systems/11001001",
+      "/home/cbaoth/notes/systems/saito",
+      "/home/cbaoth/notes/systems/motoko",
+      "/home/cbaoth/notes/systems/puppet",
+      "/home/cbaoth/notes/systems/pixi"
+    ],
     "allow": [
       "Edit(//home/cbaoth/.ccrun*)",
       "Edit(//home/cbaoth/dotfiles/.claude/skills/**)",
@@ -78,15 +87,6 @@
       "Bash(nordvpn --help *)",
       "Bash(nordvpn -b *)",
       "Bash(nordvpn --version *)"
-    ],
-    "additionalDirectories": [
-      "/home/cbaoth/notes/",
-      "/home/cbaoth/notes/systems/",
-      "/home/cbaoth/notes/systems/11001001",
-      "/home/cbaoth/notes/systems/saito",
-      "/home/cbaoth/notes/systems/motoko",
-      "/home/cbaoth/notes/systems/puppet",
-      "/home/cbaoth/notes/systems/pixi"
     ]
   }
 }

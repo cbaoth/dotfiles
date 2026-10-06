@@ -35,3 +35,8 @@ LICENSE text
 *.pdf binary
 
 adoc_assets/**/* binary
+
+# Claude Code settings: sorted keys, per-host values stripped on commit; the
+# filter driver is defined in dotfiles/.gitconfig (deployed as ~/.gitconfig)
+.claude/settings.json          filter=claude-settings
+dotfiles/.claude/settings.json filter=claude-settings
