@@ -8,6 +8,7 @@
   TODO check out some style/theme releated resources
        https://github.com/Alexays/Waybar/wiki/Styling
        https://github.com/topics/waybar-themes
+  TODO consider less colorful and/or "harsh" (esp. yellow) color schemes
  ****************************************************************************/
 
 /****************************************************************************
@@ -111,7 +112,7 @@ button:hover {
 #scratchpad,
 #power-profiles-daemon,
 #mpd,
-#custom-sway-awake { /* custom module */
+#custom-sway-awake {
     padding: 0 10px;
     color: #ffffff;
 }
@@ -261,6 +262,7 @@ label:focus {
     background-color: #eb4d4b;
 }
 
+/* TODO consider making the tray icons more visually distinct based on their state and generally improve contrast. most non-grayscale tray icons use bluish colors (blue on blue background can be hard to see) */
 #tray {
     background-color: #2980b9;
 }
@@ -415,6 +417,56 @@ label:focus {
 }
 
 #custom-power-warn.stale {
-    background-color: #2d3436;
+    /* black, not #2d3436 (sway-awake's idle grey): that blends into the bar
+       background, so the module would lose its edge */
+    background-color: black;
     color: #808080;
+}
+
+/****************************************************************************
+  Styles for custom modules 'notification-icon' + 'notification-count'
+  (group/notification, fed by bin/swaync-waybar)
+    .none        = no notifications (base style)
+    .low         = highest urgency present is low
+    .normal      = ... normal
+    .critical    = ... critical
+    .dnd         = added in Do Not Disturb (the icon becomes a slashed bell)
+  Two modules so each has a fixed width: the slashed bell is wider than the
+  bell (1.14em vs 1.0em in Font Awesome 4.7) and must not push the number
+  around; the count is left-aligned ("align": 0 in config.jsonc), so it starts
+  at a fixed spot and only grows to the right. Counts > 99 show as "∞", so
+  two digits are the widest case.
+  TODO consolidate the waybar colour scheme (separate topic, see file header)
+ ****************************************************************************/
+#custom-notification-icon,
+#custom-notification-count {
+    /* black, not #2d3436 (see #custom-power-warn.stale) */
+    background-color: black;
+    color: #808080;
+}
+
+#custom-notification-icon {
+    padding: 0 2px 0 10px;
+    min-width: 1.4em;
+}
+
+#custom-notification-count {
+    padding: 0 10px 0 2px;
+    min-width: 1.2em;
+}
+
+#custom-notification-icon.low,
+#custom-notification-count.low {
+    color: #00afff;
+}
+
+#custom-notification-icon.normal,
+#custom-notification-count.normal {
+    color: #f1c40f;
+}
+
+#custom-notification-icon.critical,
+#custom-notification-count.critical {
+    background-color: #d35400;
+    color: white;
 }

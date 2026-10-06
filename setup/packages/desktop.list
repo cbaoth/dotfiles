@@ -67,8 +67,8 @@ swayosd
 waybar
 foot
 grimshot
-# Notification daemon — grimshot --notify posts here.
-mako-notifier
+# Notification daemon (swaync) — grimshot --notify posts here.
+sway-notification-center
 
 # Wayland session tools (required by sway config)
 brightnessctl

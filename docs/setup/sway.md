@@ -3,7 +3,7 @@ title: Sway setup
 hosts: [motoko]
 status: resolved
 tags: [sway, wayland, waybar, keepassxc, nvidia, tray, config]
-updated: 2026-08-16
+updated: 2026-10-06
 ---
 
 # Introduction
@@ -49,7 +49,7 @@ sudo apt install \
   foot \
   waybar \
   rofi \
-  mako-notifier \
+  sway-notification-center \
   grim slurp \
   brightnessctl \
   swayosd \
@@ -66,7 +66,7 @@ sudo apt install \
 | [`foot`](https://codeberg.org/dnkl/foot) | Primary terminal emulator (Wayland-native, default `$term`) |
 | `waybar` | Status bar (replaces i3bar/i3status) |
 | `rofi` | Application/run launcher (`mod+r`, `mod+space`) |
-| `mako-notifier` | Notification daemon (`org.freedesktop.Notifications`) |
+| `sway-notification-center` | Notification daemon `swaync` (`org.freedesktop.Notifications`) + control-center panel |
 | `grim`, `slurp`, `grimshot` | Screenshot tools (Wayland-native). `grimshot` is the wrapper the key bindings use — see [Screenshots](#screenshots) |
 | `brightnessctl` | Backlight control (replaces `xbacklight` which is X11 only) |
 | `swayosd` | On-screen display for volume/brightness/caps-lock (see [Volume / Brightness OSD](#volume--brightness-osd-swayosd)) |
@@ -323,9 +323,68 @@ commented out next to the grimshot ones in the Sway config.
 
 # Notifications
 
-`mako` is used as the notification daemon. It starts via `exec mako` in the Sway config. Without a notification daemon, apps silently drop notifications or log errors to stderr.
+`swaync` (SwayNotificationCenter) is the notification daemon, started via
+`exec swaync` in `90-launch-apps.conf`. Without a daemon, apps silently drop
+notifications or log errors to stderr. It replaced `mako` (2026-10-06), which
+(left on its defaults) showed every notification as a large popup in one flat
+stack, and has no action buttons (actions only via a `makoctl menu` picker).
 
-Basic `mako` configuration (optional) goes in `~/.config/mako/config`. The defaults work without any config file.
+What the config (`~/.config/swaync/config.json`) sets up:
+
+- **Grouping**: the control-center panel groups notifications per app;
+  each group collapses and can be cleared as a whole.
+- **Timeouts by urgency**: low 3 s, normal 8 s, critical never (stays
+  until acted on) and plays `dialog-warning.oga`.
+- **Scripts**: swaync runs only the **first** matching `scripts` entry per
+  notification and trigger (`run-on` receive / action); there is a `break` in
+  its dispatch loop (v0.12.4). Matchers also need a non-empty match
+  (`RegexMatchFlags.NOTEMPTY`, so `"^"` matches nothing), hence one entry per
+  urgency to cover everything: `waybar-urgency-*` (receive) and
+  `click-focus-*` (action). Extra behaviour for an urgency, such as the
+  critical sound, is chained into that entry's `exec` (`/bin/sh -c`) rather
+  than added as a separate entry, which would never run.
+- **Transient rules** (`notification-visibility`): Bluetooth (blueman) and the
+  repo's own status tools (`sway-awake`, `sway-kill`, `sway-winfo`,
+  `bt-audio-reset`, `grimshot`) pop up briefly but are never kept in the
+  panel, so they don't pile up. Rules match on app-name, summary, body,
+  category or urgency (regex); states are `enabled`, `transient`, `muted`
+  (panel only, no popup), `ignored`.
+- **Action buttons** render inline, so scripts can offer choices:
+  `notify-send --wait -A taken=Taken -A snooze="Snooze 30m" "Meds" "Take now"`
+  prints the chosen action ID on stdout.
+- **Click-to-focus**: on a click swaync hands the app an xdg-activation
+  token, but sway 1.11 only *activates* for tokens from a client that had
+  keyboard focus; swaync's popup is a layer surface that never does, so sway
+  just marks the window urgent (red workspace, `focus_on_window_activation`
+  notwithstanding). The `click-focus-*` action scripts run
+  `bin/swaync-focus-urgent`, which waits up to ~1.5 s for a window that was
+  not urgent at click time to turn urgent, then focuses it (switching
+  workspace, raising it from a tab group). Already-urgent windows are left
+  alone; apps that ignore the click simply time out.
+
+Not supported: merging identical notifications that an app sends without
+reusing its `replaces_id` (they still land in the same app group). Apps that
+do not handle xdg-activation also won't get focused.
+
+| Key | Action |
+| --- | ------ |
+| `$mod+n` | Toggle the control-center panel |
+| `$mod+Shift+n` | Clear all |
+| `$mod+Ctrl+n` | Dismiss the latest popup |
+| `$mod+Alt+n` | Toggle Do Not Disturb |
+
+Waybar `group/notification` (rightmost, so the mouse lands on it by throwing
+it into the corner): bell + unread count, fed by `bin/swaync-waybar`. Left-click
+opens the panel, right-click toggles DND. Colour follows the highest urgency
+still present (`.low` / `.normal` / `.critical`, `.dnd` added in DND); counts
+above 99 show as `∞`. swaync itself only publishes count + DND, so the script
+tracks urgencies: swaync's `waybar-urgency-*` scripts call
+`swaync-waybar record`, and the watchers drop ids on the `NotificationClosed`
+D-Bus signal. Bell and count are two modules so each keeps a fixed width
+(`min-width` in `style.css`).
+
+Reload after editing the config: `swaync-client -R -sw` (config) and
+`swaync-client -rs -sw` (CSS).
 
 # Volume / Brightness OSD (swayosd)
 

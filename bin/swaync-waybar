@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# swaync-waybar: waybar modules for swaync (bell icon + count) with urgency classes.
+#
+# `swaync-client -swb` only knows the count and DND state, not urgencies, and
+# swaync has no D-Bus call to list notifications. So urgencies are tracked here:
+#   - swaync runs `swaync-waybar record` (a "scripts" entry in
+#     ~/.config/swaync/config.json) for every received notification, which
+#     stores "<id> <urgency>" and pokes the watchers (SIGUSR1). swaync runs
+#     only the FIRST matching script, so those entries must come first;
+#   - each watcher removes ids on the NotificationClosed D-Bus signal, and
+#     empties the store whenever the count drops to 0 (self-healing).
+# The class is the highest urgency still stored. Best effort: should a close be
+# missed, a stale entry lingers until the panel is empty again.
+#
+# Two modules (icon / count) instead of one so each has its own fixed width:
+# the bell and the slashed bell differ in width, and so do 1 and 2 digits.
+
+# set options (see also bin/conky-restart for the house pattern)
+set -o errtrace
+#set -o errexit   # a long-running watcher must survive a failed refresh
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# Logging
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+# {{{ = CONSTANTS ============================================================
+declare -r STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/swaync-waybar"
+declare -r URGENCY_FILE="${STATE_DIR}/urgency"   # lines: "<id> <low|normal|critical>"
+declare -r LOCK_FILE="${STATE_DIR}/lock"
+
+# Font Awesome 4.7 codepoints (waybar's font-family). f0f3 = bell,
+# f1f6 = bell-slash (Do Not Disturb).
+declare -r ICON_BELL=$'\uf0f3'
+declare -r ICON_DND=$'\uf1f6'
+
+# Counts above this show as COUNT_OVERFLOW: past ~99 the number carries no
+# information, and a third digit would widen the module.
+declare -ri COUNT_MAX=99
+# FontAwesome (first in waybar's font-family) maps U+221E to an empty glyph,
+# so pango never falls back and the symbol renders blank: force a text font.
+declare -r COUNT_OVERFLOW="<span font_family='Roboto'>"$'\u221e'"</span>"
+# }}} = CONSTANTS ============================================================
+
+# {{{ = HELPERS ==============================================================
+usage() {
+  cat <<-EOF
+Usage: swaync-waybar COMMAND
+
+Commands:
+  watch icon|count  Long-running waybar "exec": one JSON line per state change
+  record            Store the urgency of a received notification (run by swaync
+                    with SWAYNC_ID / SWAYNC_URGENCY / SWAYNC_REPLACES_ID set)
+  -h, --help        Show this help
+EOF
+}
+
+# Run "$@" while holding the store lock.
+with_lock() {
+  (
+    flock -w 2 9 || exit 1
+    "$@"
+  ) 9>"${LOCK_FILE}"
+}
+
+# Drop the given ids from the store.
+store_remove() {
+  [[ -f "${URGENCY_FILE}" ]] || return 0
+  local tmp="${URGENCY_FILE}.tmp.$$"
+  awk -v ids=" $* " 'index(ids, " " $1 " ") == 0' "${URGENCY_FILE}" > "${tmp}" \
+    && mv -f -- "${tmp}" "${URGENCY_FILE}"
+}
+
+store_add() {
+  local -r id="${1}" urgency="${2}"
+  store_remove "${id}"
+  printf '%s %s\n' "${id}" "${urgency}" >> "${URGENCY_FILE}"
+}
+
+store_clear() { : > "${URGENCY_FILE}"; }
+
+# Highest stored urgency: critical > normal > low; "none" if empty.
+store_max_urgency() {
+  local -r urgencies="$(awk '{ print $2 }' "${URGENCY_FILE}" 2> /dev/null)"
+  case "${urgencies}" in
+    *critical*) printf 'critical' ;;
+    *normal*)   printf 'normal' ;;
+    *low*)      printf 'low' ;;
+    *)          printf 'none' ;;
+  esac
+}
+# }}} = HELPERS ==============================================================
+
+# {{{ = COMMANDS =============================================================
+cmd_record() {
+  local -r id="${SWAYNC_ID:-}" replaces="${SWAYNC_REPLACES_ID:-0}"
+  local urgency="${SWAYNC_URGENCY:-Normal}"
+  urgency="${urgency,,}"
+  [[ "${id}" =~ ^[0-9]+$ ]] || { p_err "record: SWAYNC_ID missing"; return 1; }
+  mkdir -p -- "${STATE_DIR}"
+  if [[ "${replaces}" != 0 && "${replaces}" != "${id}" ]]; then
+    with_lock store_remove "${replaces}"
+  fi
+  with_lock store_add "${id}" "${urgency}"
+  # Poke the watchers; the count signal may have arrived before this ran.
+  local pidfile
+  for pidfile in "${STATE_DIR}"/watch.*; do
+    [[ -e "${pidfile}" ]] && kill -USR1 "${pidfile##*.}" 2> /dev/null
+  done
+  return 0
+}
+
+# Current state, set by cmd_watch and its event loop, read by render().
+MODULE=""
+declare -i COUNT=0
+DND=false
+
+render() {
+  local urgency classes text tooltip
+  urgency="$(store_max_urgency)"
+  (( COUNT == 0 )) && urgency="none"
+  classes="\"${urgency}\""
+  [[ "${DND}" == true ]] && classes+=',"dnd"'
+  tooltip="${COUNT} notification(s)"
+  [[ "${DND}" == true ]] && tooltip+=', Do Not Disturb'
+  case "${MODULE}" in
+    icon)
+      text="${ICON_BELL}"
+      [[ "${DND}" == true ]] && text="${ICON_DND}"
+      ;;
+    count)
+      text="${COUNT}"
+      (( COUNT > COUNT_MAX )) && text="${COUNT_OVERFLOW}"
+      ;;
+  esac
+  printf '{"text":"%s","tooltip":"%s","class":[%s]}\n' "${text}" "${tooltip}" "${classes}"
+}
+
+cmd_watch() {
+  MODULE="${1:-}"
+  [[ "${MODULE}" == icon || "${MODULE}" == count ]] || { usage >&2; return 2; }
+  mkdir -p -- "${STATE_DIR}"
+
+  local -r fifo="${STATE_DIR}/events.$$" pidfile="${STATE_DIR}/watch.$$"
+  local -a producers=()
+  rm -f -- "${fifo}"
+  mkfifo -- "${fifo}" || return 1
+  : > "${pidfile}"
+  trap 'kill "${producers[@]}" 2> /dev/null; rm -f -- "${fifo}" "${pidfile}"' EXIT
+  trap 'exit 0' SIGINT SIGTERM SIGHUP
+  trap 'render' SIGUSR1
+
+  # Event sources, merged into one FIFO: swaync state lines
+  #   { "count": 3, "dnd": false, "visible": false, "inhibited": false }
+  # and close signals
+  #   /org/freedesktop/Notifications: org.freedesktop.Notifications.NotificationClosed (uint32 713, uint32 2)
+  swaync-client --subscribe > "${fifo}" &
+  producers+=("$!")
+  gdbus monitor --session --dest org.freedesktop.Notifications \
+    --object-path /org/freedesktop/Notifications > "${fifo}" 2> /dev/null &
+  producers+=("$!")
+  exec 3< "${fifo}"
+
+  local line
+  while :; do
+    if IFS= read -r -u 3 line; then
+      :
+    elif (( $? > 128 )); then
+      continue   # read interrupted by SIGUSR1; the trap already rendered
+    else
+      break      # both producers gone (swaync stopped); waybar restarts us
+    fi
+    case "${line}" in
+      '{'*)
+        [[ "${line}" =~ \"count\":\ *([0-9]+) ]] && COUNT="${BASH_REMATCH[1]}"
+        [[ "${line}" =~ \"dnd\":\ *(true|false) ]] && DND="${BASH_REMATCH[1]}"
+        (( COUNT == 0 )) && with_lock store_clear
+        ;;
+      *NotificationClosed\ \(uint32\ *)
+        [[ "${line}" =~ NotificationClosed\ \(uint32\ ([0-9]+), ]] \
+          && with_lock store_remove "${BASH_REMATCH[1]}"
+        ;;
+      *) continue ;;
+    esac
+    render
+  done
+}
+# }}} = COMMANDS =============================================================
+
+main() {
+  case "${1:-}" in
+    watch) shift; cmd_watch "$@" ;;
+    record) cmd_record ;;
+    -h|--help) usage ;;
+    *) usage >&2; return 2 ;;
+  esac
+}
+
+main "$@"

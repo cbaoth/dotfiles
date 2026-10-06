@@ -40,7 +40,7 @@ p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
 log() { printf '[%s] %s\n' "$(date '+%T')" "$*" >> "${LOG_FILE}"; }
 
-# Send a desktop notification (requires notify-send / mako). Non-fatal.
+# Send a desktop notification (requires notify-send + a notification daemon). Non-fatal.
 notify() {
   local -r summary="${1:-sway-winfo}"
   local -r body="${2:-}"

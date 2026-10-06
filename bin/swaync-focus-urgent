@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# swaync-focus-urgent: after a notification click, focus the window that turned urgent.
+#
+# swaync hands the app an xdg-activation token on click, but sway 1.11 only
+# honours `focus_on_window_activation` for tokens minted by a client that had
+# keyboard focus (sway/xdg_activation_v1.c, `had_focused_surface`). swaync's
+# popup is a layer surface that never holds focus, so sway downgrades the
+# request to "urgent". This script, run by swaync on every click ("run-on":
+# "action" scripts in ~/.config/swaync/config.json), waits briefly for a window
+# that was NOT urgent at click time to become urgent, then focuses it --
+# switching workspace and raising it out of a tabbed/stacked container.
+# Windows that were already urgent before the click are left alone.
+
+# set options (see also bin/conky-restart for the house pattern)
+set -o errtrace
+#set -o errexit   # swaymsg "no match" is the normal polling case
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = CONSTANTS ============================================================
+# Poll for the activation request: the app gets the token only after this
+# script was started, and must then round-trip to the compositor.
+declare -ri POLL_TRIES=15
+declare -r POLL_INTERVAL=0.1
+# }}} = CONSTANTS ============================================================
+
+# Con ids of all urgent windows, one per line.
+urgent_ids() {
+  swaymsg -t get_tree 2> /dev/null \
+    | jq -r '.. | objects | select(.urgent == true and (.type == "con" or .type == "floating_con")) | .id'
+}
+
+main() {
+  local before now id
+  before="$(urgent_ids)"
+  local -i i
+  for (( i = 0; i < POLL_TRIES; i++ )); do
+    sleep "${POLL_INTERVAL}"
+    now="$(urgent_ids)"
+    while IFS= read -r id; do
+      [[ -n "${id}" ]] || continue
+      if ! grep -qxF -- "${id}" <<< "${before}"; then
+        swaymsg "[con_id=${id}] focus" > /dev/null
+        return 0
+      fi
+    done <<< "${now}"
+  done
+  return 0   # nothing activated (e.g. the app ignores clicks): not an error
+}
+
+main "$@"

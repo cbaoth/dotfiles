@@ -26,7 +26,8 @@
         "custom/sway-awake",
         "tray",
         "pulseaudio",
-        "clock"
+        "clock",
+        "group/notification"
     ],
 
     "sway/workspaces": {
@@ -142,5 +143,33 @@
         "tooltip": true,
         "on-click": "sway-awake toggle",
         "on-click-right": "sway-awake toggle 30m"
+    },
+
+    // swaync: bell + unread count (bin/swaync-waybar), coloured by the highest
+    // urgency present; slashed bell in Do Not Disturb. Two modules in a group
+    // so each keeps a fixed width (see #custom-notification-* in style.css).
+    // Left-click opens the panel, right-click toggles Do Not Disturb.
+    "group/notification": {
+        "orientation": "inherit",
+        "modules": ["custom/notification-icon", "custom/notification-count"]
+    },
+    "custom/notification-icon": {
+        "exec": "swaync-waybar watch icon",
+        "return-type": "json",
+        "restart-interval": 2,
+        "format": "{}",
+        "tooltip": true,
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw"
+    },
+    "custom/notification-count": {
+        "exec": "swaync-waybar watch count",
+        "return-type": "json",
+        "restart-interval": 2,
+        "format": "{}",
+        "align": 0,
+        "tooltip": true,
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw"
     }
 }
