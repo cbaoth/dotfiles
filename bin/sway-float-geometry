@@ -27,6 +27,18 @@
 # ~/.config/sway/config.d/90-launch-apps.conf.
 # See also: docs/troubleshooting/sway-floating-geometry-on-resume.md
 #
+# Two more ways the geometry gets lost, found in the logs (2026-10-06):
+#   * An output can vanish WITHOUT a suspend: `output * dpms off` makes the LG
+#     monitor drop its DP link and sway destroys the output (see 90-launch-apps.conf).
+#     Floaters are then re-centered whenever it returns, and no suspend hook fires.
+#   * While no output exists, get_tree contains no workspaces at all, so a naive
+#     `save` wrote an EMPTY list over the last good state (10-04 22:05) and the
+#     next resume had nothing to restore. `save` now refuses without an output.
+# Hence `watch`: a small daemon that snapshots every N seconds (guarded the same
+# way) and restores whenever the output set changes, whatever caused it. The
+# suspend hooks stay as a belt-and-braces second path; restores are serialized
+# with a lock, and a second restore after the first is a no-op.
+#
 # Opacity is deliberately NOT touched. Evacuation resets geometry only, and
 # opacity is not readable over IPC anyway -- bin/sway-wstate tracks it with a
 # `_sheer*` mark. Since we only ever issue move/resize, those marks survive.
@@ -48,6 +60,13 @@ declare -r STATE_FILE_DEFAULT="${STATE_DIR}/float-geometry.json"
 # -v, which only controls what reaches the terminal; the per-window detail is
 # worth having on disk precisely because nobody is watching a suspend hook.
 declare -r LOG_FILE="${STATE_DIR}/float-geometry.log"
+declare -r LOCK_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+# Held for the duration of a restore, so the after-resume hook and the watcher
+# cannot interleave their measure/correct passes (a move landing between the
+# other's measure and issue would be mis-corrected by the decoration offset).
+declare -r LOCK_RESTORE="${LOCK_DIR}/sway-float-geometry.restore.lock"
+# Held by the watch daemon for its lifetime: one instance only.
+declare -r LOCK_WATCH="${LOCK_DIR}/sway-float-geometry.watch.lock"
 
 # {{{ = HELPERS ===============================================================
 
@@ -74,14 +93,19 @@ _is_int() { [[ "$1" =~ ^-?[0-9]+$ ]]; }
 
 p_usg() {
   cat <<EOF
-Usage: ${SCRIPT_FILE} [OPTIONS] <save|restore>
+Usage: ${SCRIPT_FILE} [OPTIONS] <save|restore|watch>
 
 Save the position/size of every floating window, and put them back after a
-suspend/resume cycle has re-centered them (see the header for the mechanism).
+suspend/resume cycle or a monitor loss has re-centered them (see the header).
 
 Commands:
-  save      Record all floating windows to the state file
+  save      Record all floating windows to the state file. Refuses (exit 0,
+            warning) while no output is active: the tree is empty then, and
+            saving would overwrite the last good state with nothing
   restore   Move/resize floating windows back to the recorded geometry
+  watch     Daemon: snapshot every --interval seconds, and restore whenever the
+            set of outputs changes (re-created output, hotplug, monitor standby,
+            resume). One instance only; start it from the sway config
 
 Options:
   -f, --file PATH     state file  [${STATE_FILE_DEFAULT}]
@@ -89,6 +113,7 @@ Options:
                       applying -- after resume the output may not be back yet
                       (0 disables)                                        [5]
   -p, --passes N      max correction passes per restore (see below)       [3]
+  -i, --interval SECS watch: seconds between snapshots                   [30]
   -n, --dry-run       print what would be done, change nothing
   -v, --verbose       report every window acted on
   -h, --help          show this help and exit
@@ -116,6 +141,7 @@ Examples:
   ${SCRIPT_FILE} save
   ${SCRIPT_FILE} restore -v
   ${SCRIPT_FILE} save -n          # inspect what would be recorded
+  ${SCRIPT_FILE} watch            # daemon (from the sway config)
 EOF
 }
 
@@ -148,6 +174,29 @@ outputs_ready() {
   n="$(swaymsg -t get_outputs \
         | jq '[ .[] | select(.active == true and .rect.width > 0) ] | length')"
   (( n > 0 ))
+}
+
+# Sorted, comma-joined ids of the active outputs ("" when there are none). The id
+# is sway's container id for the output, and a re-created output gets a NEW one,
+# so a change here means "the output was torn down and rebuilt" even if that
+# happened (and finished) within a second -- which a plain up/down check misses.
+output_ids() {
+  swaymsg -t get_outputs \
+    | jq -r '[ .[] | select(.active == true and .rect.width > 0) | .id ] | sort | join(",")'
+}
+
+# Write the JSON array $1 to $2 atomically. A temp file keeps an interrupted write
+# (this runs from before-sleep, right before the box goes down) from leaving a
+# truncated state file.
+write_state_file() {
+  local -r floats="$1" state_file="$2"
+  mkdir -p "${STATE_DIR}"
+  local tmp
+  tmp="$(mktemp "${state_file}.XXXXXX")"
+  # shellcheck disable=SC2064
+  trap "rm -f '${tmp}'" RETURN
+  printf '%s\n' "${floats}" > "${tmp}"
+  mv -f "${tmp}" "${state_file}"
 }
 
 # Match saved entries against the live tree and emit one TSV row per window that
@@ -191,6 +240,16 @@ measure() {
 
 cmd_save() {
   local -r state_file="$1"
+
+  # Without an active output sway's tree holds no workspaces, so there is nothing
+  # to read -- and "nothing" would replace the last good state. That is exactly
+  # how a monitor-off period turned the 22:05 bedtime save into an empty file.
+  # Not an error (exit 0): this runs from a suspend hook and must not fail it.
+  if ! outputs_ready; then
+    p_war "no active output: not saving, keeping the previous state"
+    return 0
+  fi
+
   local floats
   floats="$(current_floats)"
 
@@ -203,16 +262,7 @@ cmd_save() {
     return 0
   fi
 
-  mkdir -p "${STATE_DIR}"
-  # Write via a temp file so an interrupted save never leaves a truncated state
-  # file -- this runs from swayidle's before-sleep hook, right before the box
-  # goes down.
-  local tmp
-  tmp="$(mktemp "${state_file}.XXXXXX")"
-  # shellcheck disable=SC2064
-  trap "rm -f '${tmp}'" RETURN
-  printf '%s\n' "${floats}" > "${tmp}"
-  mv -f "${tmp}" "${state_file}"
+  write_state_file "${floats}" "${state_file}"
 
   p_dbg "$(jq -r '.[] | "  \(.con_id)\t\(.x),\(.y) \(.w)x\(.h)\t\(if .app_id != "" then .app_id else .class end)"' <<< "${floats}")"
   p_msg "saved ${count} floating window(s) to ${state_file}"
@@ -236,6 +286,11 @@ wait_for_output() {
 
 cmd_restore() {
   local -r state_file="$1"
+
+  # Serialize with any other restore (see LOCK_RESTORE). The descriptor closes
+  # with the process -- or with the subshell the watcher runs this in.
+  exec 8> "${LOCK_RESTORE}"
+  flock -w 30 8 || p_war "restore lock busy after 30s, continuing anyway"
 
   [[ -f "${state_file}" ]] \
     || { p_err "no saved state: ${state_file}"; exit 1; }
@@ -384,6 +439,82 @@ cmd_restore() {
   fi
 }
 
+# Snapshot + auto-restore daemon. One loop, one thread: events and the timer are
+# handled strictly in order, so a snapshot can never run in between an output
+# being re-created and the restore that repairs its damage (see check_outputs).
+cmd_watch() {
+  local -r state_file="$1"
+  local -r poll_secs=2
+
+  exec 9> "${LOCK_WATCH}"
+  flock -n 9 || { p_msg "already running, exiting"; return 0; }
+
+  # Output events make us react in ~half a second; the poll is the safety net for
+  # an event sway does not send (found out by test, not assumed).
+  coproc EVENTS { exec 9>&-; exec swaymsg -t subscribe -m '["output"]'; }
+  # shellcheck disable=SC2064
+  trap "kill ${EVENTS_PID} 2> /dev/null || true" EXIT
+
+  local last_ids need_restore=0
+  local -i last_snap=-1000   # forces a snapshot on the first healthy tick
+  last_ids="$(output_ids)"
+  [[ -n "${last_ids}" ]] || need_restore=1
+  p_msg "watching (outputs: ${last_ids:-none}, snapshot every ${interval}s)"
+
+  local line rc
+  while true; do
+    if read -r -t "${poll_secs}" -u "${EVENTS[0]}" line; then
+      # A disable/enable pair, or several outputs, arrive as a burst. Let it
+      # finish so we look at the settled state, once.
+      while read -r -t 0.5 -u "${EVENTS[0]}" line; do :; done
+    else
+      rc=$?
+      # >128 is just the poll timeout; anything else means the stream ended,
+      # i.e. sway is gone.
+      (( rc > 128 )) || { p_msg "event stream closed (sway exited?), stopping"; return 0; }
+    fi
+    check_outputs
+  done
+}
+
+# One tick: look at the outputs first, and only if they are unchanged take a
+# snapshot. Restoring takes priority over snapshotting by construction, which is
+# what keeps already-centered windows from ever becoming the "good" state.
+# Uses the caller's last_ids / need_restore / last_snap (dynamic scope).
+check_outputs() {
+  local ids
+  ids="$(output_ids)" || return 0   # sway busy/restarting: try again next tick
+
+  if [[ -z "${ids}" ]]; then
+    # Output gone: the tree is empty, nothing can be read or placed. Remember to
+    # restore once something comes back.
+    if (( ! need_restore )); then p_msg "no active output, waiting"; fi
+    need_restore=1
+    return 0
+  fi
+
+  if (( need_restore )) || [[ "${ids}" != "${last_ids}" ]]; then
+    p_msg "outputs changed (${last_ids:-none} -> ${ids}), restoring"
+    # Subshell: cmd_restore exits on a missing/invalid state file, which must not
+    # take the daemon down. wait_for_output is moot (we know one is active).
+    ( cmd_restore "${state_file}" ) || p_war "restore failed (exit $?)"
+    last_ids="${ids}"
+    need_restore=0
+    last_snap=${SECONDS}   # the next snapshot is a full interval away, not now
+    return 0
+  fi
+
+  if (( SECONDS - last_snap >= interval )); then
+    local floats
+    floats="$(current_floats)" || return 0
+    # Written only on change: no point rewriting an identical file every 30s.
+    if [[ ! -f "${state_file}" ]] || [[ "$(< "${state_file}")" != "${floats}" ]]; then
+      write_state_file "${floats}" "${state_file}"
+    fi
+    last_snap=${SECONDS}
+  fi
+}
+
 # }}} = COMMANDS ==============================================================
 
 # {{{ = MAIN ==================================================================
@@ -395,6 +526,7 @@ parse_args() {
   verbose=0
   wait_secs=5
   passes=3
+  interval=30
 
   while (( $# > 0 )); do
     case "$1" in
@@ -407,6 +539,9 @@ parse_args() {
       -p|--passes)
         [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
         passes="$2"; shift 2 ;;
+      -i|--interval)
+        [[ $# -ge 2 ]] || { p_err "$1 requires a value"; exit 1; }
+        interval="$2"; shift 2 ;;
       -n|--dry-run) dry_run=1; shift ;;
       -v|--verbose) verbose=1; shift ;;
       -h|--help)    p_usg; exit 0 ;;
@@ -423,13 +558,13 @@ parse_args() {
   [[ -n "${cmd}" || $# -eq 0 ]] || cmd="$1"
 
   case "${cmd}" in
-    save|restore) ;;
+    save|restore|watch) ;;
     "") p_err "a command is required"; p_usg >&2; exit 1 ;;
     *)  p_err "unknown command: '${cmd}'"; p_usg >&2; exit 1 ;;
   esac
 
   local key val
-  for key in wait:"${wait_secs}" passes:"${passes}"; do
+  for key in wait:"${wait_secs}" passes:"${passes}" interval:"${interval}"; do
     val="${key#*:}"
     if ! _is_int "${val}" || (( val < 0 )); then
       p_err "--${key%%:*} must be a non-negative integer (got '${val}')"
@@ -437,12 +572,14 @@ parse_args() {
     fi
   done
   (( passes >= 1 )) || { p_err "--passes must be at least 1"; exit 1; }
+  (( interval >= 1 )) || { p_err "--interval must be at least 1"; exit 1; }
+  [[ "${cmd}" != watch ]] || (( ! dry_run )) || { p_err "--dry-run does not apply to watch"; exit 1; }
 }
 
 main() {
   # Numeric args stay plain strings until parse_args validates them; declaring
   # them -i here would arithmetic-evaluate bad input under `set -u`.
-  local cmd state_file wait_secs passes
+  local cmd state_file wait_secs passes interval
   local -i dry_run verbose
   parse_args "$@"
 
@@ -457,6 +594,7 @@ main() {
   case "${cmd}" in
     save)    cmd_save "${state_file}" ;;
     restore) cmd_restore "${state_file}" ;;
+    watch)   cmd_watch "${state_file}" ;;
   esac
 }
 

@@ -2,8 +2,8 @@
 title: Floating windows pile up in the centre after suspend/resume (sway)
 hosts: [motoko]
 status: resolved
-tags: [sway, wayland, suspend, floating, output, swayidle]
-updated: 2026-09-30
+tags: [sway, wayland, suspend, floating, output, swayidle, dpms]
+updated: 2026-10-06
 ---
 
 # Floating windows pile up in the centre after suspend/resume
@@ -12,7 +12,9 @@ updated: 2026-09-30
 away and comes back — which is what a suspend/resume does. Upstream closed this
 as *not planned*, so it can only be fixed from outside sway.
 `bin/sway-float-geometry` saves the geometry on `before-sleep` and puts it back
-on `after-resume`, driven by the existing swayidle hooks.
+on `after-resume`, driven by the existing swayidle hooks. Since 2026-10-06 a
+`watch` daemon does the same for *any* output loss, not only suspend — see
+[Update 2026-10-06](#update-2026-10-06-output-loss-without-a-suspend).
 
 No `setup/` module: the fix is a script in `bin/` plus a config fragment, both
 deployed by `dotfiles-link`. Nothing idempotent to install.
@@ -92,8 +94,8 @@ invoked by swayidle") — **closed as not planned**. Related:
   (with a warning comment). Side effect worth knowing: an idle monitor-off
   longer than the next `save` also produced an **empty state file**
   (10-04 15:52 → 22:05 bedtime save wrote 0 windows, so the 10-05 resume had
-  nothing to restore). Still open: `save` must refuse to write when no output
-  is active.
+  nothing to restore). Fixed the same day — see
+  [Update 2026-10-06](#update-2026-10-06-output-loss-without-a-suspend).
 - **No `output` config option prevents evacuation.** There is no
   "keep workspaces on this output" or "don't re-centre" setting; the behaviour is
   unconditional in the C, not policy.
@@ -197,6 +199,51 @@ resume leaves behind:
 
 `not found` is the honest answer for a saved entry whose window is gone or cannot
 be matched unambiguously.
+
+## Update 2026-10-06: output loss without a suspend
+
+The hooks-only design above failed in practice, for two reasons found in
+`float-geometry.log` and `session.log`:
+
+1. **An output can vanish with no suspend.** `output * dpms off` makes this
+   monitor drop its DP link and sway destroys the output (see the DPMS dead end).
+   Windows are re-centred when it returns and no hook fires. The idle DPMS hook
+   is removed, but anything else that bounces the output (hotplug, a monitor
+   power-cycle, a KVM) would do the same.
+2. **`save` overwrote the good state with nothing.** With no output the tree has
+   *no workspaces*, so `current_floats` returned `[]` and the 22:05 bedtime save
+   (10-04) wrote an empty file, while a floating window was alive throughout. The
+   next resume then logged `state file is empty, nothing to restore`, and that
+   window sat re-centred (`1500,437` on a 3840 px output is exactly the centre)
+   until the following save recorded the centred position as the new truth.
+
+Fixes, all in `bin/sway-float-geometry`:
+
+- **`save` refuses without an active output** (warning in the log, exit 0 so the
+  hook never fails, previous state kept).
+- **`watch` daemon**, started from `90-launch-apps.conf`. One loop handles
+  `output` events (debounced 0.5 s) and a 2 s poll, strictly in order: *first*
+  look at the outputs, and only if they are unchanged take a snapshot (every 30 s,
+  written only when something changed). If the outputs were seen gone, or their
+  ids changed, it restores instead. That ordering is what stops a re-centred
+  window from ever becoming the "good" state.
+- **Restores are serialized** with a `flock`, so the daemon and the
+  `after-resume` hook (kept as a second path) cannot interleave their
+  measure/correct passes.
+
+Measured on this machine (sway 1.11):
+
+| Fact | Consequence |
+| ---- | ----------- |
+| `output DP-1 disable` / `enable` re-centres floaters, same as the real thing | Usable as a safe test of the whole path |
+| The output **id is unchanged** across a sway-level disable/enable, but **new** when the connector is re-created | The id alone is not enough; the daemon also remembers having seen *no* output |
+| `swaymsg reload` emits one `output` event (`change: unspecified`) | Events are not a "something broke" signal; the daemon compares state and ignores it |
+| Test: disable, 1.5 s, enable → `5 saved: moved 3, 2 already in place` | End to end works |
+
+Limits worth knowing: a flap shorter than the 0.5 s debounce on an output whose id
+does not change would go unnoticed (real DRM re-creations take about a second and
+get a new id). A manual `$mod+Alt+g` save is no longer a pin — the next snapshot
+replaces it.
 
 ## Open
 
