@@ -1,0 +1,10 @@
+[Unit]
+Description=Alert (ntfy) that vscode-config-snapshot blocked or failed
+Documentation=file:%h/dotfiles/bin/vscode-config-snapshot
+# Started via OnFailure= in vscode-config-snapshot.service — no timer, no [Install].
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/ntfy-send --priority default --tags floppy_disk,warning --throttle 86400 \
+  "vscode-config-snapshot FAILED" \
+  "Likely a credential in the VS Code config (file not copied). Inspect: journalctl --user -u vscode-config-snapshot -n 20"

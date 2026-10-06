@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# vscode-config-snapshot: copy the VS Code user config into a git-tracked dir.
+#
+# Why: Settings Sync is not a backup. Its conflict dialog (local / remote /
+# merge) has offered ancient local versions, and one wrong click pushes that
+# to every host, with no history to revert from. The default target is
+# ~/notes/systems/<host>/vscode; notes-sync commits and pushes ~/notes every 5
+# minutes, so every change becomes a revertible commit.
+#
+# Copies settings, keybindings, tasks, mcp, snippets and every profile's own
+# files (by profile *name*, not VS Code's hash id), plus installed extension
+# IDs as sorted text. Leaves out caches, state and history (globalStorage,
+# workspaceStorage, History, sync).
+#
+# Secret guard: the target repo must never hold credentials. A file whose JSON
+# has a key-like name (apiKey, token, secret, password) with a literal value,
+# or a known token prefix, is NOT copied; the previous snapshot stays and the
+# run exits 1, so a systemd timer shows up as failed.
+
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = CONSTANTS =============================================================
+
+declare -r SRC="${VSCODE_USER_DIR:-${HOME}/.config/Code/User}"
+declare -r EXT_DIR="${VSCODE_EXT_DIR:-${HOME}/.vscode/extensions}"
+# Per host, so a second host enabling the timer cannot overwrite this one.
+declare -r DEFAULT_TARGET="${HOME}/notes/systems/${HOSTNAME%%.*}/vscode"
+
+# Top-level files and dirs worth keeping; the same set is taken per profile.
+declare -ra FILES=(settings.json keybindings.json tasks.json mcp.json)
+declare -ra DIRS=(snippets prompts)
+
+# Files in the target the snapshot does not own (hand-written docs).
+declare -ra KEEP=(README.md)
+
+# Key names and token shapes that mean "credential". A value that is a
+# reference (${env:...}, {{$dotenv ...}}, $processEnv) is fine.
+declare -r SECRET_KEY_RE='"[^"]*(api[_-]?key|token|secret|passw(or)?d|bearer|credential)[^"]*"[[:space:]]*:[[:space:]]*"[^"$\{][^"]{7,}"'
+declare -r SECRET_TOKEN_RE='(ghp_|github_pat_|sk-|xox[abps]-|glpat-)[A-Za-z0-9_-]{16,}'
+
+# }}} = CONSTANTS =============================================================
+
+# {{{ = FUNCTIONS =============================================================
+
+p_msg() { (( QUIET )) || printf '%s\n' "$*"; }
+p_war() { printf 'WARNING: %s\n' "$*" >&2; }
+p_err() { printf 'ERROR: %s\n' "$*" >&2; }
+
+usage() {
+  cat <<EOF
+Usage: vscode-config-snapshot [-n] [-q] [TARGET_DIR]
+
+  TARGET_DIR   default: ${DEFAULT_TARGET}
+  -n           dry run: show what would change, write nothing
+  -q           quiet: only warnings and errors
+EOF
+}
+
+has_secret() {
+  grep -qiE -- "${SECRET_KEY_RE}" "$1" || grep -qE -- "${SECRET_TOKEN_RE}" "$1"
+}
+
+# Copy the config files of one VS Code profile dir into a staging dir.
+stage_profile() {
+  local -r from="$1" to="$2"
+  local f d
+  mkdir -p "${to}"
+  for f in "${FILES[@]}"; do
+    [[ -f "${from}/${f}" ]] && cp -p "${from}/${f}" "${to}/"
+  done
+  for d in "${DIRS[@]}"; do
+    [[ -d "${from}/${d}" ]] && cp -rp "${from}/${d}" "${to}/"
+  done
+  return 0
+}
+
+# Installed extensions as sorted "publisher.name" lines. IDs only: versions
+# would turn every extension auto-update into a commit.
+extension_ids() {
+  local -r manifest="$1"
+  [[ -f "${manifest}" ]] || return 0
+  python3 - "${manifest}" <<'PY'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    sys.exit(0)
+ids = {e.get("identifier", {}).get("id", "").lower() for e in data}
+print("\n".join(sorted(i for i in ids if i)))
+PY
+}
+
+# "<name>\t<location>" for every non-default profile.
+profiles() {
+  python3 - "${SRC}/globalStorage/storage.json" <<'PY'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    sys.exit(0)
+for p in data.get("userDataProfiles", []):
+    if p.get("name") and p.get("location"):
+        print(f"{p['name']}\t{p['location']}")
+PY
+}
+
+# }}} = FUNCTIONS =============================================================
+
+# {{{ = MAIN ==================================================================
+
+declare -i QUIET=0
+
+main() {
+  local -i dry_run=0
+  while (( $# > 0 )); do
+    case "$1" in
+      -n|--dry-run)  dry_run=1 ;;
+      -q|--quiet)    QUIET=1 ;;
+      -h|--help)     usage; return 0 ;;
+      -*)            usage >&2; return 2 ;;
+      *)             break ;;
+    esac
+    shift
+  done
+  local -r target="${1:-${DEFAULT_TARGET}}"
+
+  if [[ ! -d "${SRC}" ]]; then
+    p_err "VS Code user dir not found: ${SRC}"
+    return 1
+  fi
+
+  local stage
+  stage="$(mktemp -d)"
+  # shellcheck disable=SC2064  # expand now: stage is local
+  trap "rm -rf '${stage}'" EXIT
+
+  # {{{ - Stage -----------------------------------------------------------------
+  stage_profile "${SRC}" "${stage}"
+  extension_ids "${EXT_DIR}/extensions.json" > "${stage}/extensions.txt"
+
+  local name location safe
+  local -a listing=()
+  while IFS=$'\t' read -r name location; do
+    [[ -d "${SRC}/profiles/${location}" ]] || continue
+    # Profile names become dir names: keep them readable, drop path-hostile chars.
+    safe="$(tr -c 'A-Za-z0-9._ -' '_' <<<"${name}" | sed 's/_$//')"
+    stage_profile "${SRC}/profiles/${location}" "${stage}/profiles/${safe}"
+    extension_ids "${SRC}/profiles/${location}/extensions.json" \
+      > "${stage}/profiles/${safe}/extensions.txt"
+    listing+=("${safe}	${location}")
+  done < <(profiles)
+  if (( ${#listing[@]} > 0 )); then
+    printf '%s\n' "# profile dir<TAB>VS Code profile id" "${listing[@]}" \
+      > "${stage}/profiles.tsv"
+  fi
+  # }}} - Stage -----------------------------------------------------------------
+
+  # {{{ - Secret guard ----------------------------------------------------------
+  local -i blocked=0
+  local f rel
+  while IFS= read -r -d '' f; do
+    if has_secret "${f}"; then
+      rel="${f#"${stage}"/}"
+      p_war "possible credential in ${rel}; not copied, previous snapshot kept"
+      blocked+=1
+      rm -f "${f}"
+      # keep the old copy: rsync --delete must not remove it either
+      [[ -f "${target}/${rel}" ]] && { mkdir -p "$(dirname "${f}")"; cp -p "${target}/${rel}" "${f}"; }
+    fi
+  done < <(find "${stage}" -type f -print0)
+  # }}} - Secret guard ----------------------------------------------------------
+
+  # {{{ - Sync ------------------------------------------------------------------
+  local -a rsync_opts=(-rlp --checksum --delete --itemize-changes)
+  local k
+  for k in "${KEEP[@]}"; do rsync_opts+=(--exclude "/${k}"); done
+  (( dry_run )) && rsync_opts+=(--dry-run)
+
+  mkdir -p "${target}"
+  local changes
+  changes="$(rsync "${rsync_opts[@]}" "${stage}/" "${target}/")"
+  if [[ -n "${changes}" ]]; then
+    p_msg "${changes}"
+  else
+    p_msg "no changes"
+  fi
+  # }}} - Sync ------------------------------------------------------------------
+
+  (( blocked == 0 )) || return 1
+}
+
+main "$@"
+
+# }}} = MAIN ==================================================================

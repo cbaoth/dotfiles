@@ -1,0 +1,11 @@
+[Unit]
+Description=Snapshot the VS Code user config into ~/notes (git history)
+Documentation=file:%h/dotfiles/bin/vscode-config-snapshot
+# Only where the notes repo exists; notes-sync.timer does the commit and push.
+ConditionPathIsDirectory=%h/notes/.git
+# Exit 1 = a file looked like it holds a credential and was NOT copied.
+OnFailure=vscode-config-snapshot-failed.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/vscode-config-snapshot --quiet

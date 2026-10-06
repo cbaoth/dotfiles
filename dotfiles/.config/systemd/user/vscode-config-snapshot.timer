@@ -1,0 +1,15 @@
+[Unit]
+Description=Snapshot the VS Code user config into ~/notes hourly
+Documentation=file:%h/dotfiles/bin/vscode-config-snapshot
+
+[Timer]
+# Hourly is plenty: the point is a revertible history of Settings Sync
+# accidents, not minute-level granularity. notes-sync commits within 5 min.
+OnStartupSec=5min
+OnUnitActiveSec=1h
+AccuracySec=5min
+RandomizedDelaySec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
