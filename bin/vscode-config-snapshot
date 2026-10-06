@@ -13,9 +13,9 @@
 # minutes, so every change becomes a revertible commit.
 #
 # Copies settings, keybindings, tasks, mcp, snippets and every profile's own
-# files (by profile *name*, not VS Code's hash id), plus installed extension
-# IDs as sorted text. Leaves out caches, state and history (globalStorage,
-# workspaceStorage, History, sync).
+# files (by profile *name*, not VS Code's hash id), plus extension IDs as
+# sorted text: installed, disabled and enabled per profile. Leaves out caches,
+# state and history (globalStorage, workspaceStorage, History, sync).
 #
 # Secret guard: the target repo must never hold credentials. A file whose JSON
 # has a key-like name (apiKey, token, secret, password) with a literal value,
@@ -98,6 +98,30 @@ print("\n".join(sorted(i for i in ids if i)))
 PY
 }
 
+# Disabled extension IDs of one profile, sorted. VS Code keeps them in the
+# profile's state DB, not in extensions.json: on this setup every profile has
+# nearly all extensions installed and differs only in what it disables.
+disabled_ids() {
+  local -r db="$1/globalStorage/state.vscdb"
+  [[ -f "${db}" ]] || return 0
+  python3 - "${db}" <<'PY'
+import json, sqlite3, sys
+try:
+    con = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+    row = con.execute("SELECT value FROM ItemTable "
+                      "WHERE key = 'extensionsIdentifiers/disabled'").fetchone()
+except sqlite3.Error:
+    sys.exit(0)
+ids = {e.get("id", "").lower() for e in json.loads(row[0])} if row else set()
+print("\n".join(sorted(i for i in ids if i)))
+PY
+}
+
+# Installed minus disabled.
+enabled_ids() {
+  comm -23 <(LC_ALL=C sort "$1") <(LC_ALL=C sort "$2")
+}
+
 # "<name>\t<location>" for every non-default profile.
 profiles() {
   python3 - "${SRC}/globalStorage/storage.json" <<'PY'
@@ -145,6 +169,9 @@ main() {
   # {{{ - Stage -----------------------------------------------------------------
   stage_profile "${SRC}" "${stage}"
   extension_ids "${EXT_DIR}/extensions.json" > "${stage}/extensions.txt"
+  disabled_ids "${SRC}" > "${stage}/extensions-disabled.txt"
+  enabled_ids "${stage}/extensions.txt" "${stage}/extensions-disabled.txt" \
+    > "${stage}/extensions-enabled.txt"
 
   local name location safe
   local -a listing=()
@@ -155,6 +182,11 @@ main() {
     stage_profile "${SRC}/profiles/${location}" "${stage}/profiles/${safe}"
     extension_ids "${SRC}/profiles/${location}/extensions.json" \
       > "${stage}/profiles/${safe}/extensions.txt"
+    disabled_ids "${SRC}/profiles/${location}" \
+      > "${stage}/profiles/${safe}/extensions-disabled.txt"
+    enabled_ids "${stage}/profiles/${safe}/extensions.txt" \
+      "${stage}/profiles/${safe}/extensions-disabled.txt" \
+      > "${stage}/profiles/${safe}/extensions-enabled.txt"
     listing+=("${safe}	${location}")
   done < <(profiles)
   if (( ${#listing[@]} > 0 )); then
