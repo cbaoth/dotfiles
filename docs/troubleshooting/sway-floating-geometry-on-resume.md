@@ -80,11 +80,20 @@ invoked by swayidle") — **closed as not planned**. Related:
 
 ## Dead ends
 
-- **It is not DPMS.** The obvious suspect was
-  `timeout 3600 'swaymsg "output * dpms off"'` in the swayidle block. It is not
-  the cause: `output dpms off` leaves `output->enabled` set and never calls
-  `output_disable()`, so no evacuation happens. Only the physical
-  connector loss on suspend/resume does.
+- **DPMS: ruled out from the C source, then proven wrong on this hardware
+  (2026-10-06).** `output dpms off` leaves `output->enabled` set and never calls
+  `output_disable()`, so by the source no evacuation should happen. Measured on
+  the LG 38GN950 (DP, proprietary Nvidia): the monitor drops its DisplayPort
+  link, the connector disappears, and sway destroys the output anyway
+  (`Destroying output DP-1` in `session.log`, `get_outputs` empty). Any
+  floating window is re-centred when the output returns, with no suspend
+  involved, and `dpms on` cannot bring it back — the black screen needed a VT
+  switch to recover. The idle hook was removed from `90-launch-apps.conf`
+  (with a warning comment). Side effect worth knowing: an idle monitor-off
+  longer than the next `save` also produced an **empty state file**
+  (10-04 15:52 → 22:05 bedtime save wrote 0 windows, so the 10-05 resume had
+  nothing to restore). Still open: `save` must refuse to write when no output
+  is active.
 - **No `output` config option prevents evacuation.** There is no
   "keep workspaces on this output" or "don't re-centre" setting; the behaviour is
   unconditional in the C, not policy.
