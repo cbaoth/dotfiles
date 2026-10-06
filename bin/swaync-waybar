@@ -139,7 +139,10 @@ render() {
       (( COUNT > COUNT_MAX )) && text="${COUNT_OVERFLOW}"
       ;;
   esac
-  printf '{"text":"%s","tooltip":"%s","class":[%s]}\n' "${text}" "${tooltip}" "${classes}"
+  # Write failure = waybar is gone (bar reload/restart): exit, or this watcher
+  # lingers as an orphan with its producers. The EXIT trap cleans up.
+  printf '{"text":"%s","tooltip":"%s","class":[%s]}\n' "${text}" "${tooltip}" "${classes}" \
+    2> /dev/null || exit 0
 }
 
 cmd_watch() {
