@@ -74,8 +74,9 @@ Options:
                       then exit (use this to check a regex actually matches)
   -h, --help          show this help and exit
 
-Only tiled windows are considered; floating and scratchpad windows are left
-alone, since neither participates in a tabbed container.
+Tiled and floating windows are both moved to their mapped workspace. Only tiled
+ones are ordered: a floating window is not part of a tabbed container, so it has
+no tab position. Scratchpad windows are left alone -- they are hidden on purpose.
 
 Windows matching an app but no rule are left where they are -- a missing rule
 never moves a window somewhere arbitrary.
@@ -160,17 +161,34 @@ read_map() {
   (( ${#RULES[@]}    > 0 )) || { p_err "no [rules] defined in ${file}"; exit 1; }
 }
 
-# Live TILED leaf windows, SEP-separated: con_id, workspace, app_id, class, title.
-# Floating and scratchpad windows are excluded -- neither is part of a tabbed
-# container, so moving or ordering them here would be wrong.
+# con_ids of floating leaf windows. Filled once by load_floating (not from inside
+# live_windows, which runs in a process substitution and could not set it).
+declare -A FLOATING=()
+load_floating() {
+  local id
+  while IFS= read -r id; do
+    [[ -n "${id}" ]] && FLOATING["${id}"]=1
+  done < <(swaymsg -t get_tree | jq -r '
+    .. | objects | select(.type? == "workspace")
+    | select(((.name // "") | startswith("__i3")) | not)
+    | (.floating_nodes // [])[] | recurse(.nodes[]?)
+    | select((.nodes // []) | length == 0)
+    | select(.app_id != null or .window_properties != null)
+    | .id')
+}
+
+# Live leaf windows, tiled AND floating, SEP-separated: con_id, workspace,
+# app_id, class, title. Scratchpad windows are excluded (hidden on purpose).
+# Floating ones are listed so they get moved to their workspace; they are skipped
+# for ordering later (see FLOATING), since they have no tab position.
 live_windows() {
   swaymsg -t get_tree | jq -r '
     .. | objects | select(.type? == "workspace")
     | select(((.name // "") | startswith("__i3")) | not)
     | .name as $ws
-    | [ (.nodes // [])[] | recurse(.nodes[]?) ]
+    | [ ((.nodes // [])[], (.floating_nodes // [])[]) | recurse(.nodes[]?) ]
     | .[]
-    | select(.type? == "con")
+    | select(.type? == "con" or .type? == "floating_con")
     | select((.nodes // []) | length == 0)
     | select(.app_id != null or .window_properties != null)
     | [ .id, $ws, (.app_id // ""), (.window_properties.class // ""), (.name // "") ]
@@ -288,10 +306,14 @@ apply_app() {
       p_dbg "  -> ${ws}"
     fi
 
+    local flt=""
+    [[ -z "${FLOATING[${cid}]:-}" ]] || flt=" floating"
+
     if (( dry_run )); then
-      printf '  %-18s con_id=%-6s %-52s [rule: %s]\n' \
-        "${ws}" "${cid}" "${title:0:52}" "$(rule_title "${claim}")"
-      first=0
+      printf '  %-18s con_id=%-6s %-52s [rule: %s]%s\n' \
+        "${ws}" "${cid}" "${title:0:52}" "$(rule_title "${claim}")" "${flt}"
+      # A floating window must not become the tab anchor of later tiled ones.
+      [[ -n "${flt}" ]] || first=0
       continue
     fi
 
@@ -300,6 +322,13 @@ apply_app() {
       swaymsg "[con_id=${cid}] move container to workspace \"${ws}\"" > /dev/null \
         || { p_war "move failed: con_id=${cid} (${title:0:40})"; continue; }
       moved+=1
+    fi
+
+    # Floating: placed on its workspace, nothing more. No tab position to set, and
+    # it must not become the anchor/mark the tiled windows are ordered against.
+    if [[ -n "${flt}" ]]; then
+      p_dbg "     con_id=${cid}  ${title:0:60}  (floating, not ordered)"
+      continue
     fi
 
     if (( first )); then
@@ -338,7 +367,8 @@ cmd_list() {
     local line cid ws title
     while IFS="${SEP}" read -r cid ws title; do
       [[ -n "${cid}" ]] || continue
-      printf '             live: con_id=%-6s %-18s %s\n' "${cid}" "${ws}" "${title:0:60}"
+      printf '             live: con_id=%-6s %-18s %s%s\n' "${cid}" "${ws}" "${title:0:60}" \
+        "${FLOATING[${cid}]:+  [floating]}"
       n+=1
     done < <(app_windows "${a}")
     (( n == 0 )) && printf '             live: (none matched)\n'
@@ -439,6 +469,7 @@ main() {
     || { p_err "cannot reach sway (is SWAYSOCK set?)"; exit 1; }
 
   read_map "${map_file}"
+  load_floating
 
   if (( do_list )); then cmd_list; exit 0; fi
 

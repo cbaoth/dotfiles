@@ -309,12 +309,15 @@ to workspace` to `assign` (the former re-fires on title change after a reload an
 on every remap — that was the "window jumps back to its assigned workspace" bug),
 and `bin/sway-float-geometry` now brackets suspend to stop floating windows
 piling up in the centre on resume
-([note](troubleshooting/sway-floating-geometry-on-resume.md)).
+([note](troubleshooting/sway-floating-geometry-on-resume.md)). 2026-10-06: it
+also runs as a `watch` daemon, since an output can vanish without a suspend
+(monitor standby) and a save without an output used to write an empty state.
 
 Remaining:
 
-Done 2026-09-30: `bin/sway-arrange` ($mod+Alt+x mode: 1 vscode, 2 browser,
-0 all) sweeps each app's windows onto their mapped workspace and sets the tab
+Done 2026-09-30: `bin/sway-arrange` ($mod+Alt+x mode: 1 browser, 2 vscode,
+3 claude, 0 all) sweeps each app's windows (tiled and floating; only tiled ones
+are ordered) onto their mapped workspace and sets the tab
 order, from `dotfiles/.config/sway/window-map.conf` (rule order = tab order).
 Two measurements shaped it: a VS Code title is still **null** at `window::new`,
 so per-folder placement can never be a rule; and `move container to mark`
@@ -329,9 +332,10 @@ already does it.
       `workspace_layout` override, or building the split above sway's automatic
       container. This is the one piece of the original "place + tab + order"
       goal still done by hand.
-- [ ] [S] Ordering across two apps sharing a workspace is undefined —
-      `sway-arrange` orders each app within itself only. Currently worked around
-      by running the apps in the desired order.
+- [ ] [S] Ordering across two apps sharing a workspace is only sweep order —
+      `sway-arrange` orders each app within itself; the later-swept app gets the
+      later tabs (`[rules]` block order decides `0`/`all`). Interleaving is not
+      expressible.
 - [ ] [M] `bin/sway-layout` — snapshot/restore the container tree of
       **already-running** windows: workspace, nesting, `tabbed`/`stacked`, order,
       split ratios. Never relaunches anything, so `con_id` matching is exact

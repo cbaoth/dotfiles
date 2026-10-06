@@ -3,7 +3,7 @@ title: Sway window placement, criteria and layout persistence
 hosts: [all]
 status: resolved
 tags: [sway, wayland, window-rules, criteria, layout, session]
-updated: 2026-09-30
+updated: 2026-10-06
 ---
 
 # Sway window placement, criteria and layout persistence
@@ -23,8 +23,8 @@ deployed by `dotfiles-link`. There is nothing idempotent to install.
 - **Layout restore:** nothing native. i3's `append_layout` does not exist in
   sway and never will. No third-party tool solves it for single-process
   multi-window apps (VS Code, browsers) — that limit is fundamental, not a bug.
-- **Floating geometry across suspend:** broken by sway, worked around by
-  `bin/sway-float-geometry`. See
+- **Floating geometry across suspend / monitor loss:** broken by sway, worked
+  around by `bin/sway-float-geometry` (a `watch` daemon plus the suspend hooks). See
   [sway-floating-geometry-on-resume](../troubleshooting/sway-floating-geometry-on-resume.md).
 - **Per-project placement (folder → workspace):** cannot be a rule at all, and
   not because of the re-fire bug. Measured 2026-09-30 on the `window::new`
@@ -47,7 +47,7 @@ deployed by `dotfiles-link`. There is nothing idempotent to install.
 | Generic dialog/utility matching | **native** | S | `window_type` — see [Criteria](#criteria) |
 | "Executable name" criterion | **impossible** | — | No such attribute. Closest: `pid` + `/proc/<pid>/exe` from a script |
 | Distinguish identical-looking windows | **impossible** | — | If `app_id`+`class`+`instance`+`title` all match, sway cannot tell them apart. Only escape: `mark` them yourself |
-| Floating position/size restore | **native cmds + scripts** | S | `bin/sway-place`, `bin/sway-float-geometry` |
+| Floating position/size restore | **native cmds + scripts** | S | `bin/sway-float-geometry` (`watch` daemon: snapshot + auto-restore on any output change) |
 | Reproduce container tree (splits, nesting) | **self-implemented** | L | No placeholders — see [append_layout](#append_layout-does-not-exist-in-sway) |
 | Reproduce `tabbed`/`stacked` | **already configured** | — | `workspace_layout tabbed` (20-styles.conf) makes sway wrap each workspace's children in one tabbed container automatically |
 | Reproduce order within a container | **self-implemented** | S | `move container to mark` inserts immediately AFTER the mark, so advancing the mark per window builds any order in one pass. No `move left/right` walking needed (measured) |
@@ -192,8 +192,8 @@ table.
 
 ## `bin/sway-arrange` — the on-demand sweep
 
-Bound to `$mod+Alt+x` as a mode (`1` vscode, `2` browser, `0` all), matching the
-three existing mode blocks. Map: `dotfiles/.config/sway/window-map.conf`.
+Bound to `$mod+Alt+x` as a mode (`1` browser, `2` vscode, `3` claude, `0` all),
+matching the other mode blocks. Map: `dotfiles/.config/sway/window-map.conf`.
 
 What it does: moves each app's windows to their mapped workspace, then sets the
 tab order. It does **not** build the tabbed container — `workspace_layout tabbed`
@@ -210,8 +210,15 @@ Design notes worth keeping:
   order.
 - **Unmatched windows are never moved.** A window matching an app but no rule
   stays where it is, so a missing rule cannot fling something somewhere odd.
-- **Tiled only.** Floating and scratchpad windows are skipped; neither is part of
-  a tabbed container.
+- **Floating windows are moved, not ordered.** (Until 2026-10-06 they were
+  skipped entirely, on the grounds that they are not part of a tabbed container.
+  That reasoning only covers *ordering*; a floating window moves between
+  workspaces fine, and a floating Claude Desktop silently ignored `$mod+Alt+x 3`.)
+  A floating window never becomes the tab anchor of the tiled ones. Scratchpad
+  windows are still skipped: they are hidden on purpose.
+- **Cross-app order is sweep order only.** Rules match per app alias, so a block
+  of one app can never shadow another's. The `[rules]` order decides which app is
+  swept first on `0`/`all`, i.e. who gets the earlier tabs on a shared workspace.
 - **Internal field separator is ASCII US (0x1f), not tab.** Tab is IFS
   whitespace, so `read` collapses runs of it — and an empty field (Wayland
   windows have no `class`, XWayland ones no `app_id`) then silently shifts every
