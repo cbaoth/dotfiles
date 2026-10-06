@@ -357,10 +357,12 @@ What the config (`~/.config/swaync/config.json`) sets up:
   keyboard focus; swaync's popup is a layer surface that never does, so sway
   just marks the window urgent (red workspace, `focus_on_window_activation`
   notwithstanding). The `click-focus-*` action scripts run
-  `bin/swaync-focus-urgent`, which waits up to ~1.5 s for a window that was
-  not urgent at click time to turn urgent, then focuses it (switching
-  workspace, raising it from a tab group). Already-urgent windows are left
-  alone; apps that ignore the click simply time out.
+  `bin/swaync-focus-urgent`, which waits up to ~1.5 s for a window that
+  turns urgent after the click, or an urgent window of the notifying app
+  (app_id matched against desktop-entry / app-name; it may still be urgent
+  from an earlier click), then focuses it (switching workspace, raising it
+  from a tab group). Apps that ignore the click simply time out. Each click
+  is logged to `$XDG_RUNTIME_DIR/swaync-focus-urgent.log`.
 
 Not supported: merging identical notifications that an app sends without
 reusing its `replaces_id` (they still land in the same app group). Apps that
