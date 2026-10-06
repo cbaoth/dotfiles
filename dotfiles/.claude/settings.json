@@ -526,7 +526,6 @@
       "/home/cbaoth/.*/**"
     ]
   },
-  "model": "opus",
   "worktree": {},
   "enableWorkflows": true,
   "sandbox": {
@@ -538,7 +537,10 @@
       "effortLevel": "medium"
     },
     "claude-opus-5": {
-      "effortLevel": "high"
+      "effortLevel": "medium"
+    },
+    "claude-opus-5-5": {
+      "effortLevel": "medium"
     }
   },
   "askUserQuestionTimeout": "never",
@@ -546,9 +548,10 @@
   "theme": "dark",
   "editorMode": "vim",
   "preferredNotifChannel": "auto",
+  "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": false,
   "useAutoModeDuringPlan": true,
   "voiceEnabled": true,
-  "remoteControlAtStartup": true
+  "model": "opus"
 }
