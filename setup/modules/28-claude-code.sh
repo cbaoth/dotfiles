@@ -77,8 +77,9 @@ module_run() {
   fi
 
   # The sandboxed Bash tool needs bubblewrap + socat (both in base.list). Warn
-  # only: the CLI works without them, just unsandboxed. On Ubuntu 26.04 it also
-  # needs a manual AppArmor change (desktops only), see MODULE_DOC.
+  # only: the CLI works without them, just unsandboxed. Our shared settings
+  # keep the sandbox off on purpose (and Ubuntu 26.04 would also need an
+  # AppArmor change); see MODULE_DOC.
   local dep
   for dep in bwrap socat; do
     st::have_cmd "${dep}" \

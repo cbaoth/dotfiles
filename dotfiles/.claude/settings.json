@@ -531,7 +531,7 @@
   "preferredNotifChannel": "auto",
   "remoteControlAtStartup": true,
   "sandbox": {
-    "enabled": true
+    "enabled": false
   },
   "theme": "dark",
   "tui": "fullscreen",

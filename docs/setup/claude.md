@@ -91,12 +91,39 @@ sudo apt remove claude-code                    # or
 npm uninstall -g @anthropic-ai/claude-code
 ```
 
-### Manual: the Bash sandbox on Ubuntu 26.04 (AppArmor)
+### The Bash sandbox: off, on purpose
 
-**Not automated, on purpose:** it relaxes a distro hardening default. Done on
-motoko (2026-10-06). **Deliberately skipped on servers** (saito, the vserver):
-there Claude runs with the sandbox off, which is the better trade than weakening
-a multi-service host's userns restriction.
+`"sandbox": {"enabled": false}` in the shared `dotfiles/.claude/settings.json`,
+so it is off on **every** host. Tried on motoko on 2026-10-06 and reverted the
+same day, for three reasons:
+
+1. **Wrong fit for this kind of work.** Writes are allowed only inside the
+   working directories. Much of what happens in `~/dotfiles` writes elsewhere:
+   `dotfiles-link` into `~`, `systemctl --user`, `~/.ccrun`. Each of those
+   failed inside the sandbox and had to be retried unsandboxed, behind a
+   permission prompt.
+2. **It litters every working directory.** bwrap mounts each protected path
+   read-only, and when the path does not exist it first creates an **empty,
+   read-only file** on the real disk to mount onto. Every sandboxed command does
+   this, so deleting them only helps while the sandbox is off. The working
+   directory gets `.bashrc`, `.zshrc`, `.gitconfig`, `.gitmodules`, `.idea`,
+   `.mcp.json`, `.profile`, `.ripgreprc`, `.zprofile`, `.bash_profile`, and
+   `.claude/{agents,hooks,skills,…}`; each additional directory gets an empty
+   `.mcp.json`. In `~/notes`, `notes-sync` (`git add -A`) committed and pushed
+   five of them within minutes.
+3. **It needs a distro hardening default relaxed** (below).
+
+Isolated work, such as a Python project with its venv in the working
+directory, goes in a dev container instead. That is stronger isolation and
+needs no AppArmor change.
+
+If it ever comes back: enable it per project (`.claude/settings.local.json`),
+never in the shared file, and gitignore the placeholders.
+
+#### Reference: making it work on Ubuntu 26.04 (AppArmor)
+
+**Not applied anywhere** (rolled back on motoko). Kept because the cause took a
+while to find.
 
 The sandboxed Bash tool needs `bubblewrap` and `socat` (in `base.list`, and the
 CLI module warns if missing), but on Ubuntu 26.04 that is not enough. Every
