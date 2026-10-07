@@ -281,6 +281,15 @@ Lesson for any script here: never rely on `move container to workspace` followed
 by a position command; and a restore that only checks geometry will report
 success for a window on the wrong workspace.
 
+**Verified 2026-10-07**, two ways. (1) Real output disable/enable on a live layout
+with windows on a hidden workspace: `moved 4, 1 already in place`, positions and
+workspaces identical to before; two scratchpad windows stayed hidden throughout.
+(2) A real short suspend: the after-resume hook restored (`moved 5`), then the
+watcher saw the output change and found `6 already in place`. Not yet verified: an
+overnight suspend, and a real connector loss (monitor standby). Scratchpad windows
+are excluded on purpose: sway keeps their position across hide/show, so there is
+nothing to restore.
+
 Not recoverable: the workspaces recorded in the 22:05 save (the log lists
 positions only), so the layout of that evening could not be reconstructed exactly.
 Take a screenshot before testing a suspend.
