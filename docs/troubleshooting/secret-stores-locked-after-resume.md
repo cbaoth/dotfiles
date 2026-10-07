@@ -344,8 +344,17 @@ database, and a real suspend logged `KeePassXC: databases locked`.
 
 `lock-secrets` now logs the `busctl` error text instead of a bare "failed", and
 adds a "stale AppArmor label? restart the flatpak" hint when the error mentions
-AppArmor. Still open: it exits 0 whatever happens, so a lock that cannot be
-delivered leaves the database unlocked through the suspend. Failing closed
-(stopping the app) was proposed and **not** decided; `flatpak kill` is abrupt, so
-an unsaved entry would be lost.
+AppArmor.
+
+**Fail closed (decided 2026-10-07):** `lock-secrets --fail-closed`, used on the
+`before-sleep` hook only, stops KeePassXC (`flatpak kill`) when the lock cannot be
+delivered, verifies it is gone, and leaves a marker in `$XDG_RUNTIME_DIR`.
+`unlock-secrets` normally skips an app that is not running; with the marker it
+starts KeePassXC again on resume. A stop that does not take is logged as an
+ERROR, never as success. Accepted risk: `flatpak kill` is abrupt, so an entry
+still open in its edit dialog is lost (saved changes are not — autosave, a backup
+of the previous file, and Nextcloud file history). The idle-timeout hook stays
+soft on purpose. Not covered: gnome-keyring, whose lock failure still only warns.
+Caught by the stubbed test: the script sets `IFS=$'\t\n'`, so an unquoted
+`${how}` command string is never split — use arrays there.
 
