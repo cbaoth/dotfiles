@@ -45,6 +45,7 @@ declare -r ICON_DND=$'\uf1f6'
 declare -ri COUNT_MAX=99
 # FontAwesome (first in waybar's font-family) maps U+221E to an empty glyph,
 # so pango never falls back and the symbol renders blank: force a text font.
+declare -r SUBSCRIBE_EOF="__swaync_subscribe_ended__"   # see cmd_watch
 declare -r COUNT_OVERFLOW="<span font_family='Roboto'>"$'\u221e'"</span>"
 # }}} = CONSTANTS ============================================================
 
@@ -163,7 +164,10 @@ cmd_watch() {
   #   { "count": 3, "dnd": false, "visible": false, "inhibited": false }
   # and close signals
   #   /org/freedesktop/Notifications: org.freedesktop.Notifications.NotificationClosed (uint32 713, uint32 2)
-  swaync-client --subscribe > "${fifo}" &
+  # The subscription is the lifeline: when it ends (swaync restarted, client
+  # killed), emit a sentinel so the loop exits and waybar restarts a fresh
+  # watcher -- otherwise gdbus keeps the FIFO open and the count freezes.
+  { swaync-client --subscribe; printf '%s\n' "${SUBSCRIBE_EOF}"; } > "${fifo}" &
   producers+=("$!")
   gdbus monitor --session --dest org.freedesktop.Notifications \
     --object-path /org/freedesktop/Notifications > "${fifo}" 2> /dev/null &
@@ -180,6 +184,7 @@ cmd_watch() {
       break      # both producers gone (swaync stopped); waybar restarts us
     fi
     case "${line}" in
+      "${SUBSCRIBE_EOF}") break ;;
       '{'*)
         [[ "${line}" =~ \"count\":\ *([0-9]+) ]] && COUNT="${BASH_REMATCH[1]}"
         [[ "${line}" =~ \"dnd\":\ *(true|false) ]] && DND="${BASH_REMATCH[1]}"

@@ -324,10 +324,36 @@ commented out next to the grimshot ones in the Sway config.
 # Notifications
 
 `swaync` (SwayNotificationCenter) is the notification daemon, started via
-`exec swaync` in `90-launch-apps.conf`. Without a daemon, apps silently drop
-notifications or log errors to stderr. It replaced `mako` (2026-10-06), which
-(left on its defaults) showed every notification as a large popup in one flat
-stack, and has no action buttons (actions only via a `makoctl menu` picker).
+`exec systemctl --user start swaync.service` in `90-launch-apps.conf`. Without a
+daemon, apps silently drop notifications or log errors to stderr. It replaced
+`mako` (2026-10-06), which (left on its defaults) showed every notification as a
+large popup in one flat stack, and has no action buttons (actions only via a
+`makoctl menu` picker).
+
+**Why a systemd unit, not a bare `exec`** (learned 2026-10-07): swaync 0.12.4
+crashes when an output disappears (monitor sleep, suspend/resume:
+`Gtk-CRITICAL gtk_native_unrealize`). With a bare `exec` nothing restarts it.
+The packaged `/usr/lib/systemd/user/swaync.service` plus the repo drop-in
+`~/.config/systemd/user/swaync.service.d/restart.conf` gives:
+
+- `Restart=always`, `RestartSec=1`: back within ~1 s after a crash.
+  Verified with `kill -KILL`. Notifications shown at crash time are lost;
+  the waybar watchers' subscription reconnects by itself.
+- `Environment=PATH=%h/bin:…`: the user manager's PATH lacks `~/bin`, where the
+  hook scripts live. Without it every `swaync-waybar` / `swaync-focus-urgent`
+  hook silently fails.
+
+**mako must not be installed alongside.** Its package ships a D-Bus activation
+file plus `mako.service`. Once swaync is gone, the next notification starts mako
+instead (a similar-looking popup, the waybar count stays 0). Worse, with two
+units claiming `org.freedesktop.Notifications`, systemd refuses to start
+*either* ("Two services allocated for the same bus name"). Then every
+`swaync-client` call (waybar, `$mod+n` keys) blocks forever, even with `-sw`.
+Fix: `sudo apt remove mako-notifier`. Stopgap without sudo:
+`systemctl --user mask mako.service`.
+
+Do Not Disturb survives daemon restarts, since swaync stores it persistently.
+If popups seem to have stopped, check the slashed bell in waybar first.
 
 What the config (`~/.config/swaync/config.json`) sets up:
 
