@@ -720,13 +720,19 @@ giroot() {
 # }}} - GIT ------------------------------------------------------------------
 
 # {{{ - CLAUDE CODE (AI) -----------------------------------------------------
-# Claude Code launchers. Name scheme: aic[r][d|n|s][m]
+# Claude Code launchers.
+# Name scheme: [repo]aic[options] -> [dt|nt|sb|]aic[r][d|n|s][m]
+# Optional repo prefix (one of):
+#   dt = run in the dotfiles workspace (this repo); cwd is restored on exit
+#   nt = run in the private notes repo ($NOTES_DIR or ~/notes)
+#   sb = run in the SilverBullet main space (/srv/silverbullet/space)
+# Optional suffixes:
 #   u = update the local Claude Code installation
+#   c = continue the last session (-c)
 #   r = resume a previous session (-r, no id -> session picker)
-#   d = run in the dotfiles workspace (this repo); cwd is restored on exit
-#   n = run in the private notes repo ($NOTES_DIR or ~/notes)
-#   s = run in the SilverBullet main space (/srv/silverbullet/space)
-# Defined only where claude is installed and, for n/s, the target dir exists.
+#   w = allow remote controlled "web" session (e.g. claude.ai web app or claude-desktop)
+#   s = server mode
+#   # Defined only where claude is installed and, for if repo prefix is used, the target dir exists.
 #   m = mobile mode: driving a session from a phone/tablet over SSH, where
 #       manual steps are handed over as staged scripts instead of commands to
 #       type. See ~/.claude/skills/mobile-mode/SKILL.md.
@@ -734,37 +740,61 @@ giroot() {
 if command -v claude >/dev/null 2>&1; then
   alias aic='claude'
   alias aicu='claude update'
+  alias aicc='claude -c'
   alias aicr='claude -r'
+  alias aicw='claude --remote-control'      # interactive mode
+  alias aicws='claude remote-control'       # server mode
+  alias aiccw='claude -c --remote-control'
+  alias aicrw='claude -r --remote-control'
 
   # Mobile mode is injected via --append-system-prompt rather than as an initial
   # `/mobile-mode` prompt, because -r/--resume takes an OPTIONAL session id and
   # would otherwise swallow the positional argument.
   CC_MOBILE='Mobile mode is active for this entire session: read and follow ~/.claude/skills/mobile-mode/SKILL.md before your first reply.'
   alias aicm='claude --append-system-prompt "$CC_MOBILE"'
+  alias aiccm='claude -c --append-system-prompt "$CC_MOBILE"'
   alias aicrm='claude -r --append-system-prompt "$CC_MOBILE"'
 
   # Workspace variants: subshell so the caller's cwd survives. Repo roots come
   # from _repo_dotfiles/_repo_notes (REPO SYNC below, resolved at call time), so
   # a clone outside ~/dotfiles works too. dotfiles needs no guard: this file is
   # part of it.
-  aicd()   { ( cd "$(_repo_dotfiles)" && claude "$@" ); }
-  aicrd()  { ( cd "$(_repo_dotfiles)" && claude -r "$@" ); }
-  aicdm()  { ( cd "$(_repo_dotfiles)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-  aicrdm() { ( cd "$(_repo_dotfiles)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+  dtc()   { ( cd "$(_repo_dotfiles)" && claude "$@" ); }
+  dtcc()  { ( cd "$(_repo_dotfiles)" && claude -c "$@" ); }
+  dtcr()  { ( cd "$(_repo_dotfiles)" && claude -r "$@" ); }
+  dtcw()  { ( cd "$(_repo_dotfiles)" && claude --remote-control "$@" ); }
+  dtcws() { ( cd "$(_repo_dotfiles)" && claude remote-control "$@" ); }
+  dtccw() { ( cd "$(_repo_dotfiles)" && claude -c --remote-control "$@" ); }
+  dtcrw() { ( cd "$(_repo_dotfiles)" && claude -r --remote-control "$@" ); }
+  dtcm()  { ( cd "$(_repo_dotfiles)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+  dtccm() { ( cd "$(_repo_dotfiles)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
+  dtcrm() { ( cd "$(_repo_dotfiles)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
 
   if [[ -d "${NOTES_DIR:-${HOME}/notes}" ]]; then
-    aicn()   { ( cd "$(_repo_notes)" && claude "$@" ); }
-    aicrn()  { ( cd "$(_repo_notes)" && claude -r "$@" ); }
-    aicnm()  { ( cd "$(_repo_notes)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-    aicrnm() { ( cd "$(_repo_notes)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+    ntc()   { ( cd "$(_repo_notes)" && claude "$@" ); }
+    ntcc()  { ( cd "$(_repo_notes)" && claude -c "$@" ); }
+    ntcr()  { ( cd "$(_repo_notes)" && claude -r "$@" ); }
+    ntcw()  { ( cd "$(_repo_notes)" && claude --remote-control "$@" ); }
+    ntcws() { ( cd "$(_repo_notes)" && claude remote-control "$@" ); }
+    ntccw() { ( cd "$(_repo_notes)" && claude -c --remote-control "$@" ); }
+    ntcrw() { ( cd "$(_repo_notes)" && claude -r --remote-control "$@" ); }
+    ntcm()  { ( cd "$(_repo_notes)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+    ntccm() { ( cd "$(_repo_notes)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
+    ntcrm() { ( cd "$(_repo_notes)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
   fi
   # Guarded by the dir rather than living in the vserver's host file, so any
   # host that gets a SilverBullet space later picks these up without a copy.
-  if [[ -d "/srv/silverbullet/space" ]]; then
-    aics()   { ( cd /srv/silverbullet/space && claude "$@" ); }
-    aicrs()  { ( cd /srv/silverbullet/space && claude -r "$@" ); }
-    aicsm()  { ( cd /srv/silverbullet/space && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-    aicrsm() { ( cd /srv/silverbullet/space && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+  if [[ -d "/srv/silverbullet/space" ]]; then  # _repo_silverbullet_space later (unavailable here, ok at function runtime)
+    sbc()   { ( cd "$(_repo_silverbullet_space)" && claude "$@" ); }
+    sbcc()  { ( cd "$(_repo_silverbullet_space)" && claude -c "$@" ); }
+    sbcr()  { ( cd "$(_repo_silverbullet_space)" && claude -r "$@" ); }
+    sbcw()  { ( cd "$(_repo_silverbullet_space)" && claude --remote-control "$@" ); }
+    sbcws() { ( cd "$(_repo_silverbullet_space)" && claude remote-control "$@" ); }
+    sbccw() { ( cd "$(_repo_silverbullet_space)" && claude -c --remote-control "$@" ); }
+    sbcrw() { ( cd "$(_repo_silverbullet_space)" && claude -r --remote-control "$@" ); }
+    sbcm()  { ( cd "$(_repo_silverbullet_space)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+    sbccm() { ( cd "$(_repo_silverbullet_space)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
+    sbcrm() { ( cd "$(_repo_silverbullet_space)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
   fi
 fi
 # }}} - CLAUDE CODE  (AI) ----------------------------------------------------
@@ -1003,7 +1033,7 @@ dotfiles-adopt() {
   # Run adopt to dotfiles repo
   "${_df_root}/tools/adopt.sh" "$@"
 }
-alias doad='dotfiles-adopt'
+alias dtad='dotfiles-adopt'
 
 # Run dotfiles link.sh and refresh shell command cache.
 # Shell-agnostic: resolves repo root by following .aliases symlink.
@@ -1025,7 +1055,7 @@ dotfiles-link() {
     hash -r 2>/dev/null || rehash 2>/dev/null
   }
 }
-alias dotl='dotfiles-link'
+alias dtln='dotfiles-link'
 
 # Pull latest dotfiles from remote repository and apply linking.
 # Shell-agnostic: uses same path resolution as dotfiles-link.
@@ -1040,7 +1070,7 @@ dotfiles-update() {
 
   git -C "${_df_root}" pull "$@" && dotfiles-link
 }
-alias dotu='dotfiles-update'
+alias dtup='dotfiles-update'
 # }}} - DOTFILES MANAGEMENT --------------------------------------------------
 
 # {{{ - REPO SYNC (dotfiles / notes) -----------------------------------------
@@ -1060,6 +1090,7 @@ _repo_dotfiles() {
   fi
 }
 _repo_notes() { echo "${NOTES_DIR:-${HOME}/notes}"; }
+_repo_silverbullet_space() { echo "/srv/silverbullet/space"; }
 
 # Does a plain `git push` stand any chance on this host?
 #

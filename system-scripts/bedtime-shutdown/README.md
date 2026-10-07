@@ -463,9 +463,13 @@ sudo /opt/bin/bedtime-rearm.sh --dry-run -vv
 them is a deliberate act:
 
 ``` shell
-sudo bedtime-unlock      # clear immutability to edit / redeploy
-sudo bedtime-lock        # re-lock (the next re-arm also re-locks if ENFORCE_IMMUTABLE=true)
+sudo /opt/bin/bedtime-unlock   # clear immutability to edit / redeploy
+sudo /opt/bin/bedtime-lock     # re-lock (the next re-arm also re-locks if ENFORCE_IMMUTABLE=true)
 ```
+
+Use the full path: sudo's `secure_path` does not include `/opt/bin`, and the
+files are root-only (0700), so neither `sudo bedtime-unlock` nor tab completion
+finds them. The same applies to `/opt/bin/bedtime-rearm.sh`.
 
 `install.sh` is immutability-aware: it warns and skips a target that is still
 `+i`, so run `bedtime-unlock` before redeploying locked files.
