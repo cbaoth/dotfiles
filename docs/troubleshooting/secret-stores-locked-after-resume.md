@@ -2,8 +2,8 @@
 title: Secret stores stay locked and silent after resume (keyring, KeePassXC)
 hosts: [motoko]
 status: workaround
-tags: [keyring, keepassxc, secrets, suspend, dbus, sway, swayidle]
-updated: 2026-10-03
+tags: [keyring, keepassxc, secrets, suspend, dbus, sway, swayidle, apparmor, flatpak]
+updated: 2026-10-07
 ---
 
 # Secret stores stay locked and silent after resume
@@ -290,3 +290,56 @@ before, nothing proved it had run at all.
   path that locks KeePassXC *without* `lock-secrets --ssh` (its own idle lock,
   a manual lock) can still leave keys behind after a reload; `-K` is the escape
   hatch.
+
+## 2026-10-07: KeePassXC still unlocked after wake — stale AppArmor label
+
+After a suspend the keyring asked for its password as usual, but the KeePassXC
+database was already unlocked. `lock-secrets.log` has the first failure in five
+nights:
+
+```text
+2026-10-06 22:05:02 WARN: KeePassXC: lockAllDatabases failed
+2026-10-06 22:05:02 keyring: locked login            <- the other steps were fine
+```
+
+The script only says "failed". The kernel log says why:
+
+```text
+apparmor="DENIED" operation="dbus_method_call" bus="session" path="/keepassxc"
+  interface="org.keepassxc.KeePassXC.MainWindow" member="lockAllDatabases"
+  label="bwrap//&unpriv_bwrap" … info="No such file or directory"
+apparmor="DENIED" operation="dbus_signal" bus="system" path="/org/freedesktop/login1"
+  member="PrepareForSleep" label="bwrap//&unpriv_bwrap" …
+```
+
+**Cause (verified):** the flatpak KeePassXC (started Oct 3) and its
+`xdg-dbus-proxy` still carry the label `bwrap//&unpriv_bwrap` from the
+`bwrap-userns-restrict` profile. That profile was disabled on 10-06 for the
+Claude sandbox experiment ([claude.md](../setup/claude.md)), which removed the
+`unpriv_bwrap` child. The running processes kept a label that no longer exists,
+and dbus-daemon cannot evaluate it: `busctl --user introspect
+org.keepassxc.KeePassXC.MainWindow /keepassxc` fails with `Failed to query
+AppArmor policy: No such file or directory`. So such a process can **receive
+nothing over D-Bus** — not our `lockAllDatabases` call, and not logind's
+`PrepareForSleep`, which is what KeePassXC's own lock-on-sleep listens to. Both
+locks failed at once, which is why relying on KeePassXC's internal setting would
+not have saved us.
+
+Which processes: every flatpak started *before* the AppArmor change
+(`cat /proc/<pid>/attr/current` shows `bwrap//&unpriv_bwrap (mixed)`); instances
+started after it show `bwrap (unconfined)` and work. On 10-07: KeePassXC, a
+Chromium flatpak, Trayscale and the Firefox native-messaging proxy.
+
+**Fix:** quit and restart each affected flatpak. A new process gets the current
+label. Verify with the `introspect` call above (read-only, locks nothing).
+
+**Do not assume the rollback is harmless.** Changing the profile set under
+running flatpaks is what broke this; applying `~/.ccrun-sandbox` (the rollback)
+may do it again in the other direction. Restart all flatpak apps, or log out,
+right after it, and re-check labels.
+
+Still open: `lock-secrets` swallows the `busctl` error and exits 0, so a failed
+lock looks like a normal run apart from one WARN line in a log nobody reads. It
+should log stderr, and decide whether to fail closed (stop the app) when the
+lock cannot be delivered.
+

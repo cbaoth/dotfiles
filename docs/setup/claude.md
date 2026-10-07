@@ -184,6 +184,15 @@ sudo rm /etc/apparmor.d/disable/bwrap-userns-restrict /etc/apparmor.d/bwrap
 sudo systemctl reload apparmor
 ```
 
+**Then restart every flatpak app (or log out).** Swapping the bwrap profiles
+under running flatpaks leaves them with a label that no longer exists
+(`bwrap//&unpriv_bwrap`), and dbus-daemon then refuses to deliver anything to
+them. Seen on 2026-10-06: KeePassXC could neither be locked over D-Bus nor
+receive logind's `PrepareForSleep`, so its database stayed unlocked through a
+suspend — see
+[secret-stores-locked-after-resume](../troubleshooting/secret-stores-locked-after-resume.md).
+Check with `cat /proc/<pid>/attr/current` on a flatpak's `xdg-dbus-proxy`.
+
 **Known noise, unrelated:** shell init inside the sandbox prints
 `fnm ... Can't create the symlink for multishells ... Read-only file system`,
 because `/run/user/<uid>` is read-only there. Commands still run; it's cosmetic.
