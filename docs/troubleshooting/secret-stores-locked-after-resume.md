@@ -338,8 +338,14 @@ running flatpaks is what broke this; applying `~/.ccrun-sandbox` (the rollback)
 may do it again in the other direction. Restart all flatpak apps, or log out,
 right after it, and re-check labels.
 
-Still open: `lock-secrets` swallows the `busctl` error and exits 0, so a failed
-lock looks like a normal run apart from one WARN line in a log nobody reads. It
-should log stderr, and decide whether to fail closed (stop the app) when the
-lock cannot be delivered.
+**Verified 2026-10-07** after restarting KeePassXC (and the other stale
+flatpaks) and rolling the AppArmor change back: `lock-secrets -v` locks the
+database, and a real suspend logged `KeePassXC: databases locked`.
+
+`lock-secrets` now logs the `busctl` error text instead of a bare "failed", and
+adds a "stale AppArmor label? restart the flatpak" hint when the error mentions
+AppArmor. Still open: it exits 0 whatever happens, so a lock that cannot be
+delivered leaves the database unlocked through the suspend. Failing closed
+(stopping the app) was proposed and **not** decided; `flatpak kill` is abrupt, so
+an unsaved entry would be lost.
 
