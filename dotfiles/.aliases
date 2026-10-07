@@ -721,21 +721,23 @@ giroot() {
 
 # {{{ - CLAUDE CODE (AI) -----------------------------------------------------
 # Claude Code launchers.
-# Name scheme: [repo]aic[options] -> [dt|nt|sb|]aic[r][d|n|s][m]
-# Optional repo prefix (one of):
-#   dt = run in the dotfiles workspace (this repo); cwd is restored on exit
-#   nt = run in the private notes repo ($NOTES_DIR or ~/notes)
-#   sb = run in the SilverBullet main space (/srv/silverbullet/space)
-# Optional suffixes:
-#   u = update the local Claude Code installation
-#   c = continue the last session (-c)
-#   r = resume a previous session (-r, no id -> session picker)
-#   w = allow remote controlled "web" session (e.g. claude.ai web app or claude-desktop)
-#   s = server mode
-#   # Defined only where claude is installed and, for if repo prefix is used, the target dir exists.
-#   m = mobile mode: driving a session from a phone/tablet over SSH, where
-#       manual steps are handed over as staged scripts instead of commands to
-#       type. See ~/.claude/skills/mobile-mode/SKILL.md.
+# Name scheme: <prefix>c[c|r][w|m], plus <prefix>cws and aicu
+# Prefix (one of):
+#   ai  = run in the current directory
+#   dot = run in the dotfiles workspace (this repo); cwd is restored on exit
+#   not = run in the private notes repo ($NOTES_DIR or ~/notes)
+#   sil = run in the SilverBullet main space (/srv/silverbullet/space)
+# Suffixes:
+#   u  = update the local Claude Code installation (aicu only)
+#   c  = continue the last session (-c)
+#   r  = resume a previous session (-r, no id -> session picker)
+#   w  = allow remote controlled "web" session (claude.ai web app or desktop)
+#   ws = remote control server mode (`claude remote-control`)
+#   m  = mobile mode: driving a session from a phone/tablet over SSH, where
+#        manual steps are handed over as staged scripts instead of commands to
+#        type. See ~/.claude/skills/mobile-mode/SKILL.md.
+# Defined only where claude is installed and, for not/sil, the target dir
+# exists.
 
 if command -v claude >/dev/null 2>&1; then
   alias aic='claude'
@@ -759,42 +761,44 @@ if command -v claude >/dev/null 2>&1; then
   # from _repo_dotfiles/_repo_notes (REPO SYNC below, resolved at call time), so
   # a clone outside ~/dotfiles works too. dotfiles needs no guard: this file is
   # part of it.
-  dtc()   { ( cd "$(_repo_dotfiles)" && claude "$@" ); }
-  dtcc()  { ( cd "$(_repo_dotfiles)" && claude -c "$@" ); }
-  dtcr()  { ( cd "$(_repo_dotfiles)" && claude -r "$@" ); }
-  dtcw()  { ( cd "$(_repo_dotfiles)" && claude --remote-control "$@" ); }
-  dtcws() { ( cd "$(_repo_dotfiles)" && claude remote-control "$@" ); }
-  dtccw() { ( cd "$(_repo_dotfiles)" && claude -c --remote-control "$@" ); }
-  dtcrw() { ( cd "$(_repo_dotfiles)" && claude -r --remote-control "$@" ); }
-  dtcm()  { ( cd "$(_repo_dotfiles)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-  dtccm() { ( cd "$(_repo_dotfiles)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
-  dtcrm() { ( cd "$(_repo_dotfiles)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+  dotc()   { ( cd "$(_repo_dotfiles)" && claude "$@" ); }
+  dotcc()  { ( cd "$(_repo_dotfiles)" && claude -c "$@" ); }
+  dotcr()  { ( cd "$(_repo_dotfiles)" && claude -r "$@" ); }
+  dotcw()  { ( cd "$(_repo_dotfiles)" && claude --remote-control "$@" ); }
+  dotcws() { ( cd "$(_repo_dotfiles)" && claude remote-control "$@" ); }
+  dotccw() { ( cd "$(_repo_dotfiles)" && claude -c --remote-control "$@" ); }
+  dotcrw() { ( cd "$(_repo_dotfiles)" && claude -r --remote-control "$@" ); }
+  dotcm()  { ( cd "$(_repo_dotfiles)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+  dotccm() { ( cd "$(_repo_dotfiles)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
+  dotcrm() { ( cd "$(_repo_dotfiles)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
 
   if [[ -d "${NOTES_DIR:-${HOME}/notes}" ]]; then
-    ntc()   { ( cd "$(_repo_notes)" && claude "$@" ); }
-    ntcc()  { ( cd "$(_repo_notes)" && claude -c "$@" ); }
-    ntcr()  { ( cd "$(_repo_notes)" && claude -r "$@" ); }
-    ntcw()  { ( cd "$(_repo_notes)" && claude --remote-control "$@" ); }
-    ntcws() { ( cd "$(_repo_notes)" && claude remote-control "$@" ); }
-    ntccw() { ( cd "$(_repo_notes)" && claude -c --remote-control "$@" ); }
-    ntcrw() { ( cd "$(_repo_notes)" && claude -r --remote-control "$@" ); }
-    ntcm()  { ( cd "$(_repo_notes)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-    ntccm() { ( cd "$(_repo_notes)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
-    ntcrm() { ( cd "$(_repo_notes)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+    notc()   { ( cd "$(_repo_notes)" && claude "$@" ); }
+    notcc()  { ( cd "$(_repo_notes)" && claude -c "$@" ); }
+    notcr()  { ( cd "$(_repo_notes)" && claude -r "$@" ); }
+    notcw()  { ( cd "$(_repo_notes)" && claude --remote-control "$@" ); }
+    notcws() { ( cd "$(_repo_notes)" && claude remote-control "$@" ); }
+    notccw() { ( cd "$(_repo_notes)" && claude -c --remote-control "$@" ); }
+    notcrw() { ( cd "$(_repo_notes)" && claude -r --remote-control "$@" ); }
+    notcm()  { ( cd "$(_repo_notes)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+    notccm() { ( cd "$(_repo_notes)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
+    notcrm() { ( cd "$(_repo_notes)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
   fi
   # Guarded by the dir rather than living in the vserver's host file, so any
   # host that gets a SilverBullet space later picks these up without a copy.
-  if [[ -d "/srv/silverbullet/space" ]]; then  # _repo_silverbullet_space later (unavailable here, ok at function runtime)
-    sbc()   { ( cd "$(_repo_silverbullet_space)" && claude "$@" ); }
-    sbcc()  { ( cd "$(_repo_silverbullet_space)" && claude -c "$@" ); }
-    sbcr()  { ( cd "$(_repo_silverbullet_space)" && claude -r "$@" ); }
-    sbcw()  { ( cd "$(_repo_silverbullet_space)" && claude --remote-control "$@" ); }
-    sbcws() { ( cd "$(_repo_silverbullet_space)" && claude remote-control "$@" ); }
-    sbccw() { ( cd "$(_repo_silverbullet_space)" && claude -c --remote-control "$@" ); }
-    sbcrw() { ( cd "$(_repo_silverbullet_space)" && claude -r --remote-control "$@" ); }
-    sbcm()  { ( cd "$(_repo_silverbullet_space)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
-    sbccm() { ( cd "$(_repo_silverbullet_space)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
-    sbcrm() { ( cd "$(_repo_silverbullet_space)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
+  # Path is hardcoded here: _repo_silverbullet_space is defined further down
+  # (fine inside the functions, which resolve it at call time).
+  if [[ -d "/srv/silverbullet/space" ]]; then
+    silc()   { ( cd "$(_repo_silverbullet_space)" && claude "$@" ); }
+    silcc()  { ( cd "$(_repo_silverbullet_space)" && claude -c "$@" ); }
+    silcr()  { ( cd "$(_repo_silverbullet_space)" && claude -r "$@" ); }
+    silcw()  { ( cd "$(_repo_silverbullet_space)" && claude --remote-control "$@" ); }
+    silcws() { ( cd "$(_repo_silverbullet_space)" && claude remote-control "$@" ); }
+    silccw() { ( cd "$(_repo_silverbullet_space)" && claude -c --remote-control "$@" ); }
+    silcrw() { ( cd "$(_repo_silverbullet_space)" && claude -r --remote-control "$@" ); }
+    silcm()  { ( cd "$(_repo_silverbullet_space)" && claude --append-system-prompt "$CC_MOBILE" "$@" ); }
+    silccm() { ( cd "$(_repo_silverbullet_space)" && claude -c --append-system-prompt "$CC_MOBILE" "$@" ); }
+    silcrm() { ( cd "$(_repo_silverbullet_space)" && claude -r --append-system-prompt "$CC_MOBILE" "$@" ); }
   fi
 fi
 # }}} - CLAUDE CODE  (AI) ----------------------------------------------------
@@ -1033,7 +1037,7 @@ dotfiles-adopt() {
   # Run adopt to dotfiles repo
   "${_df_root}/tools/adopt.sh" "$@"
 }
-alias dtad='dotfiles-adopt'
+alias dota='dotfiles-adopt'
 
 # Run dotfiles link.sh and refresh shell command cache.
 # Shell-agnostic: resolves repo root by following .aliases symlink.
@@ -1055,7 +1059,7 @@ dotfiles-link() {
     hash -r 2>/dev/null || rehash 2>/dev/null
   }
 }
-alias dtln='dotfiles-link'
+alias dotl='dotfiles-link'
 
 # Pull latest dotfiles from remote repository and apply linking.
 # Shell-agnostic: uses same path resolution as dotfiles-link.
@@ -1070,7 +1074,7 @@ dotfiles-update() {
 
   git -C "${_df_root}" pull "$@" && dotfiles-link
 }
-alias dtup='dotfiles-update'
+alias dotu='dotfiles-update'
 # }}} - DOTFILES MANAGEMENT --------------------------------------------------
 
 # {{{ - REPO SYNC (dotfiles / notes) -----------------------------------------
