@@ -104,6 +104,16 @@ sourced libs need explicit handling. `lib/functions.sh` already fixed
   never-finished intent of the removed `.zsh.d/job.zsh` stub; original ref
   <https://blog.garage-coding.com/2016/02/05/bash-fifo-jobqueue.html>, now dead).
   See the `# TODO implement a simple queue` marker in `read_loop()`.
+- [ ] [S] `bin/bedtime-extra` + `bin/bedtime-sudo-extra`: evaluate moving them
+  into `system-scripts/bedtime-shutdown/` so the project is self-contained (easy
+  to share or publish separately; today these two would be forgotten). They sit
+  in `bin/` only because they need no root, so `dotfiles-link` deploys them
+  sudo-free; they have no dotfiles dependencies. Move plan: `install.sh` deploys
+  them to `/usr/local/bin` (0755, on sudo's `secure_path` too), `uninstall.sh`
+  removes them, optionally add them to the lock list, update README (the two
+  `dotfiles-link` mentions). Deploy needs sudo outside `BSS_TAMPER_*`
+  (17:00-05:00); run `dotfiles-link` only after the deploy, or the `~/bin` links
+  vanish before the new copies exist.
 
 ## General Output
 
