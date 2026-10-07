@@ -3,7 +3,7 @@ title: Floating windows pile up in the centre after suspend/resume (sway)
 hosts: [motoko]
 status: resolved
 tags: [sway, wayland, suspend, floating, output, swayidle, dpms]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Floating windows pile up in the centre after suspend/resume
@@ -244,6 +244,46 @@ Limits worth knowing: a flap shorter than the 0.5 s debounce on an output whose 
 does not change would go unnoticed (real DRM re-creations take about a second and
 get a new id). A manual `$mod+Alt+g` save is no longer a pin — the next snapshot
 replaces it.
+
+## Update 2026-10-07: windows came back on the wrong workspace
+
+First real suspend with the watcher: two floating terminals that lived on `#1 Desk`
+reappeared on `#4 Create` (the workspace that was visible after unlock), and
+`restore` reported success. Cause, reproduced with throwaway windows on a hidden
+workspace:
+
+**`move absolute position` re-parents a floating window to the workspace that is
+*visible* on the output under its new position.** `restore` used to send
+`move container to workspace "<saved>", resize …, move absolute position …`, so
+the position move undid the workspace move one command later — for every window
+on a hidden workspace, on every restore. (It also hit windows that only needed a
+position fix and were already on the right hidden workspace.) The same effect
+explains the 10-06 test, where windows saved on `#1` ended up on the visible `#4`.
+
+Fixes in `cmd_restore`:
+
+- **The workspace move goes last** in the command list, and is sent for every
+  non-sticky window, so a position fix can no longer pull it away.
+- A window that is only on the wrong workspace gets *just* the workspace move; no
+  geometry command is sent at all.
+- **A second restore no longer degrades the first.** Each process starts with no
+  decoration offset, so its first pass sends naive values (+16 px y, −30 px
+  height for foot) and "error no longer shrinking" used to stop right there, one
+  pass short of the correction. The check now starts at the second pass. This is
+  what left `629`/`628` 16 px low and 30 px short after the after-resume hook ran
+  behind the watcher's restore.
+
+Tested with throwaway floating windows: saved on a hidden workspace, displaced to
+the visible one at a wrong position → restored to the right workspace and position;
+displaced while on the hidden workspace → restored without leaving it.
+
+Lesson for any script here: never rely on `move container to workspace` followed
+by a position command; and a restore that only checks geometry will report
+success for a window on the wrong workspace.
+
+Not recoverable: the workspaces recorded in the 22:05 save (the log lists
+positions only), so the layout of that evening could not be reconstructed exactly.
+Take a screenshot before testing a suspend.
 
 ## Open
 

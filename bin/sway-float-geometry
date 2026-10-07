@@ -228,7 +228,10 @@ measure() {
              or $c.x != $s.x or $c.y != $s.y
              or $c.w != $s.w or $c.h != $s.h)
     | [ $c.con_id, $s.x, $s.y, $s.w, $s.h, $c.x, $c.y, $c.w, $c.h,
-        (if $move_ws then 1 else 0 end), $s.workspace,
+        (if $move_ws then 1 else 0 end),
+        # "-" for sticky windows (no workspace of their own) -- also keeps the
+        # field non-empty, since read would collapse an empty TSV field.
+        (if $s.sticky then "-" else $s.workspace end),
         ((if $s.app_id != "" then $s.app_id else $s.class end)
          + " :: " + ($s.title // "")) ] | @tsv
   '
@@ -341,10 +344,10 @@ cmd_restore() {
 
     (( ${#rows[@]} == 0 )) && break
 
-    local cid tx ty tw th cx cy cw ch move_ws ws label
+    local cid tx ty tw th cx cy cw ch ws label
     local -i total_err=0
     for row in "${rows[@]}"; do
-      IFS=$'\t' read -r cid tx ty tw th cx cy cw ch move_ws ws label <<< "${row}"
+      IFS=$'\t' read -r cid tx ty tw th cx cy cw ch _ ws label <<< "${row}"
       total_err+=$(( cx > tx ? cx - tx : tx - cx ))
       total_err+=$(( cy > ty ? cy - ty : ty - cy ))
       total_err+=$(( cw > tw ? cw - tw : tw - cw ))
@@ -352,8 +355,13 @@ cmd_restore() {
     done
 
     # The error stopped shrinking: the remainder is the app clamping its own size
-    # (foot's character cells), not something another pass can fix.
-    if (( prev_err >= 0 && total_err >= prev_err )); then
+    # (foot's character cells), not something another pass can fix. Not judged on
+    # the second pass: the first one sends the NAIVE values (no decoration offset
+    # known yet), which lands off by the titlebar and so can legitimately be worse
+    # than where a nearly-correct window started -- e.g. when a second restore
+    # runs after the first already placed everything. Only the pass after the
+    # first correction says whether we are converging.
+    if (( pass >= 2 && prev_err >= 0 && total_err >= prev_err )); then
       p_dbg "error no longer shrinking (${total_err}px), stopping"
       for row in "${rows[@]}"; do
         IFS=$'\t' read -r cid _ _ _ _ _ _ _ _ _ _ label <<< "${row}"
@@ -366,7 +374,7 @@ cmd_restore() {
     if (( dry_run )); then
       p_msg "would place ${#rows[@]} of ${saved_count} window(s) (pass $(( pass + 1 ))):"
       for row in "${rows[@]}"; do
-        IFS=$'\t' read -r cid tx ty tw th cx cy cw ch move_ws ws label <<< "${row}"
+        IFS=$'\t' read -r cid tx ty tw th cx cy cw ch _ ws label <<< "${row}"
         printf '  con_id=%-5s %s,%s %sx%s -> %s,%s %sx%s   %s\n' \
           "${cid}" "${cx}" "${cy}" "${cw}" "${ch}" "${tx}" "${ty}" "${tw}" "${th}" "${label}"
       done
@@ -374,7 +382,7 @@ cmd_restore() {
     fi
 
     for row in "${rows[@]}"; do
-      IFS=$'\t' read -r cid tx ty tw th cx cy cw ch move_ws ws label <<< "${row}"
+      IFS=$'\t' read -r cid tx ty tw th cx cy cw ch _ ws label <<< "${row}"
 
       local -i vx vy vw vh
       if [[ -n "${sent_x[${cid}]:-}" ]]; then
@@ -396,15 +404,28 @@ cmd_restore() {
       # NOT named `cmd`: that is the subcommand name in main(), which _log reads
       # for its "[save]"/"[restore]" tag -- shadowing it tagged every log line
       # with the whole swaymsg command instead.
-      local swaycmd="[con_id=${cid}]"
-      (( move_ws )) && swaycmd+=" move container to workspace \"${ws}\","
-      swaycmd+=" resize set ${vw} px ${vh} px, move absolute position ${vx} px ${vy} px"
+      #
+      # THE WORKSPACE MOVE GOES LAST, and it is sent even when the window is
+      # already on the right workspace. `move absolute position` re-parents a
+      # floating window to the workspace that is VISIBLE on the output under its
+      # new position (measured 2026-10-07: windows saved on a hidden workspace
+      # came back on the visible one, every time). Doing the move first, as this
+      # used to, was undone by the very next command.
+      local swaycmd="[con_id=${cid}]" geom=0
+      (( cx != tx || cy != ty || cw != tw || ch != th )) && geom=1
+      (( geom )) && swaycmd+=" resize set ${vw} px ${vh} px, move absolute position ${vx} px ${vy} px"
+      if [[ "${ws}" != "-" ]]; then
+        (( geom )) && swaycmd+=","
+        swaycmd+=" move container to workspace \"${ws}\""
+      fi
 
       if swaymsg "${swaycmd}" > /dev/null 2>&1; then
-        sent_x["${cid}"]=${vx}; sent_y["${cid}"]=${vy}
-        sent_w["${cid}"]=${vw}; sent_h["${cid}"]=${vh}
+        if (( geom )); then
+          sent_x["${cid}"]=${vx}; sent_y["${cid}"]=${vy}
+          sent_w["${cid}"]=${vw}; sent_h["${cid}"]=${vh}
+        fi
         touched["${cid}"]="${label}"
-        p_dbg "  pass $(( pass + 1 )): con_id=${cid} -> ${vx},${vy} ${vw}x${vh}  ${label}"
+        p_dbg "  pass $(( pass + 1 )): con_id=${cid} -> ${vx},${vy} ${vw}x${vh}  ws=${ws}  ${label}"
       else
         p_war "failed: ${swaycmd}  (${label})"
       fi
