@@ -294,34 +294,56 @@ relay of commands and their output:
 - **A single, self-explanatory command** (`sudo ufw allow …`): give them the
   exact line to run, then read the result back — from what they paste, or from a
   log the command tees.
-- **Anything multi-step, or where the output matters**: stage a script at the
-  fixed path **`~/.ccrun`** (`chmod +x`, always overwritten) that
-  - **defaults to a dry run**, acting only on an explicit `apply` argument
-    (`[[ ${1:-} == apply ]] || DRY=1`) — mirrors `system-setup --dry-run`;
-  - **logs everything, appended** to `~/.ccrun.log`
-    (`exec > >(tee -a "$HOME/.ccrun.log") 2>&1`) — you read that yourself; the
-    user never selects or pastes output. Append, so a dry-run-then-apply keeps
-    both as evidence;
-  - **verifies its own pre/post state** — anything you would otherwise ask them
+- **Anything multi-step, or where the output matters**: stage it with
+  **`ccrun`** (`bin/ccrun`). Each staged script gets a short numeric ID, so
+  parallel sessions never collide:
+
+  ```bash
+  ccrun new "<topic>"   # you: reserves the lowest free ID, prints "ID PATH"
+  ccrun 1               # user: dry run
+  ccrun 1 a             # user: apply
+  ccrun rm 1            # you: after the apply is verified
+  ccrun                 # anyone: list ID, age, state, topic
+  ```
+
+  `ccrun` owns the boilerplate: it appends every run to `ID/log` (header,
+  output, final `EXIT: <rc>` line), passes `apply` as `$1` and `CCRUN_DRY=1|0`,
+  and **refuses an apply** unless this exact script version had a successful
+  dry run and was not applied before (`-f`, or typing `yes` at a terminal,
+  overrides). The payload you write only has to
+  - **default to a dry run** — gate changes on `cr::do CMD…` (prints instead
+    of running in a dry run) or `cr::dry`; mirrors `system-setup --dry-run`;
+  - **verify its own pre/post state** — anything you would otherwise ask them
     to check by hand is a line in the script;
-  - **ends with one machine-readable `STATUS: …` line**, so the outcome is
-    unambiguous even when the log is long.
+  - **end with `cr::status "ok — …"`**, one machine-readable `STATUS:` line;
+  - mark steps with `cr::step "…"` so a partial run is diagnosable.
 
-  Then tell them the single line `~/.ccrun` (dry run), and `~/.ccrun apply` once
-  it looks right. You read `~/.ccrun.log` with your own tools — optionally
-  `Monitor` it so you pick up the result without being told.
+  A bash payload starts with `#!/usr/bin/env bash` and `set -euo pipefail`;
+  no logging, traps or argument parsing of its own. A non-bash shebang (e.g.
+  python) is executed directly, without the `cr::` helpers. `ccrun --help`
+  lists everything.
 
-The fixed path is shared on purpose: after the first run the user recalls it
-with `↑` instead of typing. The **`mobile-mode`** skill extends this same
-contract for phone/tablet sessions (a detached `tmux` window to give sudo a real
-tty, chords instead of typing); the pattern above is the shared core, so keep
-the two in step when either changes.
+  Then tell them the single line `ccrun N` (dry run), and `ccrun N a` once it
+  looks right. You read `ID/log` with your own tools — optionally `Monitor` it
+  so you pick up the result without being told.
 
-**Tools & permissions.** Stage the script with the **Write** tool and read the
-log back with the **Read** tool, both by absolute path (`/home/cbaoth/.ccrun*`).
-Verified in a fresh `default`-mode session (2026-09-24): the committed
-`Edit(//home/cbaoth/.ccrun*)` rule in `.claude/settings.json` makes the write
-silent, the read needs no rule of its own, and a non-matching write still
-prompts — so the pattern works out of the box on any host using this repo. Do
-**not** read the log via Bash: the `~` trips the shell-expansion approval prompt
-and `tail`/`sed` are not allow-listed regardless.
+  **One ID per session.** Reserve it on the first script, keep it for the
+  session and overwrite its `run` for every fix, so the user's `↑` recall keeps
+  working. **Clean up**: once the log shows a successful apply and nothing is
+  left to do, run `ccrun rm N` yourself; leave it when the apply failed or the
+  outcome is unclear. Entries live in `~/.cache/ccrun/` (mode 0700, logs may
+  capture secrets) and IDs are reused from 1, which keeps them short.
+
+`ccrun` is plain PATH (`~/bin`): no `~`, no `/`, easy to type on a phone. The
+**`mobile-mode`** skill extends this same contract for phone/tablet sessions (a
+detached `tmux` window to give sudo a real tty, chords instead of typing); the
+pattern above is the shared core, so keep the two in step when either changes.
+
+**Tools & permissions.** Reserve and remove IDs with the Bash tool
+(`ccrun new …`, `ccrun rm …`; allow-listed). Stage the script with the
+**Write** tool and read the log back with the **Read** tool, both by the
+absolute path `ccrun new` printed (`/home/cbaoth/.cache/ccrun/N/…`). The
+committed `Edit(//home/cbaoth/.cache/ccrun/**)` rule in `.claude/settings.json`
+makes the write silent. Do **not** read the log via Bash: the `~` trips the
+shell-expansion approval prompt and `tail`/`sed` are not allow-listed
+regardless.

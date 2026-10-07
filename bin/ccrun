@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# ccrun: Run agent-staged scripts by short id (dry run by default), with logging, apply guard and cleanup.
+
+# set options
+# -e omitted intentionally: a failing payload is recorded and reported, never fatal to the wrapper itself.
+set -o pipefail
+set -o nounset
+
+# {{{ = CONSTANTS =============================================================
+
+declare -r SELF="${0##*/}"
+# A cache, not state: every entry is disposable once its apply is verified.
+declare -r CCRUN_ROOT="${CCRUN_ROOT:-${XDG_CACHE_HOME:-${HOME}/.cache}/ccrun}"
+declare -ri MAX_ID=99
+
+# }}} = CONSTANTS =============================================================
+
+# {{{ = PAYLOAD HELPERS =======================================================
+# Exported into bash payloads (export -f); see usage() for the list.
+
+cr::dry() { [[ "${CCRUN_DRY:-1}" == 1 ]]; }
+
+cr::step() {
+  CR_STEP=$(( ${CR_STEP:-0} + 1 ))
+  printf '\n>>> step %d: %s\n' "${CR_STEP}" "$*"
+}
+
+cr::do() {
+  if cr::dry; then
+    printf '[dry] '; printf '%q ' "$@"; printf '\n'
+  else
+    printf '+ '; printf '%q ' "$@"; printf '\n'
+    "$@"
+  fi
+}
+
+cr::sudo() {
+  if ! { : < /dev/tty; } 2> /dev/null; then
+    printf 'cr::sudo: no terminal for the password prompt; run in a tmux window instead\n' >&2
+    return 1
+  fi
+  if [[ "${CCRUN_PAUSE:-0}" == 1 ]]; then
+    # Started detached: wait until the user has switched to this window.
+    printf '\n  --- this step needs your sudo password ---\n'
+    read -r -p '  switch here, then press Enter to continue: ' _ < /dev/tty
+  fi
+  sudo -v
+}
+
+cr::status() { printf 'STATUS: %s\n' "$*"; }
+
+# }}} = PAYLOAD HELPERS =======================================================
+
+# {{{ = FUNCTIONS =============================================================
+
+usage() {
+  cat <<EOF
+Usage: ${SELF} [ls]                      list staged scripts
+       ${SELF} ID [a|apply] [-f] [-p]    run script ID (dry run unless a|apply)
+       ${SELF} new TOPIC...              reserve the lowest free ID, print "ID PATH"
+       ${SELF} rm ID...                  delete script ID with its log and state
+       ${SELF} log ID                    page the log of script ID
+
+Scripts live in ${CCRUN_ROOT}/ID/ (run, log, topic, state files).
+Every run is appended to ID/log; the last line is always "EXIT: <rc> (...)".
+
+Options:
+  -f, --force   skip the apply guard (refuses an apply when this exact script
+                version has no successful dry run, or was already applied)
+  -p, --pause   pause before cr::sudo and before exit (detached tmux windows)
+  -h, --help    show this help
+
+Payload environment: \$1 = "apply" or empty; CCRUN_DRY=1|0, CCRUN_ID, CCRUN_LOG.
+Bash payload helpers:
+  cr::step TEXT     numbered step banner
+  cr::do CMD...     run CMD, or only print it in a dry run
+  cr::dry           true in a dry run
+  cr::sudo          pause for the user if -p, then sudo -v
+  cr::status TEXT   print the final "STATUS: TEXT" line
+A payload with a non-bash shebang (e.g. python) is executed directly.
+EOF
+}
+
+p_err() { printf '%s: %s\n' "${SELF}" "$*" >&2; }
+
+die() {
+  local -ri rc="${2:-1}"
+  p_err "$1"
+  exit "${rc}"
+}
+
+require_id() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]] || die "invalid id: $1"
+  [[ -d "${CCRUN_ROOT}/$1" ]] || die "no such id: $1 (see: ${SELF} ls)"
+}
+
+sha_of() {
+  local sum
+  sum="$(sha256sum < "$1")" || return 1
+  printf '%s\n' "${sum%% *}"
+}
+
+# Prints the word after the sha on line 1 of FILE if that sha matches, else fails.
+state_for() {
+  local -r file="$1" sha="$2"
+  local f_sha f_rest
+  [[ -f "${file}" ]] || return 1
+  read -r f_sha f_rest < "${file}" || return 1
+  [[ "${f_sha}" == "${sha}" ]] || return 1
+  printf '%s\n' "${f_rest}"
+}
+
+# "rc=N" from the apply file, or empty while running / after an interruption.
+apply_rc() {
+  local line
+  line="$(sed -n '2p' "$1" 2> /dev/null)"
+  printf '%s\n' "${line%% *}"
+}
+
+describe_state() {
+  local -r dir="$1"
+  local sha rc
+  [[ -s "${dir}/run" ]] || { printf 'empty\n'; return; }
+  sha="$(sha_of "${dir}/run")"
+  if state_for "${dir}/apply" "${sha}" > /dev/null; then
+    rc="$(apply_rc "${dir}/apply")"
+    case "${rc}" in
+      rc=0) printf 'applied\n' ;;
+      rc=*) printf 'apply-failed(%s)\n' "${rc#rc=}" ;;
+      *)    printf 'apply-interrupted\n' ;;
+    esac
+  elif state_for "${dir}/dry.ok" "${sha}" > /dev/null; then
+    printf 'dry-run-ok\n'
+  else
+    printf 'staged\n'
+  fi
+}
+
+human_age() {
+  local -i s=$(( $(date +%s) - $1 ))
+  if (( s < 3600 )); then printf '%dm\n' $(( s / 60 ))
+  elif (( s < 86400 )); then printf '%dh\n' $(( s / 3600 ))
+  else printf '%dd\n' $(( s / 86400 ))
+  fi
+}
+
+cmd_ls() {
+  local -a ids=()
+  local d id ref topic
+  for d in "${CCRUN_ROOT}"/*/; do
+    d="${d%/}"; id="${d##*/}"
+    [[ "${id}" =~ ^[0-9]+$ ]] && ids+=("${id}")
+  done
+  if (( ${#ids[@]} == 0 )); then
+    printf 'no staged scripts (%s)\n' "${CCRUN_ROOT}"
+    return 0
+  fi
+  printf '%-3s %-5s %-18s %s\n' ID AGE STATE TOPIC
+  while read -r id; do
+    d="${CCRUN_ROOT}/${id}"
+    ref="${d}/run"; [[ -e "${ref}" ]] || ref="${d}"
+    topic="$(head -n1 "${d}/topic" 2> /dev/null)"
+    printf '%-3s %-5s %-18s %s\n' "${id}" "$(human_age "$(stat -c %Y "${ref}")")" \
+      "$(describe_state "${d}")" "${topic:-?}"
+  done < <(printf '%s\n' "${ids[@]}" | sort -n)
+}
+
+cmd_new() {
+  (( $# > 0 )) || die "usage: ${SELF} new TOPIC..."
+  local -i id
+  umask 077
+  mkdir -p -- "${CCRUN_ROOT}" || die "cannot create ${CCRUN_ROOT}"
+  # mkdir is atomic: two sessions racing for the same id cannot both win.
+  for (( id = 1; id <= MAX_ID; id++ )); do
+    mkdir -- "${CCRUN_ROOT}/${id}" 2> /dev/null && break
+  done
+  (( id <= MAX_ID )) || die "no free id up to ${MAX_ID}; clean up with: ${SELF} ls / ${SELF} rm ID"
+  printf '%s\n' "$*" > "${CCRUN_ROOT}/${id}/topic"
+  printf '%d %s\n' "${id}" "${CCRUN_ROOT}/${id}/run"
+}
+
+cmd_rm() {
+  (( $# > 0 )) || die "usage: ${SELF} rm ID..."
+  local id lock_fd
+  for id in "$@"; do
+    require_id "${id}"
+    exec {lock_fd}> "${CCRUN_ROOT}/${id}/.lock"
+    flock -n "${lock_fd}" || die "#${id} is running, not removed"
+    rm -rf -- "${CCRUN_ROOT:?}/${id}"
+    exec {lock_fd}>&-
+    printf 'removed #%s\n' "${id}"
+  done
+}
+
+cmd_log() {
+  (( $# == 1 )) || die "usage: ${SELF} log ID"
+  require_id "$1"
+  [[ -f "${CCRUN_ROOT}/$1/log" ]] || die "#$1 has no log yet"
+  "${PAGER:-less}" "${CCRUN_ROOT}/$1/log"
+}
+
+pause_exit() {
+  (( pause )) || return 0
+  { : < /dev/tty; } 2> /dev/null || return 0
+  # Prompt via printf: read -p writes to stderr, which a failing-tty guard would silence.
+  printf '%s' '--- press any key to close ---'
+  read -rsn1 _ < /dev/tty || true
+  printf '\n'
+}
+
+# Applies refused by the guard: why, as one line each; empty when it passes.
+guard_reasons() {
+  local -r dir="$1" sha="$2"
+  local started rc
+  state_for "${dir}/dry.ok" "${sha}" > /dev/null \
+    || printf 'this script version has no successful dry run\n'
+  if started="$(state_for "${dir}/apply" "${sha}")"; then
+    rc="$(apply_rc "${dir}/apply")"
+    if [[ -n "${rc}" ]]; then
+      printf 'this script version was already applied (%s, %s)\n' "${started}" "${rc}"
+    else
+      printf 'an apply of this version started %s and never finished (interrupted? check the log; ask the agent if not idempotent)\n' \
+        "${started}"
+    fi
+  fi
+}
+
+cmd_run() {
+  local -r id="$1" mode="$2"
+  local -r dir="${CCRUN_ROOT}/${id}"
+  local -r run="${dir}/run" log="${dir}/log"
+  local sha topic first reasons answer lock_fd
+  local -i rc
+
+  require_id "${id}"
+  [[ -s "${run}" ]] || die "#${id} has no script yet"
+  exec {lock_fd}> "${dir}/.lock"
+  flock -n "${lock_fd}" || die "#${id} is already running"
+
+  sha="$(sha_of "${run}")" || die "cannot hash ${run}"
+  topic="$(head -n1 "${dir}/topic" 2> /dev/null)"
+
+  if [[ "${mode}" == apply ]] && (( ! force )); then
+    reasons="$(guard_reasons "${dir}" "${sha}")"
+    if [[ -n "${reasons}" ]]; then
+      printf '%s: refusing to apply #%s (%s):\n' "${SELF}" "${id}" "${topic}" >&2
+      printf '  - %s\n' "${reasons//$'\n'/$'\n'  - }" >&2
+      printf '%s  refused apply sha=%.12s: %s\n' "$(date -Is)" "${sha}" "${reasons//$'\n'/; }" >> "${log}"
+      if [[ -t 0 ]] && { : < /dev/tty; } 2> /dev/null; then
+        read -r -p "Type 'yes' to apply anyway: " answer < /dev/tty || answer=''
+        [[ "${answer}" == yes ]] || { p_err 'aborted'; pause_exit; exit 3; }
+        printf '%s  guard overridden interactively\n' "$(date -Is)" >> "${log}"
+      else
+        p_err "override with: ${SELF} ${id} a -f"
+        exit 3
+      fi
+    fi
+  fi
+
+  export CCRUN_ID="${id}" CCRUN_LOG="${log}" CCRUN_PAUSE="${pause}"
+  export CCRUN_DRY=1
+  local -a args=()
+  if [[ "${mode}" == apply ]]; then
+    CCRUN_DRY=0; args=(apply)
+    printf '%s %s\n' "${sha}" "$(date -Is)" > "${dir}/apply"
+  fi
+  export -f cr::dry cr::step cr::do cr::sudo cr::status
+
+  printf '\n===== %s  #%s %s  mode=%s%s  sha=%.12s =====\n' "$(date -Is)" "${id}" "${topic}" \
+    "${mode}" "$( (( force )) && printf ' (forced)')" "${sha}" | tee -a "${log}"
+
+  first=''
+  IFS= read -r first < "${run}" || true
+  # Ctrl-C reaches the payload; the wrapper and tee survive it to record the result.
+  trap 'printf "\nINTERRUPT\n"' SIGINT
+  if [[ "${first}" == '#!'* && "${first}" != *bash* ]]; then
+    chmod u+x -- "${run}"
+    "${run}" "${args[@]}" {lock_fd}>&- 2>&1 | ( trap '' SIGINT; exec tee -a "${log}" )
+  else
+    bash "${run}" "${args[@]}" {lock_fd}>&- 2>&1 | ( trap '' SIGINT; exec tee -a "${log}" )
+  fi
+  rc="${PIPESTATUS[0]}"
+  trap - SIGINT
+
+  if [[ "${mode}" == apply ]]; then
+    printf 'rc=%d %s\n' "${rc}" "$(date -Is)" >> "${dir}/apply"
+  elif (( rc == 0 )); then
+    printf '%s %s\n' "${sha}" "$(date -Is)" > "${dir}/dry.ok"
+  else
+    rm -f -- "${dir}/dry.ok"
+  fi
+
+  if (( rc == 0 )); then
+    printf '\nEXIT: 0 (ok)\n' | tee -a "${log}"
+  else
+    printf '\nEXIT: %d (FAILED)\n' "${rc}" | tee -a "${log}"
+  fi
+  pause_exit
+  return "${rc}"
+}
+
+# }}} = FUNCTIONS =============================================================
+
+# {{{ = MAIN ==================================================================
+
+declare -i force=0 pause=0
+
+main() {
+  local id='' mode='dry-run'
+  local -a rest=()
+
+  case "${1:-ls}" in
+    ls)          cmd_ls; return ;;
+    new)         shift; cmd_new "$@"; return ;;
+    rm)          shift; cmd_rm "$@"; return ;;
+    log)         shift; cmd_log "$@"; return ;;
+    -h|--help)   usage; return 0 ;;
+  esac
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -f|--force) force=1 ;;
+      -p|--pause) pause=1 ;;
+      -h|--help)  usage; return 0 ;;
+      -*)         die "unknown option: $1 (see: ${SELF} --help)" ;;
+      *)          rest+=("$1") ;;
+    esac
+    shift
+  done
+
+  (( ${#rest[@]} >= 1 && ${#rest[@]} <= 2 )) || die "usage: ${SELF} ID [a|apply] (see: ${SELF} --help)"
+  id="${rest[0]}"
+  if (( ${#rest[@]} == 2 )); then
+    case "${rest[1]}" in
+      a|apply) mode='apply' ;;
+      *)       die "unknown mode: ${rest[1]} (expected a or apply)" ;;
+    esac
+  fi
+  cmd_run "${id}" "${mode}"
+}
+
+main "$@"
+
+# }}} = MAIN ==================================================================

@@ -9,7 +9,7 @@ Ideas and future tasks for improving the shell scripts in this repository.
 - [ ] [S] Review and resolve FIXME/TODO comments in `system-scripts/dbbackup`
 - [~] `~/bin/` vs `~/.local/bin/`: keeping `~/bin/` for now — conventional, most distros add it to `PATH` automatically. Revisit if a full XDG migration is planned.
 - [ ] [S] Consider organizing `bin/` scripts by category if the collection grows
-- [ ] [S] `~/.ccrun` collides between parallel agent sessions: one fixed path, so a second session overwrites a staged script before the user runs it (seen 2026-10-06: `.ccrun1`, `.ccrun-sandbox` as stopgaps). Find a scheme that keeps the `↑`-recall benefit (AGENTS.md "Privileged & interactive steps", `mobile-mode` skill)
+- [x] [S] `~/.ccrun` collided between parallel agent sessions (stopgaps `.ccrun1`, `.ccrun-sandbox`, 2026-10-06). Replaced by `bin/ccrun` (2026-10-07): short numeric IDs under `~/.cache/ccrun/`, lowest free ID reused, apply guard, cleanup after verified apply
 
 ## Linting & Static Analysis
 

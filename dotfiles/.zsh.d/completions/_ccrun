@@ -1,0 +1,41 @@
+#compdef ccrun
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for ccrun (bin/ccrun in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above.
+#
+# Keep in sync with bin/ccrun: subcommands, modes and options mirror usage().
+# IDs and their topics are discovered live from the ccrun cache directory.
+
+_ccrun_ids() {
+  local root="${CCRUN_ROOT:-${XDG_CACHE_HOME:-${HOME}/.cache}/ccrun}"
+  local -a ids
+  local d
+  for d in ${root}/<->(N/n); do
+    ids+=( "${d:t}:$(head -n1 "${d}/topic" 2>/dev/null)" )
+  done
+  _describe -t ids 'staged script' ids -o nosort
+}
+
+_ccrun() {
+  if (( CURRENT == 2 )); then
+    _alternative \
+      'ids:staged script:_ccrun_ids' \
+      'commands:command:((ls\:"list staged scripts" new\:"reserve an id" rm\:"delete a script" log\:"page a log"))'
+    return
+  fi
+  case "${words[2]}" in
+    rm|log) _ccrun_ids ;;
+    new|ls) ;;
+    <->)
+      # Drop the ID so the mode is positional argument 1.
+      shift words; (( CURRENT-- ))
+      _arguments -s \
+        '(-f --force)'{-f,--force}'[skip the apply guard]' \
+        '(-p --pause)'{-p,--pause}'[pause before sudo and exit]' \
+        '1:mode:((a\:"apply" apply\:"apply"))'
+      ;;
+  esac
+}
+
+_ccrun "$@"

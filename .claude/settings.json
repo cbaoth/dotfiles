@@ -11,7 +11,7 @@
       "/home/cbaoth/notes/systems/pixi"
     ],
     "allow": [
-      "Edit(//home/cbaoth/.ccrun*)",
+      "Edit(//home/cbaoth/.cache/ccrun/**)",
       "Edit(//home/cbaoth/dotfiles/.claude/skills/**)",
       "Edit(//home/cbaoth/dotfiles/dotfiles/.claude/skills/**)",
       "Edit(//home/cbaoth/notes/**)",
@@ -27,6 +27,10 @@
       "Read(//sys/power/**)",
       "Read(//usr/sbin/**)",
       "Read(//usr/share/**)",
+      "Bash(ccrun)",
+      "Bash(ccrun ls)",
+      "Bash(ccrun new *)",
+      "Bash(ccrun rm *)",
       "Bash(command -v *)",
       "Bash(python -c ' *)",
       "Bash(python -c \" *)",
