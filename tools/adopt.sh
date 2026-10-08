@@ -292,6 +292,10 @@ adopt_one() {
 
   run_and_report mkdir -p -- "$dst_dir" || return 1
   run_and_report mv -- "$src_abs" "$dst_abs" || return 1
+  # Re-create the link right away (same link link.sh would make): a running app
+  # may re-create the vanished file before the linker gets to it, which then
+  # shows up as a bogus "regular file instead of symlink" backup.
+  run_and_report ln -s -- "$dst_abs" "$src_abs" || return 1
 
   MOVED+=("${dst_abs#"${REPO_ROOT}"/}")
   return 0
