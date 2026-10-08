@@ -1,0 +1,10 @@
+# Obsolete apt packages — removed on desktops (data, like the install lists).
+# Removing is idempotent: already-absent packages are skipped.
+# Removed by: setup/modules/00-apt-base.sh
+# Docs:       docs/setup/sway.md
+#
+# Add a line when a tool is replaced; keep the reason as a comment.
+
+# mako replaced by swaync (2026-10-06). Must not stay installed: its D-Bus
+# activation file competes with swaync for org.freedesktop.Notifications.
+mako-notifier

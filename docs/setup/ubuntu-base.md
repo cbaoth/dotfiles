@@ -3,7 +3,7 @@ title: Ubuntu base setup
 hosts: [all]
 status: resolved
 tags: [ubuntu, apt, packages, bootstrap]
-updated: 2026-08-15
+updated: 2026-10-08
 automated_by: setup/modules/00-apt-base.sh
 ---
 
@@ -27,6 +27,7 @@ Packages are data, not code — see [`setup/packages/`](../../setup/packages/):
 | `desktop.list` | GUI session (motoko, work laptop) |
 | `server.list` | headless (saito, vserver) |
 | `wsl.list` | WSL — deliberately thin; the Windows host owns GUI and drivers |
+| `obsolete-desktop.list` | desktop: packages to **remove** (replaced tools); applied after the installs |
 
 To add a tool, add a line to the relevant `.list`. That is the whole workflow.
 

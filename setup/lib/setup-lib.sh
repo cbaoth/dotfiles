@@ -297,6 +297,39 @@ st::apt_install_list() {
   st::apt_install "${pkgs[@]}"
 }
 
+# Remove the packages that are still installed (the inverse of st::apt_install).
+# Only real, dpkg-installed packages count: a removal has no use for the virtual
+# name handling in st::apt_installed. Config files are kept (no --purge).
+# Usage: st::apt_remove PKG..
+st::apt_remove() {
+  local -a present=()
+  local pkg
+  for pkg in "$@"; do
+    if dpkg-query -W -f='${db:Status-Status}' "${pkg}" 2>/dev/null \
+         | st::grep_q -x 'installed'; then
+      present+=("${pkg}")
+    else
+      (( ST_SKIPPED++ ))
+    fi
+  done
+
+  if (( ${#present[@]} == 0 )); then
+    st::skip "all ${#} obsolete apt packages already absent"
+    return 0
+  fi
+
+  st::run "remove ${#present[@]} obsolete apt package(s): ${present[*]}" -- \
+    sudo apt-get remove -y "${present[@]}"
+}
+
+# Remove every package named in a setup/packages/<name>.list
+st::apt_remove_list() {
+  local -a pkgs=()
+  st::read_list "$1" pkgs || return 1
+  (( ${#pkgs[@]} == 0 )) && { st::skip "package list '$1' is empty"; return 0; }
+  st::apt_remove "${pkgs[@]}"
+}
+
 # Refresh the apt cache: once per run, and only if it is over an hour stale.
 #
 # Deliberately NOT counted as a change — refreshing a cache mutates nothing on

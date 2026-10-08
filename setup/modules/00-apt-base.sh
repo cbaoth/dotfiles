@@ -81,6 +81,11 @@ module_run() {
     server)  st::apt_install_list server ;;
     wsl)     st::apt_install_list wsl ;;
   esac
+
+  # After the installs, so a replacement is in place before the old tool goes.
+  case "$(st::profile)" in
+    desktop) st::apt_remove_list obsolete-desktop ;;
+  esac
   # }}} - Packages ------------------------------------------------------------
 
   # {{{ - Editor default ------------------------------------------------------

@@ -349,7 +349,8 @@ instead (a similar-looking popup, the waybar count stays 0). Worse, with two
 units claiming `org.freedesktop.Notifications`, systemd refuses to start
 *either* ("Two services allocated for the same bus name"). Then every
 `swaync-client` call (waybar, `$mod+n` keys) blocks forever, even with `-sw`.
-Fix: `sudo apt remove mako-notifier`. Stopgap without sudo:
+Fix: `sudo apt remove mako-notifier`
+(automated: `setup/packages/obsolete-desktop.list`, applied by `system-setup 00-apt-base`). Stopgap without sudo:
 `systemctl --user mask mako.service`.
 
 Do Not Disturb survives daemon restarts, since swaync stores it persistently.
