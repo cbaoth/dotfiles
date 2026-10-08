@@ -21,6 +21,7 @@ lsof
 # Version control
 git
 git-lfs
+gh
 
 # Transfer & backup
 wget
