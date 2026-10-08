@@ -9,6 +9,7 @@
 
 # {{{ - Sway Tools -----------------------------------------------------------
 # (sw)ay (g|s)et (*)info-type [h]uman readable json layout (else: raw json)
+# shellcheck disable=SC2139
 if command -v swaymsg >/dev/null 2>&1; then
   _PIPE_CMD="| jq"
   command -v jq >/dev/null 2>&1 || _PIPE_CMD=""
