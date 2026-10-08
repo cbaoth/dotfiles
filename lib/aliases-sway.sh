@@ -35,6 +35,10 @@ if command -v swaymsg >/dev/null 2>&1; then
   alias swgv="swaymsg -t get_version"
 fi
 
+if command -v waybar >/dev/null 2>&1; then
+  alias waybar-restart="pkill -USR2 waybar"
+fi
+
 # }}} - Sway Tools -----------------------------------------------------------
 
 return 0
