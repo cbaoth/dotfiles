@@ -40,12 +40,6 @@
          "layer": "overlay"
       }
    },
-   "keybinds": {
-      "action.edit": "F2",
-      "action.edit-secondary": "alt+F2",
-      "action.move-down": "alt+R",
-      "action.move-up": "alt+W"
-   },
    "providers": {
       "applications": {
          "entrypoints": {
