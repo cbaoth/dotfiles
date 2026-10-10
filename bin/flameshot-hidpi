@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Run flameshot with a Qt scale factor that undoes the Sway output scale.
+#
+# Problem: on a scaled Sway output (e.g. 3840x2160 at scale 2) flameshot's grim
+# adapter captures native pixels (3840x2160) but flameshot lays them out in
+# logical pixels (1920x1080). `flameshot screen` then saves only the top-left
+# quarter, and `flameshot gui` shows the same zoomed-in top-left quarter.
+# Setting QT_SCALE_FACTOR=1/scale makes both agree again (verified with
+# flameshot 13.3.0 / Qt 6.9 on Sway, scale 2.0).
+#
+# The variable must be set on the CLI call that does the capture; the tray
+# daemon's environment is irrelevant.
+#
+# Usage: flameshot-hidpi FLAMESHOT_ARGS...
+# Example: flameshot-hidpi gui
+
+set -euo pipefail
+
+# Scale of the focused output; 1 if it cannot be determined (no-op factor).
+scale="$(swaymsg -t get_outputs -r 2>/dev/null \
+  | jq -r '(map(select(.focused)) | first // .[0] // {}) | .scale // 1' 2>/dev/null)" || scale=1
+[[ "${scale}" =~ ^[0-9]+([.][0-9]+)?$ ]] || scale=1
+
+# Only touch the factor on a scaled output; at scale 1 leave Qt alone.
+if [[ "${scale}" != "1" && "${scale}" != "1.0" && "${scale}" != "1.00" ]]; then
+  QT_SCALE_FACTOR="$(awk -v s="${scale}" 'BEGIN { printf "%.4f", 1 / s }')"
+  export QT_SCALE_FACTOR
+fi
+
+exec flameshot "$@"
