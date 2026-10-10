@@ -1202,6 +1202,31 @@ if ${HAS_CONDA:-false}; then
 fi
 # }}} - PYTHON / CONDA -------------------------------------------------------
 
+# {{{ - NODE / FNM ------------------------------------------------------------
+# https://github.com/Schniz/fnm
+# Bootstrap/update fnm itself, then install the newest Node LTS and make it the
+# default (old Node versions are kept: `fnm list`, `fnm uninstall <ver>`).
+# NOTE: global npm packages are per Node version and do not carry over to a new
+# LTS major. Defined outside any
+# `command -v fnm` guard on purpose: this is what you run when fnm is missing.
+# --skip-shell: shell integration lives in .common_env / .common_rc; without it
+# the installer appends to .zshrc/.bashrc (symlinks into this repo).
+# On a fresh machine prefer `system-setup 22-fnm`.
+fnm-setup() {
+  local -r dir="${HOME}/.local/share/fnm"
+  echo "Installing/updating fnm in ${dir} ..." \
+    "(fresh machine? prefer 'system-setup 22-fnm')"
+  curl -fsSL https://fnm.vercel.app/install \
+    | bash -s -- --skip-shell --install-dir "${dir}" || return $?
+  echo "fnm: $("${dir}/fnm" --version)"
+  "${dir}/fnm" install --lts && "${dir}/fnm" default lts-latest \
+    && echo "node: $("${dir}/fnm" exec --using=default node --version)"
+}
+alias fnm-install=fnm-setup
+alias fnm-update=fnm-setup
+alias fnm-upgrade=fnm-setup
+# }}} - NODE / FNM ------------------------------------------------------------
+
 # {{{ - PYTHON / UV -----------------------------------------------------------
 # https://docs.astral.sh/uv/getting-started/features/
 # Bootstrap/update uv itself. Deliberately defined *outside* the `command -v uv`
