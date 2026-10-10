@@ -1,0 +1,6 @@
+[Desktop Entry]
+# Shadows /usr/share/applications/com.microsoft.VSCode.desktop (same desktop-id)
+# so launchers show only code.desktop, which runs the ~/bin/code wrapper.
+Type=Application
+Name=Visual Studio Code
+Hidden=true

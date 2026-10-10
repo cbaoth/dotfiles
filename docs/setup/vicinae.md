@@ -75,6 +75,45 @@ accidental key press and steals its focus, delete the `layer_shell` block from
 `systemctl --user restart vicinae`. No comment lives in `settings.json` itself
 on purpose: Vicinae drops comments whenever it rewrites the file from the GUI.
 
+## Gotcha: launcher starts plain VS Code (keyring error)
+
+Symptom: VS Code started from Vicinae complains about the OS keyring, while
+the same VS Code from a terminal or sway binding is fine. Two entries named
+"Visual Studio Code" showed up in the list, and both were affected.
+
+Vicinae builds its list from `.desktop` files, so two causes stacked:
+
+1. The `code` package ships `/usr/share/applications/com.microsoft.VSCode.desktop`
+   (`Exec=/usr/share/code/code`), which bypasses the `~/bin/code` wrapper (see
+   [sway.md](sway.md), *VS Code*).
+2. Our own `code.desktop` used `Exec=code %F`, resolved via Vicinae's `PATH`.
+   The service runs under the systemd user manager, whose `PATH` has no
+   `~/bin`, so it too found the plain binary.
+
+Fix (all in the repo, deployed by `dotfiles-link`):
+
+- `dotfiles/.local/share/applications/code.desktop`: `Exec` is
+  `sh -c "exec \\"\\$HOME/bin/code\\" \\"\\$@\\"" sh %F`. `.desktop` files do not
+  expand `$HOME`, so the shell does it; the escaping is what
+  `desktop-file-validate` demands (it rejects single quotes). No username is
+  hardcoded. Vicinae's parser handles it.
+- `dotfiles/.local/share/applications/com.microsoft.VSCode.desktop`: same
+  desktop-id as the package's file with `Hidden=true`, which shadows it. The
+  repo `.gitignore` has `*.local`, which matches the `.local` directory, so
+  new files there need `git add -f`.
+- `dotfiles/.config/systemd/user/vicinae.service.d/path.conf`: drop-in giving
+  the service a `PATH` with `%h/bin`, `%h/.local/bin` and the flatpak export
+  dirs first. After linking: `systemctl --user daemon-reload && systemctl
+  --user restart vicinae`. Verify with
+  `tr '\0' '\n' < /proc/$(systemctl --user show -p MainPID --value vicinae)/environ | grep ^PATH=`.
+
+Dead end: a global `~/.config/environment.d/*.conf` with
+`PATH=${HOME}/bin:${PATH}`. systemd 259 (Ubuntu 26.04) picked up other
+variables from the same file (`${HOME}` expansion worked) but never changed
+`PATH`, checked with `30-systemd-environment-d-generator`. Cause unconfirmed.
+Hence the per-service drop-in; other user services still have the default
+`PATH` and need the same drop-in if they ever have to find `~/bin` tools.
+
 ## Config: whole-directory link
 
 `~/.config/vicinae` is a symlink to `dotfiles/.config/vicinae/`, configured via

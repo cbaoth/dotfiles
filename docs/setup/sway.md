@@ -168,6 +168,8 @@ The fix is `~/bin/code` (symlinked from `dotfiles/bin/code`), a wrapper that **a
 
 Chromium's `OSCrypt` scans the whole list for a recognised name, so `GNOME` anywhere in it enables libsecret — verified that both `sway:GNOME` and `GNOME:sway` unlock the keyring for Claude Desktop.
 
+Launcher entries must point at this wrapper too (the package's own `.desktop` file does not): see [vicinae.md](vicinae.md), *launcher starts plain VS Code*.
+
 `~/.local/share/applications/code.desktop` (symlinked from dotfiles) overrides the system `.desktop` to call `code` (the wrapper, found via PATH) instead of `/usr/share/code/code` directly, so both terminal and rofi drun invocations go through the wrapper.
 
 #### Claude Desktop
