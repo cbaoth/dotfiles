@@ -467,6 +467,13 @@ so the objection above does not apply — and it is arguably better than key
 files: encrypted at rest in the vault, and revocable from one place. Open
 question is only whether the remaining hosts follow the same model.
 
+**Progress (2026-10-10, saito):** `notes` only, for the unattended
+`notes-sync.timer`: a dedicated passphrase-less key
+`~/.ssh/id_ed25519_github_notes`, added on GitHub as a **write deploy key
+scoped to cbaoth/notes**, used through the ssh alias `github-notes`
+(`IdentitiesOnly yes`; remote `git@github-notes:cbaoth/notes.git`). Interim
+until the repos move to Forgejo; then the key needs adding there instead.
+
 - [ ] [M] Generate a dedicated ed25519 key per remote host (saito, vserver,
       WSL@work); add each to GitHub; retire the shared PAT.
 - [~] [S] Switch own-repo remotes from HTTPS to SSH
