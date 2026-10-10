@@ -6,6 +6,8 @@
 #
 # Run-or-raise for Sway: focus an existing window matching an app's
 # app_id/class (Wayland/XWayland), or launch it if no window matches.
+# Safe to chain with `||` as a fallback list: exits 127 if COMMAND is not
+# installed, 0 once it was launched (or a window was focused).
 
 # shellcheck disable=SC2155
 declare -r SCRIPT_FILE="$(basename "$0")"
@@ -32,6 +34,8 @@ Options:
                         (default: basename of COMMAND)
   -t, --title           also match against the window title
   -A, --action ACTION  focus (default) | toggle | focus-only
+  -q, --quiet          no message if COMMAND is not installed (use when a
+                        \`||\` fallback follows; DEBUG_LVL>=1 shows it anyway)
   -n, --dry-run        print the action instead of executing it
   -h, --help           show this help and exit
 
@@ -42,10 +46,20 @@ Actions:
               back to launching COMMAND if no window matches.
   focus-only  Focus a matching window if one exists; do nothing
               otherwise (never launches).
+  run         No window lookup: just run COMMAND in the foreground and
+              return its exit status (launchers, one-shot clients such as
+              \`vicinae toggle\`).
+
+Exit status: 127 if COMMAND is not installed (checked before anything is
+executed; \`flatpak run APP_ID\` is checked with \`flatpak info\`), so
+\`sway-app -q A || sway-app B\` falls through to B. Launched apps are
+detached and the exit status is 0, so a later non-zero exit of the app
+itself never triggers the fallback (except for -A run, which waits).
 
 Examples:
   ${SCRIPT_FILE} doublecmd
   ${SCRIPT_FILE} -m obsidian -A toggle -- flatpak run md.obsidian.Obsidian
+  ${SCRIPT_FILE} -q -A run vicinae toggle || ${SCRIPT_FILE} -A run rofi -show combi
 EOF
 }
 
@@ -72,11 +86,38 @@ find_window() {
   '
 }
 
+# Succeeds if COMMAND can be launched on this host. A bare `command -v` is not
+# enough for `flatpak run APP_ID`: flatpak itself exists everywhere, the app
+# may not. The first non-option argument after `run` is taken as the app id.
+is_available() {
+  local -r bin="$1"; shift
+  command -v -- "${bin}" > /dev/null 2>&1 || return 1
+  if [[ "${bin##*/}" == "flatpak" && "${1:-}" == "run" ]]; then
+    local arg
+    for arg in "${@:2}"; do
+      [[ "${arg}" == -* ]] && continue
+      flatpak info "${arg}" > /dev/null 2>&1
+      return
+    done
+  fi
+}
+
 launch() {
+  if ! is_available "${command[@]}"; then
+    if (( ${DEBUG_LVL:-0} >= 1 )) || ! (( quiet )); then
+      p_err "not installed: ${command[*]}"
+    fi
+    exit 127
+  fi
+
   if (( dry_run )); then
     printf 'exec: %s\n' "${command[*]}"
-  else
+  elif [[ "${action}" == "run" ]]; then
     exec "${command[@]}"
+  else
+    # detach and report success: the exit status of the app itself must not
+    # trigger a `||` fallback once it has been launched
+    setsid -f "${command[@]}"
   fi
 }
 
@@ -107,6 +148,7 @@ parse_args() {
   use_title="0"
   action="focus"
   dry_run=0
+  quiet=0
 
   while (( $# > 0 )); do
     case "$1" in
@@ -116,6 +158,8 @@ parse_args() {
         use_title="1" ;;
       -A|--action)
         shift; action="${1:-}" ;;
+      -q|--quiet)
+        quiet=1 ;;
       -n|--dry-run)
         dry_run=1 ;;
       -h|--help)
@@ -142,9 +186,9 @@ parse_args() {
   fi
 
   case "${action}" in
-    focus|toggle|focus-only) ;;
+    focus|toggle|focus-only|run) ;;
     *)
-      p_err "invalid action: '${action}' (expected: focus, toggle, focus-only)"
+      p_err "invalid action: '${action}' (expected: focus, toggle, focus-only, run)"
       exit 1
       ;;
   esac
@@ -153,14 +197,17 @@ parse_args() {
 }
 
 main() {
-  local match_re use_title action dry_run
+  local match_re use_title action dry_run quiet
   local -a command
   parse_args "$@"
 
   local win_id="" win_visible=""
-  read -r win_id win_visible < <(find_window) || true
+  [[ "${action}" == "run" ]] || { read -r win_id win_visible < <(find_window) || true; }
 
   case "${action}" in
+    run)
+      launch
+      ;;
     focus)
       if [[ -n "${win_id}" ]]; then
         focus_window "${win_id}"

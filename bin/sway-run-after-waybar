@@ -40,13 +40,31 @@ declare -i timeout=30
 
 p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
+# Succeeds if COMMAND can be launched on this host (same probe as bin/sway-app).
+# `flatpak run APP_ID` needs `flatpak info`: flatpak exists everywhere, the app
+# may not. The first non-option argument after `run` is taken as the app id.
+is_available() {
+  local -r bin="$1"; shift
+  command -v -- "${bin}" > /dev/null 2>&1 || return 1
+  if [[ "${bin##*/}" == "flatpak" && "${1:-}" == "run" ]]; then
+    local arg
+    for arg in "${@:2}"; do
+      [[ "${arg}" == -* ]] && continue
+      flatpak info "${arg}" > /dev/null 2>&1
+      return
+    done
+  fi
+}
+
 p_usg() {
   cat <<EOF
 Usage: ${SCRIPT_FILE} [-t SECS] COMMAND [ARG...]
 
 Wait until waybar's system tray (${WATCHER_NAME}) is ready on the session bus,
 then exec COMMAND. If the tray does not appear within the timeout, COMMAND is
-launched anyway.
+launched anyway. If COMMAND is not installed on this host (\`flatpak run APP_ID\`
+is checked with \`flatpak info\`) it is skipped right away -- no tray wait --
+with a one-line message and exit status 127.
 
 Options:
   -t, --timeout SECS   Max seconds to wait for the tray (default: ${timeout})
@@ -74,6 +92,12 @@ main() {
   if [[ ! "${timeout}" =~ ^[0-9]+$ ]]; then
     p_err "timeout must be a non-negative integer: '${timeout}'"
     exit 1
+  fi
+
+  # Per-host apps: skip instead of waiting for the tray and then failing.
+  if ! is_available "$@"; then
+    p_err "not installed, skipping: $*"
+    exit 127
   fi
 
   # gdbus wait blocks until the name is owned (exit 0), or exits non-zero on
