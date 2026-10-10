@@ -3,7 +3,7 @@ title: tmux — SSH auto-attach, sessions vs windows, and getting back to work
 hosts: [all]
 status: resolved
 tags: [tmux, ssh, shell, remote, agents]
-updated: 2026-10-01
+updated: 2026-10-10
 ---
 
 # tmux on SSH logins
@@ -81,6 +81,26 @@ the same session mirror each other.
 
 From the fresh `main` shell, `prefix s` then the other session is the whole
 answer.
+
+`C-a` is also line-start in zsh and Emacs: press **`C-a C-a`** to send it to
+the program.
+
+## Copy mode (emacs keys)
+
+`mode-keys emacs` since 2026-10 (vi before; a two-line toggle in
+`.tmux.conf`), so scrollback works like zsh and Emacs:
+
+| Keys | Does |
+| ---- | ---- |
+| `prefix [` | enter copy mode (scrollback) |
+| arrows, `C-n` / `C-p`, `C-v` / `M-v` | move, page down / up |
+| `C-s` / `C-r` | search forward / backward |
+| `C-SPC` | start selection |
+| `M-w` | copy selection and leave (also to the outer terminal's clipboard, `set-clipboard on`) |
+| `C-g` / `q` | clear selection / leave copy mode |
+| `prefix ]` | paste the last copy |
+
+With `mouse on`, dragging selects and copies too.
 
 ## Practices that keep this legible
 
