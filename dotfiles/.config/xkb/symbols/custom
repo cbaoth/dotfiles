@@ -63,6 +63,17 @@ xkb_symbols "basic" {
     key <AB08> { [ comma,  less,    dead_cedilla,   U2190 ] };  // AltGr-Shift-,  ->  ←
     key <AB07> { [ m,      M,       dead_macron,    U21D2 ] };  // AltGr-Shift-m  ->  ⇒
     key <AB06> { [ k,      K,       dead_abovering, U21D0 ] };  // AltGr-Shift-k  ->  ⇐
+
+    // ()/[] swap: OFF, kept for testing. Puts ( ) unshifted on the bracket
+    // keys and [ ] on Shift+9/0; { } stay on Shift+bracket. Parens are far
+    // more common than brackets in Lisp and in prose. Ported from the old
+    // xmodmap-104-us (2000s, see docs/setup/emacs.md). Levels 3/4 repeat
+    // us(colemak)'s quote marks and guillemets unchanged.
+    // To test: uncomment the four lines, then `swaymsg reload`.
+    //key <AE09> { [ 9,          bracketleft,  leftsinglequotemark,  leftdoublequotemark  ] };
+    //key <AE10> { [ 0,          bracketright, rightsinglequotemark, rightdoublequotemark ] };
+    //key <AD11> { [ parenleft,  braceleft,    guillemotleft,        0x1002039 ] };
+    //key <AD12> { [ parenright, braceright,   guillemotright,       0x100203a ] };
 };
 
 xkb_symbols "qwerty" {

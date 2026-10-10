@@ -932,3 +932,14 @@ piper -m de_DE-thorsten-high --data-dir ~/.cache/piper-tts --cuda -- Das ist ein
   - stop playback
   - if possible forward/rewind (e.g. by word, paragraph, or similar)
   - increase/decrease/reset playback speed (+/- 0.25 increments seem reasonable). default should be to remember the last used speed, and fallback should be 1.0 for starters but that may change (could also be voice specific, e.g. `"length_scale": 1` in voice's json)
+
+## Emacs comeback (started 2026-10-10)
+
+Trial: Emacs as the one terminal editor, or back to nvim. Fresh config in
+`dotfiles/.config/emacs/`, zsh back in emacs mode. Details, decisions and the
+full open-items list: [docs/setup/emacs.md](setup/emacs.md).
+
+- [ ] [M] Relearn basics (`C-h t`), daily terminal use; verdict by 2026-12
+- [ ] [S] Install on desktop (`emacs-pgtk`), try daemon + `emacsclient -c`, TRAMP
+- [ ] [M] VS Code settings/keybindings/extensions review for common ground (on the desktop)
+- [ ] [S] Decide `$EDITOR` (nvim vs `emacsclient -t -a ''`)

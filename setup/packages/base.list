@@ -7,6 +7,9 @@
 zsh
 vim
 neovim
+# emacs: not here. Its builds conflict with each other, so the right one is
+# picked per profile: emacs-nox (server.list, wsl.list), emacs-pgtk
+# (desktop.list). See docs/setup/emacs.md.
 
 # Terminal multiplexing & monitoring
 tmux

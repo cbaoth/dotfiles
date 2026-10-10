@@ -7,6 +7,10 @@
 # scripts, aliases, and xdg-open handlers cannot reach it.
 # Self-contained GUI apps go in flatpak-desktop.list.
 
+# Editor: Wayland-native Emacs build for sway; also runs in a terminal
+# with `emacs -nw' (see base.list, docs/setup/emacs.md)
+emacs-pgtk
+
 # System & hardware
 nvtop
 

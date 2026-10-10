@@ -2,6 +2,9 @@
 # Installed by: setup/modules/00-apt-base.sh (profile: server)
 # Docs:         docs/setup/ubuntu-base.md
 
+# Editor: terminal-only Emacs build (see base.list, docs/setup/emacs.md)
+emacs-nox
+
 # Security
 fail2ban
 

@@ -5,5 +5,8 @@
 # Deliberately thin: WSL gets base.list plus these. No GUI packages, no
 # systemd-dependent services, no drivers — the Windows host owns all of that.
 
+# Editor: terminal-only Emacs build (see base.list, docs/setup/emacs.md)
+emacs-nox
+
 # Clipboard bridge to the Windows host
 wslu
