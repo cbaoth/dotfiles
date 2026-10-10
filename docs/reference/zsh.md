@@ -2,8 +2,8 @@
 title: zsh notes (options, globbing, keybindings)
 hosts: [all]
 status: resolved
-tags: [zsh, shell, keybindings, vi-mode, glob, foot, fzf]
-updated: 2026-07-17
+tags: [zsh, shell, keybindings, emacs-mode, vi-mode, glob, foot, fzf]
+updated: 2026-10-10
 ---
 
 Some random notes on zsh, mostly for my own reference.
@@ -167,55 +167,93 @@ rm ./*(Om[1,-11])
 # Keyboard Shortcuts
 
 Inspect bindings with `bindkey` (current keymap) or `bindkey -M <keymap>`
-(`viins`, `vicmd`, `command`, …); `bindkey -l` lists keymaps. All bindings live
+(`emacs`, `viins`, `vicmd`, `command`, …); `bindkey -l` lists keymaps. All bindings live
 in the `ZSH KEYBINDINGS` section of `~/.zshrc`.
 
-## Editing model: vi mode
+## Editing model: emacs mode
 
-Switched from **emacs** (`bindkey -e`) to **vi** mode (`bindkey -v`) in 2026-07,
-to get modal motions plus visual selection/yank that match vim muscle memory.
-The main keymap is now `viins` (insert). Highlights of the setup:
+**Emacs** mode (`bindkey -e`, main keymap `emacs`). History:
 
-- **Cursor shape signals the mode** (independent of the prompt): a **beam** `|`
-  while typing (insert), a solid **block** in command mode. Press `ESC` to enter
-  command mode.
-- The single-press emacs editing keys (below) are kept bound in insert mode, so
-  nothing is lost for quick edits — modal motions are strictly *added on top*.
-- `KEYTIMEOUT=20` (0.2 s) balances snappy `ESC` against multi-key `Alt`-chords
-  (e.g. the zaw git binds). Lower it toward `1` for a faster `ESC` if those
-  chords are unused.
+| Period | Mode | Why |
+| --- | --- | --- |
+| years until 2026-07 | emacs | default |
+| 2026-07 to 2026-10 | vi (`bindkey -v`) | modal motions and visual selection matching vim muscle memory |
+| since 2026-10 | emacs | Emacs is back as the editor: same keys in shell and editor, more practice (see [docs/setup/emacs.md](../setup/emacs.md)) |
 
-## Insert mode — single-press editing (no mode switch)
+Switching back to vi mode is a two-line toggle in `~/.zshrc`: swap
+`bindkey -e`/`#bindkey -v` and uncomment `KEYTIMEOUT=20` (0.2 s, a fast `ESC`
+into command mode that still leaves time for the zaw `Alt`-chords). Everything
+else works in both modes:
 
-These are the emacs-style keys retained in `viins`; use them while typing.
+- The single-press editing keys below are bound in the main keymap, whichever
+  mode that is.
+- The cursor-shape hook draws a **beam** `|` while typing, and a solid
+  **block** in vi command mode (so in emacs mode: always a beam).
+
+**Emacs vs. zsh, same key, different action** (worth knowing while practicing
+both):
+
+| Key | zsh | Emacs |
+| --- | --- | --- |
+| `Ctrl-W` | no selection: delete word left | no selection: cut from the mark |
+| `Ctrl-U` | delete to start of line | numeric prefix argument |
+| `Ctrl-R` | fuzzy history (zaw) | search backward |
+
+## Single-press editing keys
+
+Emacs-style keys, bound in the main keymap (emacs mode; in vi mode: insert).
 
 | Key | Widget | Action |
 | --- | --- | --- |
 | `Ctrl-A` | `beginning-of-line` | jump to start of line |
 | `Ctrl-E` | `end-of-line` | jump to end of line |
 | `Alt-B` / `Alt-F` | `backward-word` / `forward-word` | move one word left / right |
-| `Ctrl-W` | `backward-kill-word` | delete word to the **left** |
+| `Ctrl-W` | `_cb_kill_region_or_word` | cut the selection; without one, delete word to the **left** |
 | `Alt-D` | `kill-word` | delete word to the **right** |
 | `Ctrl-K` | `kill-line` | delete everything **right** of cursor |
 | `Ctrl-U` | `backward-kill-line` | delete everything **left** of cursor |
 | `Ctrl-Y` | `yank` | paste the last kill (`Alt-Y` cycles the kill-ring) |
 | `Alt-.` | `insert-last-word` | insert **last arg of previous command** (repeat to cycle back) |
-| `Ctrl-Space` | `autosuggest-accept` | accept the zsh-autosuggestions ghost text |
-| `Ctrl-X Ctrl-E` | `edit-command-line` | open the current line in **`$EDITOR`** |
+| `Ctrl-X Ctrl-E` | `edit-command-line` | open the current line (or only the selection) in **Emacs** (`$EDITOR` if Emacs is missing) |
+| `→` / `Ctrl-E` / `End` | `forward-char` / `end-of-line` | accept the zsh-autosuggestions ghost text |
+
+**Selection (Emacs-style, since 2026-10):**
+
+| Key | Widget | Action |
+| --- | --- | --- |
+| `Ctrl-Space` | `set-mark-command` | start a selection (was `autosuggest-accept` until 2026-10) |
+| `Alt-W` | `copy-region-as-kill` | copy the selection |
+| `Ctrl-W` | `_cb_kill_region_or_word` | cut the selection |
+| `Ctrl-Y` | `yank` | paste |
+| `Ctrl-G` | `_cb_deactivate_or_break` | cancel the selection; without one, abort the line |
+| `Ctrl-X Ctrl-X` | `exchange-point-and-mark` | jump to the other end of the selection |
+
+**Prompt → editor → script.** For a one-liner that outgrows the prompt:
+`Ctrl-X Ctrl-E` opens it in `emacs -nw` (set by the
+`:zle:edit-command-line editor` zstyle in `.zshrc`, so `$EDITOR` stays nvim).
+Edit, then `C-x C-s C-x C-c`: the result lands back at the prompt, not
+executed. Optionally `C-c s` in Emacs first, to save a copy as an executable
+script (zsh shebang added); the prompt still gets the edited line. The key runs
+a small wrapper, `_cb-edit-command-line`, that redraws the whole prompt
+afterwards: Emacs leaves the cursor in column 0, and without the redraw the
+edit overwrote the `❯` on screen (the command itself was always right).
 | `Ctrl-X a` | `_expand_alias` | expand the alias under the cursor **on demand** |
+| `Alt-X` | `execute-named-cmd` | zsh's own `M-x`: run any zle widget by name (`Tab` completes), e.g. `quote-line`, `which-command` |
 
 > **`Alt-.` is the path-reuse trick.** After `ll /long/path`, type e.g. `vim `
 > then `Alt-.` → `vim /long/path`, without ever editing the long expanded alias.
 > Related history word designators also work: `!$` (last arg), `!^` (first arg),
 > `!*` (all args), `!!` (whole previous command).
 
-> **`Ctrl-X Ctrl-E` needs a usable `$EDITOR`.** It silently did nothing while
-> `$EDITOR` was `emacs -nw` (no exit reflex left…); it is now `vim -N` (see the
-> `_export_to_first_cmd EDITOR …` line in `.common_env`).
+> **`Ctrl-X Ctrl-E` exits through the editor.** It once "silently did nothing"
+> while `$EDITOR` was `emacs -nw`; really there was no exit reflex left.
+> In Emacs: `C-x C-s` save, `C-x C-c` quit. Without the Emacs zstyle it uses
+> `$EDITOR` (`nvim`, see `_export_to_first_cmd EDITOR …` in `.common_env`).
 
-## Command mode (`ESC`) — motions, selection, editing
+## Vi command mode (`ESC`) — motions, selection, editing
 
-Standard vim command-mode keys apply to the command line:
+**Vi mode only; inactive while emacs mode is on.** Kept for when vi mode is
+switched back on. Standard vim command-mode keys apply to the command line:
 
 | Key(s) | Action |
 | --- | --- |
@@ -254,11 +292,10 @@ it literally instead of acting on it:
 | `Ctrl-V` `Ctrl-J` | literal newline (LF) |
 | `Ctrl-V` `Esc` | literal `ESC` byte |
 
-> The old **`ESC, <key>`** / `Alt-Enter` method (via `self-insert-unmeta`) no
-> longer works: under vi mode `ESC` enters command mode, so those meta bindings
-> are not in the `viins` keymap. `Ctrl-V` is the replacement. (In emacs mode the
-> meta form did work — kept here for reference:
-> `"^[^I"/"^[^J"/"^[^M" self-insert-unmeta`.)
+> In emacs mode the **meta form** works too: `Alt-Enter` (or `ESC`, `Enter`)
+> inserts a newline, `Alt-Tab` a tab (`"^[^M"/"^[^J"/"^[^I" self-insert-unmeta`,
+> emacs-keymap defaults). In vi mode it does not: `ESC` enters command mode, so
+> `Ctrl-V` is the only way there.
 
 ## History & completion widgets
 

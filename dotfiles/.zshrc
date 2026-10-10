@@ -669,14 +669,16 @@ zstyle ':completion:*' group-name ''
 # }}} = ZSH SETTINGS =========================================================
 # {{{ = ZSH KEYBINDINGS ======================================================
 # http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Standard-Widgets
-# Editing model: vi mode (main keymap = viins). Was emacs (`bindkey -e`) for
-# years; switched 2026-07 to get modal motions + visual selection/yank that
-# match muscle memory from vim. See docs/reference/zsh.md ("Editing model").
+# Editing model: emacs (main keymap = emacs). Emacs mode for years, vi mode
+# 2026-07..10, back to emacs 2026-10 to match Emacs as the editor (same keys in
+# shell and editor; see docs/setup/emacs.md). To try vi mode again, swap the
+# two lines below and uncomment KEYTIMEOUT. See docs/reference/zsh.md.
 #
-# IMPORTANT: `bindkey -v` RESETS the main keymap to vi defaults, so every custom
-# `bindkey` without -M MUST come after this line, or it is silently dropped.
-bindkey -v
-#bindkey -e   # emacs key bindings (previous default)
+# IMPORTANT: `bindkey -e`/`-v` RESET the main keymap to defaults, so every
+# custom `bindkey` without -M MUST come after this line, or it is silently
+# dropped. Binds without -M go to whichever keymap is main, in either mode.
+bindkey -e
+#bindkey -v   # vi key bindings (2026-07..10)
 
 # ESC latency in vi mode. Default is 40 (0.4s), which feels laggy when leaving
 # insert mode. Lowering it speeds up ESC, but multi-key Alt-chords typed with a
@@ -684,33 +686,66 @@ bindkey -v
 # between chords — 20 (0.2s) is a good compromise; drop toward 1 for snappier
 # ESC if you don't use those chords. (Alt-<key> itself is unaffected: terminals
 # send it as one atomic ESC+key burst.)
-KEYTIMEOUT=20
+# Vi mode only: emacs mode has no ESC-to-command-mode, and the default (40)
+# leaves time for ESC typed as a Meta prefix.
+#KEYTIMEOUT=20
 
 # register the edit-command-line widget before binding it (here and in vicmd,
 # below), otherwise fast-syntax-highlighting warns "unhandled ZLE widget".
 autoload -Uz edit-command-line
 zle -N edit-command-line
+# Edit the line (or the active region only) in Emacs when it is installed,
+# without changing $EDITOR for everything else. `C-x C-s C-x C-c` saves and
+# returns the result to the prompt; `C-c s` in Emacs also saves a copy as an
+# executable script (init.el). Hosts without Emacs fall back to $EDITOR.
+(( $+commands[emacs] )) && zstyle ':zle:*edit-command-line' editor emacs -nw  # incl. the wrapper below
+# Redraw the whole prompt once the editor returns. zle only redraws what
+# changed and assumes the cursor is where it left it, but emacs -nw exits
+# with the cursor in column 0: the edit then overwrote the start of the line,
+# including starship's `❯ ` (the buffer itself was always right).
+_cb-edit-command-line() {
+  zle edit-command-line
+  zle reset-prompt
+}
+zle -N _cb-edit-command-line
 
-# {{{ - EMACS KEYS IN INSERT MODE --------------------------------------------
-# Keep the single-press, no-mode-switch editing keys from the old emacs setup
-# available while typing (viins) — switching to vi mode should lose nothing for
-# quick edits. Press ESC to enter command mode for vim motions/text-objects and
-# `v` for visual selection. Documented in docs/reference/zsh.md.
-bindkey -M viins '^ '   autosuggest-accept      # ctrl-space: accept suggestion
-bindkey -M viins '^A'   beginning-of-line       # ctrl-a:  start of line
-bindkey -M viins '^E'   end-of-line             # ctrl-e:  end of line
-bindkey -M viins '^K'   kill-line               # ctrl-k:  delete to end of line
-bindkey -M viins '^U'   backward-kill-line      # ctrl-u:  delete to start of line
-bindkey -M viins '^W'   backward-kill-word      # ctrl-w:  delete word left
-bindkey -M viins '^Y'   yank                    # ctrl-y:  paste last kill
-bindkey -M viins '\eb'  backward-word           # alt-b:   word left
-bindkey -M viins '\ef'  forward-word            # alt-f:   word right
-bindkey -M viins '\ed'  kill-word               # alt-d:   delete word right
-bindkey -M viins '\e.'  insert-last-word        # alt-.:   last arg of prev cmd
-bindkey -M viins '^H'   backward-delete-char    # ctrl-h:  backspace
-bindkey -M viins '^X^E' edit-command-line       # ctrl-x ctrl-e: edit in $EDITOR
-bindkey -M viins '^Xa'  _expand_alias           # ctrl-x a: expand alias on demand
-# }}} - EMACS KEYS IN INSERT MODE --------------------------------------------
+# Selection widgets, Emacs-style: C-SPC starts a selection, then
+# C-w cuts it, M-w copies it, C-y pastes, C-g cancels it.
+# ctrl-w: cut the selection if one is active, else delete the word left.
+_cb_kill_region_or_word() {
+  if (( REGION_ACTIVE )); then zle kill-region; else zle backward-kill-word; fi
+}
+zle -N _cb_kill_region_or_word
+# ctrl-g: drop the selection if one is active, else abort the line (default).
+_cb_deactivate_or_break() {
+  if (( REGION_ACTIVE )); then zle deactivate-region; else zle send-break; fi
+}
+zle -N _cb_deactivate_or_break
+
+# {{{ - EMACS EDITING KEYS ---------------------------------------------------
+# Single-press editing keys, bound in the main keymap so they work in both
+# modes: most are emacs-mode defaults anyway, and in vi mode they stay
+# available while typing (viins), so a switch loses nothing for quick edits.
+# Documented in docs/reference/zsh.md.
+# ctrl-space: was autosuggest-accept until 2026-10; suggestions are still
+# accepted with right-arrow, ctrl-e or End (ZSH_AUTOSUGGEST_ACCEPT_WIDGETS).
+bindkey '^ '   set-mark-command        # ctrl-space: start selection
+bindkey '\ew'  copy-region-as-kill     # alt-w:   copy selection
+bindkey '^G'   _cb_deactivate_or_break # ctrl-g:  cancel selection / abort
+bindkey '^A'   beginning-of-line       # ctrl-a:  start of line
+bindkey '^E'   end-of-line             # ctrl-e:  end of line
+bindkey '^K'   kill-line               # ctrl-k:  delete to end of line
+bindkey '^U'   backward-kill-line      # ctrl-u:  delete to start of line
+bindkey '^W'   _cb_kill_region_or_word # ctrl-w:  cut selection / del word left
+bindkey '^Y'   yank                    # ctrl-y:  paste last kill
+bindkey '\eb'  backward-word           # alt-b:   word left
+bindkey '\ef'  forward-word            # alt-f:   word right
+bindkey '\ed'  kill-word               # alt-d:   delete word right
+bindkey '\e.'  insert-last-word        # alt-.:   last arg of prev cmd
+bindkey '^H'   backward-delete-char    # ctrl-h:  backspace
+bindkey '^X^E' _cb-edit-command-line   # ctrl-x ctrl-e: edit in Emacs/$EDITOR
+bindkey '^Xa'  _expand_alias           # ctrl-x a: expand alias on demand
+# }}} - EMACS EDITING KEYS ---------------------------------------------------
 
 # {{{ - CURSOR SHAPE = MODE INDICATOR ----------------------------------------
 # Visible mode indicator independent of the prompt: beam bar while typing
@@ -728,7 +763,12 @@ add-zle-hook-widget keymap-select _cb_cursor_shape
 add-zle-hook-widget line-init     _cb_cursor_shape
 # }}} - CURSOR SHAPE = MODE INDICATOR ----------------------------------------
 
-bindkey '^x^x' execute-named-cmd # in addition to alt-x (if alt not working)
+# alt-x (emacs-mode default) runs execute-named-cmd: zsh's own M-x, it prompts
+# for any zle widget by name (Tab completes), e.g. `alt-x quote-line`.
+# ctrl-x ctrl-x is left at its default, exchange-point-and-mark (jump to the
+# other end of the selection, as in Emacs); it was a second execute-named-cmd
+# key until 2026-10.
+#bindkey '^x^x' execute-named-cmd # in addition to alt-x (if alt not working)
 bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working)
 
 # sudo
@@ -779,7 +819,7 @@ fi
 # {{{ - VI MODE (command-mode binds) -----------------------------------------
 # edit-command-line widget is registered in the keybindings header (above).
 # Open the current command line in $EDITOR (vim -N) from command mode:
-bindkey -M vicmd '^v' edit-command-line   # ctrl-v: edit line in $EDITOR
+bindkey -M vicmd '^v' _cb-edit-command-line  # ctrl-v: edit line in editor
 
 # NOTE: `v` is intentionally left at its default (visual-mode) — enters visual
 # selection; `V` selects line-wise. Then `y` yank / `d` delete / `x` cut work
