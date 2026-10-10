@@ -43,6 +43,32 @@ umask. The harmless `sudo: preserving the entire environment is not supported,
 
 Fix (done by the module): `sudo chmod -R go+rX /usr/local/lib/vicinae`.
 
+## Gotcha: launcher opens but gets no keyboard input
+
+Symptom: `$mod+space` shows the prompt, but typed keys go to the previously
+focused window (VS Code, a browser, a terminal). Only on an empty workspace, or
+after hovering the prompt with the mouse, does it receive input.
+
+Cause: `"close_on_focus_loss": true` makes Vicinae request *on-demand*
+layer-shell keyboard focus (`set_keyboard_interactivity(2)` in a
+`WAYLAND_DEBUG=client` trace; its default config comment says that option has no
+effect with the default *exclusive* mode). With on-demand, sway sends
+`keyboard.enter` to the launcher and then gives focus back to the focused
+toplevel within milliseconds (`keyboard.leave`), so toggling again just
+re-opens the window.
+
+Fix: `"close_on_focus_loss": false` (exclusive focus). Esc closes
+(`escape_key_behavior: close_window`), `$mod+space` toggles. Not the cause, tried
+and ruled out: `focus_follows_mouse`, a `--release` binding with a delay,
+and the layer. Possibly related upstream bug for other launchers:
+[sway#8655](https://github.com/swaywm/sway/issues/8655) (unconfirmed for this
+setup).
+
+`"layer_shell": {"layer": "overlay"}` is kept on purpose: it did not change the
+focus bug, but it keeps the launcher above fullscreen windows (`top` does not).
+With the pointer over another window, that window briefly flashes focus before
+the launcher takes it back; cosmetic.
+
 ## Config: whole-directory link
 
 `~/.config/vicinae` is a symlink to `dotfiles/.config/vicinae/`, configured via
