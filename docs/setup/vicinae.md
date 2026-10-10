@@ -98,9 +98,7 @@ Fix (all in the repo, deployed by `dotfiles-link`):
   `desktop-file-validate` demands (it rejects single quotes). No username is
   hardcoded. Vicinae's parser handles it.
 - `dotfiles/.local/share/applications/com.microsoft.VSCode.desktop`: same
-  desktop-id as the package's file with `Hidden=true`, which shadows it. The
-  repo `.gitignore` has `*.local`, which matches the `.local` directory, so
-  new files there need `git add -f`.
+  desktop-id as the package's file with `Hidden=true`, which shadows it.
 - `dotfiles/.config/systemd/user/vicinae.service.d/path.conf`: drop-in giving
   the service a `PATH` with `%h/bin`, `%h/.local/bin` and the flatpak export
   dirs first. After linking: `systemctl --user daemon-reload && systemctl

@@ -68,3 +68,5 @@ _local/
 *.local.*
 # ...but *.local.example templates ARE tracked — they document the local file.
 !*.local.example
+# ...and the .local directory itself (e.g. dotfiles/.local/share/...) is not a local override.
+!.local/
