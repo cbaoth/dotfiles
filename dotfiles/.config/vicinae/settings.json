@@ -1,0 +1,298 @@
+// This configuration is merged with the default vicinae configuration file, which you can obtain by running the `vicinae config default` command.
+// Every item defined in this file takes precedence over the values defined in the default config or any other imported file.
+//
+// You can make manual edits to this file, however you should keep in mind that this file may be written to by vicinae when a configuration change is made through the GUI.
+// When that happens, any custom comments or formatting will be lost.
+//
+// If you want to maintain a configuration file with your own comments and formatting, you should create a separate file and add it to the 'imports' array.
+//
+// Learn more about configuration at https://docs.vicinae.com/config
+
+{
+   "$schema": "https://vicinae.com/schemas/config.json",
+   "close_on_focus_loss": true,
+   "pop_to_root_on_close": true,
+   "pop_on_backspace": true,
+   "activate_on_single_click": false,
+   "wrap_navigation": true,
+   "encrypt_sensitive_data": true,
+   "escape_key_behavior": "close_window",
+   "keybinding": "emacs",
+   "tray": {
+      "enabled": true
+   },
+   "font": {
+      "normal": {
+         "family": "FiraCode Nerd Font",
+         "size": 10
+      }
+   },
+   "theme": {
+      "dark": {
+         "name": "vicinae-dark"
+      }
+   },
+   "launcher_window": {
+      "compact_mode": {
+         "enabled": true
+      }
+   },
+   "keybinds": {
+      "action.edit": "F2",
+      "action.edit-secondary": "alt+F2",
+      "action.move-down": "alt+R",
+      "action.move-up": "alt+W"
+   },
+   "providers": {
+      "applications": {
+         "entrypoints": {
+            "blueman-manager": {
+               "alias": "bt"
+            },
+            "com.anthropic.Claude": {
+               "alias": "cc"
+            },
+            "com.microsoft.VSCode": {
+               "alias": "code"
+            },
+            "com.spotify.Client": {
+               "alias": "spo"
+            },
+            "com.xnview.XnViewMP": {
+               "alias": "img"
+            },
+            "doublecmd": {
+               "alias": "dc"
+            },
+            "emacs": {
+               "alias": "e"
+            },
+            "emacs-term": {
+               "alias": "em"
+            },
+            "firefox-nightly": {
+               "alias": "ff"
+            },
+            "foot": {
+               "alias": "t"
+            },
+            "google-chrome-unstable": {
+               "alias": "gc"
+            },
+            "htop": {
+               "alias": "ht"
+            },
+            "io.github.Qalculate": {
+               "alias": "calc"
+            },
+            "io.github.quodlibet.QuodLibet": {
+               "alias": "ql"
+            },
+            "io.github.ungoogled_software.ungoogled_chromium": {
+               "alias": "wwc"
+            },
+            "io.github.unknownskl.greenlight": {
+               "alias": "gl"
+            },
+            "md.obsidian.Obsidian": {
+               "alias": "obs"
+            },
+            "mpv": {
+               "alias": "play"
+            },
+            "nordvpn-gui": {
+               "alias": "nord"
+            },
+            "nvim": {
+               "alias": "vim"
+            },
+            "nvtop": {
+               "alias": "nv"
+            },
+            "org.gimp.GIMP": {
+               "alias": "gimp"
+            },
+            "org.gnome.Calculator": {
+               "enabled": true
+            },
+            "org.gnome.Characters": {
+               "alias": "car"
+            },
+            "org.gnome.Ptyxis": {
+               "enabled": true
+            },
+            "org.gnome.font-viewer": {
+               "alias": "font"
+            },
+            "org.jdownloader.JDownloader": {
+               "alias": "jd"
+            },
+            "org.keepassxc.KeePassXC": {
+               "alias": "p"
+            },
+            "org.pulseaudio.pavucontrol": {
+               "alias": "vol"
+            },
+            "org.signal.Signal": {
+               "alias": "sig"
+            },
+            "org.videolan.VLC": {
+               "alias": "vlc"
+            },
+            "vivaldi-cadlkienfkclaiaibeoongdcgmdikeeg-Default": {
+               "alias": "cg"
+            },
+            "vivaldi-fmpnliohjhemenmnlpbfagaolkdacoja-Default": {
+               "alias": "ccc"
+            },
+            "vivaldi-gdfaincndogidkdcdkhapmbffkckdkhn-Default": {
+               "alias": "gg"
+            },
+            "vivaldi-snapshot": {
+               "alias": "ww"
+            },
+            "wine.Programs.Path of Building Community": {
+               "alias": "pob"
+            },
+            "wine.Programs.Path of Building Community (PoE2)": {
+               "alias": "pob2"
+            }
+         }
+      },
+      "browser-extension": {
+         "entrypoints": {
+            "browse-tabs": {
+               "alias": "tab"
+            },
+            "shortcut-active-tab": {
+               "alias": "taba"
+            }
+         }
+      },
+      "calculator": {
+         "preferences": {
+            "backend": "qalculate"
+         }
+      },
+      "clipboard": {
+         "preferences": {
+            "monitoring": true,
+            "ignorePasswords": true,
+            "preserveTagged": true,
+            "ignoredApps": [
+               "org.keepassxc.KeePassXC.desktop",
+               "io.github.ungoogled_software.ungoogled_chromium.desktop"
+            ],
+            "evictionThreshold": "never",
+            "eraseOnStartup": false
+         },
+         "entrypoints": {
+            "clear": {
+               "alias": "clc"
+            },
+            "clear-history": {
+               "alias": "clhc"
+            },
+            "history": {
+               "alias": "clh"
+            }
+         }
+      },
+      "core": {
+         "entrypoints": {
+            "list-extensions": {
+               "alias": "ext"
+            },
+            "open-config-file": {
+               "alias": "ex"
+            },
+            "search-emojis": {
+               "alias": "emo"
+            },
+            "search-tray": {
+               "alias": "tray"
+            },
+            "show-logs": {
+               "alias": "logs"
+            },
+            "store": {
+               "alias": "exts"
+            }
+         }
+      },
+      "manage-shortcuts": {
+         "entrypoints": {
+            "create": {
+               "alias": "scc"
+            }
+         }
+      },
+      "media": {
+         "entrypoints": {
+            "next-track": {
+               "alias": "pln"
+            },
+            "now-playing": {
+               "alias": "p?"
+            },
+            "play-pause": {
+               "alias": "pl"
+            },
+            "previous-track": {
+               "alias": "plp"
+            },
+            "toggle-mute": {
+               "alias": "vm"
+            },
+            "volume-0": {
+               "alias": "v0"
+            },
+            "volume-100": {
+               "alias": "v1"
+            },
+            "volume-25": {
+               "alias": "v4"
+            },
+            "volume-50": {
+               "alias": "v3"
+            },
+            "volume-75": {
+               "alias": "v2"
+            },
+            "volume-down": {
+               "alias": "vd"
+            },
+            "volume-up": {
+               "alias": "vu"
+            }
+         }
+      },
+      "snippets": {
+         "preferences": {
+            "enabled": true,
+            "undo": true,
+            "layout": "",
+            "prePasteDelay": "0",
+            "keyDelay": "2"
+         }
+      },
+      "system": {
+         "entrypoints": {
+            "browse-apps": {
+               "alias": "app",
+               "enabled": true
+            },
+            "run": {
+               "alias": "r"
+            }
+         }
+      },
+      "wm": {
+         "entrypoints": {
+            "switch-windows": {
+               "alias": "win"
+            }
+         }
+      }
+   }
+}
