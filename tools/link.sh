@@ -158,6 +158,16 @@ debug "Global Ignore Pattern (${IGNORE_FILE}): ${IGNORE_PATTERN}"
 typeset -a WARNINGS
 typeset -a ERRORS
 
+# LINK_DIRS (link-config.conf): directories linked as a whole; exclude them
+# (and their contents) from the per-file scan below
+typeset -a LINK_DIRS_EXCLUDE=()
+for _ld in "${LINK_DIRS[@]}"; do
+  [[ -d "${DOTFILES}/${_ld}" ]] \
+    || { echo "error: LINK_DIRS entry not a directory in dotfiles/: ${_ld}" >&2; exit 1; }
+  LINK_DIRS_EXCLUDE+=(! -path "${DOTFILES}/${_ld}" ! -path "${DOTFILES}/${_ld}/*")
+done
+unset _ld
+
 backup_existing() {
   local target="$1"
   local relpath="$2"
@@ -221,7 +231,27 @@ while IFS= read -r -d '' f; do
     info "Creating new SymLink: '$f' -> '$target'"
       run_and_report ln -sf -- "$f" "$target"
   fi
-done < <(find "$DOTFILES" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PATTERN"} -print0)
+done < <(find "$DOTFILES" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PATTERN"} \
+           "${LINK_DIRS_EXCLUDE[@]}" -print0)
+
+# Link each LINK_DIRS directory as a single symlink. Runs after the per-file
+# loop so the parent directory (e.g. ~/.config) already exists.
+for relpath in "${LINK_DIRS[@]}"; do
+  src="${DOTFILES}/${relpath}"
+  target="${HOME}/${relpath}"
+  info ""
+  info "Processing directory link: $relpath -> $target ..."
+  if [[ -L "$target" && "$(readlink "$target")" -ef "$src" ]]; then
+    info "\e[32mOK: Correct directory symlink already exists (nothing to do), skipping ..\e[0m"
+    continue
+  fi
+  if [[ -e "$target" || -L "$target" ]]; then
+    backup_existing "$target" "$relpath" " directory" " but is not the expected symlink" || continue
+  fi
+  run_and_report mkdir -p -- "$(dirname -- "$target")"
+  info "Creating new directory SymLink: '$src' -> '$target'"
+  run_and_report ln -sfn -- "$src" "$target"
+done
 
 # Sync flat files from a repo dir to a home dir: create symlinks for all files,
 # remove stale links that pointed into the repo dir but no longer exist there.

@@ -177,6 +177,27 @@ declare -A SYNC_DIRS=(
 )
 ```
 
+### Whole-Directory Links
+
+By default files are linked individually. Some apps save atomically (write a
+temp file, then rename it over the target), which silently replaces a per-file
+symlink with a regular file and leaves the repo copy orphaned. For those, list
+the directory in `LINK_DIRS` (paths relative to `dotfiles/`):
+
+```bash
+LINK_DIRS=(
+  ".config/vicinae"
+)
+```
+
+`dotfiles/.config/vicinae` is then linked as one symlink to `~/.config/vicinae`
+and skipped by the per-file scan. Renames inside it stay inside the repo.
+
+Trade-off: everything the app writes there lands in the repo, so add
+`.gitignore` entries for caches or backups. Keep this list small and opt-in.
+An existing real directory or other symlink at the target is moved to the
+backup directory first.
+
 ### Ignore Patterns
 
 The `.linkignore` file (in `tools/`) specifies patterns to exclude from linking. Patterns use sed regular expression syntax.
