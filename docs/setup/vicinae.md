@@ -69,6 +69,12 @@ focus bug, but it keeps the launcher above fullscreen windows (`top` does not).
 With the pointer over another window, that window briefly flashes focus before
 the launcher takes it back; cosmetic.
 
+**Revert candidate:** if the launcher pops up over a fullscreen game after an
+accidental key press and steals its focus, delete the `layer_shell` block from
+`settings.json` (or set `"layer": "top"`) and restart with
+`systemctl --user restart vicinae`. No comment lives in `settings.json` itself
+on purpose: Vicinae drops comments whenever it rewrites the file from the GUI.
+
 ## Config: whole-directory link
 
 `~/.config/vicinae` is a symlink to `dotfiles/.config/vicinae/`, configured via
