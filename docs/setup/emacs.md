@@ -4,7 +4,7 @@ hosts: [all]
 status: open
 revisit: 2026-12
 tags: [emacs, editor, terminal, zsh, vscode, keyboard]
-updated: 2026-10-10
+updated: 2026-10-12
 automated_by: setup/modules/00-apt-base.sh
 ---
 
@@ -25,7 +25,8 @@ Key cheatsheet: [docs/reference/emacs.md](../reference/emacs.md).
 2. **One config for terminal and GUI.** GUI-only settings apply to graphical
    frames only, not in a separate setup.
 3. **Same on every host.** Deployed by `dotfiles-link`, and built-in features
-   only for now, so a fresh host starts offline with nothing to download.
+   first, so a fresh host starts offline with nothing to download. The one
+   exception so far, atomic-chrome, is desktop-daemon-only (see *Packages*).
 
 ## Install
 
@@ -54,11 +55,20 @@ Repo: `dotfiles/.config/emacs/{early-init.el,init.el}` → `~/.config/emacs/`
 > **Gotcha: `~/.emacs` and `~/.emacs.d/` win.** If either exists, Emacs
 > ignores `~/.config/emacs/` silently. Check with
 > `ls -d ~/.emacs ~/.emacs.d` when the config seems not to load.
+>
+> Bit on puppet (2026-10-12): an `emacs --daemon` started from the launcher
+> (`Emacs (Client)`) *before* the config was deployed kept `~/.emacs.d/` as
+> its directory for two days, ran without `init.el`, and recreated
+> `~/.emacs.d/` when it next wrote caches (proof: its PID in
+> `auto-save-list/.saves-<pid>-<host>~`). Fix, per host, manual:
+> `ln -s ~/.config/emacs ~/.emacs.d`, so both paths are the same directory.
+> Check with `emacsclient --eval user-init-file`; `emacs --batch` never loads
+> the init file, so it always reports `nil`.
 
 `dotfiles-link` links files, not directories, so `~/.config/emacs/` is a real
 directory. Everything Emacs writes stays there, outside the repo:
 `custom.el` (Customize output), `backups/`, `auto-saves/`, `history`,
-`places`, `recentf`, `elpa/` (packages, once installed).
+`places`, `recentf`, `elpa/` (packages).
 
 Principles:
 
@@ -67,10 +77,10 @@ Principles:
   <letter>`, which is reserved for the user. The old personal remaps (C-o, C-k,
   windmove, paren swap) are in `init.el`, commented out, under *Legacy
   preferences*.
-- **No third-party packages yet.** Emacs 30 has, built in: `which-key`,
+- **Built-in first.** Emacs 30 has, built in: `which-key`,
   `fido-vertical-mode` (fuzzy completion), `modus-themes`, `editorconfig`,
   `eglot` (LSP), tree-sitter modes, TRAMP. Add packages one at a time, only
-  when a gap hurts.
+  when a gap hurts; see *Packages*.
 - **Relearning aids on:** which-key, the menu bar (`F10`, in a terminal too),
   `help-window-select`.
 
@@ -87,16 +97,62 @@ Principles:
 **Daemon/client** is the modern answer to slow startup and to "one session,
 several windows": buffers, kill ring and history are shared across all
 frames, terminal and GUI alike. `C-x C-c` in a client frame closes only that
-frame; `M-x kill-emacs` stops the server. A systemd user unit
-(`systemctl --user enable --now emacs`) would start it at login; unverified
-whether the Ubuntu package ships one (`systemctl --user cat emacs`). With
-`-a ''` it is not needed.
+frame.
+
+On the desktop the daemon is a **systemd user unit, started by sway**:
+
+- The package ships `/usr/lib/systemd/user/emacs.service` (`emacs
+  --fg-daemon`). It is *not* `enable`d: the user manager starts at TTY login,
+  before `sway-start`, without the Wayland env. Instead
+  `dotfiles/.config/sway/config.d/90-launch-apps.conf` runs `systemctl --user
+  start emacs.service` after the env import, like swaync and swayosd.
+- Drop-in `dotfiles/.config/systemd/user/emacs.service.d/env.conf` starts it
+  through `zsh -c`, so it gets the full `.common_env` PATH (`~/bin`, fnm's
+  node). The user manager's own PATH lacks those, and Emacs hands its env to
+  everything it runs (compile, shell, eglot).
+- Control: `systemctl --user {status,restart,stop} emacs`. `M-x kill-emacs`
+  also stops it (clean exit, no restart).
+- Lifetime: without linger the user manager, and with it the daemon, stops
+  when the last login session ends. Save before logging out.
+- The launcher's `Emacs (Client)` and `emacsclient -c -a ''` connect to this
+  daemon; `-a ''` only starts one where none runs (servers).
 
 **TRAMP** edits remote files from a local Emacs:
 `C-x C-f /ssh:saito:/etc/hosts` opens a file over ssh, and
 `/sudo::/etc/hosts` opens a local file as root. Remote dired, shell and git
 work through it too. It is the closest thing to VS Code Remote-SSH: a GUI
 Emacs on the desktop, editing files on the servers.
+
+## Packages
+
+**package.el + use-package, no straight.el.** Both are built in (use-package
+since Emacs 29). Archives: GNU ELPA and NonGNU ELPA (vetted, default), plus
+MELPA (community, largest, built from upstream git). For a package that has
+to come from a git repo, Emacs 30's use-package `:vc` keyword (package-vc)
+covers what straight.el was once needed for.
+
+straight.el would replace package.el, not complement it: its docs say to
+disable package.el, both maintain their own copy of every dependency (two
+`websocket`s, whichever loads first wins), and use-package needs different
+keywords (`:ensure` vs `:straight`). Worth it only for pinning every package
+or hacking on packages; revisit then, as a switch, not a mix.
+
+| Package | Source | Where | Why |
+| --- | --- | --- | --- |
+| atomic-chrome | git, fork `KarimAziev/atomic-chrome` (`:vc`, newest commit) | desktop daemon only | edit browser text fields in Emacs via the [chrome-emacs](https://github.com/KarimAziev/chrome-emacs) extension |
+
+atomic-chrome notes:
+
+- MELPA's recipe still builds the unmaintained original
+  (`alpha22jp/atomic-chrome`), hence the fork from git. Its dependency
+  `websocket` comes from the archives.
+- It is a WebSocket server *inside* one Emacs process, on
+  `127.0.0.1:64292`. Only one process can hold the port, so `init.el` starts
+  it only in the daemon (`:if (and (daemonp) (featurep 'pgtk))`; pgtk =
+  desktop build, so servers never download it). In a standalone `emacs`
+  with no daemon running: `M-x atomic-chrome-start-server` by hand.
+- First daemon start downloads it (online needed); after that it starts
+  offline. Update: `M-x package-vc-upgrade`.
 
 ## Terminal caveats
 
@@ -172,6 +228,10 @@ keeping are in the new `init.el`; the rest is commented out there.
       things down.
 - [ ] tmux prefix `C-a` shadows line-start (`C-a C-a` sends it). Kept for
       the screen habit; `C-b` would only move the clash to backward-char.
+- [ ] Try chrome-emacs + atomic-chrome in daily use (daemon set up
+      2026-10-12, server verified listening; browser side untested).
+- [ ] New desktop host: `ln -s ~/.config/emacs ~/.emacs.d` (see *Config*
+      gotcha), then log in to sway once so the daemon installs atomic-chrome.
 - [ ] Packages, only when a gap hurts. Candidates: magit (git), vertico,
       orderless, marginalia, consult (completion beyond fido), markdown-mode.
       Not planned: evil (vim keys) defeats the point.

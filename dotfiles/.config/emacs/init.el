@@ -6,8 +6,9 @@
 ;;
 ;; - Terminal first (`emacs -nw', ssh, TTY). GUI frames share this file;
 ;;   the few GUI-only settings apply to graphical frames only.
-;; - Built-in features only, no third-party packages yet: starts offline and
-;;   behaves the same on every host.
+;; - Built-in features first: starts offline and behaves the same on every
+;;   host. Third-party packages only where a gap hurts, and only where they
+;;   are needed (see "Packages").
 ;; - Stock key bindings, so the tutorial (C-h t), C-h help and which-key all
 ;;   match what the keys do. The old personal remaps are kept, commented out,
 ;;   under "Legacy preferences".
@@ -137,18 +138,31 @@ shebang added if there is none."
 
 ;; Copy (M-w, C-w) also lands in the clipboard of the machine the terminal
 ;; runs on, via the OSC 52 escape sequence, so it works over ssh. Needs
-;; terminal support: foot yes, tmux with `set-clipboard on' (set in
-;; .tmux.conf), VS Code terminal untested. Paste from that clipboard with the
+;; terminal support: tmux with `set-clipboard on' (set in .tmux.conf);
+;; foot and the VS Code terminal untested. Paste from that clipboard with the
 ;; terminal's own paste key.
 (setq xterm-extra-capabilities '(setSelection))
 
 ;;; Packages
 
-;; Nothing installed yet. MELPA is registered so M-x package-install can find
-;; packages later; GNU ELPA and NonGNU ELPA are the defaults.
+;; package.el + use-package, both built in; no straight.el. GNU ELPA and
+;; NonGNU ELPA are the default archives, MELPA is added for the rest.
+;; Packages from a git repo use use-package's `:vc' (package-vc, Emacs 30).
 (defvar package-archives)  ; defined by package.el, which loads later
 (with-eval-after-load 'package
   (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t))
+
+;; Edit browser text fields in Emacs: the chrome-emacs extension connects to
+;; a WebSocket server in this Emacs (port 64292). MELPA builds the unmaintained
+;; original, so install the maintained fork from git. Daemon only: one process
+;; can hold the port, a second `emacs' would fail to start it (start it there
+;; by hand with M-x atomic-chrome-start-server when no daemon runs). pgtk is
+;; the desktop build, so servers never download it. The daemon is started by
+;; sway: dotfiles/.config/sway/config.d/90-launch-apps.conf.
+(use-package atomic-chrome
+  :if (and (daemonp) (featurep 'pgtk))
+  :vc (:url "https://github.com/KarimAziev/atomic-chrome" :rev :newest)
+  :config (atomic-chrome-start-server))
 
 ;;; Legacy preferences (2005-2011 config), all off for now
 
