@@ -94,6 +94,7 @@ video/dv=mpv.desktop
 video/vnd.avi=mpv.desktop
 x-scheme-handler/chrome=vivaldi-snapshot.desktop
 x-scheme-handler/nxm=zcom_mod_manager_b49a31476ef4bd10a8519c13f4859732.appimage-handler.desktop
+application/gzip=org.gnome.Nautilus.desktop
 
 [Added Associations]
 text/html=vivaldi-snapshot.desktop;com.google.Chrome.desktop;com.microsoft.Edge.desktop;brave-browser-nightly.desktop;
@@ -179,3 +180,4 @@ video/3gpp=mpv.desktop;
 video/3gpp2=mpv.desktop;
 video/dv=mpv.desktop;
 video/vnd.avi=mpv.desktop;
+application/gzip=org.gnome.Nautilus.desktop;
