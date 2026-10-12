@@ -103,7 +103,15 @@ done
 
 #alias sws='echo 4 > /proc/acpi/sleep'
 alias psa='ps uxaw --cols 64000'
-alias psag='ps uxaw --cols 64000 | grep -iE'
+# psag PATTERN: processes whose command line matches PATTERN (case-insensitive
+# ERE), in `ps u` format. PIDs come from pgrep, which never lists itself, so
+# unlike `ps | grep` the grep doesn't show up in its own results.
+unalias psag 2>/dev/null  # was an alias; a re-sourced shell still has it
+psag() {
+  local pids
+  pids="$(pgrep -if -d, -- "$1")" || return 1
+  ps uw --cols 64000 -p "${pids}" | grep --color=auto -iE -- "^USER|$1"
+}
 alias psf='ps aw --forest --cols 64000'
 alias psfg='ps aw --forest --cols 64000 | grep -iE'
 
