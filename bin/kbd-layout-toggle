@@ -6,20 +6,86 @@
 #
 # Toggle keyboard layout (Colemak ↔ QWERTY) for both Wayland and XWayland.
 #
+# Usage: kbd-layout-toggle         toggle Colemak ↔ QWERTY
+#        kbd-layout-toggle caps    toggle CapsLock: Backspace ↔ Ctrl
+#        kbd-layout-toggle sync    re-apply CapsLock mode + XWayland map (exec_always)
+#
 # swaymsg xkb_switch_layout covers native Wayland apps; setxkbmap on DISPLAY=:0
 # is required separately because XWayland does not propagate Sway's XKB group
 # changes to its X11 clients (Wine/Proton games, legacy X11 apps).
+#
+# CapsLock → Ctrl is the xkb option ctrl:nocaps on top of the layouts (it
+# replaces the custom <CAPS> definition, so AltGr+CapsLock → Delete is gone
+# while active). The mode persists in a flag file; `swaymsg reload` resets
+# xkb_options to the config, hence `sync` via exec_always re-applies it.
 
-swaymsg input type:keyboard xkb_switch_layout next
+declare -r CAPS_FLAG="${XDG_STATE_HOME:-${HOME}/.local/state}/kbd-caps-ctrl"
 
-layout=$(swaymsg -t get_inputs \
-  | jq -r '[.[] | select(.type == "keyboard") | .xkb_active_layout_name] | first')
+active_layout() {
+  swaymsg -t get_inputs \
+    | jq -r "[.[] | select(.type == \"keyboard\") | .${1}] | first"
+}
 
-# Sync the XWayland X11 keyboard map to match the new Wayland layout.
-if [[ "${layout}" == *"QWERTY"* ]]; then
-  DISPLAY=:0 setxkbmap -layout us
-else
-  DISPLAY=:0 setxkbmap -layout us -variant colemak
-fi
+# Sync the XWayland X11 keyboard map to match the active Wayland layout.
+sync_x11() {
+  local -a opts=(-option "")
+  [[ -f "${CAPS_FLAG}" ]] && opts+=(-option ctrl:nocaps)
+  if [[ "$(active_layout xkb_active_layout_name)" == *"QWERTY"* ]]; then
+    DISPLAY=:0 setxkbmap -layout us "${opts[@]}"
+  else
+    DISPLAY=:0 setxkbmap -layout us -variant colemak "${opts[@]}"
+  fi 2>/dev/null
+}
 
-notify-send --expire-time=2000 "Keyboard Layout" "${layout:-unknown}"
+# Apply the CapsLock mode from the flag file. Changing xkb_options recompiles
+# the keymap, so restore the active layout group (Colemak/QWERTY) afterwards.
+apply_caps() {
+  local idx
+  idx="$(active_layout xkb_active_layout_index)"
+  if [[ -f "${CAPS_FLAG}" ]]; then
+    swaymsg -q input type:keyboard xkb_options ctrl:nocaps
+  else
+    swaymsg -q input type:keyboard xkb_options '""'
+  fi
+  [[ "${idx}" =~ ^[0-9]+$ ]] \
+    && swaymsg -q input type:keyboard xkb_switch_layout "${idx}"
+  sync_x11
+}
+
+main() {
+  case "${1:-}" in
+    caps)
+      if [[ -f "${CAPS_FLAG}" ]]; then
+        rm -f "${CAPS_FLAG}"
+      else
+        mkdir -p "${CAPS_FLAG%/*}" && touch "${CAPS_FLAG}"
+      fi
+      apply_caps
+      if [[ -f "${CAPS_FLAG}" ]]; then
+        notify-send --expire-time=2000 "Keyboard" "CapsLock → Ctrl"
+      else
+        notify-send --expire-time=2000 "Keyboard" "CapsLock → Backspace"
+      fi
+      ;;
+    sync)
+      # Default mode needs no keymap recompile, but XWayland may have drifted.
+      if [[ -f "${CAPS_FLAG}" ]]; then
+        apply_caps
+      else
+        sync_x11
+      fi
+      ;;
+    "")
+      swaymsg -q input type:keyboard xkb_switch_layout next
+      sync_x11
+      notify-send --expire-time=2000 "Keyboard Layout" \
+        "$(active_layout xkb_active_layout_name)"
+      ;;
+    *)
+      echo "Usage: ${0##*/} [caps|sync]" >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
