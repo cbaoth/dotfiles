@@ -1,9 +1,9 @@
 ---
 title: Sway setup
-hosts: [motoko]
+hosts: [motoko, puppet]
 status: resolved
-tags: [sway, wayland, waybar, keepassxc, nvidia, tray, config]
-updated: 2026-10-06
+tags: [sway, wayland, waybar, keepassxc, nvidia, tray, config, keyboard]
+updated: 2026-10-12
 ---
 
 # Introduction
@@ -30,6 +30,7 @@ The main `~/.config/sway/config` is now a thin loader: the install-notes banner,
 | `20-styles.conf` | Font, borders, focus behavior, base16 colors, waybar `bar {}` |
 | `30-variables.conf` | `$mod`/`$hyper`, workspaces, opacity, apps, window-state commands |
 | `40-keybindings.conf` | All `bindsym` + meta modes (window, system, pointer) |
+| `41-hyper-mode.conf` | `$mod+y` Hyper mode (ANSI fallback), includes the generated `~/.cache/sway/hyper-mode.conf` |
 | `70-window-rules.conf` | `for_window`/`no_focus` criteria, workspace assignment |
 | `90-launch-apps.conf` | Startup `exec` + tray applets (after waybar) |
 
@@ -38,6 +39,29 @@ The main `~/.config/sway/config` is now a thin loader: the install-notes banner,
 The `include` resolves correctly whether or not sway dereferences the config symlink: both the repo path (`dotfiles/.config/sway/config.d/`) and the linked home path (`~/.config/sway/config.d/`) hold the same fragments. This also means `sway --validate -c dotfiles/.config/sway/config` works straight from the repo, before `dotfiles-link` has run.
 
 To read the effective config as one stream (e.g. to connect a `$variable` definition to its uses): `cat ~/.config/sway/config.d/*.conf`, or `grep` across them. After adding or renaming a fragment, run `dotfiles-link`.
+
+## Keyboard: layout toggles and Hyper on ANSI
+
+| Keys | Action |
+| ---- | ------ |
+| `Scroll_Lock` / `$mod+Insert` | Colemak ↔ QWERTY (`kbd-layout-toggle`) |
+| `Shift+Scroll_Lock` / `$mod+Delete` | CapsLock Backspace ↔ Ctrl (`kbd-layout-toggle caps`) |
+| `$mod+y`, then a key | Same as `$hyper+<key>`, for keyboards without the ISO key |
+
+- **CapsLock → Ctrl** is the xkb option `ctrl:nocaps` set at runtime, persisted
+  in `~/.local/state/kbd-caps-ctrl` and re-applied by `exec_always
+  kbd-layout-toggle sync`. While active, AltGr+CapsLock → Delete is gone.
+- **XWayland keeps its own keymap** (VS Code runs under XWayland): every layout
+  change must go through `kbd-layout-toggle`, which also runs `setxkbmap` on
+  `:0`. A bare `swaymsg … xkb_switch_layout` leaves X11 apps on the old layout;
+  `swaymsg reload` resyncs it.
+- **Hyper mode is generated**, not maintained: `sway-hyper-mode-gen` mirrors
+  every top-level `bindsym $hyper+…` into `mode "hyper"` (modifiers like
+  `Ctrl`/`Alt`/`Shift` included). Sway reads includes *before* `exec_always`,
+  so the script reloads sway once when the output changed. Loop guards: reload
+  only on a content change, only if `sway -C` validates (sway itself does
+  **not** abort on config errors), at most once per 30 s, under `flock`.
+  Inspect with `sway-hyper-mode-gen --print`.
 
 # Required Packages
 
