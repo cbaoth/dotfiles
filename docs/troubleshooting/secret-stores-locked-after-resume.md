@@ -3,7 +3,7 @@ title: Secret stores stay locked and silent after resume (keyring, KeePassXC)
 hosts: [motoko]
 status: workaround
 tags: [keyring, keepassxc, secrets, suspend, dbus, sway, swayidle, apparmor, flatpak]
-updated: 2026-10-07
+updated: 2026-10-13
 ---
 
 # Secret stores stay locked and silent after resume
@@ -358,3 +358,51 @@ soft on purpose. Not covered: gnome-keyring, whose lock failure still only warns
 Caught by the stubbed test: the script sets `IFS=$'\t\n'`, so an unquoted
 `${how}` command string is never split — use arrays there.
 
+
+## 2026-10-13: the flush locks the keys out — "Key identity ownership conflict"
+
+`git pull` failed with `Permission denied (publickey)`. Every agent socket was
+empty (`gcr/ssh`, `gcr/.ssh`, `openssh_agent`, gpg), KeePassXC was unlocked,
+and lock/unlock changed nothing. Adding a key by hand from the entry ("Add key
+to SSH agent") failed with:
+
+```
+Key identity ownership conflict. Refusing to add.
+```
+
+The string is KeePassXC's own (found in the 2.7.12 flatpak binary), not the
+agent's. The sequence, from `lock-secrets.log` and file times:
+
+| Time | Event |
+| ---- | ----- |
+| 10-07 14:43 | KeePassXC (flatpak) started |
+| 10-08 08:32 | `private.kdbx` changed via Nextcloud; KeePassXC reloads it |
+| 10-13 15:27 | idle hook: `databases locked`, then `ssh-agent: 2 identities flushed` |
+
+The keys outliving the lock is the 10-03 reload bug again; the `--ssh` flush
+then removed them from the agent. But KeePassXC still lists them as added by
+the old database instance, and refuses to add them for the new one. This
+supports the 10-03 inference (keys are tied to the instance, not the file).
+Only quitting the app clears that list: **lock/unlock does not.**
+
+So the 10-03 fix closed the security gap but turned every reload into a lock-out
+at the next idle lock or suspend. Nextcloud reloads are routine (any edit on
+another device), so this would keep happening.
+
+**Fix:** `lock-secrets` now checks the agent after a successful lock. Keys still
+present after 3s means stale bookkeeping, so it restarts KeePassXC: SIGTERM
+(a clean quit removes all its keys), `flatpak kill` as fallback, then starts it
+again detached, database locked. The `--ssh` flush still runs after it. This
+applies to both hooks, the idle one included: unlike fail-closed, nothing is
+lost, since the database is already locked. Side effect: keys added by hand
+with `ssh-add` look the same and also trigger a restart, logged as a WARN.
+`--fail-closed` now uses the same stop (SIGTERM first, kill as fallback).
+
+Also found: the old AppImage and apt installs had left four extra `.desktop`
+files (launcher duplicates, two dead autostart entries). Removed; they were not
+involved — only the flatpak was running.
+
+**Verified 2026-10-13** with a throwaway key (`ssh-add` of a test key, then
+`lock-secrets -v`): the lock left it in the agent, the WARN fired, KeePassXC was
+restarted locked, and after unlocking it both real keys were back (`ssh-add -L`,
+`ssh saito` works). Not yet seen: a real Nextcloud reload → idle lock → restart.
