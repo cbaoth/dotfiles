@@ -111,7 +111,7 @@ module_run() {
   st::run_sh "install Claude Code CLI (${CLAUDE_CLI_CHANNEL} channel)" \
     "set -o pipefail; curl -fsSL '${CLAUDE_CLI_INSTALL_URL}' | bash -s '${CLAUDE_CLI_CHANNEL}'"
 
-  # ~/.local/bin is put on PATH by dotfiles/.common_env, i.e. by dotfiles-link
+  # ~/.local/bin is put on PATH by home/.common_env, i.e. by dotfiles-link
   # rather than by this module — worth saying out loud on a fresh box where
   # setup ran before linking.
   if ! (( ST_DRY_RUN )) && [[ -x "${CLAUDE_CLI_BIN}" ]] && ! st::have_cmd claude; then

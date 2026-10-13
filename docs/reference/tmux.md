@@ -13,7 +13,7 @@ Why an SSH login sometimes shows a **clean shell** while a long-running job
 
 ## What the auto-attach actually does
 
-`cb_tmux_autoattach()` in `dotfiles/.common_rc`, opt-in per host via
+`cb_tmux_autoattach()` in `home/.common_rc`, opt-in per host via
 `CB_TMUX_AUTOATTACH=1` in `lib/env-<host>.sh` (currently the vserver and saito),
 runs exactly one command:
 
@@ -141,7 +141,7 @@ both SSH logins attach to the *same* session (`main`).
 
 ## Related
 
-- `dotfiles/.common_rc` — the hook, with the attach-by-name rationale inline.
-- `dotfiles/.tmux.conf` — prefix, `detach-on-destroy`, `aggressive-resize`.
+- `home/.common_rc` — the hook, with the attach-by-name rationale inline.
+- `home/.tmux.conf` — prefix, `detach-on-destroy`, `aggressive-resize`.
 - `~/.claude/skills/mobile-mode/SKILL.md` — phone sessions use a detached
   window (`tmux new-window -d`) to give an interactive step a real tty.

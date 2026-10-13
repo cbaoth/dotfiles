@@ -10,7 +10,7 @@ updated: 2026-10-12
 
 This document covers the one-time setup steps required to run Sway on Ubuntu when migrating from (or alongside) a GNOME desktop. It focuses on things that are **not** handled automatically by the config files or the `sway-start` launch script — those are considered working by definition.
 
-The Sway configuration lives at `~/.config/sway/config` (symlinked from `dotfiles/dotfiles/.config/sway/config`). The launch script is `~/bin/sway-start`.
+The Sway configuration lives at `~/.config/sway/config` (symlinked from `dotfiles/home/.config/sway/config`). The launch script is `~/bin/sway-start`.
 
 ## Configuration layout (config.d fragments)
 
@@ -20,7 +20,7 @@ The config is **split into ordered fragments** under `config.d/`, loaded by a si
 include config.d/*.conf
 ```
 
-The main `~/.config/sway/config` is now a thin loader: the install-notes banner, a structure comment, and that `include`. Everything else lives in numbered fragments (`dotfiles/dotfiles/.config/sway/config.d/`, each individually symlinked into `~/.config/sway/config.d/` by `dotfiles-link`):
+The main `~/.config/sway/config` is now a thin loader: the install-notes banner, a structure comment, and that `include`. Everything else lives in numbered fragments (`dotfiles/home/.config/sway/config.d/`, each individually symlinked into `~/.config/sway/config.d/` by `dotfiles-link`):
 
 |  |  |
 |----|----|
@@ -36,7 +36,7 @@ The main `~/.config/sway/config` is now a thin loader: the install-notes banner,
 
 **Load order matters and is why the fragments are numbered.** Sway resolves the `include` path relative to the config file's own directory and expands the glob in **sorted (lexical)** order, so the numeric prefixes fix the sequence. `30-variables` must load before the bindings (`40`) and window rules (`70`) that reference `$mod`/`$ws*`/`$term`. The base16 colors are defined and used entirely within `20-styles`, so that fragment is self-contained.
 
-The `include` resolves correctly whether or not sway dereferences the config symlink: both the repo path (`dotfiles/.config/sway/config.d/`) and the linked home path (`~/.config/sway/config.d/`) hold the same fragments. This also means `sway --validate -c dotfiles/.config/sway/config` works straight from the repo, before `dotfiles-link` has run.
+The `include` resolves correctly whether or not sway dereferences the config symlink: both the repo path (`home/.config/sway/config.d/`) and the linked home path (`~/.config/sway/config.d/`) hold the same fragments. This also means `sway --validate -c home/.config/sway/config` works straight from the repo, before `dotfiles-link` has run.
 
 To read the effective config as one stream (e.g. to connect a `$variable` definition to its uses): `cat ~/.config/sway/config.d/*.conf`, or `grep` across them. After adding or renaming a fragment, run `dotfiles-link`.
 
@@ -137,11 +137,11 @@ KeePassXC is used as a standalone password manager only — its Secret Service I
 
 ## Setup (one-time per machine)
 
-The gnome-keyring-daemon override is managed by the dotfiles repo at `dotfiles/dotfiles/.config/systemd/user/gnome-keyring-daemon.service.d/no-secrets.conf` (symlinked to `~/.config/systemd/user/gnome-keyring-daemon.service.d/`). It explicitly enables all three components (`pkcs11,ssh,secrets`):
+The gnome-keyring-daemon override is managed by the dotfiles repo at `dotfiles/home/.config/systemd/user/gnome-keyring-daemon.service.d/no-secrets.conf` (symlinked to `~/.config/systemd/user/gnome-keyring-daemon.service.d/`). It explicitly enables all three components (`pkcs11,ssh,secrets`):
 
 ``` bash
 mkdir -p ~/.config/systemd/user/gnome-keyring-daemon.service.d
-ln -sf ~/dotfiles/dotfiles/.config/systemd/user/gnome-keyring-daemon.service.d/no-secrets.conf \
+ln -sf ~/dotfiles/home/.config/systemd/user/gnome-keyring-daemon.service.d/no-secrets.conf \
     ~/.config/systemd/user/gnome-keyring-daemon.service.d/no-secrets.conf
 systemctl --user daemon-reload
 systemctl --user restart gnome-keyring-daemon
@@ -263,7 +263,7 @@ KeePassXC browser integration works when the browser is installed via `apt` (not
 
 # Waybar
 
-Waybar is configured at `~/.config/waybar/config.jsonc` (symlinked from `dotfiles/dotfiles/.config/waybar/config.jsonc`).
+Waybar is configured at `~/.config/waybar/config.jsonc` (symlinked from `dotfiles/home/.config/waybar/config.jsonc`).
 
 The Ubuntu system default (`/etc/xdg/waybar/config.jsonc`) includes `custom/media`, `custom/power`, and `mpd` modules that require scripts and services not present in a minimal setup — it will crash on first start without user config.
 
@@ -445,7 +445,7 @@ Reload after editing the config: `swaync-client -R -sw` (config) and
 
 `swayosd` draws the on-screen volume/brightness overlay and applies the change (PipeWire/WirePlumber-aware). The keys are bound in the Sway config to `swayosd-client` (`XF86AudioRaiseVolume` etc., plus `$mod+Alt+=/-/0`); those talk over D-Bus to a running `swayosd-server`.
 
-**Server as a systemd user unit.** The server runs via `~/.config/systemd/user/swayosd.service` (deployed from `dotfiles/.config/systemd/user/swayosd.service`), started from the Sway config with `exec systemctl --user start swayosd.service` — *after* the `dbus-update-activation-environment --systemd` line, so it inherits `WAYLAND_DISPLAY`. No `systemctl --user enable` is needed; deploying the two files is enough.
+**Server as a systemd user unit.** The server runs via `~/.config/systemd/user/swayosd.service` (deployed from `home/.config/systemd/user/swayosd.service`), started from the Sway config with `exec systemctl --user start swayosd.service` — *after* the `dbus-update-activation-environment --systemd` line, so it inherits `WAYLAND_DISPLAY`. No `systemctl --user enable` is needed; deploying the two files is enough.
 
 Why a unit instead of a bare `exec swayosd-server`: the server registers **two** session-bus names (`org.erikreider.swayosd` and `org.erikreider.swayosd-server`, the latter is what `swayosd-client` calls). Started too early it can win the first name but never finish registering the second, leaving the volume keys silently dead (`org.freedesktop.DBus.Error.ServiceUnknown`) while the process still appears to run. `Restart=on-failure` in the unit recovers from that race automatically.
 

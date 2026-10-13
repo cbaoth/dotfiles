@@ -215,7 +215,7 @@ Two script bugs found & fixed (so the next rebuild is clean):
   is a symlink into the repo — so the append dirtied the working tree *and* left
   nvm unsourced (wrong dir). Fix: install with `NVM_DIR=~/.config/nvm
   PROFILE=/dev/null`. On the live box, undo with: `cd ~/dotfiles && git restore
-  dotfiles/.zshrc`, then `mkdir -p ~/.config && mv ~/.nvm ~/.config/nvm` (the
+  home/.zshrc`, then `mkdir -p ~/.config && mv ~/.nvm ~/.config/nvm` (the
   whole tree relocates cleanly — Node + the global `claude-code` come with it),
   then restart the shell/claude session so `.common_env` picks it up.
 

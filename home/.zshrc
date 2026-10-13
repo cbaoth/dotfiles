@@ -411,7 +411,7 @@ autoload -Uz zargs
 # }}} - BASIC ----------------------------------------------------------------
 
 # {{{ - STARSHIP -------------------------------------------------------------
-# https://starship.rs — config: ~/.config/starship.toml (dotfiles/.config/)
+# https://starship.rs — config: ~/.config/starship.toml (home/.config/)
 # Installed per user by zinit from the GitHub release binary: no sudo, same
 # version on every host, updated with the other plugins via `zplugup`.
 # `starship init zsh` is rendered to a file at install/update time and sourced

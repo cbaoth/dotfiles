@@ -52,7 +52,7 @@ no env var reliably overrides it — and is left as-is.
 (`libgtk-x11-2.0`), not Qt/KDE as its "kvantum era" history suggests. GTK2 reads
 **none** of the GTK3/4 `settings.ini`, gsettings, or the portal, so it renders
 light regardless of the rest of the desktop. Fix: name a dark GTK2 theme in
-`~/.gtkrc-2.0` (tracked as [`dotfiles/.gtkrc-2.0`](../../dotfiles/.gtkrc-2.0)):
+`~/.gtkrc-2.0` (tracked as [`home/.gtkrc-2.0`](../../home/.gtkrc-2.0)):
 
 ```
 gtk-theme-name="Yaru-magenta-dark"
@@ -92,7 +92,7 @@ or GTK2 (`~/.gtkrc-2.0`)? Determine the toolkit first: `ldd $(which app) | grep 
 ## Not automated
 
 No `setup/` module: the GTK2 dark preference is a single tracked dotfile
-(`dotfiles/.gtkrc-2.0`, deployed by `dotfiles-link`), Qt6 needs nothing, and the
+(`home/.gtkrc-2.0`, deployed by `dotfiles-link`), Qt6 needs nothing, and the
 Kvantum removal was a one-off cleanup of a mistake, not repeatable desired state.
 
 ## See also

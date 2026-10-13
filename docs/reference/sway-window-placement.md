@@ -165,7 +165,7 @@ There is **no executable-name criterion**. The closest thing is `pid` plus
 `swaymsg '[pid=N] …'`.
 
 Two gotchas already documented in the header of
-`dotfiles/.config/sway/config.d/70-window-rules.conf`, repeated here because
+`home/.config/sway/config.d/70-window-rules.conf`, repeated here because
 they cost an evening each: matching is an **unanchored substring** search, and
 `\b` is silently eaten by the config parser (it works only in ad-hoc runtime
 `swaymsg`).
@@ -193,7 +193,7 @@ table.
 ## `bin/sway-arrange` — the on-demand sweep
 
 Bound to `$mod+Alt+x` as a mode (`1` browser, `2` vscode, `3` claude, `0` all),
-matching the other mode blocks. Map: `dotfiles/.config/sway/window-map.conf`.
+matching the other mode blocks. Map: `home/.config/sway/window-map.conf`.
 
 What it does: moves each app's windows to their mapped workspace, then sets the
 tab order. It does **not** build the tabbed container — `workspace_layout tabbed`
@@ -272,7 +272,7 @@ compositor holds the state, so no PID or title guessing is involved.
 
 ## See also
 
-- `dotfiles/.config/sway/config.d/70-window-rules.conf` — the rules, with the
+- `home/.config/sway/config.d/70-window-rules.conf` — the rules, with the
   condensed version of the `assign` finding in its header
 - [sway-floating-geometry-on-resume](../troubleshooting/sway-floating-geometry-on-resume.md)
   — the suspend/resume geometry loss and its workaround

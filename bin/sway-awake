@@ -28,11 +28,11 @@ p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
 # {{{ = CONSTANTS ============================================================
 # app_id of the holder window; must match the `for_window`/`no_focus` rules in
-# the Sway config (dotfiles/.config/sway/config).
+# the Sway config (home/.config/sway/config).
 declare -r HOLDER_APP_ID="sway-awake-idle-inhibitor"
 
 # waybar custom module signal (SIGRTMIN+N); must match "signal" in the waybar
-# config (dotfiles/.config/waybar/config.jsonc).
+# config (home/.config/waybar/config.jsonc).
 declare -ri WAYBAR_SIGNAL=8
 
 # Runtime state (auto-off deadline for the countdown display).

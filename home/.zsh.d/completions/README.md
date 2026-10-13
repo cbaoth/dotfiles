@@ -2,7 +2,7 @@
 
 Completion functions for commands **shipped by this repo**. Each file is named
 `_<command>` and starts with `#compdef <command>`; compinit autoloads it because
-this directory is placed on `fpath` before `compinit` in `dotfiles/.zshrc`.
+this directory is placed on `fpath` before `compinit` in `home/.zshrc`.
 Deployed to `~/.zsh.d/completions/` on every host by `dotfiles-link`.
 
 | File | Completes |
@@ -16,7 +16,7 @@ Deployed to `~/.zsh.d/completions/` on every host by `dotfiles-link`.
 
 Completions for **separate cloned projects** (e.g. `~/git/cb-voice-lab`) do
 **not** live here — they ship inside their own repo's `completions/` dir and are
-registered dynamically in `dotfiles/.zshrc`.
+registered dynamically in `home/.zshrc`.
 
 **Keep in sync:** these are hand-maintained. When a tool gains, renames, or
 drops an option / subcommand / enumerated value, update its `_<cmd>` in the same

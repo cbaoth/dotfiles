@@ -231,7 +231,7 @@ to rely on for wine.
 
 - mpv path-copy bindings now use mpv's native Wayland clipboard
   (`set clipboard/text`) / `wl-copy` instead of xclip — see
-  `dotfiles/.config/mpv/input.conf`.
+  `home/.config/mpv/input.conf`.
 
 - **wine → native Wayland driver (primary avenue, pending verification).**
   wine 11.0 ships `winewayland.drv`; the `~/.wine` prefix was defaulting
@@ -300,7 +300,7 @@ including the unverified udev/ufw setup that was already applied:
 
 Both experiments were removed along with `docs/misc/` (the configs remain in git
 history at `93d3913`). What replaced them lives in
-`dotfiles/.config/xkb/symbols/custom` — pure xkb, no daemon.
+`home/.config/xkb/symbols/custom` — pure xkb, no daemon.
 
 Why each was dropped, plus the Super/Mod4 and VS Code dead ends:
 [`docs/troubleshooting/xkb-altgr-key-mappings.md`](troubleshooting/xkb-altgr-key-mappings.md).
@@ -328,7 +328,7 @@ Remaining:
 Done 2026-09-30: `bin/sway-arrange` ($mod+Alt+x mode: 1 browser, 2 vscode,
 3 claude, 0 all) sweeps each app's windows (tiled and floating; only tiled ones
 are ordered) onto their mapped workspace and sets the tab
-order, from `dotfiles/.config/sway/window-map.conf` (rule order = tab order).
+order, from `home/.config/sway/window-map.conf` (rule order = tab order).
 Two measurements shaped it: a VS Code title is still **null** at `window::new`,
 so per-folder placement can never be a rule; and `move container to mark`
 inserts after the mark, so ordering needs no `move left/right` walking.
@@ -388,7 +388,7 @@ Current implementation documented in `docs/linking-system.md`. Low priority; rev
   - Option B: Extend `link-config.conf` to define host-specific sync directories per hostname
   - Option C: Adopt chezmoi if multi-host templating becomes complex (currently single-user, single-host focus)
 - [ ] [S] Host-specific opt-out for global AI agent instructions (work PC): skip linking
-  `dotfiles/.claude/rules/` + `dotfiles/.copilot/` and/or leave `COPILOT_CUSTOM_INSTRUCTIONS_DIRS`
+  `home/.claude/rules/` + `home/.copilot/` and/or leave `COPILOT_CUSTOM_INSTRUCTIONS_DIRS`
   unset there, so personal conventions (esp. commit messages — Gerrit at work) don't leak into
   work repos. Could reuse the host-override mechanism above (e.g. per-host `.linkignore` entries).
   See `docs/agent-instructions.adoc`.
@@ -485,7 +485,7 @@ until the repos move to Forgejo; then the key needs adding there instead.
       once SSH is in place.
 - [ ] [S] WSL: local key file over agent forwarding (the fragile path). Real
       work identity/paths live in `~/notes`, not in this public repo — the
-      `includeIf` template in `dotfiles/.gitconfig.local.example` is ready.
+      `includeIf` template in `home/.gitconfig.local.example` is ready.
 
 ## Automated cross-host file sync (deferred)
 
@@ -510,7 +510,7 @@ Just some quick unrefined notes, before I forget:
     - instead of resetting, which could reset to an undesired profile like in this case off, choose the best possible profile for the device. i assume there is a way to identify it, or potentially some kind of default for hifi stereo audio output. if not consider some kind of lookup (which profiles do exist) and choose the best from a predefined (hard coded list). simplest but least desirable case: hard code A2DP SBC-XQ (works for WH-1000XM4 at least).
     - check the github copilot chat extension behavior: why does it behave this way? can the behavior be changed?
   - hints:
-    - the script is used by a sway shortcut (`dotfiles/.config/sway/config.d/40-keybindings.conf`)
+    - the script is used by a sway shortcut (`home/.config/sway/config.d/40-keybindings.conf`)
     - i verified that the claude code extension, opposed to copilot, always selects A2DP SBC-XQ after turning of voice input, no matter which profile was active before initiating voice input (including off). so it seems to choose the best profile automatically, which is the desired behavior (at least for WH-1000XM4)
 - evaluate if our custom dotfiles linking system is still the best option for all hosts
   - consider that i would like to have at least a minimal root user setup as well, which is currently not the case. i tried to use the dotfiles repo for root, the basics seem to work, but i think it's a bad idea unless we clearly separate certain things, ensure that no canonical paths to user space are used, and ensure that shell scripts and such are safe to run with root permissions (mostly not designed for that purpose, might be dangerous, mess with file permissions, or similar).
@@ -803,7 +803,7 @@ See `docs/setup/ssh-hardening.md`; host-specific addresses in
 # 10. Prompt, Terminal Theme & Shell Startup (added 2026-09-25)
 
 **State:** powerlevel10k replaced by starship (zinit `gh-r`, config
-`dotfiles/.config/starship.toml`, based on the `tokyo-night` preset + username/
+`home/.config/starship.toml`, based on the `tokyo-night` preset + username/
 hostname for ssh/root). Remote sessions (detected through sudo/su/tmux by
 `cl::is_remote`, plus saito/vserver as a safety net) tint the first segment
 amber via a generated `palette = "remote"` copy; root gets a red username and
@@ -947,7 +947,7 @@ piper -m de_DE-thorsten-high --data-dir ~/.cache/piper-tts --cuda -- Das ist ein
 ## Emacs comeback (started 2026-10-10)
 
 Trial: Emacs as the one terminal editor, or back to nvim. Fresh config in
-`dotfiles/.config/emacs/`, zsh back in emacs mode. Details, decisions and the
+`home/.config/emacs/`, zsh back in emacs mode. Details, decisions and the
 full open-items list: [docs/setup/emacs.md](setup/emacs.md).
 
 - [ ] [M] Relearn basics (`C-h t`), daily terminal use; verdict by 2026-12

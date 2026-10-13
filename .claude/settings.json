@@ -13,7 +13,7 @@
     "allow": [
       "Edit(//home/cbaoth/.cache/ccrun/**)",
       "Edit(//home/cbaoth/dotfiles/.claude/skills/**)",
-      "Edit(//home/cbaoth/dotfiles/dotfiles/.claude/skills/**)",
+      "Edit(//home/cbaoth/dotfiles/home/.claude/skills/**)",
       "Edit(//home/cbaoth/notes/**)",
       "Read(//etc/default/**)",
       "Read(//etc/pam.d/**)",

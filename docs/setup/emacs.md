@@ -49,7 +49,7 @@ Lists: `setup/packages/{server,wsl,desktop}.list`, installed by
 
 ## Config
 
-Repo: `dotfiles/.config/emacs/{early-init.el,init.el}` → `~/.config/emacs/`
+Repo: `home/.config/emacs/{early-init.el,init.el}` → `~/.config/emacs/`
 (XDG location, supported since Emacs 27).
 
 > **Gotcha: `~/.emacs` and `~/.emacs.d/` win.** If either exists, Emacs
@@ -125,9 +125,9 @@ On the desktop the daemon is a **systemd user unit, started by sway**:
 - The package ships `/usr/lib/systemd/user/emacs.service` (`emacs
   --fg-daemon`). It is *not* `enable`d: the user manager starts at TTY login,
   before `sway-start`, without the Wayland env. Instead
-  `dotfiles/.config/sway/config.d/90-launch-apps.conf` runs `systemctl --user
+  `home/.config/sway/config.d/90-launch-apps.conf` runs `systemctl --user
   start emacs.service` after the env import, like swaync and swayosd.
-- Drop-in `dotfiles/.config/systemd/user/emacs.service.d/env.conf` starts it
+- Drop-in `home/.config/systemd/user/emacs.service.d/env.conf` starts it
   through `zsh -c`, so it gets the full `.common_env` PATH (`~/bin`, fnm's
   node). The user manager's own PATH lacks those, and Emacs hands its env to
   everything it runs (compile, shell, eglot).
@@ -239,7 +239,7 @@ keeping are in the new `init.el`; the rest is commented out there.
 - **()/[] swap:** on Linux via xmodmap (`xmodmap-104-us`): `( )` unshifted on
   the bracket keys, `[ ]` on Shift+9/0, `{ }` unchanged. On Windows via
   `keyboard-translate` in Emacs. Today: commented out in
-  `dotfiles/.config/xkb/symbols/custom`, ready to test.
+  `home/.config/xkb/symbols/custom`, ready to test.
 - **`.reg` files:** only set `Emacs.Font` (Courier New) in the Windows
   registry. Obsolete; the font is set in `init.el`.
 

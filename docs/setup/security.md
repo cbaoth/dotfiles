@@ -33,7 +33,7 @@ KeePassXC or gnome-keyring, it shadows `SSH_AUTH_SOCK` and breaks `ssh -A`.
 ## Locking secrets on screen lock and suspend
 
 **Automated:** [`bin/lock-secrets`](../../bin/lock-secrets), wired into the
-swayidle hooks in `dotfiles/.config/sway/config`.
+swayidle hooks in `home/.config/sway/config`.
 
 ### The problem
 
@@ -86,7 +86,7 @@ lock-secrets --dry-run     # show what would be locked
 lock-secrets -v            # lock, and say what happened
 ```
 
-Wiring, in `dotfiles/.config/sway/config`:
+Wiring, in `home/.config/sway/config`:
 
 ```
 exec swayidle -w \

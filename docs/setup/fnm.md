@@ -20,7 +20,7 @@ fnm binary, then installs the newest Node LTS and makes it the default.
   `~/.local/share/fnm`. No root needed.
 - **Always `--skip-shell`.** Without it the installer appends a block to
   `.zshrc`/`.bashrc`/`.profile`, which are symlinks into this repo. Shell setup
-  is already in `dotfiles/.common_env` (PATH + `fnm env`, active only once the
+  is already in `home/.common_env` (PATH + `fnm env`, active only once the
   dir exists) and `cb_devtools_completions` in `.common_rc`.
 - `--install-dir` is passed explicitly: the installer prefers an existing
   `~/.fnm` over the XDG path, and `.common_env` only looks at

@@ -14,7 +14,7 @@
 LINK_FILE=$(realpath "$0")
 TOOLS_DIR=$(dirname "$LINK_FILE")
 REPO_ROOT=$(dirname "$TOOLS_DIR")
-DOTFILES="${REPO_ROOT}/dotfiles"
+HOME_SRC="${REPO_ROOT}/home"
 
 # Source linking configuration (repo_dir:home_dir sync pairs)
 # shellcheck source=/dev/null
@@ -87,8 +87,8 @@ debug() { vlog 2 "$@"; }
 [ ! -d "${REPO_ROOT}/.git" ] \
   && echo "error: .git not found in ${REPO_ROOT}, this doesn't seem to be the right folder" \
   && exit 1
-[ ! -d "${DOTFILES}" ] \
-  && echo "error: dotfiles directory not found: ${DOTFILES}" \
+[ ! -d "${HOME_SRC}" ] \
+  && echo "error: home/ directory not found: ${HOME_SRC}" \
   && exit 1
 
 # Validate that config was sourced correctly
@@ -162,9 +162,9 @@ typeset -a ERRORS
 # (and their contents) from the per-file scan below
 typeset -a LINK_DIRS_EXCLUDE=()
 for _ld in "${LINK_DIRS[@]}"; do
-  [[ -d "${DOTFILES}/${_ld}" ]] \
-    || { echo "error: LINK_DIRS entry not a directory in dotfiles/: ${_ld}" >&2; exit 1; }
-  LINK_DIRS_EXCLUDE+=(! -path "${DOTFILES}/${_ld}" ! -path "${DOTFILES}/${_ld}/*")
+  [[ -d "${HOME_SRC}/${_ld}" ]] \
+    || { echo "error: LINK_DIRS entry not a directory in home/: ${_ld}" >&2; exit 1; }
+  LINK_DIRS_EXCLUDE+=(! -path "${HOME_SRC}/${_ld}" ! -path "${HOME_SRC}/${_ld}/*")
 done
 unset _ld
 
@@ -190,13 +190,13 @@ backup_existing() {
 while IFS= read -r -d '' f; do
   # get relative target/source file location (-s: don't resolve symlinks, a
   # symlinked source must be linked at its logical location, not its target's)
-  relpath=$(realpath -s --relative-to "$DOTFILES" "$f")
+  relpath=$(realpath -s --relative-to "$HOME_SRC" "$f")
   target=$HOME/$relpath
   info ""
   info "Processing: $relpath -> $HOME/$relpath ..."
   info "SRC: $relpath"
   info "TAR: $target"
-  #if [[ "$target" =~ "$DOTFILES" ]]; then
+  #if [[ "$target" =~ "$HOME_SRC" ]]; then
   #  echo "ERROR: target location inside dotfiles git repository, skipping: $target" >&2
   #  continue
   #fi
@@ -231,13 +231,13 @@ while IFS= read -r -d '' f; do
     info "Creating new SymLink: '$f' -> '$target'"
       run_and_report ln -sf -- "$f" "$target"
   fi
-done < <(find "$DOTFILES" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PATTERN"} \
+done < <(find "$HOME_SRC" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PATTERN"} \
            "${LINK_DIRS_EXCLUDE[@]}" -print0)
 
 # Link each LINK_DIRS directory as a single symlink. Runs after the per-file
 # loop so the parent directory (e.g. ~/.config) already exists.
 for relpath in "${LINK_DIRS[@]}"; do
-  src="${DOTFILES}/${relpath}"
+  src="${HOME_SRC}/${relpath}"
   target="${HOME}/${relpath}"
   info ""
   info "Processing directory link: $relpath -> $target ..."

@@ -13,7 +13,7 @@ how to make that painless and how to never lose work.
 
 ## Defaults now set (in `.gitconfig`)
 
-These are tracked in [`dotfiles/.gitconfig`](../../dotfiles/.gitconfig), so every
+These are tracked in [`home/.gitconfig`](../../home/.gitconfig), so every
 machine gets them:
 
 | Setting | Effect |
@@ -166,6 +166,6 @@ Helpers:
 ## dotfiles-specific
 
 After a pull/rebase that brought in **new** tracked files under `bin/`, `lib/`,
-or `dotfiles/`, run `dotfiles-link` so the symlinks are created. A pull that only
+or `home/`, run `dotfiles-link` so the symlinks are created. A pull that only
 changed existing (already-linked) files needs nothing — the symlink already
 points at the repo.

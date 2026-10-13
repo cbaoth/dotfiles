@@ -47,7 +47,7 @@ declare -r GUARDED_PROFILE="performance"
 declare -r FALLBACK_PROFILE="balanced"
 
 # waybar custom module signal (SIGRTMIN+N); must match "signal" in the waybar
-# config (dotfiles/.config/waybar/config.jsonc). 8 is taken by sway-awake.
+# config (home/.config/waybar/config.jsonc). 8 is taken by sway-awake.
 declare -ri WAYBAR_SIGNAL=9
 
 # Charger polling interval. A plain poll rather than a UPower D-Bus subscription

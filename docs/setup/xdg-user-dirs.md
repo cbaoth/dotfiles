@@ -25,7 +25,7 @@ Currently that is exactly one directory:
 | `XDG_SCREENSHOTS_DIR` | `~/Pictures/Screenshots` | **nothing** → the module above |
 
 `XDG_SCREENSHOTS_DIR` is exported by
-[`dotfiles/.common_env`](../../dotfiles/.common_env) and is not part of the XDG
+[`home/.common_env`](../../home/.common_env) and is not part of the XDG
 base-directory spec — it is a de-facto convention that grim, grimshot and
 several other Wayland tools honour.
 

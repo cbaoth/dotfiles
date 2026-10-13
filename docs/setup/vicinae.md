@@ -96,14 +96,14 @@ Vicinae builds its list from `.desktop` files, so two causes stacked:
 
 Fix (all in the repo, deployed by `dotfiles-link`):
 
-- `dotfiles/.local/share/applications/code.desktop`: `Exec` is
+- `home/.local/share/applications/code.desktop`: `Exec` is
   `sh -c "exec \\"\\$HOME/bin/code\\" \\"\\$@\\"" sh %F`. `.desktop` files do not
   expand `$HOME`, so the shell does it; the escaping is what
   `desktop-file-validate` demands (it rejects single quotes). No username is
   hardcoded. Vicinae's parser handles it.
-- `dotfiles/.local/share/applications/com.microsoft.VSCode.desktop`: same
+- `home/.local/share/applications/com.microsoft.VSCode.desktop`: same
   desktop-id as the package's file with `Hidden=true`, which shadows it.
-- `dotfiles/.config/systemd/user/vicinae.service.d/path.conf`: drop-in giving
+- `home/.config/systemd/user/vicinae.service.d/path.conf`: drop-in giving
   the service a `PATH` with `%h/bin`, `%h/.local/bin` and the flatpak export
   dirs first. After linking: `systemctl --user daemon-reload && systemctl
   --user restart vicinae`. Verify with
@@ -118,7 +118,7 @@ Hence the per-service drop-in; other user services still have the default
 
 ## Config: whole-directory link
 
-`~/.config/vicinae` is a symlink to `dotfiles/.config/vicinae/`, configured via
+`~/.config/vicinae` is a symlink to `home/.config/vicinae/`, configured via
 `LINK_DIRS` in `tools/link-config.conf`. Vicinae writes `settings.json` by
 write-temp-then-rename, which replaced the old per-file symlink with a regular
 file and left the repo copy orphaned. See *Whole-Directory Links* in

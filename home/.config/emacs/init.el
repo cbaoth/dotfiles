@@ -2,7 +2,7 @@
 
 ;;; Commentary:
 ;; Fresh start, 2026-10, written for Emacs 30. Deployed by dotfiles-link:
-;; dotfiles/.config/emacs/init.el -> ~/.config/emacs/init.el
+;; home/.config/emacs/init.el -> ~/.config/emacs/init.el
 ;;
 ;; - Terminal first (`emacs -nw', ssh, TTY). GUI frames share this file;
 ;;   the few GUI-only settings apply to graphical frames only.
@@ -186,7 +186,7 @@ shebang added if there is none."
 ;; can hold the port, a second `emacs' would fail to start it (start it there
 ;; by hand with M-x atomic-chrome-start-server when no daemon runs). pgtk is
 ;; the desktop build, so servers never download it. The daemon is started by
-;; sway: dotfiles/.config/sway/config.d/90-launch-apps.conf.
+;; sway: home/.config/sway/config.d/90-launch-apps.conf.
 (use-package atomic-chrome
   :if (and (daemonp) (featurep 'pgtk))
   :vc (:url "https://github.com/KarimAziev/atomic-chrome" :rev :newest)
@@ -215,7 +215,7 @@ shebang added if there is none."
 ;; (windmove-default-keybindings)
 ;;
 ;; ()/[] swap. On Linux this was xmodmap; the xkb version is commented out in
-;; dotfiles/.config/xkb/symbols/custom. In Emacs it was Windows-only:
+;; home/.config/xkb/symbols/custom. In Emacs it was Windows-only:
 ;; (when (eq system-type 'windows-nt)
 ;;   (keyboard-translate ?\( ?\[) (keyboard-translate ?\[ ?\()
 ;;   (keyboard-translate ?\) ?\]) (keyboard-translate ?\] ?\)))

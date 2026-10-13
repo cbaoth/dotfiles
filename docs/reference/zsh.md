@@ -334,7 +334,7 @@ journalctl -b ,gi fail ,t   # -> journalctl -b | grep -Ei fail | tail
 find . -name '*.md' ,c      # -> find . -name '*.md' | wc -l
 ```
 
-Defined in [`.zsh.d/aliases.zsh`](../../dotfiles/.zsh.d/aliases.zsh). Convention:
+Defined in [`.zsh.d/aliases.zsh`](../../home/.zsh.d/aliases.zsh). Convention:
 a **`,` (comma) prefix** — unshifted, fast, and collision-proof (a bare `,g`
 can't be a filename/command, unlike a bare `G`). fast-syntax-highlighting
 highlights them as you type. Pattern: `,<x>` = `| <cmd>`; leading `e` = include

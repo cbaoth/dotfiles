@@ -5,7 +5,7 @@
 # shellcheck shell=bash
 #
 # Move files/directories from $HOME into the repo (flat-sync dirs like bin/ and
-# lib/, else dotfiles/) and relink via tools/link.sh, sanitizing names on the way.
+# lib/, else home/) and relink via tools/link.sh, sanitizing names on the way.
 
 set -u
 
@@ -15,7 +15,7 @@ SCRIPT_NAME="$(basename "$0")"
 SCRIPT_FILE="$(realpath "$0")"
 TOOLS_DIR="$(dirname "$SCRIPT_FILE")"
 REPO_ROOT="$(dirname "$TOOLS_DIR")"
-DOTFILES_DIR="${REPO_ROOT}/dotfiles"
+DOTFILES_DIR="${REPO_ROOT}/home"
 LINK_SCRIPT="${TOOLS_DIR}/link.sh"
 LINK_CONFIG="${TOOLS_DIR}/link-config.conf"
 declare -r SCRIPT_NAME SCRIPT_FILE TOOLS_DIR REPO_ROOT DOTFILES_DIR LINK_SCRIPT LINK_CONFIG
@@ -48,7 +48,7 @@ Usage: $SCRIPT_NAME [--dry-run|-n] [--no-sanitize] [-v|-vv|--verbose[=N]] <path>
 Move each source path (must be inside \$HOME) into the repository, then run
 tools/link.sh to create symlinks back. Direct children of a flat-sync home dir
 (e.g. ~/bin, ~/lib) land in the matching repo dir (bin/, lib/); everything else
-mirrors under dotfiles/ at the same relative location.
+mirrors under home/ at the same relative location.
 
 By default the destination name is sanitized to match repo conventions (e.g. a
 .sh/.bash extension is stripped from executables adopted into bin/). Pass
@@ -178,7 +178,7 @@ validate_basics() {
     return 1
   }
   [[ -d "${DOTFILES_DIR}" ]] || {
-    echo "error: dotfiles directory not found: ${DOTFILES_DIR}" >&2
+    echo "error: home/ directory not found: ${DOTFILES_DIR}" >&2
     return 1
   }
   [[ -x "${LINK_SCRIPT}" ]] || {
@@ -199,7 +199,7 @@ validate_basics() {
 # Echo the repo flat-sync dir a source path maps to, or nothing. A source maps
 # only when it is a direct child of a configured home dir (~/bin, ~/lib), since
 # link.sh flat-syncs those non-recursively; nested paths fall through to the
-# dotfiles/ mirror.
+# home/ mirror.
 sync_dir_for() {
   local abs_path="$1"
   local src_dir repo_dir
@@ -268,7 +268,7 @@ adopt_one() {
     dst_name="$(sanitize_name "$sync_repo_dir" "$base_name")"
     dst_abs="${sync_repo_dir}/${dst_name}"
   else
-    # Everything else mirrors under dotfiles/ at the same relative location.
+    # Everything else mirrors under home/ at the same relative location.
     rel_path="${src_abs#"${HOME}"/}"
     dst_abs="${DOTFILES_DIR}/${rel_path}"
   fi

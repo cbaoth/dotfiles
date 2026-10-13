@@ -13,7 +13,7 @@ MODULE_DESC="XDG user dirs: create the ones nothing else creates (Screenshots)"
 MODULE_PROFILES=(desktop)
 MODULE_DOC="docs/setup/xdg-user-dirs.md"
 
-# The defaults are repeated from dotfiles/.common_env rather than relied upon
+# The defaults are repeated from home/.common_env rather than relied upon
 # from the environment: system-setup runs on fresh machines where dotfiles-link
 # has not run yet, so nothing has exported these variables.
 declare -r XDG_PICTURES="${XDG_PICTURES_DIR:-${HOME}/Pictures}"

@@ -38,7 +38,7 @@ somewhere else, and looks unrelated.
 ### mpv → **apt**, non-negotiable
 
 [`bin/mpv-find`](../../bin/mpv-find) pipes into `xargs -0 -n 10000 mpv`, and the
-`@MPV` global alias in [`.zsh.d/aliases.zsh`](../../dotfiles/.zsh.d/aliases.zsh)
+`@MPV` global alias in [`.zsh.d/aliases.zsh`](../../home/.zsh.d/aliases.zsh)
 does the same. Both need a real binary on `$PATH`. The flatpak breaks both, and
 it breaks them *quietly* — mpv still launches when you double-click a file.
 

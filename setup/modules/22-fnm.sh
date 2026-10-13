@@ -10,8 +10,8 @@
 # apt package. The installer is run with --skip-shell: it would otherwise
 # append an fnm block to ~/.zshrc / ~/.bashrc / ~/.profile (symlinks into this
 # repo, so that dirties tracked files). Shell integration is already done by
-# dotfiles/.common_env (PATH + `fnm env`) and cb_devtools_completions in
-# dotfiles/.common_rc, whether or not fnm is installed yet.
+# home/.common_env (PATH + `fnm env`) and cb_devtools_completions in
+# home/.common_rc, whether or not fnm is installed yet.
 #
 # The install dir (~/.local/share/fnm) is the installer's default and is what
 # .common_env checks for. The installer prefers an existing ~/.fnm over it, so

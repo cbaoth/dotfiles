@@ -66,19 +66,19 @@ docs/shell-style-guide.md                  # full human-readable guide (NOT agen
 === Machine-wide deployment (all repos, all hosts)
 
 The style guides apply globally through user-level mechanisms, deployed from
-`dotfiles/` by `dotfiles-link` (username-independent, `$HOME`-based). No
+`home/` by `dotfiles-link` (username-independent, `$HOME`-based). No
 per-repo copies or links are needed — not even in this repo:
 
 ----
-dotfiles/.claude/rules/cb-*.instructions.md
+home/.claude/rules/cb-*.instructions.md
   -> ../../../.github/instructions/...     # linked to ~/.claude/rules/
                                            #   read by: Claude Code (user-level rules)
                                            #            VS Code Copilot (default user location)
-dotfiles/.copilot/.github/instructions/cb-*.instructions.md
+home/.copilot/.github/instructions/cb-*.instructions.md
   -> ../../../../.github/instructions/...  # linked to ~/.copilot/.github/instructions/
                                            #   read by: Copilot CLI via
                                            #   COPILOT_CUSTOM_INSTRUCTIONS_DIRS=$HOME/.copilot
-                                           #   (exported in dotfiles/.common_env)
+                                           #   (exported in home/.common_env)
 ----
 
 Notes:

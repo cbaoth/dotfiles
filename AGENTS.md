@@ -9,8 +9,8 @@ configs, deployed into `$HOME` via symlinks.
 | ------------------- | ------------------------------------------------------------------- |
 | `bin/`              | Standalone executable scripts (mostly Bash, no file extension)      |
 | `lib/`              | Shared shell libraries (sourced; `lib/commons.sh`, `cl::` namespace) |
-| `dotfiles/`         | Dotfiles mirrored into `$HOME` (e.g. `dotfiles/.zshrc` → `~/.zshrc`) |
-| `dotfiles/.zsh.d/`  | Zsh config modules (`*.zsh`, sourced)                               |
+| `home/`             | Dotfiles mirrored into `$HOME` (e.g. `home/.zshrc` → `~/.zshrc`)    |
+| `home/.zsh.d/`      | Zsh config modules (`*.zsh`, sourced)                               |
 | `system-scripts/`   | Scripts/units deployed outside `$HOME` (see section below)          |
 | `setup/`            | Idempotent system setup modules (`bin/system-setup`; see below)     |
 | `tools/`            | Repo tooling, notably the linking system (`tools/link.sh`)          |
@@ -18,11 +18,11 @@ configs, deployed into `$HOME` via symlinks.
 
 ## Critical Workflow: Dotfiles Linking
 
-Files only take effect through symlinks (`dotfiles/` → `$HOME/`, flat sync of
+Files only take effect through symlinks (`home/` → `$HOME/`, flat sync of
 `bin/` → `~/bin` and `lib/` → `~/lib`, with stale-link cleanup).
 
 **After creating, renaming, moving, or deleting files in `bin/`, `lib/`, or
-`dotfiles/`, run the linking script:**
+`home/`, run the linking script:**
 
 ```bash
 dotfiles-link              # apply (shell function; fallback: ./tools/link.sh)
@@ -117,15 +117,15 @@ machines, before `dotfiles-link` has created `~/lib/`.
 
 Zsh completion functions are files named `_<command>` starting with a
 `#compdef <command>` tag; compinit autoloads them from any dir on `fpath`
-(registered **before** `compinit` in `dotfiles/.zshrc`). Two locations, by
+(registered **before** `compinit` in `home/.zshrc`). Two locations, by
 whose tool it completes:
 
 | The tool lives in… | Completion goes in… | Reaches |
 | ------------------ | ------------------- | ------- |
-| **this repo** (`bin/`, `lib/` functions) — e.g. `system-setup`, `check_script` | `dotfiles/.zsh.d/completions/_<cmd>` | every host (deployed by `dotfiles-link`) |
+| **this repo** (`bin/`, `lib/` functions) — e.g. `system-setup`, `check_script` | `home/.zsh.d/completions/_<cmd>` | every host (deployed by `dotfiles-link`) |
 | **a separate cloned project** — e.g. `~/git/cb-voice-lab` | that project's own `completions/_<cmd>` | only hosts with the clone |
 
-External-project completion dirs are registered in `dotfiles/.zshrc` via the
+External-project completion dirs are registered in `home/.zshrc` via the
 `_cb_project_completions` array, each guarded by `[[ -d ]]` so a host without
 the clone is unaffected (no error, no slowdown). **Adding a project = one line
 in that array**, not a new `fpath=(…)` statement.
@@ -142,7 +142,7 @@ additions need no edit:
   (`usage()`) and profile values (`ST_PROFILES`) *are* hardcoded there —
   changing those means editing `_system-setup` too.
 
-After adding or renaming a completion file under `dotfiles/`, run
+After adding or renaming a completion file under `home/`, run
 `dotfiles-link` (see above) so the symlink lands in `$HOME`.
 
 ## Notes & System Documentation

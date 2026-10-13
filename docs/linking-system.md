@@ -22,12 +22,12 @@ The linking system operates in two modes:
 
 #### Part 1: Nested Dotfiles (Hierarchical)
 
-Recursively mirrors the directory structure from `dotfiles/` subdirectory into `$HOME`:
+Recursively mirrors the directory structure from `home/` subdirectory into `$HOME`:
 
 ```
-dotfiles/.zshrc          →  ~/.zshrc
-dotfiles/.config/sway/   →  ~/.config/sway/
-dotfiles/.zsh.d/         →  ~/.zsh.d/
+home/.zshrc          →  ~/.zshrc
+home/.config/sway/   →  ~/.config/sway/
+home/.zsh.d/         →  ~/.zsh.d/
 ```
 
 **Features:**
@@ -59,7 +59,7 @@ lib/commons.sh  →  ~/lib/commons.sh
 
 - Creating new scripts in `bin/`
 - Creating executable files in `lib/`
-- Creating or modifying dotfiles in `dotfiles/`
+- Creating or modifying dotfiles in `home/`
 - Renaming, moving, or deleting any of the above
 - Fresh checkout of the repository
 - After a `git pull` that modified files
@@ -182,7 +182,7 @@ declare -A SYNC_DIRS=(
 By default files are linked individually. Some apps save atomically (write a
 temp file, then rename it over the target), which silently replaces a per-file
 symlink with a regular file and leaves the repo copy orphaned. For those, list
-the directory in `LINK_DIRS` (paths relative to `dotfiles/`):
+the directory in `LINK_DIRS` (paths relative to `home/`):
 
 ```bash
 LINK_DIRS=(
@@ -190,7 +190,7 @@ LINK_DIRS=(
 )
 ```
 
-`dotfiles/.config/vicinae` is then linked as one symlink to `~/.config/vicinae`
+`home/.config/vicinae` is then linked as one symlink to `~/.config/vicinae`
 and skipped by the per-file scan. Renames inside it stay inside the repo.
 
 Trade-off: everything the app writes there lands in the repo, so add
@@ -219,7 +219,7 @@ backup directory first (warning printed; kept for the last 10 runs only).
 
 The `.linkignore` file (in `tools/`) specifies patterns to exclude from linking. Patterns use sed regular expression syntax.
 
-Example: If you want to exclude a specific file pattern from the nested `dotfiles/` linking:
+Example: If you want to exclude a specific file pattern from the nested `home/` linking:
 
 ```
 # tools/.linkignore
@@ -229,13 +229,13 @@ Example: If you want to exclude a specific file pattern from the nested `dotfile
 ^_.*       # Exclude _archive, _local, etc. (underscore-prefixed dirs)
 ```
 
-Patterns only affect the nested `dotfiles/` scanning. The flat `bin/` and `lib/` syncing is not filtered by `.linkignore`.
+Patterns only affect the nested `home/` scanning. The flat `bin/` and `lib/` syncing is not filtered by `.linkignore`.
 
 ## Troubleshooting
 
 ### New File Not Appearing in $HOME
 
-**Symptom:** You created `bin/my-new-script` or `dotfiles/.zshrc.local`, but it's not in `$HOME`.
+**Symptom:** You created `bin/my-new-script` or `home/.zshrc.local`, but it's not in `$HOME`.
 
 **Solution:** Run `dotfiles-link`. The script does not automatically monitor for new files; you must invoke it explicitly after file system changes.
 
@@ -322,7 +322,7 @@ When adding new scripts or configurations:
 
 1. **Create file** in appropriate location:
    - New shell script → `bin/my-script`
-   - New dotfile config → `dotfiles/.config/app/config`
+   - New dotfile config → `home/.config/app/config`
 
 2. **Run linking immediately:**
    ```bash
@@ -348,7 +348,7 @@ When adding new scripts or configurations:
 ```bash
 # Manual workaround (creates orphans, inconsistency)
 ln -s /home/cbaoth/dotfiles/bin/my-script ~/bin/my-script
-cp /home/cbaoth/dotfiles/dotfiles/.zshrc ~/.zshrc
+cp /home/cbaoth/dotfiles/home/.zshrc ~/.zshrc
 ```
 
 **Do:**
@@ -411,7 +411,7 @@ If the dotfiles setup becomes significantly more complex (e.g., template renderi
 
 ### Why Separate Nested and Flat Syncing?
 
-**Nested** (`dotfiles/`):
+**Nested** (`home/`):
 - Preserves directory structure (important for configs like `.config/sway/config`)
 - Supports selective exclusion via `.linkignore`
 - Handles root-level dotfiles (`.zshrc`, `.vimrc`, etc.)

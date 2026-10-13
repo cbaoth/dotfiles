@@ -94,7 +94,7 @@ Environment:
   VOICE_NOTE_CPU=1        Force CPU decoding, leaving the GPU free for games
                           or generative AI (sets GGML_VK_VISIBLE_DEVICES=)
 
-Sway bindings (dotfiles/.config/sway/config.d/40-keybindings.conf):
+Sway bindings (home/.config/sway/config.d/40-keybindings.conf):
   \$altgr+F6            toggle
   \$altgr+F5            hold to talk
 EOF

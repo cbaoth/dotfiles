@@ -72,7 +72,7 @@ Uninstall is `rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude`.
 Configuration under `~/.claude` survives that on purpose — the VS Code
 extension and the desktop app write there too.
 
-`~/.local/bin` is put on `PATH` by `dotfiles/.common_env`, i.e. by
+`~/.local/bin` is put on `PATH` by `home/.common_env`, i.e. by
 `dotfiles-link`, not by the setup module. On a fresh box where `system-setup`
 ran first, `claude` is installed but not yet on `PATH`; run `dotfiles-link` and
 start a new shell.
@@ -93,7 +93,7 @@ npm uninstall -g @anthropic-ai/claude-code
 
 ### The Bash sandbox: off, on purpose
 
-`"sandbox": {"enabled": false}` in the shared `dotfiles/.claude/settings.json`,
+`"sandbox": {"enabled": false}` in the shared `home/.claude/settings.json`,
 so it is off on **every** host. Tried on motoko on 2026-10-06 and reverted the
 same day, for three reasons:
 

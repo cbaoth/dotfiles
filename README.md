@@ -9,7 +9,7 @@ My core configuration (dot) files, shell functions and utility scripts.
 ### Repository Structure
 
 ```
-dotfiles/        Actual dotfiles symlinked to $HOME (zsh, bash, vim, X11, etc.)
+home/            Actual dotfiles symlinked to $HOME (zsh, bash, vim, X11, etc.)
 bin/             User utility scripts (added to PATH via ~/bin/)
 system-scripts/  System/admin scripts (some require root)
 setup/           Idempotent system setup modules (run via bin/system-setup)
@@ -50,7 +50,7 @@ notes cross-link to the `setup/` module that automates them. See
 - `Bash` configs exist for rare cases in which zsh is not available, they are
   not regularly maintained and usually outdated (consolidation is however a
   backlog topic).
-- Portability is a core goal: the `dotfiles/` + `bin/` + `lib/` + `tools/link.sh`
+- Portability is a core goal: the `home/` + `bin/` + `lib/` + `tools/link.sh`
   approach is intentionally dependency-free and should work without additional
   packages or root access.
 - Restricted-host support matters: basic setup should still be usable on
@@ -68,16 +68,16 @@ notes cross-link to the `setup/` module that automates them. See
 
 | File / Folder | App | Description |
 |---|---|---|
-| `dotfiles/.zshenv` | [ZSH](https://en.wikipedia.org/wiki/Z_shell) | Common ZSH login shell environment (variables). |
-| `dotfiles/.zlogout` | ZSH | Common ZSH logout cleanup |
-| `dotfiles/.zshrc` | ZSH | Common ZSH config |
-| `dotfiles/.zsh.d/zshrc-freebsd.zsh` / `zshrc-motoko.zsh` / `zshrc-puppet.zsh` / `zshrc-saito.zsh` / `zshrc-11001001_org.zsh` | ZSH | OS, distribution, and/or host specific ZSH configs. |
-| `dotfiles/.zsh.d/aliases.zsh` | SH | Common aliases |
-| `dotfiles/.zsh.d/aliases-freebsd.zsh` / `aliases-linux.zsh` / `aliases-linux_wsl.zsh` | SH | OS, distribution, and/or host specific aliases. |
-| `dotfiles/.bashrc` | [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) | Common Bash config _(rarely maintained)_. |
-| `dotfiles/.vimrc` | [VIM](https://www.vim.org/) | VIM configuration |
-| `dotfiles/.config/mpv/config` / `input.conf` | [mpv](https://en.wikipedia.org/wiki/Mpv_(media_player)) | MPV configuration and key bindings. |
-| `dotfiles/.mplayer/config` / `input.conf` | [MPlayer](https://en.wikipedia.org/wiki/MPlayer) | Old MPlayer configuration and key bindings (switched to `mpv`). |
+| `home/.zshenv` | [ZSH](https://en.wikipedia.org/wiki/Z_shell) | Common ZSH login shell environment (variables). |
+| `home/.zlogout` | ZSH | Common ZSH logout cleanup |
+| `home/.zshrc` | ZSH | Common ZSH config |
+| `home/.zsh.d/zshrc-freebsd.zsh` / `zshrc-motoko.zsh` / `zshrc-puppet.zsh` / `zshrc-saito.zsh` / `zshrc-11001001_org.zsh` | ZSH | OS, distribution, and/or host specific ZSH configs. |
+| `home/.zsh.d/aliases.zsh` | SH | Common aliases |
+| `home/.zsh.d/aliases-freebsd.zsh` / `aliases-linux.zsh` / `aliases-linux_wsl.zsh` | SH | OS, distribution, and/or host specific aliases. |
+| `home/.bashrc` | [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) | Common Bash config _(rarely maintained)_. |
+| `home/.vimrc` | [VIM](https://www.vim.org/) | VIM configuration |
+| `home/.config/mpv/config` / `input.conf` | [mpv](https://en.wikipedia.org/wiki/Mpv_(media_player)) | MPV configuration and key bindings. |
+| `home/.mplayer/config` / `input.conf` | [MPlayer](https://en.wikipedia.org/wiki/MPlayer) | Old MPlayer configuration and key bindings (switched to `mpv`). |
 
 #### Host / OS specific zsh files
 
@@ -164,7 +164,7 @@ Scripts intended for system administrators or privileged operations (some requir
 
 | File | Description |
 |---|---|
-| `tools/link.sh` | Symlink all files in `dotfiles/` to the user's home directory. Missing directories are created in the process. Existing files that would be overwritten are moved to a backup location. |
+| `tools/link.sh` | Symlink all files in `home/` to the user's home directory. Missing directories are created in the process. Existing files that would be overwritten are moved to a backup location. |
 | `tools/permissions.sh` | Update dotfile repo file permissions. |
 | `tools/fix-modelines.py` | Normalize and deduplicate editor modelines (Emacs, Vim, VS Code, ShellCheck) across shell scripts. |
 | `tools/fix-style.sh` | Apply style fixes to shell scripts. |
