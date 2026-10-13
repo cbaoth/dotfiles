@@ -600,6 +600,31 @@ cl::is_ssh() {
   [[ -n "$SSH_CLIENT" || -n "$SSH_TTY" ]]
 }
 
+# predicate: is this shell (indirectly) running inside an ssh session?
+# Unlike cl::is_ssh this survives sudo/su, which strip the SSH_* variables:
+# walk up the process tree and look for an sshd ancestor, or an ancestor that
+# was started with SSH_CONNECTION in its environment (covers tmux, whose
+# server is no longer a child of sshd). Ancestors owned by another user are
+# unreadable, so `su otheruser` inside tmux can still miss (linux only).
+cl::is_remote() {
+  cl::is_ssh && return 0
+  [[ -r "/proc/$$/stat" ]] || return 1
+  local -i pid=$$
+  local comm stat
+  while (( pid > 1 )); do
+    read -r comm 2> /dev/null < "/proc/${pid}/comm" || return 1
+    [[ "$comm" == sshd* ]] && return 0
+    grep -qaz '^SSH_CONNECTION=' "/proc/${pid}/environ" 2> /dev/null \
+      && return 0
+    # ppid is the 2nd field after "(comm)"; comm itself may contain spaces
+    read -r stat 2> /dev/null < "/proc/${pid}/stat" || return 1
+    stat="${stat##*) }"
+    stat="${stat#* }"
+    pid="${stat%% *}"
+  done
+  return 1
+}
+
 # predicate: is this a login shell session we are in?
 cl::is_login() {
   cl::is_zsh && [[ -o login ]] || shopt -q login_shell

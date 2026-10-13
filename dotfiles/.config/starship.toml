@@ -7,31 +7,43 @@
 # Try another preset without touching this file (it is a symlink into
 # dotfiles): `starship-preset-test <name>` (~/.zsh.d/aliases.zsh).
 
-# local: $username/$hostname added to the first segment — the preset shows
-# neither, not even over ssh or as root.
+# local: $username and the remote host added to the first segment — the preset
+# shows neither, not even over ssh or as root. The segment colour is the
+# palette colour `head`: blue-grey locally, amber in a remote session.
+#
+# Remote/root state comes from ~/.zshrc (PROMPT section), not from starship's
+# own ssh detection, which sudo/su defeat by stripping the SSH_* variables:
+#   CB_PROMPT_REMOTE  short hostname (uppercase), set only in a remote session
+#   CB_PROMPT_ROOT    set only when EUID is 0
+# For remote and/or root ~/.zshrc points STARSHIP_CONFIG at a generated copy
+# of this file (sed: `palette = "remote"`; root drops the `$character"""` line,
+# keep it on a line of its own); edit only this file.
+palette = "local"
+
 format = """
-[░▒▓](#a3aed2)\
+[░▒▓](fg:head)\
 $os\
 $username\
-$hostname\
-[](bg:#769ff0 fg:#a3aed2)\
+${env_var.CB_PROMPT_REMOTE}\
+[](bg:#769ff0 fg:head)\
 $directory\
-[](fg:#769ff0 bg:#394260)\
+[](fg:#769ff0 bg:#394260)\
 $git_branch\
 $git_status\
-[](fg:#394260 bg:#212736)\
+[](fg:#394260 bg:#212736)\
 $nodejs\
 $bun\
 $rust\
 $golang\
 $php\
-[](fg:#212736 bg:#1d2230)\
+[](fg:#212736 bg:#1d2230)\
 $time\
-[ ](fg:#1d2230)\
-\n$character"""
+[ ](fg:#1d2230)\
+\n${env_var.CB_PROMPT_ROOT}\
+$character"""
 
 [directory]
-style = "fg:#e3e5e5 bg:#769ff0"
+style = "fg:#0a0b0f bg:#769ff0"
 format = "[ $path ]($style)"
 truncation_length = 3
 truncation_symbol = "…/"
@@ -83,21 +95,27 @@ style = "bg:#1d2230"
 format = '[[  $time ](fg:#a0a9cb bg:#1d2230)]($style)'
 
 [os]
-style = "bg:#a3aed2 fg:#090c0c"
+style = "bg:head fg:#090c0c"
 format = "[ $symbol ]($style)"
 disabled = false
 
-# local: shown only when relevant — username for root / other users / ssh,
-# hostname over ssh (starship defaults), styled to blend into the os segment.
+# local: username shown only when relevant — root, another user, or a remote
+# session (also when sudo stripped the SSH_* variables, via CB_PROMPT_REMOTE).
+# Root gets a red block, not just red text: it has to catch the eye.
 [username]
-style_user = "bg:#a3aed2 fg:#090c0c"
-style_root = "bg:#a3aed2 fg:#cc0000 bold"
+detect_env_vars = ["CB_PROMPT_REMOTE"]
+style_user = "bg:head fg:#090c0c"
+style_root = "bg:#db4b4b fg:#ffffff bold"
 format = "[$user ]($style)"
 
-[hostname]
-style = "bg:#a3aed2 fg:#090c0c"
-ssh_symbol = "☍ "  # same ssh marker as the old p9k prompt
-format = "[$ssh_symbol$hostname ]($style)"
+# local: remote host, replaces the hostname module (see format above)
+[env_var.CB_PROMPT_REMOTE]
+style = "bg:head fg:#090c0c bold"
+format = "[☍ $env_value ]($style)"  # same ssh marker as the old p9k prompt
+
+# local: root marker in front of the input line, old p9k style
+[env_var.CB_PROMPT_ROOT]
+format = "[ ▲ λ ](bg:#db4b4b fg:#ffffff bold)[](fg:#db4b4b) "
 
 [os.symbols]
 Windows = "󰍲"
@@ -122,3 +140,10 @@ Debian = "󰣚"
 Redhat = "󱄛"
 RedHatEnterprise = "󱄛"
 Pop = ""
+
+# local: `head` = colour of the first segment, see format above
+[palettes.local]
+head = "#a3aed2"
+
+[palettes.remote]
+head = "#e0af68"  # tokyo night yellow

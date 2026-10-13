@@ -426,6 +426,48 @@ if $IS_ZINIT; then
   (( ${+functions[prompt_starship_precmd]} )) && IS_STARSHIP=true
 fi
 
+# Remote/root markers for starship.toml (read by starship on every prompt).
+# Remote = ssh session, also through sudo/su/tmux (cl::is_remote), or a known
+# server as a safety net for the cases the detection can miss.
+_cb_prompt_remote_hosts=(saito 11001001.org)
+if { (( ${+functions[cl::is_remote]} )) && cl::is_remote; } || (( ${_cb_prompt_remote_hosts[(Ie)$HOST]} )); then
+  export CB_PROMPT_REMOTE="${(U)HOST%%.*}"
+else
+  unset CB_PROMPT_REMOTE
+fi
+unset _cb_prompt_remote_hosts
+(( EUID == 0 )) && export CB_PROMPT_ROOT=1 || unset CB_PROMPT_ROOT
+
+# Remote/root variants: a generated copy of starship.toml per variant, rebuilt
+# when the source (or this file) is newer. Remote swaps the palette; root drops
+# $character, since the root block on the input line already ends in a tip.
+# A STARSHIP_CONFIG set by someone else (starship-preset-test) wins.
+if $IS_STARSHIP; then
+  _cb_starship_dir="${XDG_CACHE_HOME:-$HOME/.cache}/starship"
+  if [[ -z "${STARSHIP_CONFIG:-}" || "${STARSHIP_CONFIG:h}" == "${_cb_starship_dir}" ]]; then
+    _cb_variant=() _cb_sed=()
+    if [[ -n "${CB_PROMPT_REMOTE:-}" ]]; then
+      _cb_variant+=(remote)
+      _cb_sed+=(-e 's/^palette = "local"$/palette = "remote"/')
+    fi
+    if [[ -n "${CB_PROMPT_ROOT:-}" ]]; then
+      _cb_variant+=(root)
+      _cb_sed+=(-e 's/^\$character"""$/"""/')
+    fi
+    if (( ${#_cb_variant} )) && [[ -f ~/.config/starship.toml ]]; then
+      _cb_cfg="${_cb_starship_dir}/${(j:-:)_cb_variant}.toml"
+      if [[ ! "${_cb_cfg}" -nt ~/.config/starship.toml || ! "${_cb_cfg}" -nt ~/.zshrc ]]; then
+        mkdir -p "${_cb_starship_dir}"
+        sed "${_cb_sed[@]}" ~/.config/starship.toml > "${_cb_cfg}"
+      fi
+      export STARSHIP_CONFIG="${_cb_cfg}"
+    else
+      unset STARSHIP_CONFIG
+    fi
+  fi
+  unset _cb_starship_dir _cb_variant _cb_sed _cb_cfg
+fi
+
 # fallback: basic prompt theme from /usr/share/zsh/functions/Prompts/
 # (hosts may pick another color in ~/.zsh.d/zshrc-<host>.zsh)
 $IS_STARSHIP || prompt fade 0

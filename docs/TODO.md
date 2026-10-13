@@ -803,7 +803,10 @@ See `docs/setup/ssh-hardening.md`; host-specific addresses in
 
 **State:** powerlevel10k replaced by starship (zinit `gh-r`, config
 `dotfiles/.config/starship.toml`, based on the `tokyo-night` preset + username/
-hostname for ssh/root). foot has two palettes: Tango in `[colors]` (default)
+hostname for ssh/root). Remote sessions (detected through sudo/su/tmux by
+`cl::is_remote`, plus saito/vserver as a safety net) tint the first segment
+amber via a generated `palette = "remote"` copy; root gets a red username and
+a red `▲ λ` block on the input line (added 2026-10-07). foot has two palettes: Tango in `[colors]` (default)
 and Tokyo Night in `[colors2]`, toggled with `Ctrl+Shift+t` — kept on purpose
 as a side-by-side comparison tool (no scrolling, no second window).
 
