@@ -14,4 +14,8 @@ case ":${XDG_CURRENT_DESKTOP:-}:" in
   *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+${XDG_CURRENT_DESKTOP}:}GNOME" ;;
 esac
 
-exec "${HOME}/Applications/GitHub-Copilot-linux-x64.AppImage" "$@"
+# AppImageLauncher's binfmt handler would otherwise offer to integrate the image
+# (moving it and adding a duplicate launcher) on every start.
+export APPIMAGELAUNCHER_DISABLE=1
+
+exec "${HOME}/.local/share/github-copilot-app/GitHub-Copilot-linux-x64.AppImage" "$@"

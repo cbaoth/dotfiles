@@ -3,7 +3,7 @@ title: GitHub CLI and GitHub Copilot (CLI and desktop app)
 hosts: [motoko, puppet]
 status: resolved
 tags: [github, copilot, gh, cli, appimage, electron, rofi]
-updated: 2026-10-08
+updated: 2026-10-13
 automated_by: setup/modules/31-github-copilot.sh, setup/modules/32-github-copilot-app.sh
 ---
 
@@ -15,7 +15,7 @@ automated_by: setup/modules/31-github-copilot.sh, setup/modules/32-github-copilo
 | ------ | -------- | ---- |
 | `setup/packages/base.list` (`gh`) | all | GitHub CLI from the Ubuntu repo (2.46) |
 | `system-setup 31-github-copilot` | all | Copilot CLI via the official installer into `~/.local/bin/copilot` |
-| `system-setup 32-github-copilot-app` | desktop | Copilot desktop app AppImage in `~/Applications`, plus launcher entry |
+| `system-setup 32-github-copilot-app` | desktop | Copilot desktop app AppImage in `~/.local/share/github-copilot-app`, plus launcher entry |
 
 ## Copilot CLI
 
@@ -50,7 +50,15 @@ The app also writes two `.desktop` files itself on first run. Leave
 `com.github.githubapp.desktop`: it is `NoDisplay` and points into a `/tmp`
 mount that is gone after the first exit.
 
-Update: remove `~/Applications/GitHub-Copilot-linux-x64.AppImage` and re-run
+The image lives outside `~/Applications` on purpose: AppImageLauncher's daemon
+watches that directory, renames the file (`..._<hash>.AppImage`) and adds an
+`appimagekit_*-GitHub_Copilot.desktop` ("GitHub Copilot (1)") that skips the
+keyring wrapper. The wrapper also sets `APPIMAGELAUNCHER_DISABLE=1` so its
+binfmt handler does not re-integrate on launch. That handler also breaks
+`--appimage-extract` (`execv(...) failed`), which is why the icon is pulled out
+with `unsquashfs` at the ELF-derived offset instead of by running the image.
+
+Update: remove `~/.local/share/github-copilot-app/GitHub-Copilot-linux-x64.AppImage` and re-run
 `system-setup 32-github-copilot-app`. The URL is an unversioned redirect, so
 the module cannot tell whether the local copy is current.
 

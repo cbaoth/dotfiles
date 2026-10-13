@@ -7,7 +7,7 @@
 #
 # The counterpart to 31-github-copilot. The app is only published as an
 # AppImage (~600 MB), so there is no package channel to prefer; the module
-# downloads it once into ~/Applications and gives it what an AppImage lacks:
+# downloads it once into ~/.local/share/github-copilot-app and gives it what an AppImage lacks:
 #
 #   - a launcher entry (~/.local/share/applications/github-copilot.desktop with
 #     an icon extracted from the image), which rofi's drun mode, ulauncher and
@@ -29,12 +29,15 @@
 #
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
-MODULE_DESC="GitHub Copilot desktop app (AppImage in ~/Applications + launcher)"
+MODULE_DESC="GitHub Copilot desktop app (AppImage in ~/.local/share/github-copilot-app + launcher)"
 MODULE_PROFILES=(desktop)
 MODULE_DOC="docs/setup/github-copilot.md"
 
 declare -r COPILOT_APP_URL="https://gh.io/copilot-app-linux"
-declare -r COPILOT_APP_IMAGE="${HOME}/Applications/GitHub-Copilot-linux-x64.AppImage"
+# Deliberately NOT in ~/Applications: AppImageLauncher's daemon watches that
+# directory, renames what it finds (..._<hash>.AppImage) and adds its own
+# appimagekit_*.desktop ("GitHub Copilot (1)"), which also breaks this path.
+declare -r COPILOT_APP_IMAGE="${HOME}/.local/share/github-copilot-app/GitHub-Copilot-linux-x64.AppImage"
 declare -r COPILOT_APP_ICON="${HOME}/.local/share/icons/hicolor/256x256/apps/github-copilot.png"
 declare -r COPILOT_APP_DESKTOP="${HOME}/.local/share/applications/github-copilot.desktop"
 
@@ -68,15 +71,22 @@ module_run() {
     # leave an executable-looking, truncated AppImage that satisfies the check
     # above on the next run.
     st::run_sh "download Copilot app AppImage" \
-      "set -e; mkdir -p '${HOME}/Applications'; curl -fL --progress-bar -o '${COPILOT_APP_IMAGE}.part' '${COPILOT_APP_URL}'; chmod +x '${COPILOT_APP_IMAGE}.part'; mv '${COPILOT_APP_IMAGE}.part' '${COPILOT_APP_IMAGE}'"
+      "set -e; mkdir -p '$(dirname "${COPILOT_APP_IMAGE}")'; curl -fL --progress-bar -o '${COPILOT_APP_IMAGE}.part' '${COPILOT_APP_URL}'; chmod +x '${COPILOT_APP_IMAGE}.part'; mv '${COPILOT_APP_IMAGE}.part' '${COPILOT_APP_IMAGE}'"
   fi
 
   # Icon: the AppImage root carries a 256x256 PNG, named with a space.
+  # Extracted with unsquashfs, not '--appimage-extract': that executes the image,
+  # and AppImageLauncher's binfmt handler intercepts that and dies with
+  # "execv(...) failed". The squashfs starts right after the ELF runtime, i.e.
+  # at e_shoff + e_shentsize * e_shnum.
   if [[ -f "${COPILOT_APP_ICON}" ]]; then
     st::noop "icon already present: ${COPILOT_APP_ICON}"
   elif (( ST_DRY_RUN )) || [[ -x "${COPILOT_APP_IMAGE}" ]]; then
+    # Only needed here; pulled in on stock Ubuntu by snapd, but declared
+    # explicitly so it is marked manual and survives removing snapd.
+    st::apt_install squashfs-tools binutils
     st::run_sh "extract launcher icon" \
-      "set -e; tmp=\$(mktemp -d); trap 'rm -rf \"\$tmp\"' EXIT; cd \"\$tmp\"; '${COPILOT_APP_IMAGE}' --appimage-extract 'GitHub Copilot.png' >/dev/null; mkdir -p '$(dirname "${COPILOT_APP_ICON}")'; cp 'squashfs-root/GitHub Copilot.png' '${COPILOT_APP_ICON}'"
+      "set -e; tmp=\$(mktemp -d); trap 'rm -rf \"\$tmp\"' EXIT; hdr=\$(readelf -h '${COPILOT_APP_IMAGE}'); off=\$(awk -F: '/Start of section headers/{a=\$2+0} /Size of section headers/{b=\$2+0} /Number of section headers/{c=\$2+0} END{print a+b*c}' <<<\"\$hdr\"); unsquashfs -q -o \"\$off\" -d \"\$tmp/root\" '${COPILOT_APP_IMAGE}' 'GitHub Copilot.png' >/dev/null; mkdir -p '$(dirname "${COPILOT_APP_ICON}")'; cp \"\$tmp/root/GitHub Copilot.png\" '${COPILOT_APP_ICON}'"
   fi
 
   local want
