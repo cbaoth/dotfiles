@@ -101,11 +101,11 @@ disabled = false
 
 # local: username shown only when relevant — root, another user, or a remote
 # session (also when sudo stripped the SSH_* variables, via CB_PROMPT_REMOTE).
-# Root gets a red block, not just red text: it has to catch the eye.
+# Root: red bold text only, the red block on the input line is the eye-catcher.
 [username]
 detect_env_vars = ["CB_PROMPT_REMOTE"]
 style_user = "bg:head fg:#090c0c"
-style_root = "bg:#db4b4b fg:#ffffff bold"
+style_root = "bg:head fg:#c54544 bold"
 format = "[$user ]($style)"
 
 # local: remote host, replaces the hostname module (see format above)
@@ -115,7 +115,20 @@ format = "[☍ $env_value ]($style)"  # same ssh marker as the old p9k prompt
 
 # local: root marker in front of the input line, old p9k style
 [env_var.CB_PROMPT_ROOT]
-format = "[ ▲ λ ](bg:#db4b4b fg:#ffffff bold)[](fg:#db4b4b) "
+format = "[ ▲ λ ](bg:#c54544 fg:#ffffff bold)[](fg:#c54544) "
+
+# local: input line, old p9k style λ block in the clock segment colours
+# (non-root; root shells drop $character, see above). Same width in every state
+# so the input column stays fixed: red ✘ = last command failed, blue λ on a
+# lighter block = vi command mode (`bindkey -v`; emacs mode is the default).
+[character]
+format = "$symbol "
+success_symbol = "[ λ ](bg:#1d2230 fg:#a0a9cb bold)[](fg:#1d2230)"
+error_symbol = "[ ✘ ](bg:#1d2230 fg:#c54544 bold)[](fg:#1d2230)"
+vimcmd_symbol = "[ λ ](bg:#394260 fg:#769ff0 bold)[](fg:#394260)"
+vimcmd_visual_symbol = "[ λ ](bg:#394260 fg:#769ff0 bold)[](fg:#394260)"
+vimcmd_replace_symbol = "[ λ ](bg:#394260 fg:#769ff0 bold)[](fg:#394260)"
+vimcmd_replace_one_symbol = "[ λ ](bg:#394260 fg:#769ff0 bold)[](fg:#394260)"
 
 [os.symbols]
 Windows = "󰍲"
