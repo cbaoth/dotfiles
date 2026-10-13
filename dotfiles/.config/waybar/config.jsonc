@@ -24,8 +24,8 @@
         "custom/power-warn",
         "power-profiles-daemon",
         "custom/sway-awake",
-        "tray",
         "pulseaudio",
+        "tray",
         "clock",
         "group/notification"
     ],

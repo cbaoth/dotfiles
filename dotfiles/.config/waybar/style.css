@@ -264,7 +264,7 @@ label:focus {
 
 /* TODO consider making the tray icons more visually distinct based on their state and generally improve contrast. most non-grayscale tray icons use bluish colors (blue on blue background can be hard to see) */
 #tray {
-    background-color: #2980b9;
+    background-color: #64727D;
 }
 
 #tray > .passive {
