@@ -15,6 +15,34 @@ LINK_FILE=$(realpath "$0")
 TOOLS_DIR=$(dirname "$LINK_FILE")
 REPO_ROOT=$(dirname "$TOOLS_DIR")
 HOME_SRC="${REPO_ROOT}/home"
+PROFILES_DIR="${TOOLS_DIR}/profiles"
+
+# Root guard, checked before anything from the repo is sourced: root must only
+# ever link (and later source) files no other user can modify. A repo owned by,
+# or writable by, a regular user would hand that user root on the next login.
+if (( EUID == 0 )); then
+  _root_home="$(getent passwd 0 | cut -d: -f6)"
+  if [[ "${HOME}" != "${_root_home}" ]]; then
+    echo "error: running as root but HOME='${HOME}' is not root's home '${_root_home}'" \
+         "(use 'sudo -i', not 'sudo' / 'sudo -E')" >&2
+    exit 1
+  fi
+  # the repo itself, everything in it (incl. .git: hooks run on 'git pull'),
+  # and every parent directory (a writable parent allows swapping the repo)
+  _unsafe="$(find "${REPO_ROOT}" ! -type l \( ! -user 0 -o -perm /022 \) -print -quit)"
+  _dir="${REPO_ROOT}"
+  while [[ -z "${_unsafe}" && "${_dir}" != / ]]; do
+    _dir="$(dirname -- "${_dir}")"
+    _unsafe="$(find "${_dir}" -maxdepth 0 \( ! -user 0 -o -perm /022 \) -print)"
+  done
+  if [[ -n "${_unsafe}" ]]; then
+    echo "error: running as root, but '${_unsafe}' is not owned by root or is" \
+         "group/world writable. Root needs its own root-owned clone, e.g.:" >&2
+    echo "  git clone https://github.com/cbaoth/dotfiles.git /root/dotfiles" >&2
+    exit 1
+  fi
+  unset _root_home _unsafe _dir
+fi
 
 # Source linking configuration (repo_dir:home_dir sync pairs)
 # shellcheck source=/dev/null
@@ -28,19 +56,32 @@ KEEP_LAST_BAKS=10
 BACKUP_DIR_READY=false
 DRY_RUN=false
 VERBOSE=0
+PROFILE=""
 
 # simple args parsing
 usage() {
-  echo "Usage: $(basename "$0") [--dry-run|-n] [-v|-vv|--verbose[=N]] [--help|-h]" >&2
-  echo "  -v             Increase verbosity (info)" >&2
-  echo "  -vv            Increase verbosity more (debug)" >&2
-  echo "  --verbose=N    Set verbosity level explicitly (0=quiet,1=info,2=debug)" >&2
+  echo "Usage: $(basename "$0") [--dry-run|-n] [-p|--profile NAME] [-v|-vv|--verbose[=N]] [--help|-h]" >&2
+  echo "  -n, --dry-run       Print changes, change nothing" >&2
+  echo "  -p, --profile NAME  Link only what tools/profiles/NAME.list allows" >&2
+  echo "                      (default: 'root' when run as root, else everything)" >&2
+  echo "  -v                  Increase verbosity (info)" >&2
+  echo "  -vv                 Increase verbosity more (debug)" >&2
+  echo "  --verbose=N         Set verbosity level explicitly (0=quiet,1=info,2=debug)" >&2
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -n|--dry-run)
       DRY_RUN=true
+      shift
+      ;;
+    -p|--profile)
+      [[ -n "${2:-}" ]] || { echo "error: $1 requires a profile name" >&2; usage; exit 2; }
+      PROFILE="$2"
+      shift 2
+      ;;
+    --profile=*)
+      PROFILE="${1#*=}"
       shift
       ;;
     -vv)
@@ -83,8 +124,8 @@ vlog() { # usage: vlog <level> <message...>
 info() { vlog 1 "$@"; }
 debug() { vlog 2 "$@"; }
 
-# safety check before we create wrong links
-[ ! -d "${REPO_ROOT}/.git" ] \
+# safety check before we create wrong links (-e: .git is a file in a worktree)
+[ ! -e "${REPO_ROOT}/.git" ] \
   && echo "error: .git not found in ${REPO_ROOT}, this doesn't seem to be the right folder" \
   && exit 1
 [ ! -d "${HOME_SRC}" ] \
@@ -103,6 +144,41 @@ for _sync_src in "${!SYNC_DIRS[@]}"; do
     && exit 1
 done
 unset _sync_src
+
+# Profile: an allowlist of repo-relative globs (tools/profiles/NAME.list), one
+# per line, '#' comments. Matched with [[ == ]], so '*' also crosses '/'. Root
+# always gets a profile: default-deny, a new file reaches root only when listed.
+(( EUID == 0 )) && [[ -z "${PROFILE}" ]] && PROFILE=root
+typeset -a PROFILE_GLOBS=()
+typeset -A PROFILE_HITS=()
+if [[ -n "${PROFILE}" ]]; then
+  _profile_file="${PROFILES_DIR}/${PROFILE}.list"
+  [[ -f "${_profile_file}" ]] \
+    || { echo "error: profile not found: ${_profile_file}" >&2; exit 1; }
+  while IFS= read -r _glob; do
+    _glob="${_glob%%#*}"
+    _glob="${_glob%"${_glob##*[![:space:]]}"}"
+    _glob="${_glob#"${_glob%%[![:space:]]*}"}"
+    [[ -n "${_glob}" ]] && PROFILE_GLOBS+=("${_glob}")
+  done < "${_profile_file}"
+  (( ${#PROFILE_GLOBS[@]} > 0 )) \
+    || { echo "error: profile is empty: ${_profile_file}" >&2; exit 1; }
+  unset _profile_file _glob
+fi
+
+# predicate: is the repo-relative path allowed by the active profile (if any)?
+in_profile() {
+  local path="$1" glob
+  [[ -z "${PROFILE}" ]] && return 0
+  for glob in "${PROFILE_GLOBS[@]}"; do
+    # shellcheck disable=SC2053  # unquoted on purpose: glob match
+    if [[ "${path}" == ${glob} ]]; then
+      PROFILE_HITS["${glob}"]=1
+      return 0
+    fi
+  done
+  return 1
+}
 
 # format command arguments for display
 format_cmd() {
@@ -161,10 +237,13 @@ typeset -a ERRORS
 # LINK_DIRS (link-config.conf): directories linked as a whole; exclude them
 # (and their contents) from the per-file scan below
 typeset -a LINK_DIRS_EXCLUDE=()
+typeset -a LINK_DIRS_ACTIVE=()
 for _ld in "${LINK_DIRS[@]}"; do
+  LINK_DIRS_EXCLUDE+=(! -path "${HOME_SRC}/${_ld}" ! -path "${HOME_SRC}/${_ld}/*")
+  in_profile "home/${_ld}" || continue
   [[ -d "${HOME_SRC}/${_ld}" ]] \
     || { echo "error: LINK_DIRS entry not a directory in home/: ${_ld}" >&2; exit 1; }
-  LINK_DIRS_EXCLUDE+=(! -path "${HOME_SRC}/${_ld}" ! -path "${HOME_SRC}/${_ld}/*")
+  LINK_DIRS_ACTIVE+=("${_ld}")
 done
 unset _ld
 
@@ -192,6 +271,11 @@ while IFS= read -r -d '' f; do
   # symlinked source must be linked at its logical location, not its target's)
   relpath=$(realpath -s --relative-to "$HOME_SRC" "$f")
   target=$HOME/$relpath
+  # profile: files only; their parent dirs are created on demand below
+  if [[ -n "${PROFILE}" ]]; then
+    [[ -d "$f" ]] && continue
+    in_profile "home/${relpath}" || { debug "Not in profile '${PROFILE}', skipping: $relpath"; continue; }
+  fi
   info ""
   info "Processing: $relpath -> $HOME/$relpath ..."
   info "SRC: $relpath"
@@ -228,6 +312,7 @@ while IFS= read -r -d '' f; do
           backup_existing "$target" "$relpath" " file" " but is a regular file instead of symlink" || continue
       fi
     fi
+    [[ -d "$(dirname -- "$target")" ]] || run_and_report mkdir -p -- "$(dirname -- "$target")"
     info "Creating new SymLink: '$f' -> '$target'"
       run_and_report ln -sf -- "$f" "$target"
   fi
@@ -236,7 +321,7 @@ done < <(find "$HOME_SRC" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PAT
 
 # Link each LINK_DIRS directory as a single symlink. Runs after the per-file
 # loop so the parent directory (e.g. ~/.config) already exists.
-for relpath in "${LINK_DIRS[@]}"; do
+for relpath in "${LINK_DIRS_ACTIVE[@]}"; do
   src="${HOME_SRC}/${relpath}"
   target="${HOME}/${relpath}"
   info ""
@@ -286,6 +371,12 @@ sync_dir() {
 
   typeset -A seen_names
   while IFS= read -r -d '' src_file; do
+    # not in profile: skip, and leave it unseen so the stale-link cleanup
+    # below removes an existing link (e.g. after switching profiles)
+    if ! in_profile "${src_file#"${REPO_ROOT}/"}"; then
+      debug "Not in profile '${PROFILE}', skipping: ${src_file#"${REPO_ROOT}/"}"
+      continue
+    fi
     local base_name
     base_name="$(basename "$src_file")"
     seen_names["$base_name"]=1
@@ -327,6 +418,16 @@ sync_dir() {
 for repo_dir in "${!SYNC_DIRS[@]}"; do
   sync_dir "$repo_dir" "${SYNC_DIRS[$repo_dir]}"
 done
+
+# a profile glob that matched nothing is likely a renamed/deleted file
+for _glob in "${PROFILE_GLOBS[@]}"; do
+  if [[ -z "${PROFILE_HITS[${_glob}]:-}" ]]; then
+    _msg="Profile '${PROFILE}': '${_glob}' matches no file (renamed or removed?)"
+    WARNINGS+=("${_msg}")
+    echo -e "\e[33mWARNING: ${_msg}\e[0m" >&2
+  fi
+done
+unset _glob _msg
 
 # report all warnings and errors (if any)
 if [ ${#WARNINGS[@]} -gt 0 ]; then

@@ -1,0 +1,67 @@
+# Profile 'root': what tools/link.sh links when run as root (default-deny).
+#
+# One glob per line, relative to the repo root; '*' also matches '/'.
+# Before adding a file, check that it is safe to run/source as root:
+# - no hardcoded /home/<user> paths or usernames (root would write into, or
+#   chown, files in a user's home)
+# - no fixed /tmp file names written to (symlink clobbering), use mktemp
+# - nothing desktop/session specific (sway, X clipboard, GUI players)
+# See docs/linking-system.md (Profiles).
+
+# {{{ - Shell core -----------------------------------------------------------
+home/.zshenv
+home/.zshrc
+home/.zlogout
+home/.common_env
+home/.common_rc
+home/.aliases
+home/.bashrc
+home/.bash_profile
+home/.bash_logout
+home/.vimrc
+home/.lessfilter
+home/.tmux.conf
+home/.config/starship.toml
+home/.zsh.d/auto-rehash.zsh
+home/.zsh.d/aliases.zsh
+home/.zsh.d/aliases-linux.zsh
+# }}} - Shell core -----------------------------------------------------------
+
+# {{{ - OS/host specific (each is only sourced on its own os/host) -----------
+# Not linux_wsl: it runs `loginctl enable-linger 1000` and a $HOME pageant.
+home/.zsh.d/zshrc-saito.zsh
+home/.zsh.d/zshrc-motoko.zsh
+home/.zsh.d/zshrc-puppet.zsh
+home/.zsh.d/zshrc-11001001_org.zsh
+home/.zsh.d/zshrc-freebsd.zsh
+home/.zsh.d/aliases-11001001_org.zsh
+lib/aliases-saito.sh
+lib/aliases-motoko.sh
+lib/aliases-puppet.sh
+lib/aliases-freebsd.sh
+lib/env-saito.sh
+lib/env-11001001_org.sh
+# }}} - OS/host specific -----------------------------------------------------
+
+# {{{ - Libraries ------------------------------------------------------------
+lib/commons.sh
+lib/functions.sh
+lib/aliases-linux.sh
+# }}} - Libraries ------------------------------------------------------------
+
+# {{{ - Admin tools ----------------------------------------------------------
+bin/apt-update
+bin/check-release-updates
+bin/net-info
+bin/hw-watch
+bin/netshare-bench
+bin/hsync
+bin/rsynclt
+bin/rsync-parallel-backup
+bin/mv-merge
+bin/diff-ini
+bin/colorize-text
+bin/date-range
+bin/aria2c-d
+bin/wget-p
+# }}} - Admin tools ----------------------------------------------------------
