@@ -39,6 +39,13 @@ dotfiles-link -vv          # verbose/debug output
 - Configuration: `tools/link-config.conf`; excludes: `tools/.linkignore`.
   Architecture and troubleshooting: `docs/linking-system.md`.
 
+**Root** has its own root-owned clone (`/root/dotfiles`) and links only the
+allowlist `tools/profiles/root.list` (`link.sh` selects it automatically as
+root). A new file reaches root only by being added there, and only after
+checking it for hardcoded `/home/<user>` paths, fixed `/tmp` names it writes,
+and desktop/session dependencies. Never point root at a user's clone. See
+*Profiles* in `docs/linking-system.md` and `docs/setup/root-shell.md`.
+
 ## Style Guides (path-scoped, single source of truth)
 
 Coding conventions live in `.github/instructions/*.instructions.md` and are

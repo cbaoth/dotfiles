@@ -53,6 +53,8 @@ notes cross-link to the `setup/` module that automates them. See
 - Portability is a core goal: the `home/` + `bin/` + `lib/` + `tools/link.sh`
   approach is intentionally dependency-free and should work without additional
   packages or root access.
+- Root gets a trimmed, root-safe subset from its own root-owned clone:
+  [docs/setup/root-shell.md](docs/setup/root-shell.md).
 - Restricted-host support matters: basic setup should still be usable on
   systems with only `bash` available (no `zsh`, no extra tooling).
 - If not clearly `ZSH` related, all alias, function, etc. files should be `Bash` compatible _(but not always POSIX compliant)_.
@@ -164,7 +166,7 @@ Scripts intended for system administrators or privileged operations (some requir
 
 | File | Description |
 |---|---|
-| `tools/link.sh` | Symlink all files in `home/` to the user's home directory. Missing directories are created in the process. Existing files that would be overwritten are moved to a backup location. |
+| `tools/link.sh` | Symlink all files in `home/` to the user's home directory. Missing directories are created in the process. Existing files that would be overwritten are moved to a backup location. Run as root it links only the allowlist `tools/profiles/root.list` (see [docs/setup/root-shell.md](docs/setup/root-shell.md)). |
 | `tools/permissions.sh` | Update dotfile repo file permissions. |
 | `tools/fix-modelines.py` | Normalize and deduplicate editor modelines (Emacs, Vim, VS Code, ShellCheck) across shell scripts. |
 | `tools/fix-style.sh` | Apply style fixes to shell scripts. |

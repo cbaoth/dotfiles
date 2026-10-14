@@ -231,6 +231,44 @@ Example: If you want to exclude a specific file pattern from the nested `home/` 
 
 Patterns only affect the nested `home/` scanning. The flat `bin/` and `lib/` syncing is not filtered by `.linkignore`.
 
+### Profiles (root)
+
+A profile is an **allowlist**: `tools/profiles/NAME.list`, one glob per line,
+relative to the repo root (`home/.zshrc`, `bin/rsynclt`, `lib/aliases-*.sh`),
+`#` comments. Matching uses bash `[[ == ]]`, so `*` also matches `/`.
+
+```bash
+./tools/link.sh --profile root --dry-run -v
+```
+
+- **No profile** (default for regular users): everything is linked, as before.
+- **Root always gets one**: run as root, `link.sh` defaults to `root`. It is
+  default-deny, so a new desktop or personal file never reaches root by
+  accident. It reaches root only once it is added to `root.list`.
+- Only files are linked; `home/` directories are created on demand for them.
+  Out-of-profile `bin/`/`lib/` links are removed by the stale-link cleanup.
+  `home/` tree links are never pruned (true without profiles, too), so
+  switching an existing `$HOME` from no profile to a profile leaves the old
+  tree links in place. Root starts from a fresh clone, so this does not arise.
+- A glob that matches no file is reported as a warning (renamed or deleted).
+
+**Root guards.** As root, `link.sh` refuses to run (before it sources any
+repo file) unless `$HOME` is root's home and the repo, everything in it incl.
+`.git`, and every parent directory is root-owned and not group/world
+writable. Root must never link into a regular user's clone: anything that
+user can write, root would source or execute, and `.git/hooks` run on
+`git pull`. Root therefore gets its own clone, see
+[`docs/setup/root-shell.md`](setup/root-shell.md).
+
+**Before adding a file to `root.list`**, check that it is safe as root:
+
+- no hardcoded `/home/<user>` paths or usernames (root would write into, or
+  chown, files in a user's home)
+- no fixed `/tmp` file names it writes to (symlink clobbering; use `mktemp`)
+- nothing desktop/session specific (sway, X clipboard, GUI players)
+- host files (`*-<host>.sh`, `zshrc-<host>.zsh`): read them, they run as root
+  on that host
+
 ## Troubleshooting
 
 ### New File Not Appearing in $HOME
