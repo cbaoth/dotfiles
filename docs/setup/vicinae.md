@@ -1,9 +1,9 @@
 ---
 title: Vicinae launcher
-hosts: [puppet]
+hosts: [puppet, motoko]
 status: resolved
 tags: [vicinae, launcher, sway, wayland, appimage, systemd, rofi]
-updated: 2026-10-10
+updated: 2026-10-14
 automated_by: setup/modules/26-vicinae.sh
 ---
 
@@ -29,6 +29,10 @@ unit in `/usr/local/lib/systemd/user`.
   Update with `VICINAE_UPDATE=1 system-setup 26-vicinae`.
 - The module then enables the user service: `systemctl --user enable --now vicinae`.
   Without a systemd user session it only warns.
+  `enable` alone does not start it at login here: the unit is
+  `WantedBy=graphical-session.target`, which the sway session never activates.
+  `90-launch-apps.conf` starts it explicitly (`exec systemctl --user start
+  vicinae.service`); without that, `$mod+space` silently falls back to rofi.
 
 ## Gotcha: `permission denied: vicinae` after install
 

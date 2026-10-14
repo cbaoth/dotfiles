@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# sway-lock: lock the screen (swaylock) and re-prompt for locked secret stores after unlock.
+#
+# Every lock site (keybindings, swayidle timeout and before-sleep) goes through
+# this instead of calling swaylock directly. Why: lock-secrets locks KeePassXC
+# and gnome-keyring on the 30min idle hook and before sleep, but only a resume
+# ran unlock-secrets. An idle lock that never suspended left the stores locked
+# with no prompt -- Vicinae (keyring-encrypted data) and VS Code's SSH remotes
+# then failed silently (2026-10-14).
+#
+# After swaylock has engaged, a detached `unlock-secrets --wait-for-unlock`
+# waits for it to exit and raises the prompts. Stores that are still unlocked
+# (short break, under the idle threshold) are skipped, so a short break costs
+# only the swaylock password. unlock-secrets allows one waiter at a time, so the
+# after-resume hook and repeated locks do not stack.
+#
+# Usage: sway-lock [SWAYLOCK_ARGS...]   (default: -c 000000; -f is always set)
+#
+# See also: bin/lock-secrets, bin/unlock-secrets,
+#   docs/troubleshooting/secret-stores-locked-after-resume.md
+
+SCRIPT_DIR="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
+declare -r SCRIPT_DIR
+
+# No errexit: the waiter must start even if swaylock fails (e.g. another
+# swaylock already holds the session lock, in which case one is still needed).
+set -o errtrace
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+trap 'printf "\nINTERRUPT\n" >&2; exit 1' SIGINT SIGTERM
+
+# {{{ = CONSTANTS ============================================================
+declare -ra DEFAULT_ARGS=(-c 000000)
+# }}} = CONSTANTS ============================================================
+
+main() {
+  local -a args=("$@")
+  (( ${#args[@]} > 0 )) || args=("${DEFAULT_ARGS[@]}")
+
+  # -f: return once the lock surface is up, so callers can chain on it
+  # (`sway-lock && systemctl suspend`, swayidle before-sleep).
+  swaylock -f "${args[@]}"
+  local -ri rc=$?
+
+  # setsid -f: fully detached, so swayidle -w does not wait on it and it
+  # survives the caller. --timeout 0: wait however long the screen stays locked.
+  setsid -f "${SCRIPT_DIR}/unlock-secrets" --wait-for-unlock --timeout 0 \
+    < /dev/null &> /dev/null
+
+  return "${rc}"
+}
+
+main "$@"

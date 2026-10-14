@@ -3,7 +3,7 @@ title: Secret stores stay locked and silent after resume (keyring, KeePassXC)
 hosts: [motoko]
 status: workaround
 tags: [keyring, keepassxc, secrets, suspend, dbus, sway, swayidle, apparmor, flatpak]
-updated: 2026-10-13
+updated: 2026-10-14
 ---
 
 # Secret stores stay locked and silent after resume
@@ -406,3 +406,44 @@ involved — only the flatpak was running.
 `lock-secrets -v`): the lock left it in the agent, the WARN fired, KeePassXC was
 restarted locked, and after unlocking it both real keys were back (`ssh-add -L`,
 `ssh saito` works). Not yet seen: a real Nextcloud reload → idle lock → restart.
+
+## 2026-10-14: idle lock without suspend never re-prompts
+
+Symptom: back at the desk after a break, unlocked swaylock, and nothing asked
+for the keyring or KeePassXC. No suspend had happened.
+
+Timeline from the logs:
+
+| Time | Event |
+| ---- | ----- |
+| 13:00 | sway login; keyring and KeePassXC unlocked by hand |
+| 14:11 | 30min idle hook: `lock-secrets --ssh` locked KeePassXC, `login`, `Default_keyring` |
+| later | swaylock unlocked; `unlock-secrets.log` has no entry |
+
+Cause: `unlock-secrets` was only on `after-resume`. The idle hook locks the
+stores without any sleep, so nothing fired on the way back. Manual `$mod+l` had
+the same gap.
+
+Side finding: KeePassXC's own "lock when session is locked" does not fire on
+`$mod+l` either (database still open seconds after a lock/unlock cycle),
+consistent with swaylock not emitting a logind Lock signal (see above).
+
+**Fix:** `bin/sway-lock` wraps swaylock for every lock site (keybindings,
+`timeout 900`, `before-sleep`) and starts a detached
+`unlock-secrets --wait-for-unlock --timeout 0` right after the lock engages.
+Stores still unlocked are skipped, so a short break costs only the swaylock
+password. `--timeout 0` (new: no limit) because a plain idle lock can last
+longer than the old 1h default; the single-waiter flock keeps it to one
+process. The 30min grace before the stores lock is unchanged.
+
+**Verified 2026-10-14** (after restarting swayidle with the new hooks):
+`lock-secrets -v` + `$mod+l` + unlock raised both the KeePassXC and the keyring
+prompt; a short `$mod+l` with the stores unlocked raised nothing.
+
+**Open: one KeePassXC miss.** The first real idle lock (16:33 → 19:50, stores
+locked by the 30min hook at 16:48) raised the keyring prompt, but no KeePassXC
+window appeared. The log says `KeePassXC: raised (flatpak)` and the journal
+shows the `flatpak run` scope starting, exactly as in the runs that worked, so
+the hand-off to the running instance happened. Cause unconfirmed. Next time,
+check where the window went before touching anything:
+`swaymsg -t get_tree | jq '.. | objects | select(.app_id? | test("(?i)keepass")?) | {name, visible, focused}'`
