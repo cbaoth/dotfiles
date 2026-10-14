@@ -4,6 +4,9 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# Update apt package indexes quietly and store the last update timestamp.
+# Update apt package indexes quietly and store the last update timestamp
+# (per user, in the XDG cache dir; read by the agu/apu aliases).
 
-apt-get -q -y update >/dev/null && date +%s > /tmp/last_apt_update
+declare -r STAMP_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}"
+apt-get -q -y update >/dev/null \
+  && mkdir -p "${STAMP_DIR}" && date +%s > "${STAMP_DIR}/last_apt_update"

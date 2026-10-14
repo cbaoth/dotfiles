@@ -138,7 +138,7 @@ fi
 # shared session
 export HISTSIZE=10000 # set in-memory history limit
 export SAVEHIST=10000 # set history file limit
-export HISTFILE="$ZDOTDIR/.zhistory" # set history file (default: ~/.zsh_history)
+export HISTFILE="${ZDOTDIR:-$HOME}/.zhistory" # set history file (default: ~/.zsh_history)
 
 setopt INC_APPEND_HISTORY # write immediately (default: on exit only)
 #setopt HIST_IGNORE_DUPS # don't add duplicates

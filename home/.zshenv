@@ -32,7 +32,8 @@ fi
 typeset -U PATH path
 typeset -U LD_LIBRARY_PATH
 
-# If ZDOTDIR is not set, then the value of $HOME is (usually) used but ZDOTDIR stays unset.
-# Since we specifically use it in some places (primarily .zshrc) it should always be set here.
+# ZDOTDIR is deliberately NOT exported: zsh falls back to $HOME anyway, and an
+# exported ZDOTDIR survives `su` (without -) and `sudo -E`, so a root zsh would
+# read this user's rc files (writable by the user = root escalation) and write
+# a root-owned history into the user's home. Use ${ZDOTDIR:-$HOME} instead.
 #export ZDOTDIR="$HOME/.zsh"
-export ZDOTDIR="$HOME"

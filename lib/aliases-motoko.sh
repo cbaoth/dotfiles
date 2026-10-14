@@ -23,6 +23,7 @@ alias mount-saito='__mount_mountpoints /srv/saito/*/'
 alias umount-saito='__mount_mountpoints -u /srv/saito/*/'
 alias mount-all='mount-win; mount-saito'
 alias umount-all='umount-win; umount-saito'
+alias mount-saito-data='sudo mount -t cifs -o username=cbaoth,credentials=/etc/samba/cred-file,uid=cbaoth,gid=cbaoth,file_mode=0777,dir_mode=0777,iocharset=utf8 //saito/data /media/data'
 # }}} - MOUNT ----------------------------------------------------------------
 
 return 0

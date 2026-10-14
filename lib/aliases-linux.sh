@@ -193,8 +193,8 @@ if [[ -n "$(command -v apt-get 2>/dev/null)" ]]; then
   alias agu!="sudo apt-get update" # apt update
   # update cache, but no more than ones per hour (if sucessfull)
   # until implemented: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1709603
-  alias agu='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
-                agu! && date +%s > /tmp/last_apt_update
+  alias agu='if (( $(( $(date +%s) - $(cat "${XDG_CACHE_HOME:-$HOME/.cache}/last_apt_update" 2>/dev/null || echo 0) )) > 3600 )); then
+                agu! && mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}" && date +%s > "${XDG_CACHE_HOME:-$HOME/.cache}/last_apt_update"
               else
                 echo "> last apt update less than an hour ago, skipping (use agu! to force) ..."
               fi'
@@ -280,8 +280,8 @@ if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
 
   # update
   alias apu!="sudo apt update"
-  alias apu='if (( $(( $(date +%s) - $(cat /tmp/last_apt_update 2>/dev/null || echo 0) )) > 3600 )); then
-                apu! && date +%s > /tmp/last_apt_update
+  alias apu='if (( $(( $(date +%s) - $(cat "${XDG_CACHE_HOME:-$HOME/.cache}/last_apt_update" 2>/dev/null || echo 0) )) > 3600 )); then
+                apu! && mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}" && date +%s > "${XDG_CACHE_HOME:-$HOME/.cache}/last_apt_update"
               else
                 echo "> last apt update less than an hour ago, skipping (use apu! to force) ..."
               fi'
