@@ -4,7 +4,7 @@ hosts: [all]
 status: open
 revisit: 2026-12
 tags: [emacs, editor, terminal, zsh, vscode, keyboard]
-updated: 2026-10-12
+updated: 2026-10-15
 automated_by: setup/modules/00-apt-base.sh
 ---
 
@@ -64,6 +64,10 @@ Repo: `dotfiles/.config/emacs/{early-init.el,init.el}` → `~/.config/emacs/`
 > `ln -s ~/.config/emacs ~/.emacs.d`, so both paths are the same directory.
 > Check with `emacsclient --eval user-init-file`; `emacs --batch` never loads
 > the init file, so it always reports `nil`.
+>
+> Bit on motoko too (2026-10-15): a `~/.emacs.d/` left over from an Emacs
+> run in 2026-04, before the config existed. Symptoms: the splash screen in a
+> split window next to the file, and the light default theme.
 
 `dotfiles-link` links files, not directories, so `~/.config/emacs/` is a real
 directory. Everything Emacs writes stays there, outside the repo:
@@ -83,6 +87,21 @@ Principles:
   when a gap hurts; see *Packages*.
 - **Relearning aids on:** which-key, the menu bar (`F10`, in a terminal too),
   `help-window-select`.
+
+### Theme
+
+Built-in **Modus Vivendi**, recolored to **GitHub Dark Default** (the theme
+in VS Code and foot) via `modus-vivendi-palette-overrides` in `init.el`.
+Overrides instead of a MELPA theme: it stays built in (offline, every host),
+and Modus covers far more faces (diff, org, magit, …) than a small port.
+The alternative, if the look is not close enough:
+[`github-dark-vscode-theme`](https://github.com/justintime50/github-dark-vscode-emacs-theme)
+on MELPA.
+
+- Tweak: edit a color in the `setq`, `C-M-x` on it, then `M-x load-theme RET
+  modus-vivendi`. Names and preview: `M-x modus-themes-list-colors-current`.
+- Try others: `M-x modus-themes-select` (Modus family), `M-x load-theme` (all
+  installed; `M-x disable-theme` the current one first, themes stack).
 
 ## Ways to run it
 
@@ -230,6 +249,11 @@ keeping are in the new `init.el`; the rest is commented out there.
       the screen habit; `C-b` would only move the clash to backward-char.
 - [ ] Try chrome-emacs + atomic-chrome in daily use (daemon set up
       2026-10-12, server verified listening; browser side untested).
+- [ ] motoko runs the **snap** `emacs` 31.1 (classic, `/snap/bin` in PATH),
+      not `emacs-pgtk`: an X11/GTK3 build (XWayland), and it ships no
+      `emacs.service`, so sway's `systemctl --user start emacs.service`
+      fails and no daemon (or atomic-chrome) runs. Decide: apt
+      `emacs-pgtk` (30.2) as documented, or keep the snap (31.1) and adapt.
 - [ ] New desktop host: `ln -s ~/.config/emacs ~/.emacs.d` (see *Config*
       gotcha), then log in to sway once so the daemon installs atomic-chrome.
 - [ ] Packages, only when a gap hurts. Candidates: magit (git), vertico,

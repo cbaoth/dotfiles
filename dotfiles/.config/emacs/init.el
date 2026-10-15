@@ -112,7 +112,35 @@ shebang added if there is none."
 
 ;;; Look
 
-;; Built-in dark theme, readable in a 256-color terminal too.
+;; Built-in dark theme (Modus Vivendi), readable in a 256-color terminal too,
+;; recolored to GitHub Dark Default, the theme in VS Code and foot. Built in,
+;; so it starts offline on every host.
+;; - Tweak: change a color below, C-M-x (eval) the setq, then M-x load-theme
+;;   RET modus-vivendi. Overridable names (left column), with a preview:
+;;   M-x modus-themes-list-colors-current.
+;; - Stock Modus Vivendi: comment out the setq.
+;; - Try other themes live: M-x modus-themes-select (Modus family, swaps
+;;   cleanly) or M-x load-theme (all themes; TAB lists them). load-theme
+;;   stacks themes, so M-x disable-theme the current one first.
+;; - Make one permanent: change the load-theme line.
+(setq modus-vivendi-palette-overrides
+      '(;; Base: GitHub Dark Default (Primer) canvas, text, borders
+        (bg-main "#0d1117") (bg-dim "#161b22") (fg-main "#e6edf3")
+        (fg-dim "#8b949e") (bg-active "#30363d") (bg-inactive "#161b22")
+        (border "#30363d") (cursor "#2f81f7")
+        (bg-hl-line "#161b22") (bg-region "#264f78") (fg-region unspecified)
+        (bg-paren-match "#1b4721")
+        (bg-mode-line-active "#161b22") (fg-mode-line-active "#e6edf3")
+        (border-mode-line-active "#30363d")
+        (bg-mode-line-inactive "#0d1117") (fg-mode-line-inactive "#8b949e")
+        (bg-line-number-active "#0d1117") (bg-line-number-inactive "#0d1117")
+        (fg-line-number-active "#e6edf3") (fg-line-number-inactive "#6e7681")
+        (fg-link "#58a6ff")
+        ;; Syntax: GitHub "prettylights" colors
+        (keyword "#ff7b72") (preprocessor "#ff7b72") (string "#a5d6ff")
+        (docstring "#a5d6ff") (comment "#8b949e") (fnname "#d2a8ff")
+        (constant "#79c0ff") (builtin "#79c0ff") (type "#ffa657")
+        (variable "#ffa657")))
 (load-theme 'modus-vivendi t)
 
 ;; GUI font: the first installed one wins (setup/modules/40-fonts.sh installs
