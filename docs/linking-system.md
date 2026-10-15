@@ -245,6 +245,9 @@ relative to the repo root (`home/.zshrc`, `bin/rsynclt`, `lib/aliases-*.sh`),
 - **Root always gets one**: run as root, `link.sh` defaults to `root`. It is
   default-deny, so a new desktop or personal file never reaches root by
   accident. It reaches root only once it is added to `root.list`.
+- `LINK_DIRS` and `HOME_LINKS` entries apply only when their directory is
+  listed itself (`home/.config/vicinae`; for `HOME_LINKS` the target, e.g.
+  `home/.config/emacs`).
 - Only files are linked; `home/` directories are created on demand for them.
   Out-of-profile `bin/`/`lib/` links are removed by the stale-link cleanup.
   `home/` tree links are never pruned (true without profiles, too), so

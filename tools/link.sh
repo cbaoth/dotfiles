@@ -340,7 +340,11 @@ done
 
 # Link HOME_LINKS paths to other $HOME paths (e.g. ~/.emacs.d -> ~/.config/emacs).
 # Runs after the loops above so the target directory already exists.
+# Profile: only when the target itself (home/<target>) is listed, otherwise
+# root would get a dangling link, or have a real ~/.emacs.d moved to backup.
 for relpath in "${!HOME_LINKS[@]}"; do
+  in_profile "home/${HOME_LINKS[$relpath]}" \
+    || { debug "Not in profile '${PROFILE}', skipping home link: $relpath"; continue; }
   target="${HOME}/${relpath}"
   dest="${HOME}/${HOME_LINKS[$relpath]}"
   info ""
