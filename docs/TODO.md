@@ -627,6 +627,7 @@ curl -fsSL https://install.determinate.systems/nix | sh -s -- install
 curl https://sh.rustup.rs -sSf | sh
 
 # https://github.com/VocaHQ/vocalinux/blob/main/docs/INSTALL.md
+# done (2026-10-14): system-setup 33-vocalinux (VOCALINUX_UPDATE=1 to update), see docs/setup/vocalinux.md
 curl -fsSL https://raw.githubusercontent.com/VocaHQ/vocalinux/main/install.sh -o /tmp/vl.sh
 bash /tmp/vl.sh
 # note: snap may be an option in the future (iirc still in review, thus old version or manual download only), in which case auto update would be convenient.
