@@ -137,7 +137,7 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | `bin/quicknote` | Append timestamped quick notes to the logical day's file in `~/notes/inbox/` (day starts at 04:00, `QN_DAY_START`), or as a `- [ ]` bullet to *Quick Notes* in `docs/TODO.md`. Zsh front-end in `.zsh.d/quicknote.zsh`: `qn TEXT` / `qn -- RAW TEXT` (quotes, backticks and `\n` taken literally) / `qn` (multi-line prompt) / `qne` (new note in `$EDITOR`) / `qnee [DATE]` (edit a day file, 3-way merge on save); `qt`/`qte` target the TODO. Drafts survive a killed editor; `quicknote --resolve` recovers them. `voice-note` saves through it. |
 | `bin/rsync-parallel-backup` | Parallel rsync backup. |
 | `bin/rsynclt` | rsync with limited throughput. |
-| `bin/voice-note` | Dictate a quick note: records with `pw-record`, transcribes locally with whisper.cpp (`start`/`stop`/`toggle`/`status`), and appends it to today's file in `~/notes/inbox/`. No text injection and no focused window needed. Bound to AltGr-F6 (toggle) and AltGr-F5 (hold) in sway. |
+| `bin/voice-note` | Dictate a quick note: records with `pw-record`, transcribes locally with whisper.cpp (`start`/`stop`/`toggle`/`status`), and appends it to today's file in `~/notes/inbox/`. No text injection and no focused window needed. Bound to AltGr-F6 (toggle) and AltGr-F5 (hold) in sway; `sway-lock` stops and saves a running recording on every lock and suspend. |
 | `bin/video-cycle` | Turn a video into a seamless ping-pong loop by appending the reversed frames (the video counterpart of `anim-cycle`), using ffmpeg. |
 | `bin/wget-p` | Parallel file fetching wrapper for wget. |
 | `bin/while-read` | Execute a command for each line read from stdin. |

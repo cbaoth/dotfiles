@@ -16,6 +16,10 @@ set -o nounset
 
 # {{{ = CONSTANTS =============================================================
 
+# Absolute path to this script, for the auto-stop watchdog that re-invokes it.
+SELF="$(readlink -f -- "${BASH_SOURCE[0]}")"
+declare -r SELF
+
 declare -r NOTE_DIR="${VOICE_NOTE_DIR:-${QN_DIR:-${NOTES_DIR:-${HOME}/notes}/inbox}}"
 
 # Recording state lives in the runtime dir: tmpfs, per-user, wiped on logout, so
@@ -179,6 +183,11 @@ do_start() {
   # Auto-stop guard. It re-reads the pid file before firing so a recording
   # started after this one finished can never be killed by a stale watchdog.
   #
+  # It runs a full `stop`, not a bare kill of pw-record: a bare kill left the
+  # WAV untranscribed and the pid file stale, so the next `start` deleted it --
+  # the whole recording lost. The kill is only the fallback for a `stop` that
+  # was dropped as busy (another voice-note held the lock).
+  #
   # `exec 9>&-` is load-bearing: the subshell would otherwise inherit the flock
   # on fd 9 and hold it for MAX_SECONDS, so every later command — including the
   # stop for this very recording — would fail with "another voice-note is
@@ -186,6 +195,8 @@ do_start() {
   (
     exec 9>&-
     sleep "${MAX_SECONDS}"
+    [[ -f "${PID_FILE}" && "$(< "${PID_FILE}")" == "${pid}" ]] || exit 0
+    "${SELF}" stop
     [[ -f "${PID_FILE}" && "$(< "${PID_FILE}")" == "${pid}" ]] \
       && kill -TERM "${pid}" 2> /dev/null
   ) > /dev/null 2>&1 &

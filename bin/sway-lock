@@ -19,6 +19,9 @@
 # only the swaylock password. unlock-secrets allows one waiter at a time, so the
 # after-resume hook and repeated locks do not stack.
 #
+# It also stops a running voice-note recording first, so every lock path (and
+# suspend, via before-sleep) ends one.
+#
 # Usage: sway-lock [SWAYLOCK_ARGS...]   (default: -c 000000; -f is always set)
 #
 # See also: bin/lock-secrets, bin/unlock-secrets,
@@ -43,6 +46,15 @@ declare -ra DEFAULT_ARGS=(-c 000000)
 main() {
   local -a args=("$@")
   (( ${#args[@]} > 0 )) || args=("${DEFAULT_ARGS[@]}")
+
+  # End a running voice-note (AltGr-F6 toggle) before the screen locks: at
+  # the lock it is either forgotten or cut short by the idle lock, and either
+  # way it must not keep recording behind swaylock or into a suspend.
+  # `stop` saves what was captured (transcribe, append, archive the WAV) and
+  # is a no-op when nothing records. Detached: transcription takes seconds and
+  # must not delay the lock or the suspend chained behind it; pw-record is
+  # signalled first, within milliseconds.
+  setsid -f "${SCRIPT_DIR}/voice-note" stop < /dev/null &> /dev/null
 
   # -f: return once the lock surface is up, so callers can chain on it
   # (`sway-lock && systemctl suspend`, swayidle before-sleep).
