@@ -61,6 +61,12 @@
 # changes. Opt-in per file via .gitattributes (filter=claude-settings). Not
 # required: on a host without this config (e.g. before dotfiles-link on a fresh
 # machine) git simply passes the file through unfiltered.
+# Quirk: `git status` (and VS Code's badge) can still list the file as
+# modified while `git diff` is empty. Status skips the filter when the file
+# size differs from the size recorded at the last `git add`, and the raw file
+# (unsorted, with model/effort) rarely matches it. `git add` on the file stages
+# nothing and refreshes that record. VS Code's diff view does not run the
+# filter at all; it compares HEAD with the raw file.
 [filter "claude-settings"]
 	clean = jq -S --indent 2 'del(.model, .effortLevel, .modelSettings)'
 	smudge = cat
