@@ -60,8 +60,10 @@ Repo: `dotfiles/.config/emacs/{early-init.el,init.el}` → `~/.config/emacs/`
 > (`Emacs (Client)`) *before* the config was deployed kept `~/.emacs.d/` as
 > its directory for two days, ran without `init.el`, and recreated
 > `~/.emacs.d/` when it next wrote caches (proof: its PID in
-> `auto-save-list/.saves-<pid>-<host>~`). Fix, per host, manual:
-> `ln -s ~/.config/emacs ~/.emacs.d`, so both paths are the same directory.
+> `auto-save-list/.saves-<pid>-<host>~`). Fix: `ln -s ~/.config/emacs
+> ~/.emacs.d`, so both paths are the same directory. Since 2026-10-15
+> `dotfiles-link` creates this link (`HOME_LINKS` in
+> `tools/link-config.conf`) and moves a stale `~/.emacs.d/` to its backups.
 > Check with `emacsclient --eval user-init-file`; `emacs --batch` never loads
 > the init file, so it always reports `nil`.
 >
@@ -135,6 +137,22 @@ On the desktop the daemon is a **systemd user unit, started by sway**:
   when the last login session ends. Save before logging out.
 - The launcher's `Emacs (Client)` and `emacsclient -c -a ''` connect to this
   daemon; `-a ''` only starts one where none runs (servers).
+- Gotcha: a daemon started that way (`emacs --daemon`, outside systemd) holds
+  the server socket, so `systemctl --user start emacs` then fails ("Another
+  instance of Emacs is running the server") and restarts until it gives up.
+  Fix: quit that daemon (`M-x kill-emacs`), then start the unit.
+
+Launcher entries (Debian's `.desktop` files):
+
+| Entry | Runs | What |
+| --- | --- | --- |
+| `Emacs (GUI)` | `emacs %F` | standalone process, own buffers, not the daemon |
+| `Emacs (Client)` | `emacsclient -a '' -c` (no file), `-r FILE` (file) | frame of the daemon; starts one if none runs |
+| `Emacs (Terminal)` | `emacs -nw %F` | standalone, in a terminal |
+
+Each client frame shows its own buffer and window layout. Shared across all
+frames: the open buffers, kill ring, history. More frames: `C-x 5 2` (new
+frame), `C-x 5 f` (file in a new frame), `C-x 5 0` (close this frame).
 
 **TRAMP** edits remote files from a local Emacs:
 `C-x C-f /ssh:saito:/etc/hosts` opens a file over ssh, and
@@ -230,8 +248,8 @@ keeping are in the new `init.el`; the rest is commented out there.
 - [ ] Relearn the basics: `C-h t` (built-in tutorial), then daily use in the
       terminal.
 - [ ] Test OSC 52 clipboard: foot, tmux, VS Code terminal.
-- [ ] Desktop: install `emacs-pgtk` (`system-setup 00-apt-base`), try GUI
-      and daemon + `emacsclient -c`, try TRAMP to saito.
+- [ ] Desktop: try TRAMP to saito. (`emacs-pgtk` installed on motoko
+      2026-10-15, GUI and daemon + `emacsclient -c` work.)
 - [ ] Shell aliases for `emacsclient -t -a ''` / `-c` (only once the daemon
       workflow sticks).
 - [ ] Decide `$EDITOR` (see *Shell consistency*).
@@ -249,13 +267,10 @@ keeping are in the new `init.el`; the rest is commented out there.
       the screen habit; `C-b` would only move the clash to backward-char.
 - [ ] Try chrome-emacs + atomic-chrome in daily use (daemon set up
       2026-10-12, server verified listening; browser side untested).
-- [ ] motoko runs the **snap** `emacs` 31.1 (classic, `/snap/bin` in PATH),
-      not `emacs-pgtk`: an X11/GTK3 build (XWayland), and it ships no
-      `emacs.service`, so sway's `systemctl --user start emacs.service`
-      fails and no daemon (or atomic-chrome) runs. Decide: apt
-      `emacs-pgtk` (30.2) as documented, or keep the snap (31.1) and adapt.
-- [ ] New desktop host: `ln -s ~/.config/emacs ~/.emacs.d` (see *Config*
-      gotcha), then log in to sway once so the daemon installs atomic-chrome.
+- [ ] New desktop host: log in to sway once so the daemon installs
+      atomic-chrome. Check `emacs` is the apt build, not a snap
+      (`which emacs`): motoko had the snap until 2026-10-15, an X11 build
+      with no `emacs.service`, so no daemon ran there.
 - [ ] Packages, only when a gap hurts. Candidates: magit (git), vertico,
       orderless, marginalia, consult (completion beyond fido), markdown-mode.
       Not planned: evil (vim keys) defeats the point.

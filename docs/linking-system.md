@@ -198,6 +198,23 @@ Trade-off: everything the app writes there lands in the repo, so add
 An existing real directory or other symlink at the target is moved to the
 backup directory first.
 
+### Home Links
+
+Some apps look in a legacy location before the XDG one the repo deploys to.
+`HOME_LINKS` maps one `$HOME` path to another (both relative to `$HOME`), so
+both names point to the same directory:
+
+```bash
+declare -A HOME_LINKS=(
+  [".emacs.d"]=".config/emacs"
+)
+```
+
+Emacs reads `~/.emacs.d/` instead of `~/.config/emacs/` whenever it exists, and
+creates it when it runs before `~/.config/emacs/` exists (any build, e.g. before
+the first `dotfiles-link`). With the link, both are the same directory. An existing file or directory at the link path is moved to the
+backup directory first (warning printed; kept for the last 10 runs only).
+
 ### Ignore Patterns
 
 The `.linkignore` file (in `tools/`) specifies patterns to exclude from linking. Patterns use sed regular expression syntax.

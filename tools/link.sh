@@ -253,6 +253,24 @@ for relpath in "${LINK_DIRS[@]}"; do
   run_and_report ln -sfn -- "$src" "$target"
 done
 
+# Link HOME_LINKS paths to other $HOME paths (e.g. ~/.emacs.d -> ~/.config/emacs).
+# Runs after the loops above so the target directory already exists.
+for relpath in "${!HOME_LINKS[@]}"; do
+  target="${HOME}/${relpath}"
+  dest="${HOME}/${HOME_LINKS[$relpath]}"
+  info ""
+  info "Processing home link: $target -> $dest ..."
+  if [[ -L "$target" && "$(readlink "$target")" -ef "$dest" ]]; then
+    info "\e[32mOK: Correct home symlink already exists (nothing to do), skipping ..\e[0m"
+    continue
+  fi
+  if [[ -e "$target" || -L "$target" ]]; then
+    backup_existing "$target" "$relpath" "" " but is not the expected symlink" || continue
+  fi
+  info "Creating new home SymLink: '$dest' -> '$target'"
+  run_and_report ln -sfn -- "$dest" "$target"
+done
+
 # Sync flat files from a repo dir to a home dir: create symlinks for all files,
 # remove stale links that pointed into the repo dir but no longer exist there.
 # Arguments: $1=repo_dir $2=home_dir
