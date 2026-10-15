@@ -1,0 +1,41 @@
+#compdef input-keyboards
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for input-keyboards (bin/input-keyboards in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above.
+#
+# Keep in sync with bin/input-keyboards: commands and options mirror usage().
+# Devices are discovered live from /sys/class/input.
+
+_input-keyboards_devices() {
+  local sys name
+  local -a devs
+  for sys in /sys/class/input/event*(Nn); do
+    name="$(< ${sys}/device/name)"
+    devs+=( "${sys:t}:${name//:/\\:}" )
+  done
+  _describe -t devices 'input device' devs
+}
+
+_input-keyboards() {
+  if (( CURRENT == 2 )); then
+    local -a cmds=(
+      'list:list devices with keys (default)'
+      'debug:show key events live (evtest)'
+    )
+    _describe -t commands 'command' cmds
+    return
+  fi
+  shift words
+  (( CURRENT-- ))
+  case "${words[1]}" in
+    debug)
+      _arguments -s \
+        '(-n --no-stop)'{-n,--no-stop}'[do not stop Vocalinux]' \
+        '(- *)'{-h,--help}'[show help]' \
+        '*:device:_input-keyboards_devices'
+      ;;
+  esac
+}
+
+_input-keyboards "$@"

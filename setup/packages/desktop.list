@@ -90,6 +90,12 @@ xdg-desktop-portal-wlr
 flameshot
 solaar
 
+# Input debugging: evtest shows raw key events and scan codes per device
+# (wrapped by bin/input-keyboards), wev the keysyms sway hands to apps. No use
+# on a headless server, hence desktop only.
+evtest
+wev
+
 # Screenshot shutter sound: canberra-gtk-play (the binary lives in
 # gnome-session-canberra) plays the freedesktop "screen-capture" event.
 gnome-session-canberra

@@ -73,7 +73,13 @@ Look for `Starting speech recognition` / `Stopping speech recognition` pairs. Tw
 - **External activation (desktop shortcut)** (`shortcuts.disable_internal_hotkey`):
   Vocalinux stops reading `/dev/input` (no grab, no key logging) and is
   driven by `vocalinux --start|--stop|--toggle` from a compositor binding.
-  Not used yet; a candidate if Right Ctrl gets replaced by a sway binding.
+- **AltGr+F7** (sway, `40-keybindings.conf`) runs `vocalinux --toggle`, next
+  to the internal Right Ctrl push-to-talk, to compare toggle against
+  push-to-talk (2026-10-15). The D-Bus round trip takes about 60 ms. A
+  D-Bus start uses the normal mode, not push-to-talk: per the source it
+  transcribes at pauses (silence detection) instead of all at release. If the
+  binding wins, enable external activation, which also ends the keyboard
+  grab.
 
 ## Typing into terminals (foot)
 
@@ -109,10 +115,19 @@ still reaches the app as Ctrl+C. Consequences:
   Right Ctrl+C still copies.
 - Every Right Ctrl press opens the microphone, also as part of Right Ctrl+C.
   With Bluetooth headphones that switches them to the headset profile, and
-  the media player pauses and does not resume. Vocalinux's own
-  `playback_duck` and `auto_pause` are off, so the pause most likely comes
+  the media player pauses and does not resume. Vocalinux has no media-pause
+  feature: *Pause for listed apps* (`auto_pause`) only unloads the model
+  while a listed process (e.g. steam) runs. So the pause most likely comes
   from the profile switch (not confirmed). Reason enough to consider a
   different push-to-talk key than a modifier in daily use.
+- While dictating, the headphone output already drops to 0 % and comes back
+  afterwards, without any Vocalinux setting (cause unconfirmed; the headset
+  profile switch would fit). *Lower other audio while dictating*
+  (`playback_duck`) on top of that left the volume far too low after
+  dictation, so it stays **off** (the default). 0 % is the better behaviour
+  anyway: no distraction on headphones, no feedback into the mic on speakers.
+- `input-keyboards debug` (bin/) stops Vocalinux while it watches, because
+  the grab hides the keyboard from evtest, and starts it again on exit.
 - v0.18.x regressions upstream: #915, #946 (closed), #953 (open: keyboard
   nodes that also report pointer axes are skipped). The Logitech USB Receiver
   keyboard here has no pointer axes, so #953 does not apply.

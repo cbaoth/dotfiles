@@ -55,11 +55,12 @@ vl_target_tag() {
     | sed -n 's/^ *"tag_name": *"\([^"]*\)".*/\1/p'
 }
 
-# Match the venv entry point, not the process name: the GUI runs as
-# `python .../venv/bin/vocalinux-gui` (comm "vocalinux-gui"), so a
-# `pgrep -x vocalinux` misses it.
+# Match the venv entry point, not the process name: v0.18 runs as
+# `python .../venv/bin/vocalinux` or `.../vocalinux-gui` (desktop launcher),
+# so `pgrep -x vocalinux` misses it. Anchored to the interpreter so a command
+# line that merely mentions the path does not count.
 vl_running() {
-  pgrep -u "$(id -u)" -f '/vocalinux/venv/bin/vocalinux' >/dev/null 2>&1
+  pgrep -u "$(id -u)" -f '^[^ ]*/python[0-9.]* [^ ]*/vocalinux/venv/bin/vocalinux' >/dev/null 2>&1
 }
 
 vl_install() {
