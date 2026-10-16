@@ -265,6 +265,10 @@ backup_existing() {
   return 0
 }
 
+# $HOME links this run created or confirmed (home/ tree + LINK_DIRS); the prune
+# step at the end removes repo links that are not in here
+typeset -A EXPECTED_LINKS=()
+
 # Use the pattern in the find command; avoid subshell so arrays persist
 while IFS= read -r -d '' f; do
   # get relative target/source file location (-s: don't resolve symlinks, a
@@ -276,6 +280,7 @@ while IFS= read -r -d '' f; do
     [[ -d "$f" ]] && continue
     in_profile "home/${relpath}" || { debug "Not in profile '${PROFILE}', skipping: $relpath"; continue; }
   fi
+  [[ -d "$f" ]] || EXPECTED_LINKS["$target"]=1
   info ""
   info "Processing: $relpath -> $HOME/$relpath ..."
   info "SRC: $relpath"
@@ -324,6 +329,7 @@ done < <(find "$HOME_SRC" -regextype sed ${IGNORE_PATTERN:+! -regex "$IGNORE_PAT
 for relpath in "${LINK_DIRS_ACTIVE[@]}"; do
   src="${HOME_SRC}/${relpath}"
   target="${HOME}/${relpath}"
+  EXPECTED_LINKS["$target"]=1
   info ""
   info "Processing directory link: $relpath -> $target ..."
   if [[ -L "$target" && "$(readlink "$target")" -ef "$src" ]]; then
@@ -422,6 +428,60 @@ sync_dir() {
 for repo_dir in "${!SYNC_DIRS[@]}"; do
   sync_dir "$repo_dir" "${SYNC_DIRS[$repo_dir]}"
 done
+
+# Prune stale home/ tree links. Only symlinks pointing into this repo are ever
+# touched, and only when they are
+# - dangling: the repo file was deleted, renamed or moved (incl. old repo
+#   layouts, e.g. dotfiles/dotfiles/...), or
+# - at their mirror location (~/X -> home/X) but not linked by this run: out
+#   of profile, or now in .linkignore.
+# Candidates: direct children of every directory mirrored from home/ (any
+# depth), plus a shallow scan of $HOME (PRUNE_SCAN_DEPTH) for directories that
+# no longer exist in the repo. The repo itself and the backups are skipped.
+prune_tree_links() {
+  local -A candidates=()
+  local dir rel link link_target reason
+
+  while IFS= read -r -d '' dir; do
+    rel="$(realpath -s --relative-to "$HOME_SRC" "$dir")"
+    [[ -d "${HOME}/${rel}" && ! -L "${HOME}/${rel}" ]] || continue
+    while IFS= read -r -d '' link; do
+      candidates["$link"]=1
+    done < <(find "${HOME}/${rel}" -mindepth 1 -maxdepth 1 -type l -print0)
+  done < <(find "$HOME_SRC" -type d "${LINK_DIRS_EXCLUDE[@]}" -print0)
+
+  while IFS= read -r -d '' link; do
+    candidates["$link"]=1
+  done < <(find "$HOME" -xdev -maxdepth "${PRUNE_SCAN_DEPTH:-3}" \
+             \( -path "$REPO_ROOT" -o -path "$BACKUP_BASE_DIR" \) -prune \
+             -o -type l -print0)
+
+  for link in "${!candidates[@]}"; do
+    [[ -n "${EXPECTED_LINKS[$link]:-}" ]] && continue
+    link_target="$(readlink -- "$link")" || continue
+    [[ "$link_target" == /* ]] || link_target="$(dirname -- "$link")/${link_target}"
+    link_target="$(realpath -ms -- "$link_target")"
+    [[ "$link_target" == "${REPO_ROOT}/"* ]] || continue
+
+    if [[ ! -e "$link" ]]; then
+      reason="dangling"
+    elif [[ "$link_target" == "${HOME_SRC}/"* \
+            && "${link_target#"${HOME_SRC}/"}" == "${link#"${HOME}/"}" ]]; then
+      reason="ignored"
+      [[ -n "${PROFILE}" ]] && reason="not in profile ${PROFILE}, or ignored"
+    else
+      debug "Prune: keeping custom repo symlink: $link -> $link_target"
+      continue
+    fi
+    if $DRY_RUN; then
+      echo "Would remove stale symlink (${reason}): $link"
+    else
+      echo "Removing stale symlink (${reason}): $link"
+    fi
+    run_and_report rm -f -- "$link"
+  done
+}
+prune_tree_links
 
 # a profile glob that matched nothing is likely a renamed/deleted file
 for _glob in "${PROFILE_GLOBS[@]}"; do

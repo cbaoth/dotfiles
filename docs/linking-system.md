@@ -148,6 +148,25 @@ When syncing `bin/` and `lib/`:
 - External/custom symlinks (not pointing into the repo) are preserved
 - Prevents accumulation of broken links
 
+For the `home/` tree, a prune step runs last. It only ever touches symlinks
+that point **into this repo**, and removes them when they are:
+
+- **dangling**: the repo file was deleted, renamed or moved, including links
+  from old repo layouts (e.g. `dotfiles/dotfiles/...` before the `home/`
+  rename), or
+- **at their mirror location** (`~/X` → `home/X`) but not linked by this run:
+  out of profile, or now matched by `.linkignore`.
+
+Kept: links pointing outside the repo (even if dangling), valid repo links at
+a custom location (e.g. `~/mylink` → `home/.zshrc`), and everything inside the
+repo itself and the backup directory. Empty directories are left in place.
+
+Where it looks: the direct children of every directory mirrored from `home/`
+(any depth), plus `$HOME` down to `PRUNE_SCAN_DEPTH` (default 3,
+`tools/link-config.conf`; `find -xdev`, so mounts are skipped) for directories
+that no longer exist in the repo. Preview with `--dry-run`: removals are
+listed as "Would remove stale symlink (reason): path".
+
 ## Configuration
 
 ### Sync Directories
@@ -249,10 +268,9 @@ relative to the repo root (`home/.zshrc`, `bin/rsynclt`, `lib/aliases-*.sh`),
   listed itself (`home/.config/vicinae`; for `HOME_LINKS` the target, e.g.
   `home/.config/emacs`).
 - Only files are linked; `home/` directories are created on demand for them.
-  Out-of-profile `bin/`/`lib/` links are removed by the stale-link cleanup.
-  `home/` tree links are never pruned (true without profiles, too), so
-  switching an existing `$HOME` from no profile to a profile leaves the old
-  tree links in place. Root starts from a fresh clone, so this does not arise.
+  Out-of-profile links (`bin/`, `lib/` and the `home/` tree) are removed by
+  the stale-link cleanup, so switching an existing `$HOME` to a profile
+  leaves only the profile's links.
 - A glob that matches no file is reported as a warning (renamed or deleted).
 
 **Root guards.** As root, `link.sh` refuses to run (before it sources any
@@ -306,9 +324,9 @@ hash -r # bash
 
 ### Stale/Broken Symlinks Still Present
 
-**Symptom:** You deleted a file from `bin/` or `lib/`, but the symlink in `$HOME/bin` or `$HOME/lib` still exists and is broken.
+**Symptom:** You deleted or renamed a file in `bin/`, `lib/` or `home/`, but the old symlink in `$HOME` still exists and is broken.
 
-**Solution:** Run `dotfiles-link`. The script's stale link cleanup will remove broken symlinks pointing to deleted files.
+**Solution:** Run `dotfiles-link`. The script's stale link cleanup will remove broken symlinks pointing into the repo. In the `home/` tree it scans every mirrored directory, plus `$HOME` down to `PRUNE_SCAN_DEPTH` (default 3). A broken repo link deeper inside a directory that no longer exists in the repo needs a one-off `PRUNE_SCAN_DEPTH=6 dotfiles-link`.
 
 ```bash
 dotfiles-link
