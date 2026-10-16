@@ -9,7 +9,7 @@
 # variable; unrecognised desktops cause safeStorage.isEncryptionAvailable() to
 # return false, so the app cannot store the sign-in token ("Your sign-in won't
 # be saved on this device") even though gnome-keyring is running and unlocked.
-# Same root cause as bin/code and bin/vivaldi.
+# Same root cause as bin/code and bin/browser-wrapper.
 #
 # XDG_CURRENT_DESKTOP is a colon-separated list (most specific first). We append
 # ":GNOME" rather than replacing, so the real desktop stays first: child shells

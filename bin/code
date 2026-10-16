@@ -8,7 +8,7 @@
 # recognised desktop (e.g. Sway). Electron's safeStorage checks this variable;
 # unrecognised desktops cause safeStorage.isEncryptionAvailable() to return
 # false, so VS Code falls back to basic-text secret storage and loses access to
-# stored credentials. Same root cause as bin/vivaldi and bin/claude-desktop.
+# stored credentials. Same root cause as bin/browser-wrapper and bin/claude-desktop.
 #
 # XDG_CURRENT_DESKTOP is a colon-separated list (most specific first). We append
 # ":GNOME" rather than replacing, so the real desktop stays first: the VS Code

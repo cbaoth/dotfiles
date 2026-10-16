@@ -3,7 +3,7 @@ title: Web browsers
 hosts: [motoko, puppet]
 status: resolved
 tags: [browser, apt, gpg, firefox, vivaldi, chrome, brave, edge]
-updated: 2026-08-13
+updated: 2026-10-16
 automated_by: setup/modules/25-browsers.sh
 ---
 
@@ -119,6 +119,39 @@ suffix). `brave-origin*` ship from the matching channel repo.
 
 To install an additional variant: `sudo apt install firefox-devedition`. To
 change the module's default, edit the `BROWSERS` table in `25-browsers.sh`.
+
+## Wrapper launchers (Chromium family)
+
+Vivaldi, Chrome, Brave and Edge run through `bin/browser-wrapper`, which
+appends `:GNOME` to `XDG_CURRENT_DESKTOP` (sway is not a desktop Chromium
+recognises, so it otherwise falls back to basic-text credential storage) and
+adds `--disable-features=Vulkan`. `25-browsers` sets it up per installed
+browser:
+
+- `~/.local/bin/<name>` symlinks to the wrapper (`vivaldi-snapshot`,
+  `google-chrome-unstable`, ...). Only for installed browsers, so `$BROWSER`
+  (first command found) never lands on a missing one.
+- `~/.local/share/applications/<id>.desktop` overrides, generated from the
+  packaged files with `Exec=/usr/bin/<name>` pointed at the symlink. Same file
+  name = same desktop id, so launchers show no duplicates and `mimeapps.list`
+  keeps working. Without them, rofi/vicinae/`xdg-open` bypass the wrapper
+  (their `Exec` is an absolute `/usr/bin/...`).
+- Generated, not committed: they follow what is installed and upstream
+  `.desktop` changes. Re-run `system-setup 25-browsers` after installing a
+  browser or after a browser package updates its `.desktop` file. Hand-made
+  overrides of the same id are never touched (the module warns).
+- Extra flags without editing anything: `~/.config/browser-wrapper/all.flags`
+  or `<name>.flags`, one flag per line. Chromium honours only the last
+  `--disable-features`, so a file that sets one must repeat `Vulkan`.
+- Not wrapped: Firefox (own credential store), flatpak Chromium builds
+  (sandboxed).
+
+**Pitfall.** Chromium's `SingletonLock`/`SingletonCookie` in the profile dir are
+symlinks that always look dangling. `find ~ -xtype l -delete` removes them
+from a *running* browser, and the next launch (e.g. `xdg-open`) then starts a
+second instance on the same profile: "Something went wrong when opening your
+profile" windows. Recreate them by pointing at the running PID, or restart the
+browser.
 
 ## ungoogled-chromium
 
