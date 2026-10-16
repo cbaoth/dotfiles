@@ -81,6 +81,9 @@ main() {
   export _JAVA_AWT_WM_NONREPARENTING=1
   # Required for XDG desktop portal backend selection (portals, file pickers, etc.)
   export XDG_CURRENT_DESKTOP=sway
+  # TTY login leaves logind's session type at "tty"; Electron/Chromium apps
+  # started from the launcher (systemd --user) then pick X11 and crash.
+  export XDG_SESSION_TYPE=wayland
 
   if [[ "${nvidia_mode}" == "true" ]]; then
     # Nvidia: software cursor (no hardware cursor support with proprietary drivers)
@@ -92,7 +95,37 @@ main() {
   # of append to avoid unbounded growth; no rotation needed.
   mkdir -p -- "$(dirname -- "${LOG_FILE}")"
   exec > >(tee "${LOG_FILE}") 2>&1
-  exec sway "${sway_args[@]}"
+  # Portals are bound to the compositor they started under and outlive it (the
+  # user manager keeps running while other sessions exist). A stale portal
+  # makes every Settings read time out (~25s each), which delayed waybar and
+  # tray apps after a sway restart. Stop them before and after the session.
+  stop_session_apps
+  stop_stale_portals
+  local -i rc=0
+  sway "${sway_args[@]}" || rc=$?
+  stop_session_apps
+  stop_stale_portals
+  return "${rc}"
+}
+
+# Flatpak tray apps run in their own systemd scopes and so survive sway. Their
+# tray icon is registered with the old waybar, and the next launch just reuses
+# the stale instance, so the icon never comes back. Kill them with the session.
+declare -ra SESSION_FLATPAKS=(org.keepassxc.KeePassXC dev.deedles.Trayscale)
+
+stop_session_apps() {
+  local app
+  for app in "${SESSION_FLATPAKS[@]}"; do
+    flatpak kill "${app}" 2> /dev/null || true
+  done
+}
+
+stop_stale_portals() {
+  systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service \
+    xdg-desktop-portal-wlr.service 2> /dev/null || true
+  # The GTK backend dies "failed" when the old compositor goes away; a failed
+  # unit can then wedge the next portal activation.
+  systemctl --user reset-failed 'xdg-desktop-portal*' 2> /dev/null || true
 }
 
 main "$@"
