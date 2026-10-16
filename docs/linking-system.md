@@ -167,6 +167,43 @@ Where it looks: the direct children of every directory mirrored from `home/`
 that no longer exist in the repo. Preview with `--dry-run`: removals are
 listed as "Would remove stale symlink (reason): path".
 
+**systemd enable links are never removed.** For a unit file that is itself a
+symlink into the repo, `systemctl --user enable` points the links it creates
+(`*.wants/` entries, alias/instance names like `sb-sync@x.timer`) straight at
+the repo file, so they dangle after the repo is moved or restructured, and the
+unit silently does not start after the next reboot. Removing them would hide
+that, so `link.sh` warns instead and prints the fix:
+
+```bash
+rm -- <dangling enable links>
+systemctl --user daemon-reload
+systemctl --user enable <units>
+```
+
+Use `enable` only: for such linked units, `systemctl --user disable` (and
+`reenable`) also deletes the unit file link in `~/.config/systemd/user/`.
+After any `disable`, rerun `dotfiles-link`.
+
+### Unlinking (`--unlink`)
+
+```bash
+./tools/link.sh --unlink --dry-run   # list what would be removed
+./tools/link.sh --unlink             # links nothing, removes the links
+```
+
+Removes every symlink pointing into this repo, valid or dangling, from the
+same places the stale-link cleanup scans: the `home/` tree, `~/bin`, `~/lib`,
+`LINK_DIRS`, the systemd user `*.wants`/`*.requires` dirs, plus `$HOME` down
+to `PRUNE_SCAN_DEPTH`. Also removes the `HOME_LINKS` aliases (e.g.
+`~/.emacs.d`). Profiles do not apply. Links to other clones and non-repo links
+are kept.
+
+- Units whose enable links were removed are disabled but keep running until
+  `systemctl --user daemon-reload && systemctl --user stop <unit>`; they are
+  listed in a warning.
+- Nothing is restored from the backups (path printed); empty directories stay.
+- Undo: run `link.sh` again; re-enable units with `systemctl --user enable`.
+
 ## Configuration
 
 ### Sync Directories
@@ -326,7 +363,7 @@ hash -r # bash
 
 **Symptom:** You deleted or renamed a file in `bin/`, `lib/` or `home/`, but the old symlink in `$HOME` still exists and is broken.
 
-**Solution:** Run `dotfiles-link`. The script's stale link cleanup will remove broken symlinks pointing into the repo. In the `home/` tree it scans every mirrored directory, plus `$HOME` down to `PRUNE_SCAN_DEPTH` (default 3). A broken repo link deeper inside a directory that no longer exists in the repo needs a one-off `PRUNE_SCAN_DEPTH=6 dotfiles-link`.
+**Solution:** Run `dotfiles-link`. The script's stale link cleanup will remove broken symlinks pointing into the repo. In the `home/` tree it scans every mirrored directory, plus `$HOME` down to `PRUNE_SCAN_DEPTH` (default 3). A broken repo link deeper inside a directory that no longer exists in the repo needs a one-off `PRUNE_SCAN_DEPTH=6 dotfiles-link` (systemd enable links are only reported, never removed, at any depth).
 
 ```bash
 dotfiles-link

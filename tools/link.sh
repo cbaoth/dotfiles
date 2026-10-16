@@ -57,11 +57,14 @@ BACKUP_DIR_READY=false
 DRY_RUN=false
 VERBOSE=0
 PROFILE=""
+UNLINK=false
 
 # simple args parsing
 usage() {
-  echo "Usage: $(basename "$0") [--dry-run|-n] [-p|--profile NAME] [-v|-vv|--verbose[=N]] [--help|-h]" >&2
+  echo "Usage: $(basename "$0") [--dry-run|-n] [-p|--profile NAME] [-u|--unlink] [-v|-vv|--verbose[=N]] [--help|-h]" >&2
   echo "  -n, --dry-run       Print changes, change nothing" >&2
+  echo "  -u, --unlink        Link nothing; remove every symlink that points into this repo" >&2
+  echo "                      (incl. systemd enable links, i.e. disables those units)" >&2
   echo "  -p, --profile NAME  Link only what tools/profiles/NAME.list allows" >&2
   echo "                      (default: 'root' when run as root, else everything)" >&2
   echo "  -v                  Increase verbosity (info)" >&2
@@ -73,6 +76,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -n|--dry-run)
       DRY_RUN=true
+      shift
+      ;;
+    -u|--unlink)
+      UNLINK=true
       shift
       ;;
     -p|--profile)
@@ -265,6 +272,161 @@ backup_existing() {
   return 0
 }
 
+# Collect every symlink pointing into this repo, valid or dangling, into
+# REPO_LINKS (link -> normalized target). Candidates: the direct children of
+# every directory mirrored from home/ (any depth), of the SYNC_DIRS home dirs
+# and of the systemd user *.wants/*.requires dirs, plus $HOME down to
+# PRUNE_SCAN_DEPTH for directories no longer in the repo. The repo itself and
+# the backups are skipped.
+typeset -A REPO_LINKS=()
+collect_repo_links() {
+  local -A candidates=()
+  local -a dirs=()
+  local dir rel link link_target
+
+  while IFS= read -r -d '' dir; do
+    rel="$(realpath -s --relative-to "$HOME_SRC" "$dir")"
+    if [[ "$rel" == "." ]]; then dirs+=("$HOME"); else dirs+=("${HOME}/${rel}"); fi
+  done < <(find "$HOME_SRC" -type d "${LINK_DIRS_EXCLUDE[@]}" -print0)
+  dirs+=("${SYNC_DIRS[@]}")
+  for dir in "${HOME}/.config/systemd/user/"*.wants "${HOME}/.config/systemd/user/"*.requires; do
+    dirs+=("$dir")
+  done
+
+  for dir in "${dirs[@]}"; do
+    [[ -d "$dir" && ! -L "$dir" ]] || continue
+    while IFS= read -r -d '' link; do
+      candidates["$link"]=1
+    done < <(find "$dir" -mindepth 1 -maxdepth 1 -type l -print0)
+  done
+  while IFS= read -r -d '' link; do
+    candidates["$link"]=1
+  done < <(find "$HOME" -xdev -maxdepth "${PRUNE_SCAN_DEPTH:-3}" \
+             \( -path "$REPO_ROOT" -o -path "$BACKUP_BASE_DIR" \) -prune \
+             -o -type l -print0)
+
+  REPO_LINKS=()
+  for link in "${!candidates[@]}"; do
+    link_target="$(readlink -- "$link")" || continue
+    [[ "$link_target" == /* ]] || link_target="$(dirname -- "$link")/${link_target}"
+    link_target="$(realpath -ms -- "$link_target")"
+    [[ "$link_target" == "${REPO_ROOT}/"* ]] && REPO_LINKS["$link"]="$link_target"
+  done
+}
+
+# predicate: is this a systemd enable link? `systemctl --user enable` on a unit
+# file that is itself a symlink into the repo points the link it creates (in
+# a *.wants/*.requires dir, or an alias/instance name like sb-sync@x.timer ->
+# sb-sync@.timer) straight at the repo file, so it dangles after a repo move.
+is_unit_enable_link() {
+  local link="$1" link_target="$2" parent
+  [[ "$link" == "${HOME}/.config/systemd/"* ]] || return 1
+  parent="$(dirname -- "$link")"
+  [[ "$parent" == *.wants || "$parent" == *.requires ]] && return 0
+  [[ "$(basename -- "$link")" != "$(basename -- "$link_target")" ]]
+}
+
+# Remove a symlink, announcing it (also in a dry run).
+# Arguments: $1=link $2=description, e.g. "stale symlink (dangling)"
+remove_link() {
+  if $DRY_RUN; then
+    echo "Would remove $2: $1"
+  else
+    echo "Removing $2: $1"
+  fi
+  run_and_report rm -f -- "$1"
+}
+
+# --unlink: remove every symlink pointing into this repo (the HOME_SRC tree,
+# bin/, lib/, LINK_DIRS, systemd enable links) plus the HOME_LINKS aliases.
+# Nothing is restored from backups; empty directories are left in place.
+unlink_repo_links() {
+  local link relpath
+  local -A units=()
+
+  collect_repo_links
+  for link in "${!REPO_LINKS[@]}"; do
+    is_unit_enable_link "$link" "${REPO_LINKS[$link]}" && units["$(basename -- "$link")"]=1
+    remove_link "$link" "repo symlink"
+  done
+  for relpath in "${!HOME_LINKS[@]}"; do
+    link="${HOME}/${relpath}"
+    [[ -L "$link" && "$(readlink -- "$link")" == "${HOME}/${HOME_LINKS[$relpath]}" ]] || continue
+    remove_link "$link" "home link"
+  done
+  echo "Repo symlinks: ${#REPO_LINKS[@]}. Backups (not restored): ${BACKUP_BASE_DIR}"
+
+  (( ${#units[@]} > 0 )) || return 0
+  local msg="Removed systemd enable links, now disabled: ${!units[*]} (still"
+  msg+=" running until: systemctl --user daemon-reload && systemctl --user stop ...)"
+  WARNINGS+=("${msg}")
+  echo -e "\e[33mWARNING: ${msg}\e[0m" >&2
+}
+
+# Report warnings/errors, drop an empty backup dir, rotate old backups, exit.
+# Arguments: $1=verb for the summary ("Linking" | "Unlinking")
+report_and_exit() {
+  local verb="$1"
+  if [ ${#WARNINGS[@]} -gt 0 ]; then
+    echo -e "\n\e[33m=== WARNINGS ===\e[0m" >&2
+    echo -e "\e[33m${#WARNINGS[@]} warning(s)\e[0m occured while ${verb,,}, please check:" >&2
+    for w in "${WARNINGS[@]}"; do
+      echo -e "- \e[33m${w}\e[0m" >&2
+    done
+    echo -e "\e[33m================\e[0m" >&2
+  fi
+  if [ ${#ERRORS[@]} -gt 0 ]; then
+    echo -e "\e[31m=== ERRORS ===\e[0m" >&2
+    echo -e "\e[33m${#ERRORS[@]} error(s)\e[0m occured while ${verb,,}, please check:" >&2
+    for e in "${ERRORS[@]}"; do
+      echo -e "- \e[31m${e}\e[0m" >&2
+    done
+    echo -e "\e[31m==============\e[0m" >&2
+    echo -e "\e[31m${verb} completed with errors!\e[0m" >&2
+    echo -e "\e[31mPlease check the messages above. You may find backed up files in: $BAKDIR\e[0m" >&2
+    echo -e "\e[31mExiting...\e[0m" >&2
+    exit 1
+  else
+    if $DRY_RUN; then
+      echo -e "\n\e[32mDry-run completed successfully. No changes were made.\e[0m"
+    else
+      echo -e "\n\e[32m${verb} completed successfully.\e[0m"
+    fi
+  fi
+  echo
+
+  # Remove backup dir if empty (skipped in dry-run)
+  if $BACKUP_DIR_READY; then
+    run_and_report rmdir --ignore-fail-on-non-empty "$BAKDIR"
+  fi
+
+  # Delete all but the latest backup directories in the state dir.
+  typeset -a EXISTING_BAKS=()
+  if [[ -d "$BACKUP_BASE_DIR" ]]; then
+    while IFS= read -r d; do
+      EXISTING_BAKS+=("$d")
+    done < <(find "$BACKUP_BASE_DIR" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | sort -r | tail -n +$((KEEP_LAST_BAKS + 1)))
+  fi
+
+  if (( ${#EXISTING_BAKS[@]} == 0 )); then
+    debug "Cleanup: No outdated backup directories found (always keeping last $KEEP_LAST_BAKS), skipping cleanup."
+  else
+    info "Cleanup: Removing ${#EXISTING_BAKS[@]} outdated backup directories (\$KEEP_LAST_BAKS=$KEEP_LAST_BAKS) ..."
+    for d in "${EXISTING_BAKS[@]}"; do
+      debug "Cleanup: Removing outdated backup directory: $d"
+      run_and_report rm -rf -- "$d"
+    done
+    info "Cleanup: Done."
+  fi
+
+  exit 0
+}
+
+if $UNLINK; then
+  unlink_repo_links
+  report_and_exit "Unlinking"
+fi
+
 # $HOME links this run created or confirmed (home/ tree + LINK_DIRS); the prune
 # step at the end removes repo links that are not in here
 typeset -A EXPECTED_LINKS=()
@@ -429,41 +591,30 @@ for repo_dir in "${!SYNC_DIRS[@]}"; do
   sync_dir "$repo_dir" "${SYNC_DIRS[$repo_dir]}"
 done
 
-# Prune stale home/ tree links. Only symlinks pointing into this repo are ever
-# touched, and only when they are
+# Prune stale repo links (candidates: collect_repo_links). Only symlinks
+# pointing into this repo are ever touched, and only when they are
 # - dangling: the repo file was deleted, renamed or moved (incl. old repo
 #   layouts, e.g. dotfiles/dotfiles/...), or
 # - at their mirror location (~/X -> home/X) but not linked by this run: out
 #   of profile, or now in .linkignore.
-# Candidates: direct children of every directory mirrored from home/ (any
-# depth), plus a shallow scan of $HOME (PRUNE_SCAN_DEPTH) for directories that
-# no longer exist in the repo. The repo itself and the backups are skipped.
+# Never systemd enable links (is_unit_enable_link): removing one silently
+# disables its unit, so a dangling one is reported with the fix instead.
 prune_tree_links() {
-  local -A candidates=()
-  local dir rel link link_target reason
+  local link link_target reason
+  local -a stale_unit_links=()
+  local -A stale_units=()
 
-  while IFS= read -r -d '' dir; do
-    rel="$(realpath -s --relative-to "$HOME_SRC" "$dir")"
-    [[ -d "${HOME}/${rel}" && ! -L "${HOME}/${rel}" ]] || continue
-    while IFS= read -r -d '' link; do
-      candidates["$link"]=1
-    done < <(find "${HOME}/${rel}" -mindepth 1 -maxdepth 1 -type l -print0)
-  done < <(find "$HOME_SRC" -type d "${LINK_DIRS_EXCLUDE[@]}" -print0)
-
-  while IFS= read -r -d '' link; do
-    candidates["$link"]=1
-  done < <(find "$HOME" -xdev -maxdepth "${PRUNE_SCAN_DEPTH:-3}" \
-             \( -path "$REPO_ROOT" -o -path "$BACKUP_BASE_DIR" \) -prune \
-             -o -type l -print0)
-
-  for link in "${!candidates[@]}"; do
+  collect_repo_links
+  for link in "${!REPO_LINKS[@]}"; do
     [[ -n "${EXPECTED_LINKS[$link]:-}" ]] && continue
-    link_target="$(readlink -- "$link")" || continue
-    [[ "$link_target" == /* ]] || link_target="$(dirname -- "$link")/${link_target}"
-    link_target="$(realpath -ms -- "$link_target")"
-    [[ "$link_target" == "${REPO_ROOT}/"* ]] || continue
+    link_target="${REPO_LINKS[$link]}"
 
     if [[ ! -e "$link" ]]; then
+      if is_unit_enable_link "$link" "$link_target"; then
+        stale_unit_links+=("$link")
+        stale_units["$(basename -- "$link")"]=1
+        continue
+      fi
       reason="dangling"
     elif [[ "$link_target" == "${HOME_SRC}/"* \
             && "${link_target#"${HOME_SRC}/"}" == "${link#"${HOME}/"}" ]]; then
@@ -473,13 +624,18 @@ prune_tree_links() {
       debug "Prune: keeping custom repo symlink: $link -> $link_target"
       continue
     fi
-    if $DRY_RUN; then
-      echo "Would remove stale symlink (${reason}): $link"
-    else
-      echo "Removing stale symlink (${reason}): $link"
-    fi
-    run_and_report rm -f -- "$link"
+    remove_link "$link" "stale symlink (${reason})"
   done
+
+  (( ${#stale_unit_links[@]} > 0 )) || return 0
+  local msg="Dangling systemd enable link(s) into the repo, unit(s) will not start"
+  msg+=" after the next reboot/daemon-reload: ${!stale_units[*]}"
+  WARNINGS+=("${msg}")
+  echo -e "\e[33mWARNING: ${msg}\e[0m" >&2
+  echo -e "\e[33mFix (enable only; 'disable'/'reenable' would also delete the unit file link):\e[0m" >&2
+  echo "  rm -- $(format_cmd "${stale_unit_links[@]}")" >&2
+  echo "  systemctl --user daemon-reload" >&2
+  echo "  systemctl --user enable $(format_cmd "${!stale_units[@]}")" >&2
 }
 prune_tree_links
 
@@ -493,57 +649,4 @@ for _glob in "${PROFILE_GLOBS[@]}"; do
 done
 unset _glob _msg
 
-# report all warnings and errors (if any)
-if [ ${#WARNINGS[@]} -gt 0 ]; then
-  echo -e "\n\e[33m=== WARNINGS ===\e[0m" >&2
-  echo -e "\e[33m${#WARNINGS[@]} warning(s)\e[0m occured while linking, please check:" >&2
-  for w in "${WARNINGS[@]}"; do
-    echo -e "- \e[33m${w}\e[0m" >&2
-  done
-  echo -e "\e[33m================\e[0m" >&2
-fi
-if [ ${#ERRORS[@]} -gt 0 ]; then
-  echo -e "\e[31m=== ERRORS ===\e[0m" >&2
-  echo -e "\e[33m${#ERRORS[@]} error(s)\e[0m occured while linking, please check:" >&2
-  for e in "${ERRORS[@]}"; do
-    echo -e "- \e[31m${e}\e[0m" >&2
-  done
-  echo -e "\e[31m==============\e[0m" >&2
-  echo -e "\e[31mLinking completed with errors!\e[0m" >&2
-  echo -e "\e[31mPlease check the messages above. You may find backed up files in: $BAKDIR\e[0m" >&2
-  echo -e "\e[31mExiting...\e[0m" >&2
-  exit 1
-else
-  if $DRY_RUN; then
-    echo -e "\n\e[32mDry-run completed successfully. No changes were made.\e[0m"
-  else
-    echo -e "\n\e[32mLinking completed successfully.\e[0m"
-  fi
-fi
-echo
-
-# Remove backup dir if empty (skipped in dry-run)
-if $BACKUP_DIR_READY; then
-  run_and_report rmdir --ignore-fail-on-non-empty "$BAKDIR"
-fi
-
-# Delete all but the latest backup directories in the state dir.
-typeset -a EXISTING_BAKS=()
-if [[ -d "$BACKUP_BASE_DIR" ]]; then
-  while IFS= read -r d; do
-    EXISTING_BAKS+=("$d")
-  done < <(find "$BACKUP_BASE_DIR" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | sort -r | tail -n +$((KEEP_LAST_BAKS + 1)))
-fi
-
-if (( ${#EXISTING_BAKS[@]} == 0 )); then
-  debug "Cleanup: No outdated backup directories found (always keeping last $KEEP_LAST_BAKS), skipping cleanup."
-else
-  info "Cleanup: Removing ${#EXISTING_BAKS[@]} outdated backup directories (\$KEEP_LAST_BAKS=$KEEP_LAST_BAKS) ..."
-  for d in "${EXISTING_BAKS[@]}"; do
-    debug "Cleanup: Removing outdated backup directory: $d"
-    run_and_report rm -rf -- "$d"
-  done
-  info "Cleanup: Done."
-fi
-
-exit 0
+report_and_exit "Linking"
