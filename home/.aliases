@@ -834,7 +834,8 @@ alias proxy-set-squid-vpn="export all_proxy='http://10.10.0.1:3128'"
 alias proxy-unset="unset all_proxy"
 
 alias ftp="ftp -p"
-alias nfs-reexport='exportfs -ra'
+alias nfs-reexport='${SUDO_USER-sudo} exportfs -ra'
+alias nfs-exports='${SUDO_USER-sudo} exportfs -v'
 
 #alias ssh-tunnel-11001001-proxy='ssh -f 11001001.org -p 8090 -L 23128:127.0.0.1:3128 -N'
 alias ssh-tunnel-11001001-rspamd='ssh -f 11001001.org -p 8090 -L 11334:127.0.0.1:11334 -N'
