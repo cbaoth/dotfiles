@@ -242,6 +242,11 @@ ${allow_line}
   if (( ! wrote )); then
     st::noop "sshd policy already applied"
   elif systemctl is-active --quiet "${unit}" 2>/dev/null; then
+    # A unit file changed on disk (cause unconfirmed, seen 2026-10-17 on saito
+    # and the vserver) makes systemctl warn on reload until a daemon-reload.
+    if [[ "$(systemctl show -p NeedDaemonReload --value "${unit}" 2>/dev/null)" == yes ]]; then
+      st::run "daemon-reload (${unit} changed on disk)" -- sudo systemctl daemon-reload
+    fi
     st::run "reload ${unit}" -- sudo systemctl reload "${unit}"
   else
     st::skip "${unit} not running (socket-activated) — applies to new connections"
