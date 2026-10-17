@@ -278,13 +278,34 @@ to rely on for wine.
     false negative by copying inside an actual X11 app and reading
     `wl-paste`).
   - Search sway/wlroots issues for 1.11 XWayland clipboard regressions.
-  - Only if it is genuinely a wlroots gap: a sync daemon (e.g.
-    `wl-clip-persist` is for *persistence*, not X11↔WL sync — wrong tool;
-    look for an actual bridge). Earlier daemon attempt was abandoned
-    without real setup effort.
+  - ~~Only if it is genuinely a wlroots gap: a sync daemon~~ — not a gap,
+    see findings below; `wl-clip-persist` (persistence) is the relevant
+    tool after all.
   - For flatpak: check portal / clipboard permissions
     (`flatpak info --show-permissions`).
   - Reproduce on the notebook (puppet) too — same class of issue reported there.
+  - **Findings 2026-10-17 (motoko, sway 1.11, wlroots 0.19.2, wine 11.0,
+    PoB on `Graphics=x11`):**
+    - The bridge is not broken. wlroots only takes an X11 selection into
+      the Wayland clipboard while *an* XWayland surface has focus
+      (`xwayland/selection/incoming.c`: "denying write access to
+      clipboard: no xwayland surface focused", DEBUG log only). The owner
+      window itself need not be focused or mapped.
+    - Hence the old CLI test (`xclip` from foot) was a false negative by
+      design. Controlled test: `xclip` with foot focused → not synced;
+      with PoB focused → synced; Ctrl-C inside PoB with PoB focused →
+      synced (owner: wine's hidden unmapped window).
+    - wlroots also *clears* the Wayland clipboard when the X11 owner goes
+      away (owner → None). PoB/wine appears to drop ownership when the
+      in-app selection changes (`xclip -o` → "target STRING not
+      available" afterwards), and was once seen holding the X clipboard
+      while `wl-paste` was empty after focus moved to foot — suspected:
+      wine released and re-acquired ownership while unfocused, so wlroots
+      cleared and then denied. Unconfirmed; log owner changes to confirm.
+    - Likely fix for the remaining loss: a clipboard keeper
+      (`wl-clip-persist --clipboard regular`) — it re-serves the last
+      content when the owner goes away, which also fixes "copied text is
+      gone after closing the foot window" (normal Wayland semantics).
 
 ## Game streaming — Moonlight / Sunshine (parked 2026-08-16)
 
