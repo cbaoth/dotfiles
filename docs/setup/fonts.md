@@ -3,7 +3,7 @@ title: Fonts — Nerd Fonts
 hosts: [motoko]
 status: resolved
 tags: [fonts, terminal, gnome]
-updated: 2026-07-12
+updated: 2026-10-17
 automated_by: setup/modules/40-fonts.sh
 ---
 
@@ -26,6 +26,11 @@ also exist, but the install script handles the fontconfig cache refresh for you.
 
 Idempotency is keyed on `fc-list`, not on the clone: the fonts count as installed
 if fontconfig can see them, however they got there.
+
+## Text console
+
+The console (kmscon, runs as root) cannot see these per-user fonts; it gets
+its own system-wide copy of FiraMono — see [console.md](console.md).
 
 ## Verify
 
