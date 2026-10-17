@@ -2,8 +2,9 @@
 title: Sway setup
 hosts: [motoko, puppet]
 status: resolved
-tags: [sway, wayland, waybar, keepassxc, nvidia, tray, config, keyboard]
-updated: 2026-10-12
+tags: [sway, wayland, waybar, keepassxc, nvidia, tray, config, keyboard, modes, osd]
+updated: 2026-10-17
+automated_by: setup/modules/00-apt-base.sh
 ---
 
 # Introduction
@@ -29,7 +30,7 @@ The main `~/.config/sway/config` is now a thin loader: the install-notes banner,
 | `10-output-input.conf` | Outputs (monitors), wallpaper, keyboard/pointer/touchpad |
 | `20-styles.conf` | Font, borders, focus behavior, base16 colors, waybar `bar {}` |
 | `30-variables.conf` | `$mod`/`$hyper`, workspaces, opacity, apps, window-state commands |
-| `40-keybindings.conf` | All `bindsym` + meta modes (window, system, pointer) |
+| `40-keybindings.conf` | All `bindsym` + meta modes (window, system + confirmations, arrange, pointer) |
 | `41-hyper-mode.conf` | `$mod+y` Hyper mode (ANSI fallback), includes the generated `~/.cache/sway/hyper-mode.conf` |
 | `70-window-rules.conf` | `for_window`/`no_focus` criteria, workspace assignment |
 | `90-launch-apps.conf` | Startup `exec` + tray applets (after waybar) |
@@ -283,6 +284,106 @@ Mask the service so Sway exclusively manages waybar via `swaybar_command`. `disa
 systemctl --user mask waybar
 ```
 
+## Colour scheme
+
+`style.css` is monotone by default; colour only means a level, the same one in
+every module (the header of `style.css` is the reference):
+
+| Level | Colour | Meaning, e.g. |
+| ----- | ------ | ------------- |
+| info | blue | intentional, benign, not the default — auto keep-awake, benign modes |
+| notice | yellow | stay aware of it — manual keep-awake, power-saver/performance, System mode |
+| warn | orange | getting risky — high load, power-warn |
+| crit | red | broken or dangerous — network down, critical notification, confirmations |
+
+Escalation is two-step: first the **text** takes the colour (worth noticing,
+nothing to do — CPU at 80%), then the segment **inverts** (needs attention —
+RAM at 90%, volume at 90%, network down). Thresholds are waybar `"states"` in
+`config.jsonc`, which add the state name as a CSS class.
+
+- **`pulseaudio` matches states "at or below"**, unlike `cpu`/`memory` ("at or
+  above"): it calls waybar's `getState(volume, true)`. Each value is therefore
+  the *upper* bound — `{"normal": 69, "warning": 89, "critical": 100}`.
+- **Write Font Awesome glyphs as `\uXXXX` JSON escapes** in `config.jsonc`.
+  The BMP private-use glyphs (U+F000–F8FF) had silently gone missing from the
+  file (wifi, volume, scratchpad showed no icon). Nerd Font glyphs outside the
+  BMP (`󰍛` U+F035B) survive as literal characters.
+- Modules are dark segments on a darker bar with a small gap; the window title
+  has no segment (context, not status).
+
+# Binding modes & overlay
+
+Every meta mode name follows one format, parsed by `bin/sway-mode-osd` — the
+mode name is the *only* copy of the help text:
+
+``` text
+set $mode_x Title | Group: [k]ey text · [K] other | Group2: ...
+```
+
+The first `|` segment is the title, each further segment one row, `[...]`
+marks a key. The title sets the severity: `System` is **danger** (yellow), a
+title ending in `?` is a **confirmation** (red, blinking in the bar), anything
+else **benign** (blue). A `set $mode_*` must come *before* any binding that
+names it: sway expands variables at parse time.
+
+| Keys | Mode |
+| ---- | ---- |
+| `$mod+x` | Window: close / force-kill, resize (repeatable, live size shown) |
+| `$mod+Escape` | System: lock, reload, exit, awake, power, BT reset, nag |
+| `$mod+Alt+x` | Arrange windows |
+| `AltGr+Scroll_Lock` | Pointer acceleration |
+| `$mod+y` | Hyper (ANSI fallback, generated) |
+
+Every mode leaves on `Escape`, `Return` or `Ctrl+g`, or after
+`$mode_timeout_secs` (`bin/sway-mode-timeout`).
+
+**Two displays, one source:**
+
+- `sway-mode-osd waybar` feeds the waybar `custom/mode` module (replaces
+  `sway/mode`): short title plus severity class, full help as tooltip.
+  Built-in `sway/mode` only exposes `#mode`, no class per mode, and the full
+  mode string got truncated on narrower outputs.
+- `sway-mode-osd daemon` (`exec_always … --replace` in `90-launch-apps.conf`)
+  draws a GTK4 layer-shell panel centred on the focused output: coloured
+  title, key rows, and a countdown bar read from
+  `$XDG_RUNTIME_DIR/sway-mode-timeout.deadline` (written by
+  `sway-mode-timeout`). It takes **no keyboard and no pointer input**, so the
+  mode's own bindings keep working and clicks go through.
+  Requires `python3-gi python3-gi-cairo gir1.2-gtk4layershell-1.0`
+  (`setup/packages/desktop.list`); without them it raises a notification
+  saying so and the bar label still works.
+
+**Keyboard confirmations instead of swaynag.** swaynag has no keyboard
+handling at all. Exit (`X`), reboot (`R`) and shutdown (`D`) enter a
+confirmation mode: the same key again or `Return` confirms; `Escape`,
+`Ctrl+g` or the timeout cancel. Unbound keys pass through to the focused
+window, so typing on cannot confirm (verified).
+
+**Config errors.** `$mod+Escape c` runs `bin/sway-reload`: `sway --validate`
+first (needs `--unsupported-gpu` on Nvidia, harmless elsewhere), reload only
+when valid; errors go to a critical notification and the running config
+stays. `swaynag_command sway-nag` (top of the main config) keeps swaynag for
+errors sway itself reports, but saves the details:
+`$mod+Escape e` shows them in a terminal, `$mod+Escape n` dismisses every nag.
+
+**Feedback.** `$mod+x c` / `k` (`bin/sway-kill-focused [--close]`) and
+`sway-reload` confirm via a short `swayosd-client --custom-message` OSD: big,
+centred, not muted by Do Not Disturb. The notification stays as the record.
+
+**Considered and not used:**
+
+- *rofi `-dmenu -auto-select` as a mode menu*: works single-key, but has a
+  startup lag in which a fast `$mod+x k` types `k` into the focused window,
+  cannot repeat (held resize keys), and grabs the keyboard. Kept for pickers
+  over dynamic lists.
+- *vicinae dmenu*: no auto-select (`vicinae dmenu --help`).
+- *wlr-which-key*: not in apt, replaces sway modes and grabs the keyboard.
+- *swaync notification as the help panel*: hidden by DND, clutters history.
+- *`mode --pango_markup` colouring*: works without a script, but ugly mode names.
+
+What went wrong while building this:
+[sway-mode-osd-and-resize-timeout.md](../troubleshooting/sway-mode-osd-and-resize-timeout.md).
+
 # Tray applet startup ordering
 
 Tray applets (KeePassXC, NordVPN, Trayscale, Nextcloud, Blueman, Solaar, CopyQ) must not start until **waybar's system tray is ready to host them**. Launched too early, they register their `StatusNotifierItem` before the tray exists, end up with no icon, and have to be restarted by hand.
@@ -480,8 +581,8 @@ sway-awake toggle 30m      # on, auto-off after 30 min (also: 45s, 90, 1h)
 sway-awake status          # off / manual / auto
 ```
 
-- Hotkey: `$mod+Alt+x` enters the system mode, then `a` toggles (or `Shift+a` toggles with a 30-min auto-off).
-- Waybar `custom/sway-awake` module: coffee = manual (yellow), film = auto (blue), moon = off. Left-click toggles, right-click enables a 30-min auto-off. Colors encode *why* the screen is awake (manual vs media), not which button was pressed. The timeout uses a transient `systemd --user` timer (`sway-awake-timeout`).
+- Hotkey: `$mod+Escape` enters the system mode, then `a` toggles (or `Shift+a` toggles with a 30-min auto-off).
+- Waybar `custom/sway-awake` module: coffee = manual (yellow text), film = auto (blue text), moon = off (dim). Left-click toggles, right-click enables a 30-min auto-off. Colors encode *why* the screen is awake (manual vs media), not which button was pressed. The timeout uses a transient `systemd --user` timer (`sway-awake-timeout`).
 - Dependency: the bar's automatic (blue) state uses `pactl` to detect active audio — install `pulseaudio-utils` (`sudo apt install pulseaudio-utils`). Without it, media that does not set its own inhibitor is still kept awake by the PipeWire tool, but the bar will not surface the blue "auto" state.
 
 # Nvidia Proprietary Drivers
