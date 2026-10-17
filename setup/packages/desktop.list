@@ -17,6 +17,9 @@ nvtop
 # Terminal emulator & clipboard
 xfce4-terminal
 wl-clipboard
+# X11 -> Wayland clipboard bridge for wine/Proton (bin/xwayland-clipboard-bridge)
+xclip
+python3-xlib
 
 # Launcher
 rofi

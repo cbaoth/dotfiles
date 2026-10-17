@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+# -*- mode: python; indent-tabs-mode: nil; tab-width: 4 -*-
+# vim: ft=python:et:ts=4:sts=4:sw=4
+#
+# xwayland-clipboard-bridge: copy every X11 clipboard copy to Wayland (wine, Proton, any XWayland app).
+#
+# Why: wlroots only takes an X11 selection into the Wayland clipboard while an
+# XWayland surface has focus, and clears it again when the X11 owner goes away.
+# wine copies made, released or re-acquired while a Wayland window is focused
+# therefore never reach (or vanish from) Wayland apps. Full story:
+# docs/troubleshooting/xwayland-clipboard-to-wayland.md
+#
+# How: XFixes reports every CLIPBOARD owner change. When the new owner is a
+# real X11 client, its content is read with xclip and handed to wl-copy, which
+# keeps serving it after the X11 owner is gone. Skipped:
+#   - owners belonging to the wlroots XWM (sway's relay window): that content
+#     came from Wayland. This also ends the loop, since after wl-copy the XWM
+#     owns the X11 clipboard again. Wayland-native apps (KeePassXC, wine's
+#     Wayland driver) are never touched.
+#   - copies flagged x-kde-passwordManagerHint (password managers on X11).
+# Text wins over images; images keep their mime type. PRIMARY is not bridged.
+# Contents are never logged, only owner, type and size.
+#
+# Run as the systemd user unit xwayland-clipboard-bridge.service (Restart= covers
+# an Xwayland restart: the X connection drops and the process exits).
+#
+# System Python on purpose (not uv): python3-xlib comes from apt, see --help.
+
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+import time
+
+from Xlib import X, display, error
+from Xlib.ext import xfixes
+
+TEXT_TARGETS = ("UTF8_STRING", "text/plain;charset=utf-8", "STRING", "TEXT")
+IMAGE_TARGETS = ("image/png", "image/bmp", "image/jpeg", "image/tiff", "image/gif")
+SECRET_TARGET = "x-kde-passwordManagerHint"
+TEXT_MIME = "text/plain;charset=utf-8"
+XCLIP_TIMEOUT = 3  # s; an X11 owner that never answers must not block the loop
+WM_WAIT = 30  # s to wait for the wlroots XWM on startup
+
+verbose = False
+
+
+def log(msg: str) -> None:
+    print(msg, file=sys.stderr, flush=True)
+
+
+def debug(msg: str) -> None:
+    if verbose:
+        log(msg)
+
+
+def xclip_out(target: str) -> bytes | None:
+    """Content of CLIPBOARD as TARGET, None if the owner does not deliver it."""
+    try:
+        res = subprocess.run(
+            ["xclip", "-o", "-selection", "clipboard", "-t", target],
+            capture_output=True,
+            timeout=XCLIP_TIMEOUT,
+            check=True,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        debug(f"xclip -t {target}: {e}")
+        return None
+    return res.stdout
+
+
+def wm_base(d: display.Display, mask: int) -> int:
+    """Client id base of the wlroots XWM (owner of _NET_SUPPORTING_WM_CHECK)."""
+    root = d.screen().root
+    atom = d.intern_atom("_NET_SUPPORTING_WM_CHECK")
+    deadline = time.monotonic() + WM_WAIT
+    while True:
+        prop = root.get_full_property(atom, X.AnyPropertyType)
+        if prop and prop.value:
+            return prop.value[0] & ~mask
+        if time.monotonic() > deadline:
+            raise SystemExit("no X11 window manager (_NET_SUPPORTING_WM_CHECK) found")
+        time.sleep(1)
+
+
+def bridge(owner: int) -> None:
+    """Copy the current CLIPBOARD (owned by a real X11 client) to Wayland."""
+    raw = xclip_out("TARGETS")
+    targets = set(raw.decode(errors="replace").split()) if raw else set()
+    if SECRET_TARGET in targets:
+        log(f"owner {owner:#x}: flagged as secret, skipped")
+        return
+    for target, mime in [(t, TEXT_MIME) for t in TEXT_TARGETS] + [(t, t) for t in IMAGE_TARGETS]:
+        # No TARGETS answer (some old clients): still try text.
+        if target not in targets and (targets or mime != TEXT_MIME):
+            continue
+        data = xclip_out(target)
+        if data:
+            break
+    else:
+        debug(f"owner {owner:#x}: no text or image target ({len(targets)} offered)")
+        return
+    # wl-copy forks and serves the content until the next copy replaces it.
+    subprocess.run(["wl-copy", "--type", mime], input=data, check=False)
+    log(f"owner {owner:#x}: bridged {mime}, {len(data)} bytes")
+
+
+def main() -> int:
+    global verbose
+    parser = argparse.ArgumentParser(
+        description="Copy every X11 CLIPBOARD copy into the Wayland clipboard.",
+        epilog="Requirements (apt): python3-xlib, xclip, wl-clipboard.",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="also log skipped owner changes")
+    verbose = parser.parse_args().verbose
+
+    try:
+        d = display.Display()
+    except error.DisplayError as e:
+        log(f"cannot open X display: {e}")
+        return 1
+    mask = d.display.info.resource_id_mask
+    base = wm_base(d, mask)
+    clipboard = d.intern_atom("CLIPBOARD")
+    d.xfixes_query_version()
+    d.xfixes_select_selection_input(d.screen().root, clipboard, xfixes.XFixesSetSelectionOwnerNotifyMask)
+    d.flush()
+    log(f"watching CLIPBOARD (wlroots XWM client base {base:#x})")
+
+    while True:
+        ev = d.next_event()  # raises on a lost connection -> exit, systemd restarts
+        if getattr(ev, "selection", None) != clipboard or not hasattr(ev, "owner"):
+            continue
+        owner = ev.owner if isinstance(ev.owner, int) else ev.owner.id
+        if owner == X.NONE:
+            debug("owner gone: Wayland keeps the last bridged copy")
+        elif owner & ~mask == base:
+            debug(f"owner {owner:#x} is the wlroots XWM: from Wayland, skipped")
+        else:
+            bridge(owner)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
