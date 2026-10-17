@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Open an ssh session in a new terminal: a fixed host, this host's peer, or one picked from ~/.ssh/config.
+#
+# ssh options (port, user, ForwardAgent, ...) belong in ~/.ssh/config, not
+# here: this script only passes the host name, so `ssh HOST` in a shell and
+# the sway binding behave the same.
+#
+# The picker lists the first name of every `Host` line in file order (fuzzy
+# matching only once you type), so the file order is the ranking. Skipped:
+# patterns (*, ?, !), `Match` blocks, and hosts whose comment block directly
+# above the `Host` line contains `# sway-ssh: hide` (e.g. git-only aliases).
+# `Include`d files are not read.
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="$(basename "$0")"
+
+# -u: unset vars are errors  -o pipefail: propagate pipe failures
+# No -e: a cancelled picker (empty selection) is a normal exit path.
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = CONSTANTS =============================================================
+
+declare -r SSH_CONFIG="${SWAY_SSH_CONFIG:-${HOME}/.ssh/config}"
+
+# Peer of each host for `peer` (the desktop <-> laptop pair).
+declare -rA PEERS=(
+  [motoko]=puppet
+  [puppet]=motoko
+)
+
+# Default terminal when --term is not given (e.g. run from the vicinae script
+# command); the sway bindings pass $term / $termfloat instead.
+declare -r DEFAULT_TERM="foot"
+
+# }}} = CONSTANTS =============================================================
+
+# {{{ = FUNCTIONS =============================================================
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+# Errors also go to a notification: run from a key binding, stderr is unseen.
+p_fail() {
+  p_err "$*"
+  command -v notify-send >/dev/null && notify-send -a "${SCRIPT_FILE}" "${SCRIPT_FILE}" "$*"
+  return 1
+}
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [OPTIONS] TARGET
+
+Open \`ssh HOST\` in a new terminal window.
+
+Targets:
+  HOST    connect to HOST (any name ssh resolves, e.g. a ~/.ssh/config alias)
+  peer    connect to this host's peer ($(for h in "${!PEERS[@]}"; do printf '%s->%s ' "${h}" "${PEERS[${h}]}"; done))
+  pick    choose a host from ${SSH_CONFIG} (vicinae dmenu, else rofi)
+  list    print the hosts the picker would show, one per line
+
+Options:
+  -t, --term CMD   terminal command, word-split, run as: CMD -e ssh HOST
+                   (default: ${DEFAULT_TERM})
+  -n, --dry-run    print the command instead of running it
+  -h, --help       show this help and exit
+
+Mark a host hidden from the picker with a comment directly above it:
+  # sway-ssh: hide
+  Host forgejo
+EOF
+}
+
+# Picker entries: "first-name  other-names", file order. awk keeps the comment
+# block preceding each Host line (reset by any other line) to find the marker.
+list_hosts() {
+  [[ -r "${SSH_CONFIG}" ]] || { p_fail "cannot read ${SSH_CONFIG}"; return 1; }
+  awk '
+    /^[[:space:]]*#/  { if ($0 ~ /sway-ssh:[[:space:]]*hide/) hide = 1; next }
+    tolower($1) == "host" {
+      if (!hide) {
+        names = ""
+        for (i = 2; i <= NF; i++) {
+          if ($i ~ /^#/) break
+          if ($i ~ /[*?!]/) continue
+          names = names (names == "" ? "" : "  ") $i
+        }
+        if (names != "") print names
+      }
+    }
+    { hide = 0 }
+  ' "${SSH_CONFIG}"
+}
+
+# Print the selected entry, empty on cancel.
+pick_host() {
+  local hosts
+  hosts="$(list_hosts)" || return 1
+  [[ -n "${hosts}" ]] || { p_fail "no hosts found in ${SSH_CONFIG}"; return 1; }
+  if command -v vicinae >/dev/null && vicinae ping >/dev/null 2>&1; then
+    vicinae dmenu --no-quick-look --no-metadata -n "SSH" -p "Host" <<<"${hosts}"
+  elif command -v rofi >/dev/null; then
+    rofi -dmenu -i -matching fuzzy -no-custom -p ssh <<<"${hosts}"
+  else
+    p_fail "neither vicinae (server running) nor rofi available"
+  fi
+}
+
+# }}} = FUNCTIONS =============================================================
+
+# {{{ = MAIN ==================================================================
+
+main() {
+  local term="${DEFAULT_TERM}"
+  local -i dry_run=0
+  while (( $# > 0 )); do
+    case "$1" in
+      -t|--term)     term="${2:?--term needs a value}"; shift ;;
+      -n|--dry-run)  dry_run=1 ;;
+      -h|--help)     p_usg; return 0 ;;
+      --)            shift; break ;;
+      -*)            p_err "unknown option: $1"; p_usg >&2; return 2 ;;
+      *)             break ;;
+    esac
+    shift
+  done
+  (( $# == 1 )) || { p_usg >&2; return 2; }
+
+  local host
+  case "$1" in
+    list)  list_hosts; return ;;
+    pick)
+      host="$(pick_host)" || return 1
+      host="${host%%[[:space:]]*}"
+      [[ -n "${host}" ]] || return 0    # cancelled
+      ;;
+    peer)
+      local self
+      self="$(hostname -s)"
+      host="${PEERS[${self}]:-}"
+      [[ -n "${host}" ]] || { p_fail "no peer defined for host '${self}'"; return 1; }
+      ;;
+    *)     host="$1" ;;
+  esac
+
+  local -a cmd
+  read -r -a cmd <<<"${term}"
+  cmd+=(-e ssh "${host}")
+  if (( dry_run )); then
+    printf '%q ' "${cmd[@]}"; printf '\n'
+    return 0
+  fi
+  exec "${cmd[@]}"
+}
+
+main "$@"
+
+# }}} = MAIN ==================================================================

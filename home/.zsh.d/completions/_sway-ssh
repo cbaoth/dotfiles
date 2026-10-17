@@ -1,0 +1,14 @@
+#compdef sway-ssh
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for sway-ssh (bin/sway-ssh). Hosts come live from `sway-ssh list`
+# (the picker's list), so ~/.ssh/config changes need no edit here.
+
+local -a hosts
+hosts=(${${(f)"$(sway-ssh list 2>/dev/null)"}%%[[:space:]]*})
+
+_arguments -s \
+  '(-t --term)'{-t,--term}'[terminal command]:terminal command:_command_names' \
+  '(-n --dry-run)'{-n,--dry-run}'[print the command instead of running it]' \
+  '(- *)'{-h,--help}'[show help]' \
+  "1:target:((peer\:'this host'\''s peer' pick\:'choose from ~/.ssh/config' list\:'print picker hosts' ${hosts[*]}))"
