@@ -713,13 +713,14 @@ See `docs/setup/ssh-hardening.md`; host-specific addresses in
 
 - [x] [S] motoko: add the ufw rules for port 22 (done 2026-09-24, rules
       `[12]`–`[15]` on `wlp14s0`; verify a real login from the notebook)
-- [ ] [S] saito: run `system-setup 56-sshd` to adopt the managed baseline — the
+- [x] [S] saito: run `system-setup 56-sshd` to adopt the managed baseline — the
       hand-written `10-hardening.conf` gets replaced and its `AllowUsers` moves
-      to `01-local.conf` automatically; verify the dry-run says so
-- [ ] [M] 11001001: adopt the module — rename `01-hardening.conf` to
+      to `01-local.conf` automatically (done 2026-10-17, `AllowUsers cbaoth`
+      carried over)
+- [x] [M] 11001001: adopt the module — rename `01-hardening.conf` to
       `01-local.conf`, keep only the host-specific lines, and update
       `bootstrap-new-server.sh` in the notes repo so a rebuild does not
-      reintroduce the old file
+      reintroduce the old file (done 2026-10-17, see ssh-hardening.md)
 - [ ] [S] motoko: review ufw rules `[9]`/`[10]` — KDE Connect `1714:1764` is
       open from Anywhere, on every interface including `tailscale0`
 - [ ] [M] motoko: narrow ufw rule `[11]` (`ALLOW IN 10.0.24.0/24`, the direct

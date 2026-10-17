@@ -209,12 +209,14 @@ hand-hardened host keeps its `AllowUsers` — case 2 above carries that line int
 and confirm the list is the one you meant; everything else in the generated
 template is commented out and inert.
 
-The vserver predates this module — its drop-in is written by
-`bootstrap-new-server.sh` (in the private notes repo) and is named
-`01-hardening.conf`. It already sorts first, so adopting the module there means
-renaming it to `01-local.conf`, dropping the lines the baseline now provides,
-and keeping only the host-specific ones. Update the bootstrap script in the same
-change or the next rebuild reintroduces the old file.
+The vserver predated this module: `bootstrap-new-server.sh` (private notes
+repo) wrote everything into `01-hardening.conf`. Adopted 2026-10-17: its
+host-specific lines (`AllowUsers cbaoth pull-backup`, `Port`, agent and X11
+forwarding off) moved to `01-local.conf`, the old file went to
+`/root/sshd-dropin-backup-*`, and `sshd -T` was checked before and after. The
+bootstrap script now writes the same layout: `01-local.conf` plus an interim
+`10-hardening.conf` that `56-sshd` replaces on its first run, so a rebuild
+does not bring the old file back.
 
 ## Client side: `~/.ssh/config`, agent forwarding, sway keys
 
