@@ -71,8 +71,9 @@ Terminal Input Mode (default):
   items (e.g. separated by space), each item executing the COMMAND.
 
   Each {} within the COMMAND will be substituted with the given line/item,
-  shell-escaped. Do not put {} in quotes ('{}'), the escaping already makes
-  the item a single word.
+  shell-escaped. COMMAND is re-parsed by bash, so quotes that survive your
+  shell break this escaping: '{}' is fine (your shell removes the quotes, like
+  with find), but "<<<'{}'" or "echo '{}'" passes literal quotes; use "<<<{}".
   If no {} exists the line/item will be appended to the COMMAND (final arg).
 
 Clipboard Mode [-c]:
