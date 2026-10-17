@@ -195,117 +195,15 @@ Removable as dead weight, not a correctness issue.
 - [ ] [M] Add conky config for puppet (notebook): derive from motoko config, adapt for
   smaller viewport, no Nvidia GPU, no Windows/dual-boot partitions
 
-## Clipboard — XWayland ↔ Wayland bridge not working (motoko)
+## Clipboard — XWayland → Wayland copy (resolved 2026-10-17)
 
-Copy from XWayland apps (e.g. Path of Building under wine) never reaches
-Wayland apps: in-app copy/paste works, but nothing propagates to sway's
-clipboard. Same class of symptom as flatpak↔flatpak copy failures
-(XnView → ungoogled-chromium file/name copy).
+Fixed by `bin/xwayland-clipboard-bridge` (systemd user unit, started from
+sway). Journal, dead ends and limits:
+[`docs/troubleshooting/xwayland-clipboard-to-wayland.md`](troubleshooting/xwayland-clipboard-to-wayland.md).
 
-**Root cause found (2026-09-08, motoko/sway 1.11):** the XWayland↔Wayland
-clipboard bridge is dead in *both* directions, for *both* CLIPBOARD and
-PRIMARY. Verified with **zero** clipboard managers running:
-
-- `printf x | xclip -selection clipboard` → `wl-paste` does not see it.
-- `printf x | wl-copy` → `xclip -selection clipboard -o` does not see it.
-- same for `-selection primary` / `wl-paste --primary`.
-
-Single Xwayland on `:0` (`-rootless … -wm 169`, i.e. sway is the XWM), so
-it is not a wrong-X-server problem. Normally wlroots/sway syncs this
-automatically, so something specific here is off.
-
-**Ruled out:** copyq and diodon (bridge fails with nothing running).
-Both were vestigial X11 clipboard managers from the old GNOME/Unity setup
-adding their own chaos → copyq removed 2026-09-08 (package itself only
-purged 2026-10-17, on motoko and puppet); diodon was no longer installed,
-its leftover autostart entry and icon cache removed 2026-10-17 (both hosts).
-
-**Bridge behaviour (refined 2026-09-08):** not simply dead — it appears to
-engage only while an XWayland surface is mapped. With a real mapped X11
-GTK window present, `xclip` and `wl-paste` finally agreed; with no
-XWayland window, the two clipboards are fully independent. Even engaged,
-the X11→Wayland direction is flaky (a mapped X11 app's own copy got
-clobbered by the Wayland selection being pushed back into X11). Too shaky
-to rely on for wine.
-
-**Already fixed / sidestepped:**
-
-- mpv path-copy bindings now use mpv's native Wayland clipboard
-  (`set clipboard/text`) / `wl-copy` instead of xclip — see
-  `home/.config/mpv/input.conf`.
-
-- `bin/while-read` clipboard mode (`-c`, old `-x`/`--xclip` kept as alias)
-  now polls `wl-paste` instead of xclip (2026-10-17). No script in this
-  repo reads or writes the X11 clipboard any more; only `wl-copy` /
-  `wl-paste`.
-
-- **wine → native Wayland driver (primary avenue, pending verification).**
-  wine 11.0 ships `winewayland.drv`; the `~/.wine` prefix was defaulting
-  to x11 (→ XWayland → broken bridge). Set on `~/.wine`:
-  `wine reg add "HKCU\Software\Wine\Drivers" /v Graphics /d "wayland,x11" /f`.
-  Confirmed the driver loads and produces a **native** `xdg_shell` window
-  (notepad: `app_id=notepad.exe`, no X11 id). Driver is per-prefix/per-
-  wineserver, not per-app; Proton prefixes (bg3mm) are separate. Left ON
-  pending an interactive copy test (copy in wine → `wl-paste`). Revert:
-  `wine reg delete "HKCU\Software\Wine\Drivers" /v Graphics /f`. If it
-  sticks, document as a setup step (machine state, not repo-tracked).
-  Caveats: `xdg_toplevel_icon_manager_v1` unsupported (no window icons);
-  sway `for_window` rules keyed on X11 `class` must switch to `app_id`.
-  - **Clipboard: CONFIRMED working** under winewayland (copied SimpleGraphic
-    text out to `wl-paste`). Goal achieved for wine→Wayland copy.
-  - **GL init fix:** SimpleGraphic (PoB's renderer) is OpenGL. Default EGL
-    dispatch sent wine's GL to Mesa dri2 on the NVIDIA card
-    (`libEGL … driver (null)`, `failed to create dri2 screen`) → hang. Force
-    NVIDIA's EGL vendor:
-    `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json`.
-    With that, EGL init is clean and wine creates a GL context and loops on
-    `wglSwapBuffers` (verified via `WINEDEBUG=+wgl,+egl`).
-  - **Remaining blocker:** even rendering, PoB's window presents blank/stuck
-    on NVIDIA — a winewayland GL *presentation* rough edge (app runs at ~48%
-    CPU swapping buffers but nothing visible). Non-GL wine apps (notepad) are
-    fine. PoB kept on x11 (`Graphics=x11`) for now; revisit winewayland GL
-    presentation on NVIDIA (wine/wlroots issue tracker) later.
-  - **Driver mechanics learned:** graphics driver is per-wineprefix/per-
-    wineserver, not per-app; every change needs `wineserver -k` to reload.
-    `reg delete` reverts to wine's default (may be wayland on wine 11 with
-    WAYLAND_DISPLAY set) — set `Graphics=x11` explicitly to force XWayland.
-
-- [ ] [M] Root-cause the sway/wlroots XWayland clipboard sync failure:
-  - Check `sway -V` / wlroots build, `swaymsg -t get_config`, and the sway
-    log for XWM / clipboard errors right after an XWayland copy.
-  - Confirm whether *real* mapped XWayland GUI clients sync (the CLI test
-    with xclip uses an unmapped selection window — verify it is not a
-    false negative by copying inside an actual X11 app and reading
-    `wl-paste`).
-  - Search sway/wlroots issues for 1.11 XWayland clipboard regressions.
-  - ~~Only if it is genuinely a wlroots gap: a sync daemon~~ — not a gap,
-    see findings below; `wl-clip-persist` (persistence) is the relevant
-    tool after all.
-  - For flatpak: check portal / clipboard permissions
-    (`flatpak info --show-permissions`).
-  - Reproduce on the notebook (puppet) too — same class of issue reported there.
-  - **Findings 2026-10-17 (motoko, sway 1.11, wlroots 0.19.2, wine 11.0,
-    PoB on `Graphics=x11`):**
-    - The bridge is not broken. wlroots only takes an X11 selection into
-      the Wayland clipboard while *an* XWayland surface has focus
-      (`xwayland/selection/incoming.c`: "denying write access to
-      clipboard: no xwayland surface focused", DEBUG log only). The owner
-      window itself need not be focused or mapped.
-    - Hence the old CLI test (`xclip` from foot) was a false negative by
-      design. Controlled test: `xclip` with foot focused → not synced;
-      with PoB focused → synced; Ctrl-C inside PoB with PoB focused →
-      synced (owner: wine's hidden unmapped window).
-    - wlroots also *clears* the Wayland clipboard when the X11 owner goes
-      away (owner → None). PoB/wine appears to drop ownership when the
-      in-app selection changes (`xclip -o` → "target STRING not
-      available" afterwards), and was once seen holding the X clipboard
-      while `wl-paste` was empty after focus moved to foot — suspected:
-      wine released and re-acquired ownership while unfocused, so wlroots
-      cleared and then denied. Unconfirmed; log owner changes to confirm.
-    - Likely fix for the remaining loss: a clipboard keeper
-      (`wl-clip-persist --clipboard regular`) — it re-serves the last
-      content when the owner goes away, which also fixes "copied text is
-      gone after closing the foot window" (normal Wayland semantics).
+- [ ] [S] Verify on puppet (deployed by `dotfiles-link`, untested there)
+- [ ] [S] Bridge `PRIMARY` too? Only if select-in-wine → middle-click-in-Wayland
+      turns out to be missed
 
 ## Game streaming — Moonlight / Sunshine (parked 2026-08-16)
 

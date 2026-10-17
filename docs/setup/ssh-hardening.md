@@ -3,7 +3,7 @@ title: SSH — key-only access
 hosts: [all]
 status: resolved
 tags: [ssh, sshd, hardening, ufw, firewall, pubkey]
-updated: 2026-09-23
+updated: 2026-10-17
 automated_by: setup/modules/56-sshd.sh
 ---
 
@@ -215,6 +215,42 @@ The vserver predates this module — its drop-in is written by
 renaming it to `01-local.conf`, dropping the lines the baseline now provides,
 and keeping only the host-specific ones. Update the bootstrap script in the same
 change or the next rebuild reintroduces the old file.
+
+## Client side: `~/.ssh/config`, agent forwarding, sway keys
+
+`~/.ssh/config` is machine-local (not in this repo) and is the single place
+for per-host options (port, user, `ForwardAgent`). The sway bindings pass only
+a host name through `bin/sway-ssh`, so `ssh HOST` in a shell and the key
+binding behave the same:
+
+| Key | Target |
+| --- | ------ |
+| `$mod+F1` | `11001001.org` (vserver) |
+| `$mod+F2` | `saito` |
+| `$mod+F3` | peer: motoko → puppet, puppet → motoko (`PEERS` in the script) |
+| `$mod+Ctrl+s` | picker over `~/.ssh/config`, file order (vicinae dmenu, rofi fallback); also "SSH" in the vicinae launcher |
+
+`+Alt` opens a floating terminal. A `# sway-ssh: hide` comment line directly
+above a `Host` line keeps it out of the picker (e.g. the git-only `forgejo`
+alias). X11 forwarding is not used anywhere.
+
+**Agent forwarding (decided 2026-10-17):** `ForwardAgent yes` only on motoko,
+puppet and saito entries, **never the vserver** (internet-facing; `docker`
+group there is root-equivalent; its sshd also sets `AllowAgentForwarding no`).
+Forwarding hands out *use* of the keys, not the keys: root on the target can
+authenticate as you while the session is open. Because `lock-secrets --ssh`
+empties the agent on lock, a forwarded socket goes empty too, and "missing
+key" errors after locking are expected.
+
+**Rejected: KeePassXC "require user confirmation" per key.** Tested
+2026-10-17: works technically, but `ssh-askpass` pops a global modal that
+grabs the keyboard, and background users of the key (likely `notes-sync`,
+VS Code git fetch, reconnects; unconfirmed) trigger it repeatedly. An
+unannounced keyboard-grabbing confirm dialog is worse than the risk it
+mitigates (accidental accept, e.g. while gaming fullscreen). Untried
+alternatives if forwarding ever needs narrowing: a second git-only agent
+forwarded with `ForwardAgent <socket path>`, per-host read-only deploy keys,
+`ssh -J` instead of hopping with a forwarded agent.
 
 ## See also
 
