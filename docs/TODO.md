@@ -216,8 +216,9 @@ automatically, so something specific here is off.
 
 **Ruled out:** copyq and diodon (bridge fails with nothing running).
 Both were vestigial X11 clipboard managers from the old GNOME/Unity setup
-adding their own chaos → copyq removed 2026-09-08; diodon autostart still
-present (`~/.config/autostart/diodon-autostart.desktop`), remove too.
+adding their own chaos → copyq removed 2026-09-08 (package itself only
+purged 2026-10-17, on motoko and puppet); diodon was no longer installed,
+its leftover autostart entry and icon cache removed 2026-10-17 (both hosts).
 
 **Bridge behaviour (refined 2026-09-08):** not simply dead — it appears to
 engage only while an XWayland surface is mapped. With a real mapped X11

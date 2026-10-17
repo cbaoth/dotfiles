@@ -50,9 +50,10 @@ Clipboard:
   --pollrate X          Clipboard mode poll-rate in seconds (default: 0.2s).
 
 Filter Input:
-  -m, --match RE        Input must match the given regex, else: ignore input.
-  --match-separate      Match individual item (separated by --delimiter)
-                        (default: match complete input).
+  -m, --match RE        Each item (input separated by --delimiter) must match
+                        the given regex, else: ignore the item.
+  --match-whole         Match the complete input instead (e.g. the whole
+                        clipboard text); if it matches, all items are used.
   --allow-duplicates    Allow repeated input (default: ignore). Affects sequen-
                         tial repetitions only, duplicates are never tracked
                         globally. Has no effect on --clipboard mode (see below).
@@ -69,7 +70,9 @@ Terminal Input Mode (default):
   If a different delimiter is used, the line may be split up into individual
   items (e.g. separated by space), each item executing the COMMAND.
 
-  Each {} within the COMMAND will be substituted with the given line/item.
+  Each {} within the COMMAND will be substituted with the given line/item,
+  shell-escaped. Do not put {} in quotes ('{}'), the escaping already makes
+  the item a single word.
   If no {} exists the line/item will be appended to the COMMAND (final arg).
 
 Clipboard Mode [-c]:
@@ -102,9 +105,9 @@ Background [-b] option and limitations:
 
 Examples:
   # read URLs from input, append matches to file 'links' and download
-  while-read -b -m '^https?://' echo '{}' \>\> links \; wget -nv -c '{}'
+  while-read -b -m '^https?://' echo {} \>\> links \; wget -nv -c {}
   # same but using tee
-  while-read -b -m '^https?://' tee -a links "<<<'{}'" \| wget -nv -c -i -
+  while-read -b -m '^https?://' tee -a links "<<<{}" \| wget -nv -c -i -
 
   # monitor the clipboard for URLs and open matches in new firefox tabs
   while-read -c -b -m '^\w+://' firefox --new-tab
@@ -116,7 +119,7 @@ declare bg=false
 declare clipboard=false
 declare verbose=false
 declare allow_dupes=false
-declare match_separate=false
+declare match_whole=false
 declare xnotify=false
 declare delimiter=$'\n'
 declare regex=""
@@ -149,8 +152,12 @@ parse_args() {
         regex="$2"
         shift 2
         ;;
-      --match-separate)
-        match_separate=true
+      --match-whole)
+        match_whole=true
+        shift
+        ;;
+      --match-separate) # deprecated, per item matching is the default
+        match_whole=false
         shift
         ;;
       -d|--delimiter)
@@ -186,7 +193,7 @@ parse_args() {
           p_err "missing decimal value for option [$1]"
           exit 1
         fi
-        if [[ ! "$2" =~ ^[0-9]+(s|m|h|d)?$ ]]; then
+        if [[ ! "$2" =~ ^([0-9]+\.?[0-9]*|\.[0-9]+)(s|m|h|d)?$ ]]; then
           p_err "invalid value [$2] for option [$1]"
           p_err "only numeric values with suffix s (default), m, h, and d are allowed"
           exit 1
@@ -253,20 +260,31 @@ read_loop() {
         input="$(wl-paste --no-newline --type text 2> /dev/null)" || input=""
       fi
     else
-      IFS='' read -r -d $'\n' input
+      # EOF (ctrl-d): stop, but still process a final line without newline
+      IFS='' read -r -d $'\n' input || [[ -n "${input}" ]] || break
     fi
     first=false
 
+    # new input identical to previous / clipboard unchanged? -> skip input
+    if ! ${allow_dupes} && [[ "${input}" == "${input_prev:-}" ]]; then
+      continue
+    fi
+    # remember every input (also skipped ones below), so re-copying an earlier
+    # clipboard text after something else counts as a change
+    input_prev="${input}"
+
     # no input? -> skip
     [[ -z "${input}" ]] && continue
-    # new input identical to previous / clipboard unchanged? -> skip input
-    [[ ${allow_dupes} && "${input}" = "${input_prev:-}" ]] && continue
-    # input (no line) match mode and regex doesn't match? -> skip input
-    [[ ! ${match_separate} && ! "${input}" =~ ${regex} ]] && continue
+    # whole input match mode and regex doesn't match? -> skip input
+    if ${match_whole} && [[ ! "${input}" =~ ${regex} ]]; then
+      continue
+    fi
 
     # process lines/delimiter input, each element at a time (including last)
-    while IFS='' read -r -d "${delimiter}" item || [ -n "$item" ]; do
-      [[ ${match_separate} && ! "${item}" =~ ${regex} ]] && continue
+    while IFS='' read -r -d "${delimiter}" item || [[ -n "${item}" ]]; do
+      if ! ${match_whole} && [[ ! "${item}" =~ ${regex} ]]; then
+        continue
+      fi
       local -a cmd
 
       # substitute {}?
@@ -276,7 +294,7 @@ read_loop() {
         cmd="$(perl -s -0777 -pe 's/\{\}/\Q$item\E/g' -- -item="${item}" <<<"$@")"
       else # no {}? append argument
         cmd=("$@")
-        cmd+=("'${item}'")
+        cmd+=("$(printf '%q' "${item}")")
       fi
 
       # run in background (job)?
@@ -290,9 +308,8 @@ read_loop() {
         ${xnotify} && notify-send -u low 'while-read' "${item}"
         bash <<<"${cmd[@]}"
       fi
-    done <<<"${input}"
+    done < <(printf '%s' "${input}")  # <<< would append a newline to the last item
 
-    input_prev="${input}"
     item=""
   done
 }
