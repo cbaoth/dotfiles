@@ -101,6 +101,8 @@ main() {
   # tray apps after a sway restart. Stop them before and after the session.
   stop_session_apps
   stop_stale_portals
+  # Unmask: sway-stop-portals masks the portals after a session (see there).
+  sway-stop-portals --unmask
   local -i rc=0
   sway "${sway_args[@]}" || rc=$?
   stop_session_apps
@@ -121,11 +123,7 @@ stop_session_apps() {
 }
 
 stop_stale_portals() {
-  systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service \
-    xdg-desktop-portal-wlr.service 2> /dev/null || true
-  # The GTK backend dies "failed" when the old compositor goes away; a failed
-  # unit can then wedge the next portal activation.
-  systemctl --user reset-failed 'xdg-desktop-portal*' 2> /dev/null || true
+  sway-stop-portals
 }
 
 main "$@"

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# sway-stop-portals: stop the xdg-desktop-portal stack and everything that
+# would re-activate it while sway is going away.
+#
+# Background: the user systemd manager outlives sway. When the compositor dies,
+# wayland clients that restart under systemd (swaync, swayosd, vicinae) request
+# the portal again, which activates the GTK backend, which fails (no display).
+# The session D-Bus then keeps that activation pending for 120s, so the NEXT
+# sway session's portal hangs that long: waybar and tray apps start late and
+# apps (KeePassXC) come up without the dark theme.
+#
+# Stopping alone is not enough: swaync-client subscribers and friends re-activate
+# swaync via D-Bus, which asks for the portal again. So the portal units are also
+# runtime-masked (cleared on reboot): activation then fails at once instead of
+# leaving a pending request. bin/sway-start unmasks them before a new session.
+#
+# Usage: sway-stop-portals [--unmask]
+#   (no option)  stop requesters and portals, then mask the portals
+#   --unmask     unmask the portals (done by sway-start before sway starts)
+#
+# Run before the compositor exits (the "Exit Sway" button) and around the
+# session in bin/sway-start.
+
+set -o nounset
+
+declare -ra PORTALS=(xdg-desktop-portal.service xdg-desktop-portal-gtk.service
+  xdg-desktop-portal-wlr.service xdg-desktop-portal-hyprland.service)
+
+if [[ "${1:-}" == "--unmask" ]]; then
+  systemctl --user unmask --runtime "${PORTALS[@]}" 2> /dev/null || true
+  systemctl --user reset-failed 'xdg-desktop-portal*' 2> /dev/null || true
+  exit 0
+fi
+
+systemctl --user stop swaync.service swayosd.service vicinae.service 2> /dev/null || true
+systemctl --user stop "${PORTALS[@]}" 2> /dev/null || true
+systemctl --user mask --runtime "${PORTALS[@]}" 2> /dev/null || true
+systemctl --user reset-failed swaync.service swayosd.service vicinae.service 2> /dev/null || true
