@@ -101,6 +101,7 @@ main() {
   # tray apps after a sway restart. Stop them before and after the session.
   stop_session_apps
   stop_stale_portals
+  wait_stale_activation "$(date +%s)"
   # Unmask: sway-stop-portals masks the portals after a session (see there).
   sway-stop-portals --unmask
   local -i rc=0
@@ -124,6 +125,40 @@ stop_session_apps() {
 
 stop_stale_portals() {
   sway-stop-portals
+}
+
+# dbus-daemon's service_start_timeout (session.conf default: 120s) + margin.
+declare -ri ACTIVATION_TIMEOUT=122
+
+# Wait out a portal activation that dbus-daemon still holds from the previous
+# session. If sway died before sway-stop-portals ran (bare `swaymsg exit`, a
+# crash), a portal backend fails without a display and dbus-daemon keeps that
+# request pending until the timeout: masking cannot cancel it, and a session
+# started meanwhile gets a hanging portal (no waybar, light-themed apps).
+# Detected from dbus-daemon's journal lines up to UNTIL_TS, when the portals
+# got masked; later requests fail at once on the mask.
+wait_stale_activation() {
+  local -r until_ts="$1"
+  local -i left
+  left="$(journalctl --user -t dbus-daemon -o short-unix --no-pager -q \
+      --since "@$(( until_ts - ACTIVATION_TIMEOUT ))" --until "@${until_ts}" 2> /dev/null \
+    | awk -F "'" -v until_ts="${until_ts}" -v tmo="${ACTIVATION_TIMEOUT}" '
+        # Fields split on quotes: $2 = service name (or unit, last rule), $4 = unit.
+        /Activating via systemd: service name=/ && $2 ~ /portal/ {
+          split($1, f, "."); pending[$2] = f[1]; unit[$2] = $4
+        }
+        /Successfully activated service|Failed to activate service/ { delete pending[$2] }
+        /Activation via systemd failed for unit/ {
+          for (n in pending) if (unit[n] == $2) delete pending[n]
+        }
+        END {
+          max = 0
+          for (n in pending) { l = pending[n] + tmo - until_ts; if (l > max) max = l }
+          print max
+        }')" || left=0
+  (( left > 0 )) || return 0
+  printf 'Waiting %ss for a stale D-Bus portal activation from the last session...\n' "${left}"
+  sleep "${left}"
 }
 
 main "$@"

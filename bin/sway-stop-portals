@@ -37,7 +37,12 @@ if [[ "${1:-}" == "--unmask" ]]; then
   exit 0
 fi
 
+# Mask first: waybar's notification watcher re-activates swaync within
+# milliseconds of the stop below, and that swaync asks for the portal again.
+systemctl --user mask --runtime "${PORTALS[@]}" 2> /dev/null || true
+# Subscribers outliving waybar (bin/swaync-waybar leaked them before) would
+# re-activate swaync, so end them too.
+pkill -f -x 'swaync-client --subscribe' 2> /dev/null || true
 systemctl --user stop swaync.service swayosd.service vicinae.service 2> /dev/null || true
 systemctl --user stop "${PORTALS[@]}" 2> /dev/null || true
-systemctl --user mask --runtime "${PORTALS[@]}" 2> /dev/null || true
 systemctl --user reset-failed swaync.service swayosd.service vicinae.service 2> /dev/null || true

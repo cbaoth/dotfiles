@@ -156,7 +156,10 @@ cmd_watch() {
   rm -f -- "${fifo}"
   mkfifo -- "${fifo}" || return 1
   : > "${pidfile}"
-  trap 'kill "${producers[@]}" 2> /dev/null; rm -f -- "${fifo}" "${pidfile}"' EXIT
+  # producers[0] is a subshell: kill its swaync-client too, or every watcher
+  # exit (waybar gone) leaks an orphaned subscriber that re-activates swaync.
+  trap 'pkill -P "${producers[0]:-0}" 2> /dev/null; kill "${producers[@]}" 2> /dev/null
+        rm -f -- "${fifo}" "${pidfile}"' EXIT
   trap 'exit 0' SIGINT SIGTERM SIGHUP
   trap 'render' SIGUSR1
 

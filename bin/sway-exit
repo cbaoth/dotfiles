@@ -16,4 +16,11 @@
 set -o nounset
 
 sway-stop-portals
-exec swaymsg exit
+# Run after sway is already gone (e.g. from a TTY) it only does the cleanup.
+if ! swaymsg -t get_version > /dev/null 2>&1; then
+  printf 'sway is not running: portals stopped, nothing to exit\n'
+  exit 0
+fi
+# sway quits before it answers, so swaymsg reports "Unable to receive IPC
+# response" and fails: expected, not an error.
+swaymsg exit > /dev/null 2>&1 || true
