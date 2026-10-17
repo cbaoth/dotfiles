@@ -9,7 +9,7 @@ Run it with `bin/system-setup` (symlinked to `~/bin/system-setup`).
 ```bash
 system-setup --list                      # what exists, and what each does
 system-setup --dry-run --profile desktop # print what would change; change nothing
-system-setup --profile auto              # detect desktop/server/wsl, run all matching
+system-setup --profile auto              # profile from setup/hosts.list, else guessed
 system-setup 20-flatpak 30-docker        # run specific modules
 ```
 

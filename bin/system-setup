@@ -64,7 +64,7 @@ Options:
   -l, --list             List available modules and exit
   -n, --dry-run          Print what would change; change nothing
   -p, --profile PROFILE  Run all modules matching PROFILE
-                         (${ST_PROFILES[*]}, or 'auto' to detect)
+                         (${ST_PROFILES[*]}, or 'auto': setup/hosts.list, else guess)
   -y, --yes              Do not prompt before applying changes
   -h, --help             This help
 
@@ -191,7 +191,11 @@ parse_args() {
 
   if [[ "${profile}" == "auto" ]]; then
     profile="$(st::guess_profile)"
-    st::msg "detected profile: ${profile}"
+    if [[ -n "$(st::host_profile)" ]]; then
+      st::msg "profile: ${profile} (setup/hosts.list)"
+    else
+      st::msg "guessed profile: ${profile} ($(hostname -s) not in setup/hosts.list)"
+    fi
   fi
 
   if [[ -n "${profile}" ]] && [[ ! " ${ST_PROFILES[*]} " == *" ${profile} "* ]]; then

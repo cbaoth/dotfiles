@@ -552,9 +552,21 @@ st::is_desktop() {
   [[ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]]
 }
 
-# Guess the profile for --profile auto
+# Profile of this host from setup/hosts.list, empty if it is not listed.
+st::host_profile() {
+  local -r list="${ST_SETUP_DIR:-}/hosts.list"
+  [[ -r "${list}" ]] || return 0
+  awk -v host="$(hostname -s)" '!/^[[:space:]]*(#|$)/ && $1 == host { print $2; exit }' "${list}"
+}
+
+# Guess the profile for --profile auto: a setup/hosts.list entry wins over
+# the environment hints.
 st::guess_profile() {
-  if st::is_wsl; then
+  local listed
+  listed="$(st::host_profile)"
+  if [[ -n "${listed}" ]]; then
+    printf '%s' "${listed}"
+  elif st::is_wsl; then
     printf 'wsl'
   elif st::is_desktop; then
     printf 'desktop'
