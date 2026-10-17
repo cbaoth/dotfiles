@@ -20,6 +20,11 @@
 # keep it on a line of its own); edit only this file.
 palette = "local"
 
+# local: directory scan budget for module detection (default 30 ms). Hit in
+# ~ on a busy disk and on NFS mounts, where each readdir is a network trip;
+# a timeout drops modules and prints a warning; 100 ms only costs there.
+scan_timeout = 100
+
 format = """
 [░▒▓](fg:head)\
 $os\

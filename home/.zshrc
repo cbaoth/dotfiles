@@ -424,8 +424,19 @@ autoload -Uz zargs
 # `starship init zsh` is rendered to a file at install/update time and sourced
 # from there, so startup doesn't fork starship just to print its init code.
 # The prompt must load immediately (never turbo), else it isn't the prompt.
+#
+# Skipped on the stock kernel console (TERM=linux): its bitmap font has no
+# powerline/Nerd glyphs and only 16 colors, so the host's `prompt fade`
+# fallback below is used instead. Also inside tmux when the attached client is
+# such a console (decided once, at shell start), or on request: CB_PLAIN_TERM=1.
+# kmscon consoles set TERM=xterm-256color and keep starship (41-console.sh).
 IS_STARSHIP=false
-if $IS_ZINIT; then
+_cb_plain_term=false
+if [[ "${CB_PLAIN_TERM:-}" == 1 || "${TERM}" == linux ]] \
+   || [[ -n "${TMUX:-}" && "$(tmux display-message -p '#{client_termname}' 2>/dev/null)" == linux ]]; then
+  _cb_plain_term=true
+fi
+if $IS_ZINIT && ! $_cb_plain_term; then
   zinit ice as"command" from"gh-r" \
     atclone"./starship init zsh > init.zsh; ./starship completions zsh > _starship" \
     atpull"%atclone" src"init.zsh"
@@ -478,6 +489,7 @@ fi
 # fallback: basic prompt theme from /usr/share/zsh/functions/Prompts/
 # (hosts may pick another color in ~/.zsh.d/zshrc-<host>.zsh)
 $IS_STARSHIP || prompt fade 0
+unset _cb_plain_term
 # }}} - STARSHIP -------------------------------------------------------------
 # }}} = PROMPT ===============================================================
 

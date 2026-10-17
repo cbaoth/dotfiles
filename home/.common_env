@@ -349,7 +349,10 @@ command -v lesspipe >& /dev/null \
 
 # {{{ = X11/WAYLAND SESSIONS AND RELATED =====================================
 # {{{ - CORE -----------------------------------------------------------------
-export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
+# Except on the stock kernel console: claiming xterm-256color there makes tmux,
+# starship & co. emit colors and glyphs the VT can't show, and hides the
+# console from anything that checks for TERM=linux (prompt/tmux fallbacks).
+[[ "${TERM:-}" == linux ]] || export TERM="xterm-256color" # rxvt, xterm-color, xterm-256color
 #export COLORTERM=xterm
 #[ -n "$(echo $TERMCAP|grep -i screen)" ]] && TERM=screen
 # }}} - CORE -----------------------------------------------------------------
