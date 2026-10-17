@@ -4,58 +4,65 @@
   To see the widget tree, run a (separate) waybar instance like this:
     waybar -l debug
  ****************************************************************************/
-/****************************************************************************
-  TODO check out some style/theme releated resources
-       https://github.com/Alexays/Waybar/wiki/Styling
-       https://github.com/topics/waybar-themes
-  TODO consider less colorful and/or "harsh" (esp. yellow) color schemes
- ****************************************************************************/
 
 /****************************************************************************
-  NOTE The following is based on the default style
-       https://github.com/Alexays/Waybar/blob/master/resources/style.css
+  Colour scheme: monotone by default, colour only where it means something.
+  Every module is a dark segment floating on the (darker) bar, separated by a
+  small gap. A value or state escalates in two steps:
+    1. text colour  -- worth noticing, nothing to act on (CPU at 80%)
+    2. inverted     -- needs attention or must not go unnoticed (RAM at 90%,
+                       network down, a destructive sway mode waiting for a key)
+  Levels, the same meaning in every module:
+    @info     blue    intentional, benign, not the default (auto keep-awake)
+    @notice   yellow  stay aware of it (manual keep-awake, power-saver)
+    @warn     orange  getting risky (high load, power-warn)
+    @crit     red     broken or dangerous (disconnected, critical notification)
+  Thresholds live in config.jsonc ("states"); waybar adds the state name as a
+  class, e.g. #cpu.warning.
  ****************************************************************************/
+@define-color bar_bg      rgba(16, 18, 22, 0.85);
+@define-color seg_bg      #262a31;
+@define-color seg_hover   #343a43;
+@define-color seg_active  #3d4450;
+@define-color fg          #d8dee9;
+@define-color fg_dim      #8a93a0;
+@define-color fg_inv      #000000;
+@define-color info        #5dade2;
+@define-color info_bg     #2471a3;
+@define-color notice      #f1c40f;
+@define-color warn        #e67e22;
+@define-color warn_bg     #d35400;
+@define-color crit        #ff6b6b;
+@define-color crit_bg     #c0392b;
 
 * {
-    /* `otf-font-awesome` is required to be installed for icons */
-    font-family: FontAwesome, Roboto, Helvetica, Arial, sans-serif;
+    /* Font Awesome (otf-font-awesome) for most glyphs; the Nerd Font covers
+       the Material Design ones (power profiles, memory) via fallback */
+    font-family: FontAwesome, Roboto, "FiraCode Nerd Font", Helvetica, Arial, sans-serif;
     font-size: 13px;
 }
 
 window#waybar {
-    background-color: rgba(43, 48, 59, 0.5);
-    border-bottom: 3px solid rgba(100, 114, 125, 0.5);
-    color: #ffffff;
-    transition-property: background-color;
-    transition-duration: .5s;
+    background-color: @bar_bg;
+    color: @fg;
 }
 
 window#waybar.hidden {
     opacity: 0.2;
 }
 
-/*
-window#waybar.empty {
-    background-color: transparent;
-}
-window#waybar.solo {
-    background-color: #FFFFFF;
-}
-*/
-
-window#waybar.termite {
-    background-color: #3F3F3F;
+tooltip {
+    background-color: @seg_bg;
+    border: 1px solid @seg_active;
 }
 
-window#waybar.chromium {
-    background-color: #000000;
-    border: none;
+tooltip label {
+    color: @fg;
 }
 
 button {
     /* Use box-shadow instead of border so the text isn't offset */
-    box-shadow: inset 0 -3px transparent;
-    /* Avoid rounded borders under each button name */
+    box-shadow: inset 0 -2px transparent;
     border: none;
     border-radius: 0;
 }
@@ -63,208 +70,242 @@ button {
 /* https://github.com/Alexays/Waybar/wiki/FAQ#the-workspace-buttons-have-a-strange-hover-effect */
 button:hover {
     background: inherit;
-    box-shadow: inset 0 -3px #ffffff;
+    box-shadow: inset 0 -2px @fg_dim;
+}
+
+/****************************************************************************
+  Segments
+ ****************************************************************************/
+#workspaces,
+#custom-mode,
+#scratchpad,
+#network,
+#memory,
+#cpu,
+#custom-power-warn,
+#power-profiles-daemon,
+#custom-sway-awake,
+#pulseaudio,
+#tray,
+#clock,
+#notification {
+    background-color: @seg_bg;
+    color: @fg;
+    margin: 3px 0;
+    border-radius: 4px;
+}
+
+#custom-mode,
+#scratchpad,
+#network,
+#memory,
+#cpu,
+#custom-power-warn,
+#power-profiles-daemon,
+#custom-sway-awake,
+#pulseaudio,
+#tray,
+#clock {
+    padding: 0 8px;
+}
+
+/* the outermost segments keep a gap to the screen edge */
+.modules-left > widget:first-child > * {
+    margin-left: 4px;
+}
+.modules-right > widget:last-child > * {
+    margin-right: 4px;
+}
+
+/* clickable segments */
+#power-profiles-daemon:hover,
+#custom-sway-awake:hover,
+#pulseaudio:hover,
+#custom-power-warn:hover,
+#notification:hover {
+    background-color: @seg_hover;
+}
+
+/* percentage values: fixed width, so 9% -> 10% does not shift the bar */
+#cpu, #memory, #pulseaudio {
+    min-width: 3.2em;
+}
+
+/****************************************************************************
+  Left: workspaces, mode, scratchpad
+ ****************************************************************************/
+#workspaces {
+    padding: 0;
 }
 
 #workspaces button {
-    padding: 0 5px;
+    padding: 0 6px;
     background-color: transparent;
-    color: #ffffff;
+    color: @fg_dim;
+    border-radius: 4px;
 }
 
 #workspaces button:hover {
-    background: rgba(0, 0, 0, 0.2);
+    background-color: @seg_hover;
 }
 
-#workspaces button.focused, #workspaces button.active {
-    background-color: #64727D;
-    box-shadow: inset 0 -3px #ffffff;
+#workspaces button.focused,
+#workspaces button.active {
+    background-color: @seg_active;
+    color: @fg;
+    box-shadow: inset 0 -2px @fg;
 }
 
 #workspaces button.urgent {
-    background-color: #eb4d4b;
-}
-
-#mode {
-    background-color: #64727D;
-    box-shadow: inset 0 -3px #ffffff;
-}
-
-#window,
-#workspaces {
-    margin: 0 4px;
-}
-
-#clock,
-#battery,
-#cpu,
-#memory,
-#disk,
-#temperature,
-#backlight,
-#network,
-#pulseaudio,
-#wireplumber,
-#custom-media,
-#tray,
-#mode,
-#idle_inhibitor,
-#scratchpad,
-#power-profiles-daemon,
-#mpd,
-#custom-sway-awake {
-    padding: 0 10px;
+    background-color: @crit_bg;
     color: #ffffff;
 }
 
-/* percentage values */
-#cpu, #memory, #pulseaudio {
-    min-width: 2.4em;
-}
-
-/* If workspaces is the leftmost module, omit left margin */
-.modules-left > widget:first-child > #workspaces {
-    margin-left: 0;
-}
-
-/* If workspaces is the rightmost module, omit right margin */
-.modules-right > widget:last-child > #workspaces {
-    margin-right: 0;
-}
-
-#clock {
-    background-color: #64727D;
-}
-
-#battery {
-    background-color: #ffffff;
-    color: #000000;
-}
-
-#battery.charging, #battery.plugged {
+/* Sway binding mode (custom/mode, fed by bin/sway-mode-osd waybar). Always
+   inverted: a mode means the next key is a command, not text. The full key
+   help is in the overlay (bin/sway-mode-osd), the bar only names the mode.
+     .benign   = window/resize, arrange, pointer, hyper
+     .danger   = system (lock, exit, reboot, shutdown)
+     .critical = confirmation of a destructive action, blinks */
+#custom-mode {
+    font-weight: bold;
+    background-color: @info_bg;
     color: #ffffff;
-    background-color: #26A65B;
 }
 
-@keyframes blink {
+#custom-mode.danger {
+    background-color: @notice;
+    color: @fg_inv;
+}
+
+@keyframes blink-crit {
     to {
         background-color: #ffffff;
-        color: #000000;
+        color: @crit_bg;
     }
 }
 
-/* Using steps() instead of linear as a timing function to limit cpu usage */
-#battery.critical:not(.charging) {
-    background-color: #f53c3c;
+/* steps() instead of linear limits the CPU cost of the animation */
+#custom-mode.critical {
+    background-color: @crit_bg;
     color: #ffffff;
-    animation-name: blink;
-    animation-duration: 0.5s;
-    animation-timing-function: steps(12);
+    animation-name: blink-crit;
+    animation-duration: 0.6s;
+    animation-timing-function: steps(6);
     animation-iteration-count: infinite;
     animation-direction: alternate;
 }
 
-#power-profiles-daemon {
-    padding-right: 15px;
+#scratchpad.empty {
+    background-color: transparent;
 }
 
-#power-profiles-daemon.performance {
-    background-color: #f53c3c;
-    color: #ffffff;
+/* Center: window title, no segment -- it is context, not status */
+#window {
+    color: @fg_dim;
+    margin: 0 8px;
 }
 
-#power-profiles-daemon.balanced {
-    background-color: #2980b9;
-    color: #ffffff;
-}
-
-#power-profiles-daemon.power-saver {
-    background-color: #2ecc71;
-    color: #000000;
-}
-
-label:focus {
-    background-color: #000000;
-}
-
-#cpu {
-    background-color: #2ecc71;
-    color: #000000;
-}
-/* TODO consider opening a terminal with htop or similar tool on click
-#cpu:hover {
-    background-color: #27ae60;
-} */
-
-#memory {
-    background-color: #9b59b6;
-}
-
-#disk {
-    background-color: #964B00;
-}
-
-#backlight {
-    background-color: #90b1b1;
-}
-
-#network {
-    background-color: #2980b9;
-    /* min-width: 6.4em; */
+/****************************************************************************
+  Right: status
+ ****************************************************************************/
+#network.linked {
+    color: @warn;
 }
 
 #network.disconnected {
-    background-color: #f53c3c;
+    background-color: @crit_bg;
+    color: #ffffff;
 }
 
-#pulseaudio {
-    background-color: #f1c40f;
-    color: #000000;
-    min-width: 2.4em;
+#cpu.warning,
+#memory.notice {
+    color: @notice;
 }
-#pulseaudio:hover {
-    background-color: #a37800;
+
+#cpu.critical,
+#memory.warning {
+    color: @warn;
+}
+
+#memory.critical {
+    background-color: @crit_bg;
+    color: #ffffff;
+}
+
+/* Volume: >= 70% in text colour (fine on speakers, loud on headphones),
+   >= 90% inverted */
+#pulseaudio.warning {
+    color: @notice;
+}
+
+#pulseaudio.critical {
+    background-color: @notice;
+    color: @fg_inv;
 }
 
 #pulseaudio.muted {
-    background-color: #90b1b1;
-    color: #2a5c45;
+    color: @fg_dim;
 }
 
-#wireplumber {
-    background-color: #fff0f5;
-    color: #000000;
+/* Power profile: balanced is the neutral default; both others change system
+   behaviour (slow / loud and hot) and would otherwise go unnoticed */
+#power-profiles-daemon {
+    padding-right: 12px;
 }
 
-#wireplumber.muted {
-    background-color: #f53c3c;
+#power-profiles-daemon.balanced {
+    color: @fg_dim;
 }
 
-#custom-media {
-    background-color: #66cc99;
-    color: #2a5c45;
-    min-width: 100px;
+#power-profiles-daemon.performance,
+#power-profiles-daemon.power-saver {
+    color: @notice;
 }
 
-#custom-media.custom-spotify {
-    background-color: #66cc99;
+/****************************************************************************
+  Custom module 'power-warn' (bin/power-profile-guard)
+    (base / .ok) = nothing to warn about -- the module emits empty text and
+                   waybar hides it, so these rules normally never apply
+    .warn        = performance active on battery: uncapped PL1 against the
+                   EC's quiet fan curve, i.e. ~96 C and heavy throttling.
+                   Inverted: it heats the machine until acted upon.
+    .stale       = power-profiles-daemon not responding
+  min-width in em keeps the glyph a fixed width, matching #custom-sway-awake.
+ ****************************************************************************/
+#custom-power-warn {
+    min-width: 1.4em;
 }
 
-#custom-media.custom-vlc {
-    background-color: #ffa000;
+#custom-power-warn.warn {
+    background-color: @warn_bg;
+    color: #ffffff;
 }
 
-#temperature {
-    background-color: #f0932b;
+#custom-power-warn.stale {
+    color: @fg_dim;
 }
 
-#temperature.critical {
-    background-color: #eb4d4b;
+/****************************************************************************
+  Custom module 'sway-awake' (bin/sway-awake, idle-inhibit indicator)
+    (base / .off) = normal idle/lock (moon)        dim
+    .manual       = manual keep-awake (coffee)      notice: easy to forget
+    .auto         = media/game keep-awake (film)    info: ends by itself
+  min-width in em keeps a single glyph a fixed width (Font Awesome icons are
+  <= 1.28em wide) so toggling between glyphs of different widths never shifts
+  the bar; using em (not px) makes it scale automatically with font-size.
+ ****************************************************************************/
+#custom-sway-awake {
+    color: @fg_dim;
+    min-width: 1.4em;
 }
 
-/* TODO consider making the tray icons more visually distinct based on their state and generally improve contrast. most non-grayscale tray icons use bluish colors (blue on blue background can be hard to see) */
-#tray {
-    background-color: #64727D;
+#custom-sway-awake.manual {
+    color: @notice;
+}
+
+#custom-sway-awake.auto {
+    color: @info;
 }
 
 #tray > .passive {
@@ -273,200 +314,60 @@ label:focus {
 
 #tray > .needs-attention {
     -gtk-icon-effect: highlight;
-    background-color: #eb4d4b;
-}
-
-#idle_inhibitor {
-    background-color: #2d3436;
-}
-
-#idle_inhibitor.activated {
-    background-color: #ecf0f1;
-    color: #2d3436;
-}
-
-#mpd {
-    background-color: #66cc99;
-    color: #2a5c45;
-}
-
-#mpd.disconnected {
-    background-color: #f53c3c;
-}
-
-#mpd.stopped {
-    background-color: #90b1b1;
-}
-
-#mpd.paused {
-    background-color: #51a37a;
-}
-
-#language {
-    background: #00b093;
-    color: #740864;
-    padding: 0 5px;
-    margin: 0 5px;
-    min-width: 16px;
-}
-
-#keyboard-state {
-    background: #97e1ad;
-    color: #000000;
-    padding: 0 0px;
-    margin: 0 5px;
-    min-width: 16px;
-}
-
-#keyboard-state > label {
-    padding: 0 5px;
-}
-
-#keyboard-state > label.locked {
-    background: rgba(0, 0, 0, 0.2);
-}
-
-#scratchpad {
-    background: rgba(0, 0, 0, 0.2);
-}
-
-#scratchpad.empty {
-    background-color: transparent;
-}
-
-#privacy {
-    padding: 0;
-}
-
-#privacy-item {
-    padding: 0 5px;
-    color: white;
-}
-
-#privacy-item.screenshare {
-    background-color: #cf5700;
-}
-
-#privacy-item.audio-in {
-    background-color: #1ca000;
-}
-
-#privacy-item.audio-out {
-    background-color: #0069d4;
-}
-
-#privacy-item.location {
-    background-color: #00afff;
-}
-
-
-/****************************************************************************
-  Styles for custom module 'sway-awake' (idle-inhibit indicator)
-    (base / .off) = normal idle/lock (moon)      dim grey on dark
-    .manual       = manual keep-awake (coffee)   yellow, deliberate
-    .auto         = media/game keep-awake (film)  blue, automatic
-  min-width in em keeps a single glyph a fixed width (Font Awesome icons are
-  <= 1.28em wide) so toggling between glyphs of different widths never shifts
-  the bar; using em (not px) makes it scale automatically with font-size.
- ****************************************************************************/
-#custom-sway-awake {
-    background-color: #2d3436;
-    color: white;
-    min-width: 1.4em;
-}
-
-#custom-sway-awake.manual {
-    background-color: #f1c40f;
-    color: black;
-}
-#custom-sway-awake.manual:hover {
-    background-color: #a37800;
-}
-
-#custom-sway-awake.auto {
-    background-color: #2980b9;
-}
-#custom-sway-awake.auto:hover {
-    background-color: #1c5980;
+    background-color: @crit_bg;
 }
 
 /****************************************************************************
-  Styles for custom module 'power-warn' (performance profile on battery)
-    (base / .ok) = nothing to warn about -- the module emits empty text and
-                   waybar hides it, so these rules normally never apply
-    .warn        = performance active on battery: uncapped PL1 against the
-                   EC's quiet fan curve, i.e. ~96 C and heavy throttling
-    .stale       = power-profiles-daemon not responding
-  Amber rather than the red already used by #power-profiles-daemon.performance,
-  so the warning reads as distinct from the (legitimate) performance icon it
-  sits next to. min-width in em keeps the glyph a fixed width, matching
-  #custom-sway-awake.
- ****************************************************************************/
-#custom-power-warn {
-    background-color: #d35400;
-    color: #ffffff;
-    min-width: 1.4em;
-}
-
-#custom-power-warn.warn {
-    background-color: #d35400;
-    color: #ffffff;
-}
-#custom-power-warn.warn:hover {
-    background-color: #8c3700;
-}
-
-#custom-power-warn.stale {
-    /* black, not #2d3436 (sway-awake's idle grey): that blends into the bar
-       background, so the module would lose its edge */
-    background-color: black;
-    color: #808080;
-}
-
-/****************************************************************************
-  Styles for custom modules 'notification-icon' + 'notification-count'
+  Custom modules 'notification-icon' + 'notification-count'
   (group/notification, fed by bin/swaync-waybar)
     .none        = no notifications (base style)
     .low         = highest urgency present is low
     .normal      = ... normal
-    .critical    = ... critical
+    .critical    = ... critical, inverted
     .dnd         = added in Do Not Disturb (the icon becomes a slashed bell)
   Two modules so each has a fixed width: the slashed bell is wider than the
   bell (1.14em vs 1.0em in Font Awesome 4.7) and must not push the number
   around; the count is left-aligned ("align": 0 in config.jsonc), so it starts
   at a fixed spot and only grows to the right. Counts > 99 show as "∞", so
-  two digits are the widest case.
-  TODO consolidate the waybar colour scheme (separate topic, see file header)
+  two digits are the widest case. The segment background sits on the group
+  (#notification), so the two halves read as one segment.
  ****************************************************************************/
+#notification {
+    padding: 0;
+}
+
 #custom-notification-icon,
 #custom-notification-count {
-    /* black, not #2d3436 (see #custom-power-warn.stale) */
-    background-color: black;
-    color: #808080;
+    color: @fg_dim;
+    border-radius: 4px;
 }
 
 #custom-notification-icon {
-    padding: 0 2px 0 10px;
+    padding: 0 2px 0 8px;
     min-width: 1.4em;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 #custom-notification-count {
-    padding: 0 10px 0 2px;
+    padding: 0 8px 0 2px;
     min-width: 1.2em;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
 }
 
 #custom-notification-icon.low,
 #custom-notification-count.low {
-    color: #00afff;
+    color: @info;
 }
 
 #custom-notification-icon.normal,
 #custom-notification-count.normal {
-    color: #f1c40f;
+    color: @notice;
 }
 
 #custom-notification-icon.critical,
 #custom-notification-count.critical {
-    background-color: #d35400;
-    color: white;
+    background-color: @crit_bg;
+    color: #ffffff;
 }

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# sway-reload: validate the sway config, then reload it.
+#
+# A plain `swaymsg reload` applies a broken config and leaves you with
+# whatever parsed (possibly no mouse, no bindings) plus a swaynag bar. This
+# runs `sway --validate` first and refuses to reload on errors: they go to a
+# critical notification instead, the running config stays. Either outcome is
+# confirmed with a swayosd OSD. The system mode's reload key calls this.
+#
+# --unsupported-gpu only silences the Nvidia check of the validating process;
+# it changes nothing on other GPUs.
+
+set -o pipefail
+set -o nounset
+
+SCRIPT_FILE="$(basename "$0")"; declare -r SCRIPT_FILE
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+osd() {
+  command -v swayosd-client > /dev/null 2>&1 \
+    && swayosd-client --custom-icon "$1" --custom-message "$2" > /dev/null 2>&1 || true
+}
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [-f] [-h]
+
+Validate the sway config (sway --validate), reload it only if valid.
+
+Options:
+  -f, --force   Reload without validating
+  -h, --help    Show this help
+EOF
+}
+
+main() {
+  local force=false
+  while (( $# > 0 )); do
+    case "$1" in
+      -f|--force) force=true ;;
+      -h|--help)  p_usg; return 0 ;;
+      *)          p_err "Unknown argument: $1"; p_usg >&2; return 1 ;;
+    esac
+    shift
+  done
+
+  if [[ "${force}" != true ]]; then
+    local out
+    if ! out="$(sway --validate --unsupported-gpu 2>&1)"; then
+      local errors
+      errors="$(grep -F 'Error on line' <<< "${out}" | sed 's/^.*\] //' | head -n 8)"
+      p_err "config invalid, not reloaded:"$'\n'"${errors:-${out}}"
+      notify-send -a sway-reload -u critical "Sway config invalid — not reloaded" \
+        "${errors:-see: sway --validate}" 2> /dev/null || true
+      osd dialog-error "Config errors: not reloaded"
+      return 1
+    fi
+  fi
+
+  swaymsg reload > /dev/null || { osd dialog-error "Reload failed"; return 1; }
+  osd view-refresh "Sway config reloaded"
+}
+
+main "$@"

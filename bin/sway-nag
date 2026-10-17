@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# sway-nag: swaynag wrapper (sway's swaynag_command) that keeps a copy of the details.
+#
+# swaynag takes no keyboard input, so the config-error bar can only be read and
+# dismissed with the mouse -- a dead end when a broken config is what broke the
+# mouse. This wrapper saves the detailed message sway pipes in (-l) to a file
+# and raises a critical notification, then runs the real swaynag unchanged.
+# Keyboard access lives in the system mode ($mod+Escape): `e` runs
+# `sway-nag --show` (details in a terminal), `n` dismisses (pkill swaynag).
+#
+# Usage: sway-nag [SWAYNAG_ARGS...]   (called by sway)
+#        sway-nag --show               (open the last saved details)
+
+set -o pipefail
+set -o nounset
+
+declare -r DETAILS_FILE="${XDG_RUNTIME_DIR:-/tmp}/sway-nag-details.txt"
+
+show() {
+  if [[ ! -s "${DETAILS_FILE}" ]]; then
+    notify-send -a sway-nag "No saved swaynag details" 2> /dev/null || true
+    return 1
+  fi
+  exec "${TERMINAL:-foot}" -e less "${DETAILS_FILE}"
+}
+
+main() {
+  [[ "${1:-}" == "--show" ]] && show
+
+  local arg detailed=false
+  for arg in "$@"; do
+    [[ "${arg}" == "-l" || "${arg}" == "--detailed-message" ]] && detailed=true
+  done
+  [[ "${detailed}" == true ]] || exec swaynag "$@"
+
+  cat > "${DETAILS_FILE}"
+  notify-send -a sway-nag -u critical "Sway: errors in the config" \
+    "$(head -n 6 "${DETAILS_FILE}")"$'\n\n'"\$mod+Esc e: details · n: dismiss" 2> /dev/null || true
+  exec swaynag "$@" < "${DETAILS_FILE}"
+}
+
+main "$@"

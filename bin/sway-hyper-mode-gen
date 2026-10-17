@@ -87,6 +87,7 @@ generate() {
     done < "${file}"
   done
   printf '    bindsym Escape mode "default"\n'
+  printf '    bindsym Ctrl+g mode "default"\n'
   printf '    bindsym Return mode "default"\n'
   printf '}\n'
 }

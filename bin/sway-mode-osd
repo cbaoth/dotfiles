@@ -1,0 +1,402 @@
+#!/usr/bin/env python3
+# -*- mode: python; indent-tabs-mode: nil; tab-width: 4 -*-
+# vim: ft=python:et:ts=4:sts=4:sw=4
+#
+# sway-mode-osd: show the active sway binding mode and its keys.
+#
+#   daemon  overlay panel (GTK4 layer shell) in the middle of the focused
+#           output while a mode is active: coloured title, the keys of the
+#           mode, and a countdown of bin/sway-mode-timeout. Takes no keyboard
+#           and no pointer input, so the mode's own bindings keep working and
+#           clicks go through to the window below.
+#   waybar  JSON stream for a waybar custom module: short mode title plus a
+#           severity class (no GTK needed).
+#
+# The mode name is the only source of the help text, nothing is duplicated:
+#
+#   set $mode_x Title | Group: [k]ey text · [K] other | Group2: ...
+#
+# The first `|` segment is the title, every further segment one row; a
+# `Label:` prefix becomes the row label; `[...]` marks a key. Severity
+# (colour) comes from the title: SEVERITY below, or "critical" for a title
+# ending in `?` (confirmation of a destructive action), else "benign".
+#
+# System Python on purpose (not uv): PyGObject and the layer-shell typelib
+# come from apt, see Requirements in --help.
+
+from __future__ import annotations
+
+import argparse
+import ctypes
+import html
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
+PID_FILE = RUNTIME_DIR / "sway-mode-osd.pid"
+# Written by bin/sway-mode-timeout: "<start epoch> <timeout secs>"
+DEADLINE_FILE = RUNTIME_DIR / "sway-mode-timeout.deadline"
+
+SEVERITY = {"system": "danger"}
+# title glyph (Font Awesome keyboard) in the bar
+BAR_GLYPH = ""
+KEY_RE = re.compile(r"\[([^\]]+)\]")
+TICK_MS = 50
+# every mode binds these to `mode "default"` (confirmation modes: cancel)
+LEAVE_KEYS = "[Escape] · [Ctrl+g] · [Return]"
+# modes whose panel shows the focused window's size, refreshed while visible
+SIZE_MODES = {"window"}
+SIZE_EVERY_TICKS = 5
+
+# Panel colours match the levels in ~/.config/waybar/style.css.
+CSS = """
+window.sway-mode-osd { background: transparent; }
+.osd {
+    background-color: rgba(22, 24, 29, 0.94);
+    border: 2px solid #2471a3;
+    border-radius: 8px;
+    font-family: "FiraCode Nerd Font", monospace;
+    font-size: 15px;
+    color: #d8dee9;
+}
+.osd .title {
+    background-color: #2471a3;
+    color: #ffffff;
+    font-size: 19px;
+    font-weight: bold;
+    padding: 6px 18px;
+    border-radius: 5px 5px 0 0;
+}
+.osd .rows { padding: 12px 18px 10px 18px; }
+.osd .label { color: #8a93a0; }
+.osd .size { font-weight: bold; color: #ffffff; }
+.osd progressbar { padding: 0 18px 12px 18px; }
+.osd progressbar trough { min-height: 4px; background-color: #343a43; border: none; }
+.osd progressbar progress { min-height: 4px; background-color: #2471a3; border: none; }
+.osd.danger { border-color: #f1c40f; }
+.osd.danger .title { background-color: #f1c40f; color: #000000; }
+.osd.danger progressbar progress { background-color: #f1c40f; }
+.osd.critical { border-color: #c0392b; }
+.osd.critical .title { background-color: #c0392b; color: #ffffff; }
+.osd.critical progressbar progress { background-color: #c0392b; }
+"""
+KEY_COLOR = {"benign": "#5dade2", "danger": "#f1c40f", "critical": "#ff6b6b"}
+
+
+@dataclass
+class Mode:
+    """A parsed sway mode name."""
+
+    name: str
+    title: str
+    severity: str
+    rows: list[tuple[str, str]] = field(default_factory=list)
+
+
+def parse_mode(name: str) -> Mode:
+    """Split a mode name into title, severity and (label, text) rows."""
+    segments = [s.strip() for s in name.split("|")]
+    title = segments[0]
+    severity = SEVERITY.get(title.lower(), "critical" if title.endswith("?") else "benign")
+    rows: list[tuple[str, str]] = []
+    for segment in segments[1:]:
+        label, sep, text = segment.partition(":")
+        rows.append((label.strip(), text.strip()) if sep and " " not in label.strip() else ("", segment))
+    if severity != "critical":  # confirmations name their own cancel keys
+        rows.append(("Leave", LEAVE_KEYS))
+    return Mode(name, title, severity, rows)
+
+
+def keys_markup(text: str, color: str) -> str:
+    """Escape text for Pango and render [k] key markers as coloured keys."""
+    parts = KEY_RE.split(text)
+    out = []
+    for i, part in enumerate(parts):
+        part = html.escape(part, quote=False)
+        out.append(f'<span foreground="{color}" weight="bold">{part}</span>' if i % 2 else part)
+    return "".join(out)
+
+
+def plain_help(mode: Mode) -> str:
+    """Render the rows as plain text (waybar tooltip)."""
+    return "\n".join(f"{label}: {text}" if label else text for label, text in mode.rows)
+
+
+def binding_state() -> str:
+    """Return the current sway binding mode name."""
+    out = subprocess.run(["swaymsg", "-rt", "get_binding_state"], capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)["name"]
+
+
+def subscribe_modes() -> subprocess.Popen[str]:
+    """Start a swaymsg subscription that prints one JSON line per mode change."""
+    return subprocess.Popen(["swaymsg", "-mrt", "subscribe", '["mode"]'], stdout=subprocess.PIPE, text=True)
+
+
+# {{{ waybar ------------------------------------------------------------------
+def waybar_line(name: str) -> str:
+    """Return the waybar JSON for a mode name (empty text hides the module)."""
+    if name == "default":
+        return json.dumps({"text": "", "class": "default"})
+    mode = parse_mode(name)
+    return json.dumps(
+        {"text": f"{BAR_GLYPH}  {mode.title}", "tooltip": plain_help(mode) or mode.title, "class": mode.severity}
+    )
+
+
+def run_waybar() -> int:
+    """Stream waybar JSON lines until the sway IPC connection ends."""
+    print(waybar_line(binding_state()), flush=True)
+    proc = subscribe_modes()
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        print(waybar_line(json.loads(line)["change"]), flush=True)
+    return proc.wait()
+
+
+# }}} waybar ------------------------------------------------------------------
+
+
+# {{{ daemon ------------------------------------------------------------------
+def take_pidfile(replace: bool) -> bool:
+    """Record this process as the daemon; stop a running one if replace is set."""
+    try:
+        old = int(PID_FILE.read_text().strip())
+        Path(f"/proc/{old}/cmdline").read_bytes().index(b"sway-mode-osd")
+    except (OSError, ValueError):
+        old = 0
+    if old and old != os.getpid():
+        if not replace:
+            return False
+        os.kill(old, signal.SIGTERM)
+        for _ in range(40):  # up to 2s for it to go away
+            if not Path(f"/proc/{old}").exists():
+                break
+            time.sleep(0.05)
+    PID_FILE.write_text(f"{os.getpid()}\n")
+    return True
+
+
+def focused_output() -> str | None:
+    """Return the name of the focused sway output."""
+    out = subprocess.run(["swaymsg", "-rt", "get_outputs"], capture_output=True, text=True, check=False)
+    try:
+        return next((o["name"] for o in json.loads(out.stdout) if o.get("focused")), None)
+    except json.JSONDecodeError:
+        return None
+
+
+def focused_size() -> str:
+    """Return the focused window's size as "W × H", or "" without one."""
+    out = subprocess.run(["swaymsg", "-rt", "get_tree"], capture_output=True, text=True, check=False)
+    try:
+        stack = [json.loads(out.stdout)]
+    except json.JSONDecodeError:
+        return ""
+    while stack:
+        node = stack.pop()
+        if node.get("focused") and node.get("type") in ("con", "floating_con"):
+            rect = node["rect"]
+            return f"{rect['width']} × {rect['height']} px"
+        stack.extend(node.get("nodes", []) + node.get("floating_nodes", []))
+    return ""
+
+
+def countdown() -> float | None:
+    """Return the remaining fraction of the mode timeout, None without one."""
+    try:
+        started, timeout = (float(v) for v in DEADLINE_FILE.read_text().split())
+    except (OSError, ValueError):
+        return None
+    return max(0.0, min(1.0, (started + timeout - time.time()) / timeout)) if timeout > 0 else None
+
+
+def run_daemon(replace: bool) -> int:
+    """Run the overlay until the sway IPC connection ends."""
+    # gtk4-layer-shell must be loaded before libwayland-client, i.e. before Gtk.
+    ctypes.CDLL("libgtk4-layer-shell.so.0")
+    import gi
+
+    try:
+        gi.require_version("Gtk", "4.0")
+        gi.require_version("Gdk", "4.0")
+        gi.require_version("Gtk4LayerShell", "1.0")
+    except ValueError as e:
+        # started by exec_always, so stderr is invisible: say it once on screen
+        subprocess.run(
+            ["notify-send", "-a", "sway-mode-osd", "Sway mode overlay not started",
+             f"{e}\nsudo apt install gir1.2-gtk4layershell-1.0"],
+            check=False,
+        )
+        raise
+    import cairo
+    from gi.repository import Gdk, Gio, GLib, Gtk
+    from gi.repository import Gtk4LayerShell as LayerShell
+
+    if not take_pidfile(replace):
+        return 0
+
+    # NON_UNIQUE: otherwise a --replace instance, started while the old one
+    # still owns the D-Bus name, only activates the old one and exits -- and
+    # the old one then quits on the SIGTERM, leaving no overlay at all.
+    app = Gtk.Application(application_id="de.cbaoth.SwayModeOsd", flags=Gio.ApplicationFlags.NON_UNIQUE)
+    state: dict[str, object] = {"tick": 0}
+
+    def build(app: Gtk.Application) -> None:
+        provider = Gtk.CssProvider()
+        provider.load_from_string(CSS)
+        display = Gdk.Display.get_default()
+        Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+        win = Gtk.ApplicationWindow(application=app)
+        win.add_css_class("sway-mode-osd")
+        LayerShell.init_for_window(win)
+        LayerShell.set_namespace(win, "sway-mode-osd")
+        LayerShell.set_layer(win, LayerShell.Layer.OVERLAY)
+        LayerShell.set_keyboard_mode(win, LayerShell.KeyboardMode.NONE)
+        # no anchor: centred on the output
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.add_css_class("osd")
+        title = Gtk.Label(xalign=0)
+        title.add_css_class("title")
+        grid = Gtk.Grid(column_spacing=14, row_spacing=6)
+        grid.add_css_class("rows")
+        bar = Gtk.ProgressBar()
+        box.append(title)
+        box.append(grid)
+        box.append(bar)
+        win.set_child(box)
+
+        def passthrough(widget: Gtk.Widget) -> None:
+            # empty input region: clicks reach the window underneath
+            surface = widget.get_surface()
+            if surface is not None:
+                surface.set_input_region(cairo.Region())
+
+        win.connect("map", passthrough)
+        app.hold()
+
+        def tick() -> bool:
+            fraction = countdown()
+            bar.set_visible(fraction is not None)
+            if fraction is not None:
+                bar.set_fraction(fraction)
+            size = state.get("size")
+            if isinstance(size, Gtk.Label):
+                state["n"] = int(state.get("n", 0)) + 1
+                if state["n"] % SIZE_EVERY_TICKS == 1:
+                    size.set_text(focused_size())
+            return True
+
+        def show(name: str) -> None:
+            if state["tick"]:
+                GLib.source_remove(state["tick"])
+                state["tick"] = 0
+            if name == "default":
+                win.set_visible(False)
+                return
+            mode = parse_mode(name)
+            for css in KEY_COLOR:
+                box.remove_css_class(css)
+            box.add_css_class(mode.severity)
+            title.set_text(mode.title)
+            while (child := grid.get_first_child()) is not None:
+                grid.remove(child)
+            color = KEY_COLOR[mode.severity]
+            rows = list(mode.rows)
+            state["size"] = None
+            state["n"] = 0
+            if mode.title.lower() in SIZE_MODES:
+                rows.insert(0, ("Size", ""))
+            for row, (label, text) in enumerate(rows):
+                lbl = Gtk.Label(label=label, xalign=1, yalign=0)
+                lbl.add_css_class("label")
+                txt = Gtk.Label(xalign=0, wrap=True, max_width_chars=70)
+                txt.set_markup(keys_markup(text, color))
+                if label == "Size" and not text:
+                    txt.add_css_class("size")
+                    state["size"] = txt
+                grid.attach(lbl, 0, row, 1, 1)
+                grid.attach(txt, 1, row, 1, 1)
+            grid.set_visible(bool(rows))
+            output = focused_output()
+            monitors = display.get_monitors()
+            for i in range(monitors.get_n_items()):
+                monitor = monitors.get_item(i)
+                if monitor.get_connector() == output:
+                    LayerShell.set_monitor(win, monitor)
+            tick()
+            state["tick"] = GLib.timeout_add(TICK_MS, tick)
+            win.set_visible(False)  # re-map, so a changed monitor applies
+            win.present()
+
+        proc = subscribe_modes()
+        assert proc.stdout is not None
+
+        def on_event(_fd: int, cond: GLib.IOCondition) -> bool:
+            line = proc.stdout.readline() if proc.stdout else ""
+            if not line or cond & (GLib.IOCondition.HUP | GLib.IOCondition.ERR):
+                app.quit()  # sway exited
+                return False
+            show(json.loads(line)["change"])
+            return True
+
+        GLib.io_add_watch(proc.stdout, GLib.PRIORITY_DEFAULT, GLib.IOCondition.IN | GLib.IOCondition.HUP, on_event)
+        show(binding_state())
+
+    def activate(app: Gtk.Application) -> None:
+        try:
+            build(app)
+        except Exception:
+            app.quit()  # no half-started daemon without an event source
+            raise
+
+    app.connect("activate", activate)
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, lambda: app.quit() or False)
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, lambda: app.quit() or False)
+    try:
+        return app.run([])
+    finally:
+        if PID_FILE.exists() and PID_FILE.read_text().strip() == str(os.getpid()):
+            PID_FILE.unlink()
+
+
+# }}} daemon ------------------------------------------------------------------
+
+
+def main() -> int:
+    """Parse the command line and dispatch."""
+    parser = argparse.ArgumentParser(
+        description="Show the active sway binding mode: overlay panel (daemon) or waybar JSON (waybar).",
+        epilog="Requirements (daemon): sudo apt install python3-gi python3-gi-cairo gir1.2-gtk4layershell-1.0",
+    )
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    daemon = sub.add_parser("daemon", help="run the overlay panel")
+    daemon.add_argument("-r", "--replace", action="store_true", help="stop a running daemon first")
+    sub.add_parser("waybar", help="print waybar JSON lines")
+    sub.add_parser("parse", help="print how a mode name (stdin) is parsed").set_defaults()
+    args = parser.parse_args()
+
+    try:
+        if args.cmd == "waybar":
+            return run_waybar()
+        if args.cmd == "parse":
+            mode = parse_mode(sys.stdin.read().strip())
+            print(f"title={mode.title!r} severity={mode.severity}\n{plain_help(mode)}")
+            return 0
+        return run_daemon(args.replace)
+    except (OSError, subprocess.CalledProcessError, ValueError) as e:
+        print(f"sway-mode-osd: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -5,13 +5,15 @@
 # shellcheck shell=bash
 #
 # Auto-exit the current Sway mode after a delay. Only one timer runs at a time;
-# entering a new mode cancels the previous timer via a pidfile.
+# entering a new mode cancels the previous timer via a pidfile. The deadline
+# is published for bin/sway-mode-osd, which draws it as a countdown.
 
 set -euo pipefail
 
 # shellcheck disable=SC2155
 declare -r SCRIPT_FILE="$(basename "$0")"
 declare -r PIDFILE="${XDG_RUNTIME_DIR:-/tmp}/sway-mode-timeout.pid"
+declare -r DEADLINE_FILE="${XDG_RUNTIME_DIR:-/tmp}/sway-mode-timeout.deadline"
 
 p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
@@ -44,9 +46,15 @@ main() {
     kill "$(cat "${PIDFILE}")" 2>/dev/null || true
   fi
   printf '%s\n' "$$" > "${PIDFILE}"
+  printf '%s %s\n' "$(date +%s.%N)" "${timeout}" > "${DEADLINE_FILE}"
 
-  sleep "${timeout}"
-  rm -f "${PIDFILE}"
+  # sleep in the background, so a TERM from the next timer (key repeat fires
+  # one per keystroke) ends the sleep too instead of orphaning it
+  local sleep_pid
+  sleep "${timeout}" & sleep_pid=$!
+  trap 'kill "${sleep_pid}" 2> /dev/null; exit 0' TERM
+  wait "${sleep_pid}"
+  rm -f "${PIDFILE}" "${DEADLINE_FILE}"
 
   local current
   current=$(swaymsg -t get_binding_state | jq -r '.name')

@@ -32,4 +32,9 @@
 # Linking") -- run `dotfiles-link` after adding or renaming one.
 # }}} = Structure ============================================================
 
+# swaynag wrapper: saves the config-error details for keyboard access
+# ($mod+Escape e / n, see bin/sway-nag). First, so it also covers errors in
+# the includes below.
+swaynag_command sway-nag
+
 include config.d/*.conf

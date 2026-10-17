@@ -7,7 +7,9 @@
 # sway-kill-focused: force-kill (SIGKILL) the process behind the focused Sway
 # window. For hung clients that ignore a normal close (sway `kill` / Alt+F4 do
 # nothing) — e.g. stuck wine apps. Falls back to sway's polite close when the
-# window reports no PID.
+# window reports no PID. With --close, sends the polite close instead.
+# Every outcome is confirmed with a short swayosd OSD (big, centred, not muted
+# by Do Not Disturb) plus a notification as the record.
 
 set -o pipefail
 set -o nounset
@@ -20,10 +22,15 @@ notify() {
   command -v notify-send > /dev/null 2>&1 \
     && notify-send -a "sway-kill" -t 4000 "${1:-sway-kill}" "${2:-}" 2>/dev/null || true
 }
+# osd ICON TEXT: short confirmation via swayosd (icon: freedesktop icon name)
+osd() {
+  command -v swayosd-client > /dev/null 2>&1 \
+    && swayosd-client --custom-icon "$1" --custom-message "$2" > /dev/null 2>&1 || true
+}
 
 p_usg() {
   cat <<EOF
-Usage: ${SCRIPT_FILE} [-s SIGNAL] [-h]
+Usage: ${SCRIPT_FILE} [-s SIGNAL | -c] [-h]
 
 Force-kill the process owning the currently focused Sway window. Reads the
 focused container's PID from the sway tree and signals it (default: KILL).
@@ -31,6 +38,8 @@ Use for hung windows that ignore a normal close request.
 
 Options:
   -s, --signal SIG   Signal to send (default: KILL); e.g. TERM, KILL
+  -c, --close        Polite close (sway \`kill\`) instead of a signal, with
+                     the same OSD confirmation
   -h, --help         Show this help
 
 Suggested binding (inside the mod-x window mode):
@@ -39,10 +48,11 @@ EOF
 }
 
 main() {
-  local signal="KILL"
+  local signal="KILL" close=false
   while (( $# > 0 )); do
     case "$1" in
       -s|--signal) shift; signal="${1:?missing signal value}" ;;
+      -c|--close)  close=true ;;
       -h|--help)   p_usg; return 0 ;;
       -*)          p_err "Unknown option: $1"; p_usg >&2; return 1 ;;
       *)           p_err "Unexpected argument: $1"; return 1 ;;
@@ -63,6 +73,7 @@ main() {
 
   if [[ -z "$node" ]]; then
     notify "sway-kill" "No focused window"
+    osd dialog-warning "No focused window"
     p_err "No focused window found"
     return 1
   fi
@@ -70,19 +81,26 @@ main() {
   local pid title
   pid="$(jq -r '.pid // empty' <<< "$node")"
   title="$(jq -r '.name // .app_id // .window_properties.class // "?"' <<< "$node")"
+  title="${title:0:60}"
 
-  # Some windows report no PID; fall back to sway's (polite) close.
-  if [[ -z "$pid" || "$pid" == "0" ]]; then
-    notify "sway-kill" "No PID for '${title}' — sending sway close"
-    swaymsg '[con_id=__focused__] kill' > /dev/null 2>&1
+  local con_id
+  con_id="$(jq -r '.id' <<< "$node")"
+
+  # --close, or a window without PID: sway's (polite) close.
+  if [[ "${close}" == true || -z "$pid" || "$pid" == "0" ]]; then
+    [[ "${close}" == true ]] || notify "sway-kill" "No PID for '${title}' — sending sway close"
+    swaymsg "[con_id=${con_id}] kill" > /dev/null 2>&1
+    osd window-close "Close → ${title}"
     return 0
   fi
 
   if kill -"${signal}" "$pid" 2>/dev/null; then
     notify "sway-kill" "SIG${signal} → '${title}' (pid ${pid})"
+    osd process-stop "SIG${signal} → ${title}"
   else
     p_err "Failed to signal pid ${pid} (${title})"
     notify "sway-kill" "Failed to kill '${title}' (pid ${pid})"
+    osd dialog-error "Kill failed: ${title}"
     return 1
   fi
 }

@@ -11,7 +11,7 @@
 
     "modules-left": [
         "sway/workspaces",
-        "sway/mode",
+        "custom/mode",
         "sway/scratchpad"
     ],
     "modules-center": [
@@ -36,14 +36,22 @@
         "format": "{name}"
     },
 
-    "sway/mode": {
-        "format": "<span style=\"italic\">{}</span>"
+    // Sway binding mode, replaces sway/mode: a short name plus a severity
+    // class (benign/danger/critical, see style.css) instead of the full mode
+    // string, which is too long for the bar. The full key help is shown by the
+    // overlay (bin/sway-mode-osd daemon); the tooltip repeats it.
+    "custom/mode": {
+        "exec": "sway-mode-osd waybar",
+        "return-type": "json",
+        "restart-interval": 2,
+        "format": "{}",
+        "tooltip": true
     },
 
     "sway/scratchpad": {
         "format": "{icon} {count}",
         "show-empty": false,
-        "format-icons": ["", ""],
+        "format-icons": ["", "\uf2d2"],
         "tooltip": true,
         "tooltip-format": "{app}: {title}"
     },
@@ -58,15 +66,20 @@
         "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
     },
 
+    // Thresholds -> CSS classes (#cpu.warning etc.): colour only once a value
+    // is worth noticing, see the colour scheme notes in style.css.
     "cpu": {
-        "format": "{usage}%",
+        "format": "󰻠 {usage}%",
         "tooltip": true,
-        "interval": 5
+        "interval": 5,
+        "states": { "warning": 80, "critical": 95 }
     },
 
     "memory": {
-        "format": "{}%",
-        "interval": 10
+        "format": "󰍛 {}%",
+        "tooltip-format": "RAM {used:0.1f} / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
+        "interval": 10,
+        "states": { "notice": 70, "warning": 80, "critical": 90 }
     },
 
     // Lenovo DYTC thermal modes (the Vantage "Intelligent Cooling" equivalent):
@@ -87,28 +100,31 @@
     },
 
     "network": {
-        "format-wifi": " {essid} ({signalStrength}%)",
-        "format-ethernet": " {ipaddr}",
-        "format-linked": " {ifname} (no IP)",
-        "format-disconnected": "⚠ disconnected",
+        "format-wifi": "\uf1eb  {essid} ({signalStrength}%)",
+        "format-ethernet": "󰈀  {ipaddr}",
+        "format-linked": "󰌙  {ifname} (no IP)",
+        "format-disconnected": "󰌙  disconnected",
         /* "format-alt": "{ifname}: {ipaddr}/{cidr}", */ /* toggle on click */
         "tooltip-format": "{ifname}: {ipaddr}/{cidr}\nGateway: {gwaddr}"
     },
 
     "pulseaudio": {
         "format": "{icon} {volume}%",
-        "format-muted": " muted",
+        "format-muted": "󰖁 muted",
         "format-icons": {
-            "headphone": "",
-            "hands-free": "",
-            "headset": "",
-            "phone": "",
-            "portable": "",
-            "car": "",
-            "default": ["", "", ""]
+            "headphone": "\uf025",
+            "hands-free": "\uf025",
+            "headset": "\uf025",
+            "phone": "\uf095",
+            "portable": "\uf10b",
+            "car": "\uf1b9",
+            "default": ["\uf026", "\uf027", "\uf028"]
         },
         "on-click": "pavucontrol",
-        "scroll-step": 5
+        "scroll-step": 5,
+        // pulseaudio matches states "at or below" (unlike cpu/memory): each
+        // value is the upper bound, i.e. warning = 70-89%, critical = 90%+
+        "states": { "normal": 69, "warning": 89, "critical": 100 }
     },
 
     "tray": {
