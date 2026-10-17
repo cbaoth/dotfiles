@@ -143,7 +143,7 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | `bin/voice-note` | Dictate a quick note: records with `pw-record`, transcribes locally with whisper.cpp (`start`/`stop`/`toggle`/`status`), and appends it to today's file in `~/notes/inbox/`. No text injection and no focused window needed. Bound to AltGr-F6 (toggle) and AltGr-F5 (hold) in sway; `sway-lock` stops and saves a running recording on every lock and suspend. |
 | `bin/video-cycle` | Turn a video into a seamless ping-pong loop by appending the reversed frames (the video counterpart of `anim-cycle`), using ffmpeg. |
 | `bin/wget-p` | Parallel file fetching wrapper for wget. |
-| `bin/while-read` | Execute a command for each line read from stdin. |
+| `bin/while-read` | Execute a command for each line read from stdin, or for each Wayland clipboard change (`-c`, via `wl-paste`; Windows clipboard in WSL). Filter with `-m REGEX`, run in background with `-b`. _Example:_ `while-read -c -b -m '^https?://' tee -a links.txt "<<<'{}'" \| wget -nv -c -i -` _appends all copied http(s) URLs to `links.txt` and downloads them._ |
 | `bin/xsuspend` | Suspend the X session. |
 
 ### System / Admin Scripts (`system-scripts/`)
@@ -236,9 +236,6 @@ Some of the shell functions contained in `lib/functions.sh` will be described in
 | Function | Description |
 |---|---|
 | **`cmd_delay`** _DELAY COMMAND.._ | Execute a command with a delay (using `sleep` format, e.g. `3m` for 3 minutes). _Sleep timer example:_ `cmd_delay 45m systemctl suspend`. |
-| **`while_read`** _COMMAND.._ | Monitor input _(read lines)_ and execute command in foreground using input as command argument. _Example: `while_read wget` to download all entered urls._ |
-| **`while_read_bg`** _COMMAND.._ | Monitor input _(read lines)_ and execute command in background _(job)_ using input as command argument. _Example: `while_read_bg wget` to download all entered urls._ |
-| **`while_read_xclip`** [OPTION..] _COMMAND.._ | Monitor X clipboard and execute command using clipboard content as command argument. _Example:_ `while_read_xclip -b -m '^https?://.*' tee -a links.txt "<<<'{}'" \| wget -nv -c -i -` _to append all http(s) URLs read vom clipboard to a file named `links.txt` and download them using wget._ |
 
 ### Math
 

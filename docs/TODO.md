@@ -233,6 +233,11 @@ to rely on for wine.
   (`set clipboard/text`) / `wl-copy` instead of xclip — see
   `home/.config/mpv/input.conf`.
 
+- `bin/while-read` clipboard mode (`-c`, old `-x`/`--xclip` kept as alias)
+  now polls `wl-paste` instead of xclip (2026-10-17). No script in this
+  repo reads or writes the X11 clipboard any more; only `wl-copy` /
+  `wl-paste`.
+
 - **wine → native Wayland driver (primary avenue, pending verification).**
   wine 11.0 ships `winewayland.drv`; the `~/.wine` prefix was defaulting
   to x11 (→ XWayland → broken bridge). Set on `~/.wine`:

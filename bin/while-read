@@ -4,7 +4,7 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# Monitor input or X clipboard data and execute a command.
+# Monitor input or Wayland clipboard data and execute a command.
 
 # set options
 set -o errtrace
@@ -36,17 +36,18 @@ p_hlp() {
   p_usg
   cat <<'EOF'
 
-Reads text input from command line or X clipboard [--xclip], passing the text
-as argument to the given COMMAND.
+Reads text input from command line or the Wayland clipboard [--clipboard],
+passing the text as argument to the given COMMAND.
 
 General:
   -b, --background      Execute command as job, else: execute in sequence.
   -d, --delimiter       Input delimiter (default: newline $'\n').
 
-XClip:
-  -x, --xclip           Monitor X clipboard instead of reading terminal input
-                        or windows clipboard in WSL.
-  --pollrate X          XClip mode poll-rate in seconds (default: 0.2s).
+Clipboard:
+  -c, --clipboard       Monitor the Wayland clipboard (wl-paste) instead of
+                        reading terminal input, or the Windows clipboard in WSL.
+  -x, --xclip           Deprecated alias for --clipboard.
+  --pollrate X          Clipboard mode poll-rate in seconds (default: 0.2s).
 
 Filter Input:
   -m, --match RE        Input must match the given regex, else: ignore input.
@@ -54,7 +55,7 @@ Filter Input:
                         (default: match complete input).
   --allow-duplicates    Allow repeated input (default: ignore). Affects sequen-
                         tial repetitions only, duplicates are never tracked
-                        globally. Has no effect on --xclip mode (see below).
+                        globally. Has no effect on --clipboard mode (see below).
 
 Verbosity:
   -v, --verbose         Verbose output, print full command before execution.
@@ -71,17 +72,18 @@ Terminal Input Mode (default):
   Each {} within the COMMAND will be substituted with the given line/item.
   If no {} exists the line/item will be appended to the COMMAND (final arg).
 
-XClip Mode [-x]:
-  Reads the X clipboard content in regular intervals (default: 0.2 sec
-  intervals, see --pollrate). Each X clipboard content change, within the given
-  interval, is read as input.
+Clipboard Mode [-c]:
+  Reads the Wayland clipboard content (wl-paste, package wl-clipboard) in
+  regular intervals (default: 0.2 sec intervals, see --pollrate). Each
+  clipboard content change, within the given interval, is read as input.
+  Empty and non-text clipboard content is ignored.
 
   Since the clipboard can contain multi-line text, using the default
   delimiter \n will result in multiple COMMAND executions per input (one
   per line in clipboard text). The delimiter can be changed but be aware that
   multi-line COMMAND arguments may be problematic.
 
-  Note that the --allow-duplicates option is ignored in XClip mode, since only
+  Note that the --allow-duplicates option is ignored in clipboard mode, since only
   clipboard changes are registered as new input.
 
 Background [-b] option and limitations:
@@ -90,7 +92,7 @@ Background [-b] option and limitations:
   of terminal input mode this might work to some degree (until the input buffer
   is exhausted) but it can result in data loss (input not read).
 
-  As a result it is usually sensible to use [-b], especially in XClip mode
+  As a result it is usually sensible to use [-b], especially in clipboard mode
   in combination with long running commands (longer than clipboard change
   intervals).
 
@@ -104,14 +106,14 @@ Examples:
   # same but using tee
   while-read -b -m '^https?://' tee -a links "<<<'{}'" \| wget -nv -c -i -
 
-  # monitor xclip for URLs and open matches in new firefox tabs
-  while-read -x -b -m '^\w+://' firefox --new-tab
+  # monitor the clipboard for URLs and open matches in new firefox tabs
+  while-read -c -b -m '^\w+://' firefox --new-tab
 EOF
 }
 
 # arguments
 declare bg=false
-declare xclip=false
+declare clipboard=false
 declare verbose=false
 declare allow_dupes=false
 declare match_separate=false
@@ -123,7 +125,7 @@ declare -a cmd_arg=()
 
 # Are we in a Windows Subsystem for Linux?
 IS_WSL=false
-if [[ $(uname -r) = *Microsoft* ]]; then
+if [[ $(uname -r) = *icrosoft* ]]; then  # WSL1: Microsoft, WSL2: microsoft
   IS_WSL=true
 fi
 
@@ -135,8 +137,8 @@ parse_args() {
   fi
   while [[ -n "${1:-}" ]]; do
     case "$1" in
-      -x|--xclip)
-        xclip=true
+      -c|--clipboard|-x|--xclip)
+        clipboard=true
         shift
         ;;
       -m|--match)
@@ -212,23 +214,34 @@ parse_args() {
   fi
   cmd_arg+=("$@")
 
-  if ${allow_dupes} && ${xclip}; then
-    p_war "Ignoring --allow-duplicates option in --xclip mode."
+  if ${allow_dupes} && ${clipboard}; then
+    p_war "Ignoring --allow-duplicates option in --clipboard mode."
     allow_dupes=false
+  fi
+
+  if ${clipboard} && ! ${IS_WSL}; then
+    if ! command -v wl-paste > /dev/null 2>&1; then
+      p_err "wl-paste not found (install: sudo apt install wl-clipboard)"
+      exit 1
+    fi
+    if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
+      p_err "WAYLAND_DISPLAY not set, --clipboard needs a Wayland session"
+      exit 1
+    fi
   fi
 }
 
 # start reading / monitoring
 read_loop() {
-  local input      # current input (xclip content / read line)
+  local input      # current input (clipboard content / read line)
   local input_prev # input from previous iteration
   local item       # input or part of input (separated via delimiter)
   local first=true # is first iteration?
 
   # keep reading input
   while true; do
-    # xclip or read lines?
-    if ${xclip}; then
+    # clipboard or read lines?
+    if ${clipboard}; then
       # poll rate sleep, must come first due to continues below
       if ! $first; then
         sleep "${pollrate}"  # poll rate
@@ -236,7 +249,8 @@ read_loop() {
       if ${IS_WSL}; then
         input="$(powershell.exe Get-Clipboard)"
       else
-        input="$(xclip -selection clip-board -o -l)"
+        # empty or non-text clipboard: wl-paste exits 1, treat as no input
+        input="$(wl-paste --no-newline --type text 2> /dev/null)" || input=""
       fi
     else
       IFS='' read -r -d $'\n' input
