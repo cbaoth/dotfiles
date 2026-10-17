@@ -198,6 +198,7 @@ deny applies to `100.64.0.0/10` like anything else.
 | ---- | ---- | ----- |
 | motoko | key-only | desktop; reachable from the wifi LAN only, see `~/notes/systems/motoko/ssh.md` |
 | saito | key-only | LAN server |
+| puppet | key-only | notebook; reachable from the wifi LAN, see `~/notes/systems/puppet/ssh.md` |
 | 11001001 | key-only | public-facing: non-default port, `AllowAgentForwarding no`, `X11Forwarding no`, extra service account, fail2ban. See [security-vserver.md](security-vserver.md) |
 
 ### Adopting it on a host that was configured by hand
