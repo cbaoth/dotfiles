@@ -465,7 +465,8 @@
       "Bash(. *)",
       "Read(//home/cbaoth/.config/systemd/user/**)",
       "Read(//home/cbaoth/notes/**)",
-      "Read(//home/cbaoth/.*)"
+      "Read(//home/cbaoth/.*)",
+      "mcp__claude-in-chrome__tabs_context_mcp"
     ],
     "ask": [
       "Bash(* --force*)",
