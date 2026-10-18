@@ -137,10 +137,17 @@ declare -ri ACTIVATION_TIMEOUT=122
 # started meanwhile gets a hanging portal (no waybar, light-themed apps).
 # Detected from dbus-daemon's journal lines up to UNTIL_TS, when the portals
 # got masked; later requests fail at once on the mask.
+# Only the running bus instance counts: a request still pending when the last
+# boot (or user manager) ended died with its bus, so a session started within
+# the timeout after a hard power-off must not wait for it.
 wait_stale_activation() {
   local -r until_ts="$1"
   local -i left
-  left="$(journalctl --user -t dbus-daemon -o short-unix --no-pager -q \
+  local -a match=()
+  local bus_pid
+  bus_pid="$(systemctl --user show -p MainPID --value dbus.service 2> /dev/null)" || bus_pid=""
+  [[ "${bus_pid}" =~ ^[1-9][0-9]*$ ]] && match=("_PID=${bus_pid}")
+  left="$(journalctl --user -b -t dbus-daemon "${match[@]}" -o short-unix --no-pager -q \
       --since "@$(( until_ts - ACTIVATION_TIMEOUT ))" --until "@${until_ts}" 2> /dev/null \
     | awk -F "'" -v until_ts="${until_ts}" -v tmo="${ACTIVATION_TIMEOUT}" '
         # Fields split on quotes: $2 = service name (or unit, last rule), $4 = unit.
