@@ -2265,6 +2265,44 @@ mkv_set_title () {
     && title="$(echo "$1" | sed -r 's/^S[0-9]+E[0-9]+[ _-]+//i;s/\.[^.]+$//')"
   echo mkvpropedit "$1" --edit info --set "title=${title}"
 }
+
+# {{{ - PDF ------------------------------------------------------------------
+# reduce pdf file size (ghostscript), re-compresses images and fonts
+# usage: pdf-compress [-q PRESET] INFILE [OUTFILE]
+#   PRESET: screen (72 dpi), ebook (150 dpi, default), printer (300 dpi),
+#           prepress (300 dpi, color preserving)
+# the input file is never modified, default outfile is INFILE-PRESET.pdf
+pdf-compress() {
+  local preset=ebook
+  if [[ "$1" == "-q" ]]; then
+    preset="$2"; shift 2
+  fi
+  case "$preset" in screen|ebook|printer|prepress) ;; *)
+    cl::p_err "invalid preset: $preset (screen|ebook|printer|prepress)"
+    return 1;;
+  esac
+  [[ -z "$1" ]] && \
+    cl::p_usg "$(cl::func_name) [-q PRESET] INFILE [OUTFILE]\n  PRESET   screen (72 dpi), ebook (150 dpi, default), printer (300 dpi), prepress\n  requirements: ghostscript" && return 1
+  local in="$1" out="$2"
+  [[ -f "$in" ]] || { cl::p_err "file not found: $in"; return 1; }
+  [[ -z "$out" ]] && out="${in%.*}-${preset}.pdf"
+  [[ "$(realpath -- "$in")" == "$(realpath -m -- "$out")" ]] && \
+    cl::p_err "outfile must differ from infile: $out" && return 1
+  gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.5 -dPDFSETTINGS="/${preset}" \
+     -dNOPAUSE -dQUIET -dBATCH -sOutputFile="$out" "$in" || return 1
+  local sin sout
+  sin=$(stat -c %s -- "$in"); sout=$(stat -c %s -- "$out")
+  printf '%s: %s -> %s (%d%%)\n' "$out" \
+    "$(numfmt --to=iec "$sin")" "$(numfmt --to=iec "$sout")" \
+    $(( sin > 0 ? sout * 100 / sin : 0 ))
+  (( sout >= sin )) && cl::p_msg "note: result is not smaller than the original"
+  return 0
+}
+# presets as short commands, all arguments are INFILE [OUTFILE]
+pdf-compress-screen()   { pdf-compress -q screen "$@"; }
+pdf-compress-ebook()    { pdf-compress -q ebook "$@"; }
+pdf-compress-printer()  { pdf-compress -q printer "$@"; }
+# }}} - PDF ------------------------------------------------------------------
 # }}} = MULTIMEDIA ===========================================================
 
 # {{{ = WSL ==================================================================
