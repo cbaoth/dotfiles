@@ -14,6 +14,12 @@ alias comfyua="comfyu && comfyun"  # update all of comfy (incl. all nodes)
 alias comfyui="comfy launch"  # launch comfy UI
 # }}} - APPS -----------------------------------------------------------------
 
+# {{{ - NETWORK --------------------------------------------------------------
+# reload the Wi-Fi driver when the card is dead after resume (ath12k bug, see
+# docs/troubleshooting/ath12k-resume-failure.md)
+alias wifi-driver-reload='sudo modprobe -r ath12k_wifi7 ath12k && sudo modprobe ath12k_wifi7'
+# }}} - NETWORK --------------------------------------------------------------
+
 # {{{ - MOUNT ----------------------------------------------------------------
 # host specific mount aliases
 # requires: ~/lib/functions.sh (__mount_mountpoints)
