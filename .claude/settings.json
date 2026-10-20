@@ -91,7 +91,8 @@
       "Bash(nordvpn -h *)",
       "Bash(nordvpn --help *)",
       "Bash(nordvpn -b *)",
-      "Bash(nordvpn --version *)"
+      "Bash(nordvpn --version *)",
+      "Bash(bin/tts-*)"
     ]
   }
 }
