@@ -1,0 +1,46 @@
+#compdef tts-speak
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for tts-speak (bin/tts-speak in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above.
+#
+# Keep in sync with bin/tts-speak: options mirror usage(); engine names are
+# discovered live from its engine_* functions, piper voices from the model
+# directory, so adding an engine or a voice needs no edit here.
+
+_tts-speak_engines() {
+  local bin
+  bin=$(whence -p tts-speak 2>/dev/null) || return
+  local -a engines
+  engines=(${(f)"$(sed -n 's/^engine_\([a-z0-9]*\)().*/\1/p' "${bin:A}")"})
+  (( ${#engines} )) && _values 'engine' "${engines[@]}"
+}
+
+# Voices depend on the engine given earlier on the line (-e/--engine), else
+# the default from the config file / environment, else piper.
+_tts-speak_voices() {
+  local engine=${TTS_ENGINE:-piper} i
+  for (( i = 1; i < CURRENT; i++ )); do
+    [[ ${words[i]} == (-e|--engine) ]] && engine=${words[i+1]}
+  done
+  case $engine in
+    piper)
+      local dir=${TTS_PIPER_DIR:-$HOME/.cache/piper-tts}
+      local -a voices
+      voices=("${dir}"/*.onnx(N:t:r))
+      (( ${#voices} )) && _values 'piper voice' "${voices[@]}"
+      ;;
+    *) _message "voice name is server-specific for engine '${engine}'" ;;
+  esac
+}
+
+_arguments -s \
+  '(-e --engine)'{-e,--engine}'[Engine to use]:engine:_tts-speak_engines' \
+  '(-l --lang)'{-l,--lang}'[Text language]:language:(de en auto)' \
+  '(-v --voice)'{-v,--voice}'[Voice/model (engine-specific)]:voice:_tts-speak_voices' \
+  '(-s --speed)'{-s,--speed}'[Speaking speed, 1.0 = normal]:speed:(0.8 0.9 1.0 1.1 1.2 1.5)' \
+  '(-o --output)'{-o,--output}'[Write audio to FILE instead of playing]:file:_files' \
+  '--no-clean[Read the text exactly as given]' \
+  '(-h --help)'{-h,--help}'[Show help]' \
+  '1:command:(toggle stop list)' \
+  '*:text: '

@@ -1,0 +1,11 @@
+#compdef tts-clean
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for tts-clean (bin/tts-clean in the dotfiles repo; stdin -> stdout).
+# Keep in sync with its argparse options.
+
+_arguments -s \
+  '(-l --lang)'{-l,--lang}'[Language for abbreviation expansion]:language:(auto de en)' \
+  '(-c --chunk)'{-c,--chunk}'[One chunk per line, at most N chars]:max chars:(120 300 500)' \
+  '--detect[Print the detected language and exit]' \
+  '(-h --help)'{-h,--help}'[Show help]'
