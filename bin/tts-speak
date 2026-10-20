@@ -61,7 +61,8 @@ Commands:
 Options:
   -e, --engine E   piper | http                (default: ${TTS_ENGINE})
   -l, --lang L     de | en | auto              (default: auto-detect per text)
-  -v, --voice V    engine-specific voice/model (default: per language, see conf)
+  -v, --voice V    engine-specific voice/model (default: per language, see conf);
+                   piper multi-speaker models: MODEL:SPEAKER (name or id)
   -s, --speed X    speaking speed, 1.0 = normal (default: ${TTS_SPEED})
   -o, --output F   write audio to F (any ffmpeg extension) instead of playing
       --no-clean   read the text exactly as given
@@ -110,10 +111,35 @@ engine_piper() {
   [[ -x "${TTS_PIPER_BIN}" ]] || { p_err "piper not found: ${TTS_PIPER_BIN}"; return 1; }
   local scale
   scale="$(awk -v s="${speed}" 'BEGIN { printf "%.3f", 1 / s }')"
+  # Multi-speaker models: "MODEL:SPEAKER", SPEAKER = name from the model's
+  # speaker_id_map (e.g. "thor") or a plain id.
+  local -a speaker_args=()
+  local model="${voice}"
+  if [[ "${voice}" == *:* ]]; then
+    local speaker="${voice#*:}" model_json
+    model="${voice%%:*}"
+    model_json="${TTS_PIPER_DIR}/${model}.onnx.json"
+    # Names win over ids: libritts-style models name speakers by number ("161065" is id 1).
+    local sid
+    sid="$(jq -r --arg s "${speaker}" '.speaker_id_map[$s] // empty' "${model_json}" 2> /dev/null)"
+    if [[ -n "${sid}" ]]; then
+      speaker="${sid}"
+    elif [[ ! "${speaker}" =~ ^[0-9]+$ ]]; then
+      p_err "unknown speaker '${speaker}' for ${model} (see: tts-speak list)"
+      return 1
+    fi
+    speaker_args=(-s "${speaker}")
+  fi
   # One process for all chunks: model load is paid once, and piper writes one
   # wav per input line as soon as it is synthesized.
-  "${TTS_PIPER_BIN}" -m "${voice}" --data-dir "${TTS_PIPER_DIR}" --length-scale "${scale}" \
-    -d "${out_dir}" < "${chunks}" > /dev/null 2>&1
+  "${TTS_PIPER_BIN}" -m "${model}" --data-dir "${TTS_PIPER_DIR}" --length-scale "${scale}" \
+    "${speaker_args[@]}" -d "${out_dir}" < "${chunks}" > /dev/null 2> "${out_dir}/../piper.err"
+  # Piper can exit 0 yet write empty wavs (e.g. speaker id out of range).
+  if grep -q -E 'Error|Traceback' "${out_dir}/../piper.err"; then
+    p_err "piper failed: $(tail -n 1 "${out_dir}/../piper.err")"
+    notify "piper failed (see tts-speak -h)"
+    return 1
+  fi
 }
 
 engine_http() {
@@ -176,7 +202,11 @@ save_chunks() {
 
 list_all() {
   printf 'default engine: %s  (speed %s)\n\npiper voices (%s):\n' "${TTS_ENGINE}" "${TTS_SPEED}" "${TTS_PIPER_DIR}"
-  find "${TTS_PIPER_DIR}" -maxdepth 1 -name '*.onnx' -printf '  %f\n' 2> /dev/null | sed 's/\.onnx$//' | LC_ALL=C sort
+  local f n
+  while IFS= read -r f; do
+    n="$(jq -r '.num_speakers // 1' "${f}.json" 2> /dev/null)"
+    printf '  %s%s\n' "$(basename "${f}" .onnx)" "$([[ "${n}" -gt 1 ]] && echo "  (${n} speakers, use MODEL:SPEAKER)")"
+  done < <(find "${TTS_PIPER_DIR}" -maxdepth 1 -name '*.onnx' | LC_ALL=C sort)
   printf '\nin use: de=%s  en=%s\nhttp: %s\n' "${TTS_PIPER_VOICE_DE}" "${TTS_PIPER_VOICE_EN}" "${TTS_HTTP_URL}"
 }
 
@@ -189,7 +219,7 @@ speak() {
 
   # Global on purpose: the EXIT trap runs after this function's locals are gone.
   tmp="$(mktemp -d "${RUN_DIR}/job.XXXXXX")"
-  trap 'jobs -p | xargs -r kill 2> /dev/null; rm -rf -- "${tmp:-/nonexistent}"; rm -f "${PID_FILE}"' EXIT
+  trap 'jobs -p | xargs -r kill 2> /dev/null; { [[ -n "${TTS_KEEP:-}" ]] || rm -rf -- "${tmp:-/nonexistent}"; }; rm -f "${PID_FILE}"' EXIT
   trap 'exit 130' INT TERM HUP
 
   local lang="${lang_opt}"
@@ -209,7 +239,7 @@ speak() {
   local -r prod=$!
 
   if [[ -n "${out_file}" ]]; then
-    wait "${prod}"
+    wait "${prod}" || return 1
     save_chunks "${tmp}/out" "${out_file}" && notify "saved ${out_file}"
   else
     play_chunks "${tmp}/out" "${prod}"

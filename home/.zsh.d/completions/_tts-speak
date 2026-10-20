@@ -27,8 +27,14 @@ _tts-speak_voices() {
     piper)
       local dir=${TTS_PIPER_DIR:-$HOME/.cache/piper-tts}
       local -a voices
-      voices=("${dir}"/*.onnx(N:t:r))
-      (( ${#voices} )) && _values 'piper voice' "${voices[@]}"
+      if compset -P '*:'; then  # MODEL:<TAB> -> speaker names/ids of that model
+        local model=${IPREFIX%:}
+        voices=(${(f)"$(jq -r '.speaker_id_map // {} | keys[]' "${dir}/${model}.onnx.json" 2>/dev/null)"})
+        (( ${#voices} )) && _describe -t speakers 'speaker' voices
+      else
+        voices=("${dir}"/*.onnx(N:t:r))
+        (( ${#voices} )) && compadd -S '' -- "${voices[@]}"
+      fi
       ;;
     *) _message "voice name is server-specific for engine '${engine}'" ;;
   esac

@@ -47,6 +47,19 @@ Selecting is enough (primary selection; clipboard is the fallback).
 Defaults: `de_DE-thorsten-high`, `en_US-amy-medium`; `tts-speak list` shows
 all installed. Piper voices: <https://huggingface.co/rhasspy/piper-voices>.
 
+### Multi-speaker models
+
+Models such as `multi_english-deutsch-libritts-high` (265 speakers) are used as
+`MODEL:SPEAKER`, e.g. `tts-speak -v multi_english-deutsch-libritts-high:thor`.
+SPEAKER is looked up by name in the model's `speaker_id_map` first (here the
+names are mostly numbers: `161065` is id 1), then taken as a raw id. An id out
+of range makes Piper write empty wavs while exiting 0; `tts-speak` detects
+that and reports it. `tts-speak list` marks multi-speaker models.
+
+Caveat: that model's config has `espeak.voice = en`, so German text is
+phonemized with English rules. Whether `:thor` sounds right for German needs a
+listening test against plain `de_DE-thorsten-high`.
+
 ## Next
 
 - Try Voxtral (already documented in `cb-voice-lab/docs/voxtral-tts`) behind
