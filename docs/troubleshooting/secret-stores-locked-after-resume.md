@@ -3,7 +3,7 @@ title: Secret stores stay locked and silent after resume (keyring, KeePassXC)
 hosts: [motoko]
 status: workaround
 tags: [keyring, keepassxc, secrets, suspend, dbus, sway, swayidle, apparmor, flatpak]
-updated: 2026-10-14
+updated: 2026-10-20
 ---
 
 # Secret stores stay locked and silent after resume
@@ -447,3 +447,24 @@ shows the `flatpak run` scope starting, exactly as in the runs that worked, so
 the hand-off to the running instance happened. Cause unconfirmed. Next time,
 check where the window went before touching anything:
 `swaymsg -t get_tree | jq '.. | objects | select(.app_id? | test("(?i)keepass")?) | {name, visible, focused}'`
+
+## 2026-10-20: keyring prompt skipped after resume (hashed attributes)
+
+After resume the KeePassXC prompt appeared but the `Default keyring` prompt did
+not, and the keyring stayed locked. `~/.local/state/unlock-secrets.log` showed
+`keyring: skipped Default keyring: no user secrets (33 internal item(s))`.
+
+**Cause (confirmed):** the "nothing worth unlocking" filter in
+`bin/unlock-secrets` treated any item with a `gkr:compat*` attribute as an
+internal marker. While a collection is locked, gnome-keyring reports *every*
+attribute hashed (`gkr:compat:hashed:<name>`, the name hashed too), so all 33
+real items looked internal. Read from the locked collection via libsecret.
+
+**Fix:** an item is internal only if its sole attribute besides `xdg:schema`
+is the `…:keyring` marker (the empty `login` keyring); everything else counts
+as a real secret. **Verified 2026-10-20:** `unlock-secrets -v` and a real
+suspend/resume both raised the `Default keyring` prompt.
+
+KeePassXC: the earlier "miss" above did not recur; prompts appeared on every
+resume and after a reboot on 2026-10-20. The `ssh-add -l` lock inference was
+not a problem.
