@@ -141,6 +141,8 @@ Some examples can be seen in the [Dot-files](#dot-files) list above.
 | `bin/rsync-parallel-backup` | Parallel rsync backup. |
 | `bin/rsynclt` | rsync with limited throughput. |
 | `bin/voice-note` | Dictate a quick note: records with `pw-record`, transcribes locally with whisper.cpp (`start`/`stop`/`toggle`/`status`), and appends it to today's file in `~/notes/inbox/`. No text injection and no focused window needed. Bound to AltGr-F6 (toggle) and AltGr-F5 (hold) in sway; `sway-lock` stops and saves a running recording on every lock and suspend. |
+| `bin/tts-clean` | Clean text for speech (stdin to stdout): drops footnote markers, URLs and markdown, expands abbreviations (`S.M.A.R.T.` to "Smart"), repairs line wraps, `--chunk N` for sentence-aligned chunks. |
+| `bin/tts-speak` | Read text aloud with a local TTS engine (Piper; `http` for OpenAI-style servers): selection, stdin or arguments; playback starts while later chunks are still synthesized. `toggle`/`stop`/`list`, `-o FILE` to save. Bound to AltGr-F9 in sway. Setup: `docs/setup/tts.md`. |
 | `bin/video-cycle` | Turn a video into a seamless ping-pong loop by appending the reversed frames (the video counterpart of `anim-cycle`), using ffmpeg. |
 | `bin/wget-p` | Parallel file fetching wrapper for wget. |
 | `bin/while-read` | Execute a command for each line read from stdin, or for each Wayland clipboard change (`-c`, via `wl-paste`; Windows clipboard in WSL). Filter with `-m REGEX`, run in background with `-b`. _Example:_ `while-read -c -b -m '^https?://' tee -a links.txt "<<<'{}'" \| wget -nv -c -i -` _appends all copied http(s) URLs to `links.txt` and downloads them._ |

@@ -1,0 +1,234 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+"""Clean text for speech synthesis: drop what is meant for the eye, not the ear.
+
+Reads stdin, writes the cleaned text to stdout. Engine-independent on purpose:
+TTS models cannot be relied on to skip footnote markers or URLs, so every
+engine behind tts-speak gets the same pre-processed text.
+
+Removes or rewrites:
+  * ANSI escapes, box-drawing characters, markdown syntax, code fences
+  * footnote/citation markers (``[1]``, ``[citation needed]``, ``^3``, superscripts)
+  * URLs (and the parentheses around them)
+  * dotted abbreviations (``S.M.A.R.T.`` -> ``Smart``, ``z.B.`` -> ``zum Beispiel``)
+  * hard line wraps inside a paragraph (terminal selections are full of them)
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07")
+BOX_RE = re.compile(r"[─-╿▀-▟]+")
+FENCE_RE = re.compile(r"^\s*(```|~~~).*?^\s*\1[^\n]*$", re.DOTALL | re.MULTILINE)
+IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+LINK_RE = re.compile(r"\[([^\]]+)\]\((?:[^)\s]+)(?:\s+\"[^\"]*\")?\)")
+URL_RE = re.compile(r"(?:https?://|ftp://|www\.)[^\s<>\"')\]]+", re.IGNORECASE)
+# "(see )" is what is left of "(see https://...)" once the URL is gone
+EMPTY_PARENS_RE = re.compile(
+    r"\(\s*(?:(?:see|siehe|vgl\.?|cf\.?|source|quelle)\s*:?\s*)?\)|\[\s*\]|<\s*>", re.IGNORECASE
+)
+# [1] [12] [a] [1,2] [1-3] [note 4] [citation needed] [edit] [update]
+FOOTNOTE_RE = re.compile(
+    r"\[(?:\d{1,3}(?:\s*[,–-]\s*\d{1,3})*|[a-z]|(?:note|nb|fn)\s*\d+"
+    r"|citation needed|edit|update[sd]?|clarification needed|when\?|who\?|according to whom\?)\]",
+    re.IGNORECASE,
+)
+CARET_RE = re.compile(r"\^\d{1,3}\b")
+SUPERSCRIPT_RE = re.compile(r"[¹²³⁰-⁹]+")
+# S.M.A.R.T.  U.S.A.  (two or more single letters, each followed by a dot)
+DOTTED_ACRONYM_RE = re.compile(r"\b(?:[A-Za-z]\.){2,}(?=\W|$)")
+HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+", re.MULTILINE)
+BULLET_RE = re.compile(r"^\s*(?:[-*+•]|\d{1,3}[.)])\s+", re.MULTILINE)
+EMPHASIS_RE = re.compile(r"(\*\*|__|\*|_|~~)(?=\S)(.+?)(?<=\S)\1")
+INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
+TABLE_RULE_RE = re.compile(r"^\s*\|?[\s:|-]{3,}\|?\s*$", re.MULTILINE)
+SENTENCE_END = tuple(".!?:;…。\"')]”»")
+
+# Spoken forms. Matched case-sensitively, with optional space after inner dots.
+ABBREVIATIONS = {
+    "de": {
+        r"z\.\s?B\.": "zum Beispiel",
+        r"d\.\s?h\.": "das heißt",
+        r"u\.\s?a\.": "unter anderem",
+        r"u\.\s?U\.": "unter Umständen",
+        r"i\.\s?d\.\s?R\.": "in der Regel",
+        r"o\.\s?ä\.": "oder ähnliches",
+        r"s\.\s?o\.": "siehe oben",
+        r"s\.\s?u\.": "siehe unten",
+        r"\busw\.": "und so weiter",
+        r"\bbzw\.": "beziehungsweise",
+        r"\bggf\.": "gegebenenfalls",
+        r"\bvgl\.": "vergleiche",
+        r"\bca\.": "circa",
+        r"\binkl\.": "inklusive",
+        r"\bevtl\.": "eventuell",
+        r"\bMio\.": "Millionen",
+        r"\bMrd\.": "Milliarden",
+        r"\bNr\.": "Nummer",
+        r"\bSt\.": "Sankt",
+    },
+    "en": {
+        r"\be\.g\.": "for example",
+        r"\bi\.e\.": "that is",
+        r"\betc\.": "et cetera",
+        r"\bvs\.": "versus",
+        r"\bcf\.": "compare",
+        r"\bapprox\.": "approximately",
+        r"\bincl\.": "including",
+        r"\bfig\.": "figure",
+        r"\bNo\.(?=\s?\d)": "number",
+    },
+}
+
+STOPWORDS = {
+    "de": set("der die das und ist nicht ein eine einer mit von zu den dem des auf für auch sich im es sie wir ich aber "
+              "oder wird werden wurde dass wenn noch nur wie bei aus nach zum zur über ".split()),
+    "en": set("the and is not a an of to in that it for with as on are this be by or from at was but have has you "
+              "we they which can will if there their would about ".split()),
+}
+
+
+def detect_lang(text: str) -> str:
+    """Guess ``de`` or ``en`` from stopword counts; English wins ties and empty input."""
+    words = re.findall(r"[a-zäöüß]+", text.lower())
+    scores = {lang: sum(w in sw for w in words) for lang, sw in STOPWORDS.items()}
+    return "de" if scores["de"] > scores["en"] else "en"
+
+
+def _acronym(match: re.Match[str]) -> str:
+    """Collapse ``S.M.A.R.T.``; pronounceable ones (4+ letters, has a vowel) become a word."""
+    letters = match.group(0).replace(".", "")
+    if len(letters) >= 4 and letters.isupper() and re.search(r"[AEIOU]", letters):
+        return letters.capitalize()
+    return letters.upper() if letters.isupper() else match.group(0)
+
+
+def expand_abbreviations(text: str, lang: str) -> str:
+    """Replace known abbreviations with their spoken form, then collapse dotted acronyms."""
+    # English Latin-isms turn up in German text as well, so that table always applies
+    tables = [ABBREVIATIONS["en"]] if lang == "en" else [ABBREVIATIONS.get(lang, {}), ABBREVIATIONS["en"]]
+    for table in tables:
+        for pattern, spoken in table.items():
+            text = re.sub(pattern, spoken, text)
+    return DOTTED_ACRONYM_RE.sub(_acronym, text)
+
+
+def strip_markup(text: str) -> str:
+    """Remove terminal/markdown/citation noise that has no spoken equivalent."""
+    text = ANSI_RE.sub("", text)
+    text = BOX_RE.sub(" ", text)
+    text = FENCE_RE.sub(" ", text)
+    text = IMAGE_RE.sub("", text)
+    text = LINK_RE.sub(r"\1", text)
+    text = FOOTNOTE_RE.sub("", text)
+    text = CARET_RE.sub("", text)
+    text = SUPERSCRIPT_RE.sub("", text)
+    text = URL_RE.sub("", text)
+    text = EMPTY_PARENS_RE.sub("", text)
+    text = TABLE_RULE_RE.sub("", text)
+    text = text.replace("|", " ")
+    text = HEADING_RE.sub("", text)
+    text = BULLET_RE.sub("", text)
+    text = INLINE_CODE_RE.sub(r"\1", text)
+    text = EMPHASIS_RE.sub(r"\2", text)
+    return text
+
+
+def reflow(text: str) -> str:
+    """Join hard-wrapped lines; give short unpunctuated lines (headings, bullets) a sentence end.
+
+    A blank line stays a paragraph break. A single newline is a wrap when the next line continues
+    in lowercase, otherwise it is a separate item and gets a full stop so the voice pauses.
+    """
+    paragraphs: list[str] = []
+    for block in re.split(r"\n\s*\n", text.replace("\r", "")):
+        lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in block.split("\n")]
+        lines = [ln for ln in lines if ln]
+        if not lines:
+            continue
+        out = lines[0]
+        for prev, nxt in zip(lines, lines[1:]):
+            if prev.endswith("-") and nxt[:1].islower():
+                out = out[:-1] + nxt  # hyphenated wrap: "recog-" + "nition"
+            elif not prev.endswith(SENTENCE_END) and nxt[:1].islower():
+                out += " " + nxt  # soft wrap mid-sentence
+            elif prev.endswith(SENTENCE_END):
+                out += " " + nxt
+            else:
+                out += ". " + nxt  # separate item without punctuation
+        paragraphs.append(out if out.endswith(SENTENCE_END) else out + ".")
+    return "\n\n".join(paragraphs)
+
+
+def clean(text: str, lang: str = "auto") -> str:
+    """Run the full cleaning pipeline; ``lang`` is ``de``, ``en`` or ``auto``."""
+    if lang == "auto":
+        lang = detect_lang(text)
+    text = strip_markup(text)
+    text = expand_abbreviations(text, lang)
+    text = reflow(text)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)  # gaps left behind by removed markers
+    text = re.sub(r"([.!?])\s*\.(?!\.)", r"\1", text)
+    return text.strip()
+
+
+def chunk(text: str, limit: int) -> list[str]:
+    """Split into single-line chunks of at most ``limit`` chars, breaking at sentence ends.
+
+    The first chunk is kept short (a third of the limit) so playback starts quickly while
+    the rest is still being synthesized. An over-long sentence is cut at the last comma/space.
+    """
+    sentences = [s for para in text.split("\n\n") for s in re.split(r"(?<=[.!?\u2026])\s+", para.replace("\n", " ")) if s]
+    chunks: list[str] = []
+    current = ""
+    for sentence in sentences:
+        while len(sentence) > limit:  # pathological: no sentence end within the limit
+            cut = max(sentence.rfind(", ", 0, limit), sentence.rfind(" ", 0, limit))
+            cut = cut if cut > 0 else limit
+            sentence, rest = sentence[:cut + 1].strip(), sentence[cut + 1:].strip()
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(sentence)
+            sentence = rest
+        max_len = limit // 3 if not chunks else limit
+        if current and len(current) + 1 + len(sentence) > max_len:
+            chunks.append(current)
+            current = sentence
+        else:
+            current = f"{current} {sentence}".strip()
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def main() -> int:
+    """CLI entry point."""
+    parser = argparse.ArgumentParser(description="Clean text for speech synthesis (stdin -> stdout).")
+    parser.add_argument("-l", "--lang", choices=["auto", "de", "en"], default="auto",
+                        help="language for abbreviation expansion (default: auto-detect)")
+    parser.add_argument("-c", "--chunk", type=int, metavar="N",
+                        help="output one chunk per line, each at most N chars (sentence-aligned)")
+    parser.add_argument("--detect", action="store_true", help="print the detected language (de/en) and exit")
+    args = parser.parse_args()
+
+    text = sys.stdin.read()
+    if args.detect:
+        print(detect_lang(strip_markup(text)))
+        return 0
+    cleaned = clean(text, args.lang)
+    if args.chunk:
+        print("\n".join(chunk(cleaned, args.chunk)))
+    else:
+        print(cleaned)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
