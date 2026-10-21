@@ -19,6 +19,7 @@
     ],
     "modules-right": [
         "network",
+        "custom/vram",
         "memory",
         "cpu",
         "custom/power-warn",
@@ -80,6 +81,18 @@
         "tooltip-format": "RAM {used:0.1f} / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
         "interval": 10,
         "states": { "notice": 70, "warning": 80, "critical": 90 }
+    },
+
+    // NVIDIA VRAM usage of the fullest GPU (bin/vram-waybar). Hidden on hosts
+    // without an awake NVIDIA GPU: the script then prints nothing, and it never
+    // wakes a runtime-suspended (hybrid) GPU. Custom modules ignore "states",
+    // so the script sets the class itself, with the thresholds of memory.
+    "custom/vram": {
+        "exec": "vram-waybar",
+        "return-type": "json",
+        "interval": 10,
+        "format": "󰢮 {}%",
+        "tooltip": true
     },
 
     // Lenovo DYTC thermal modes (the Vantage "Intelligent Cooling" equivalent):

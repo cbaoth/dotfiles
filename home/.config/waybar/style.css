@@ -81,6 +81,7 @@ button:hover {
 #custom-mode,
 #scratchpad,
 #network,
+#custom-vram,
 #memory,
 #cpu,
 #custom-power-warn,
@@ -99,6 +100,7 @@ button:hover {
 #custom-mode,
 #scratchpad,
 #network,
+#custom-vram,
 #memory,
 #cpu,
 #custom-power-warn,
@@ -128,7 +130,7 @@ button:hover {
 }
 
 /* percentage values: fixed width, so 9% -> 10% does not shift the bar */
-#cpu, #memory, #pulseaudio {
+#cpu, #memory, #custom-vram, #pulseaudio {
     min-width: 3.2em;
 }
 
@@ -220,16 +222,19 @@ button:hover {
 }
 
 #cpu.warning,
-#memory.notice {
+#memory.notice,
+#custom-vram.notice {
     color: @notice;
 }
 
 #cpu.critical,
-#memory.warning {
+#memory.warning,
+#custom-vram.warning {
     color: @warn;
 }
 
-#memory.critical {
+#memory.critical,
+#custom-vram.critical {
     background-color: @crit_bg;
     color: #ffffff;
 }
