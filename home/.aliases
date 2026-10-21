@@ -96,7 +96,7 @@ findre () {
 
 # add --color option to all grep commands and add -i aliases
 # shellcheck disable=SC2139  # ${c} intentionally expands at definition time to build alias names/values
-for c in '' e f r z; do
+for c in '' e f r z bz bze bzf; do
   alias ${c}grep="${c}grep --color"
   alias ${c}grepi="${c}grep --color -i"
 done
