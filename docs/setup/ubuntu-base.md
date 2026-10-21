@@ -28,6 +28,7 @@ Packages are data, not code — see [`setup/packages/`](../../setup/packages/):
 | `server.list` | headless (saito, vserver) |
 | `wsl.list` | WSL — deliberately thin; the Windows host owns GUI and drivers |
 | `obsolete-desktop.list` | desktop: packages to **remove** (replaced tools); applied after the installs |
+| `host-<hostname>.list` | one machine only, if the file exists (`hostname -s`); e.g. `host-saito.list` |
 
 To add a tool, add a line to the relevant `.list`. That is the whole workflow.
 

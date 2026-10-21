@@ -1,0 +1,7 @@
+# Apt packages for saito only (on top of base + server).
+# Installed by: setup/modules/00-apt-base.sh (file name = host-$(hostname -s))
+
+# OneDrive replica into /media/data/home/cbaoth/OneDrive, driven by the
+# onedrive-sync user timer (bin/onedrive-sync). Ubuntu's own build, no OBS
+# repo: the OBS 2.5.11 package was autoremoved in the 2026-09 desktop purge.
+onedrive

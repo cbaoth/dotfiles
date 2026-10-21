@@ -1,0 +1,25 @@
+[Unit]
+Description=Sync OneDrive (one guarded onedrive --sync run)
+Documentation=file:%h/dotfiles/bin/onedrive-sync
+After=network-online.target
+Wants=network-online.target
+
+# Transient failures (offline, throttled, sync dir unmounted) exit 0 and retry
+# next tick. This only fires on a *persistent* failure (no completed sync for
+# ONEDRIVE_SYNC_MAX_AGE) or a blocked big delete. See bin/onedrive-sync.
+OnFailure=onedrive-sync-failed.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/onedrive-sync --quiet
+# ntfy-send lives in ~/bin via the dotfiles symlink farm.
+Environment=PATH=%h/bin:/usr/local/bin:/usr/bin:/bin
+
+# A catch-up after days offline can take hours; never cut a sync mid-transfer
+# for no reason, but do not hang forever either.
+TimeoutStartSec=6h
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target

@@ -82,6 +82,13 @@ module_run() {
     wsl)     st::apt_install_list wsl ;;
   esac
 
+  # Packages only one machine needs (e.g. the OneDrive replica on saito).
+  local host_list
+  host_list="host-$(hostname -s)"
+  if [[ -f "${ST_SETUP_DIR}/packages/${host_list}.list" ]]; then
+    st::apt_install_list "${host_list}"
+  fi
+
   # After the installs, so a replacement is in place before the old tool goes.
   case "$(st::profile)" in
     desktop) st::apt_remove_list obsolete-desktop ;;

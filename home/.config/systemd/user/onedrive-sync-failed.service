@@ -1,0 +1,12 @@
+[Unit]
+Description=Alert (ntfy) that onedrive-sync is persistently failing
+Documentation=file:%h/dotfiles/bin/onedrive-sync
+# Started via OnFailure=onedrive-sync-failed.service in onedrive-sync.service —
+# no timer, no [Install].
+
+[Service]
+Type=oneshot
+# Throttled per title: a failure repeating every 30 min pushes at most every 6 h.
+ExecStart=%h/bin/ntfy-send --priority high --tags cloud,warning --throttle 21600 \
+  "onedrive-sync FAILED" \
+  "OneDrive has not synced for hours. Inspect: journalctl --user -u onedrive-sync -n 60"
