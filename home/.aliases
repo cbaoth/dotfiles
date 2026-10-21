@@ -928,14 +928,15 @@ _rename_add_affix() {
   local -r fn="rename-add-${mode}"
   local example="_edit"
   [[ "${mode}" == prefix ]] && example="myband_-_"
-  local -r usage="Usage: ${fn} [-n|--dry-run] [-v|--verbose] [--] ${mode} FILE...
+  local -r usage="Usage: ${fn} [-n|--dry-run] [-v|--verbose] [-y|--yes] [--] ${mode} FILE...
 example: ${fn} ${example} *.ogg"
-  local dry_run=false
+  local dry_run=false yes=false
   local -a mv_opts=(-i)   # -i only matters if a target appears after the check
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -n|--dry-run) dry_run=true ;;
       -v|--verbose) mv_opts+=(-v) ;;
+      -y|--yes)     yes=true ;;
       -h|--help)    printf '%s\n' "${usage}"; return 0 ;;
       --)           shift; break ;;
       *)            break ;;   # first non-option is the affix (e.g. "-edit")
@@ -951,6 +952,20 @@ example: ${fn} ${example} *.ogg"
   if [[ "${affix}" == */* ]]; then
     printf "%s: %s must not contain '/'\n" "${fn}" "${mode}" >&2
     return 1
+  fi
+  # An affix naming an existing file is most likely a forgotten affix argument
+  # (`rename-add-prefix *.ogg`). "." / ".." always exist; they are dot prefixes.
+  if [[ ( -e "${affix}" || -L "${affix}" ) && "${affix}" != . && "${affix}" != .. ]] && ! "${yes}"; then
+    if [[ ! -t 0 ]]; then
+      printf "%s: %s '%s' is an existing file (forgot the %s?), use -y to force\n" \
+        "${fn}" "${mode}" "${affix}" "${mode}" >&2
+      return 1
+    fi
+    local reply
+    printf "%s: %s '%s' is an existing file (forgot the %s?). Use it anyway? [y/N] " \
+      "${fn}" "${mode}" "${affix}" "${mode}" >&2
+    read -r reply
+    [[ "${reply}" == [yY] ]] || return 1
   fi
 
   local -i rc=0
