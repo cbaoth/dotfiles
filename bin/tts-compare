@@ -67,7 +67,8 @@ Voice list format (one voice per line, # comments):
   http   de_female                      voxtral-de-f
 The optional third column is a label for the file name.
 Auto-discovery: single-speaker Piper models of the language (name starts with
-"de_"/"en_"), plus the http server's voices (/v1/audio/voices) for the language.
+"de_"/"en_"), plus the http server's voices (/v1/audio/voices) of that language
+only: "de_*" for de, the unprefixed ones for en (others speak with an accent).
 Multi-speaker models hold hundreds of voices (some of them other languages),
 so they are only compared on their own, with -m. Clip files are named
 NN_ENGINE_LABEL.wav, with MODEL.SPEAKER as the label for -m.
@@ -91,7 +92,13 @@ discover() {
   if [[ -z "${engine_filter}" || "${engine_filter}" == http ]]; then
     while IFS= read -r spk; do
       # English voices have no language prefix; others are "de_female", "fr_male", ...
-      if [[ "${spk}" == "${lang}"_* || ! "${spk}" =~ ^[a-z]{2}_ ]]; then printf 'http %s http-%s\n' "${spk}" "${spk}"; fi
+      # Only the voices of the language itself: the others speak it with a heavy accent.
+      if [[ "${lang}" == en ]]; then
+        [[ "${spk}" =~ ^[a-z]{2}_ ]] && continue
+      else
+        [[ "${spk}" == "${lang}"_* ]] || continue
+      fi
+      printf 'http %s http-%s\n' "${spk}" "${spk}"
     done < <(curl -s -m 2 "${HTTP_URL%/audio/speech}/audio/voices" 2> /dev/null | jq -r '.voices[]?' 2> /dev/null)
   fi
 }
