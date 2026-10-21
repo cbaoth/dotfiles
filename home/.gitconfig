@@ -71,6 +71,22 @@
 	clean = jq -S --indent 2 'del(.model, .effortLevel, .modelSettings)'
 	smudge = cat
 
+# htop rewrites htoprc on every exit, including the sort column picked in the
+# UI. Commit every sort setting pinned to htop's defaults (CPU%, descending), so
+# re-sorting never shows as a change. Trade-off: a fresh checkout starts every
+# screen sorted by CPU%. Same status quirk as claude-settings above.
+[filter "htoprc"]
+	clean = sed -E \
+		-e 's/^sort_key=.*/sort_key=46/' \
+		-e 's/^sort_direction=.*/sort_direction=-1/' \
+		-e 's/^tree_sort_key=.*/tree_sort_key=0/' \
+		-e 's/^tree_sort_direction=.*/tree_sort_direction=1/' \
+		-e 's/^[.]sort_key=.*/.sort_key=PERCENT_CPU/' \
+		-e 's/^[.]sort_direction=.*/.sort_direction=-1/' \
+		-e 's/^[.]tree_sort_key=.*/.tree_sort_key=PID/' \
+		-e 's/^[.]tree_sort_direction=.*/.tree_sort_direction=1/'
+	smudge = cat
+
 # Loaded last, so machine-local settings win over the defaults above. A missing
 # file is silently ignored, so this is safe on a host that has no local config.
 [include]

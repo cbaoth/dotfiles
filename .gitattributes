@@ -40,3 +40,6 @@ adoc_assets/**/* binary
 # filter driver is defined in home/.gitconfig (deployed as ~/.gitconfig)
 .claude/settings.json          filter=claude-settings
 home/.claude/settings.json filter=claude-settings
+
+# htop: sort settings pinned on commit (filter driver in home/.gitconfig)
+home/.config/htop/htoprc filter=htoprc
