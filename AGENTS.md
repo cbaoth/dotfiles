@@ -46,6 +46,24 @@ checking it for hardcoded `/home/<user>` paths, fixed `/tmp` names it writes,
 and desktop/session dependencies. Never point root at a user's clone. See
 *Profiles* in `docs/linking-system.md` and `docs/setup/root-shell.md`.
 
+## Git: `settings.json` shows as modified with no diff
+
+`.claude/settings.json` and `home/.claude/settings.json` go through the
+`claude-settings` clean filter (`.gitattributes`; driver in `home/.gitconfig`):
+keys sorted, per-host values (`model`, `effortLevel`, `modelSettings`)
+stripped. Claude Code rewrites the file in its own key order, so `git status`
+keeps listing it as modified even when the filtered content is identical.
+
+When either file shows up in `git status`:
+
+1. `git diff -- <file>`. **Empty** → `git add <file>`: staging re-runs the
+   filter, the index matches, and the entry disappears. That is the whole fix;
+   it is not a change and needs no commit of its own.
+2. **Non-empty** → a real settings change: commit it on its own, or leave it
+   to the user if it is not part of your task.
+
+Do not report it to the user as "uncommitted changes that aren't mine".
+
 ## Style Guides (path-scoped, single source of truth)
 
 Coding conventions live in `.github/instructions/*.instructions.md` and are

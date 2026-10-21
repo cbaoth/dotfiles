@@ -242,6 +242,7 @@ play_mpv() {
       < /dev/null > /dev/null 2>&1 &
   fi
   local -r player=$!
+  [[ "${ui}" == window ]] && place_window "${player}" &
 
   local -i n
   for (( n = 0; n < 100; n++ )); do
@@ -277,6 +278,27 @@ play_mpv() {
   done
   MPV_WAIT=0 mpv_ipc quit > /dev/null || true
   wait "${player}" 2> /dev/null || true
+}
+
+# Sway: put the player window top-right and reveal it. The window rule maps it
+# invisible (opacity 0) and unfocused; sway-place has to be given the con_id,
+# since without one it would move the focused window instead.
+place_window() {
+  local -r pid="$1"
+  [[ -n "${SWAYSOCK:-}" ]] && command -v swaymsg > /dev/null 2>&1 || return 0
+  local -i n
+  local id=""
+  for (( n = 0; n < 60; n++ )); do
+    id="$(swaymsg -t get_tree 2> /dev/null |
+      jq -r --argjson p "${pid}" '.. | objects | select(.app_id? == "tts-speak" and .pid? == $p) | .id' | head -n 1)"
+    [[ -n "${id}" ]] && break
+    sleep 0.05
+  done
+  [[ -n "${id}" ]] || return 0
+  if command -v sway-place > /dev/null 2>&1; then
+    sway-place top-right --con-id "${id}" --opacity 1 > /dev/null 2>&1 && return 0
+  fi
+  swaymsg "[con_id=${id}] opacity 1" > /dev/null 2>&1 || true
 }
 
 # pause / prev / next for hotkeys: they talk to the running mpv.

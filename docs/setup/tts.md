@@ -44,10 +44,14 @@ The UI follows where it runs:
 
 - **From a terminal:** stays in the foreground with mpv's terminal UI; status
   line `[chunk/total] time`; Ctrl-C quits.
-- **From the hotkey:** a small mpv window, `--wayland-app-id=tts-speak`. Sway
-  places it top-right like the tray apps (`$poptray, $stick`) and does not
-  focus it (`no_focus`), so it does not cover or steal the text being read.
-  The general mpv window rule does not apply to it.
+- **From the hotkey:** a small mpv window, `--wayland-app-id=tts-speak`,
+  top-right below the bar, sticky and unfocused (`no_focus`), so it neither
+  covers nor steals the text being read. Not `$poptray`: that runs
+  `sway-place` on the *focused* window, which with `no_focus` is the window
+  you were in (it moved the terminal, and the player stayed invisible at
+  opacity 0). The rule maps it at opacity 0 and `tts-speak` itself calls
+  `sway-place top-right --con-id ID --opacity 1`. A fullscreen window covers
+  it, as it covers every floating window.
 - `-u none` is plain background playback without controls; `-o FILE` renders
   to a file for any player.
 
@@ -124,13 +128,17 @@ marks multi-speaker models. Sources: <https://huggingface.co/rhasspy/piper-voice
   almost every word, strong English accent (the model phonemizes with
   `espeak.voice = en`). The model is a collection that also holds voices
   installed separately (Bender, Thorsten).
+- Fixed since: `tts-clean` spells out German numbers for every engine
+  (`--no-numbers` to keep digits): cardinals, ordinals by context ("am 3." ->
+  "am dritten", "der 1." -> "der erste", "3. Oktober" -> "dritter Oktober",
+  a bare "Kapitel 3." stays a sentence end), dates, times, decimals, percent,
+  thousands separators, years 1100-1999 as "neunzehnhundert...". Model names
+  ("RTX 4070") and leading-zero codes are left alone.
 - Unnatural pauses in hard-wrapped text (Gutenberg) were a `tts-clean` bug,
   fixed: German nouns are capitalized, so case says nothing about a wrap.
 
 ## Next
 
-- Piper number handling: spell out numbers and ordinals in `tts-clean`
-  (German), if Piper stays in daily use. Voxtral does not need it.
 - Try Chatterbox and Supertonic 3 (31 languages incl. German, upstream repo
   archived) behind the same http interface.
 - Decide where Piper and its voices get installed from (module) once the
