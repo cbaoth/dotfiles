@@ -3,7 +3,7 @@ title: Text-to-speech (read selection aloud)
 hosts: [motoko]
 status: resolved
 tags: [tts, piper, sway, accessibility, voxtral]
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Text-to-speech: read the selection aloud
@@ -31,34 +31,50 @@ Audio is **streamed in chunks** (a few sentences each, the first one short):
 the engine writes one wav per chunk and playback starts as soon as the first
 is ready; it is never one big clip. mpv is the player, started idle, with each
 finished chunk appended to its playlist over its JSON IPC socket (`socat`), so
-all of mpv's controls work and nothing is reinvented:
+mpv's own controls (your `~/.config/mpv/input.conf`: pause, seek, loop, speed)
+all work, and `<` / `>` move between chunks.
 
-| Key | Action |
-| --- | ------ |
-| space | pause / resume |
-| left / right | seek 5 s |
-| `<` / `>` | previous / next chunk |
-| `L` | loop the current chunk |
-| `[` / `]` | slower / faster (pitch preserved) |
-| `q` | quit |
+`tts-speak` overrides a few settings of the personal mpv config: a looping
+playlist (`loop-playlist=inf`) would never end, so the worker would never exit;
+looping can still be toggled in the player. The first chunk gets 250 ms of
+leading silence (`TTS_PAD_MS`): the audio device wakes up late and otherwise
+swallows the first syllable. Saved files (`-o`) are padded at both ends.
 
-The UI follows where it runs: from a terminal, `tts-speak` stays in the
-foreground with mpv's terminal UI (Ctrl-C quits); from the sway hotkey there is
-no terminal, so a small mpv window opens (`-u window`; sway's existing mpv
-rules apply). `-u none` is the old plain background playback. For hotkeys
-without focusing the window: `tts-speak pause`, `tts-speak prev` (restarts the
-chunk, or goes to the previous one if it just started) and `tts-speak next`.
-Use `-o FILE` to render to a file and play it with any player.
+The UI follows where it runs:
+
+- **From a terminal:** stays in the foreground with mpv's terminal UI; status
+  line `[chunk/total] time`; Ctrl-C quits.
+- **From the hotkey:** a small mpv window, `--wayland-app-id=tts-speak`. Sway
+  places it top-right like the tray apps (`$poptray, $stick`) and does not
+  focus it (`no_focus`), so it does not cover or steal the text being read.
+  The general mpv window rule does not apply to it.
+- `-u none` is plain background playback without controls; `-o FILE` renders
+  to a file for any player.
+
+**Keys (sway):** the media keys and their alternatives (`$mod+Alt+Space`,
+`Comma`, `Period`) control a running read-aloud first and fall through to
+`playerctl` otherwise: `tts-speak pause|prev|next` fail when nothing is being
+read. mpv has no MPRIS here, so playerctl cannot see it. `$mod+Alt+Backslash`
+stops reading (`tts-speak stop`, which also quits the player).
 
 ## Comparing voices
 
-`tts-compare` renders one text with many voices (auto-discovered Piper models,
-named speakers of multi-speaker models, and the http server's voices; or a
-list in `~/.config/tts/voices.list`), prints render time per clip, and plays
-them back to back in one mpv playlist (`>` next, `L` loop). `--blind` shuffles
-and anonymizes the clips and shows the key afterwards. The same clip with
-several voices tells you whether a glitch belongs to the voice, the model, the
-engine, or the text.
+`tts-compare` renders one text with many voices and plays the clips in one
+mpv playlist. The status line shows the clip number and name; typing a number
+jumps to that clip (`~/.config/tts/mpv-jump.lua`, loaded only here).
+
+- **Default:** single-speaker Piper models of the language (`de_*` / `en_*`)
+  plus the http server's voices for it, or the list in
+  `~/.config/tts/voices.list`.
+- **Multi-speaker models** are left out of that: they hold hundreds of voices,
+  some of them other languages. Compare one on its own with
+  `-m MODEL [--limit N]` (default 20 speakers, evenly spread; `0` = all).
+  Clips are named `NN_piper_MODEL.SPEAKER.wav` (`.`, since `:` is not allowed
+  on every filesystem).
+- `--blind` shuffles and anonymizes the clips and shows the key afterwards.
+
+Rendering the same text with several voices tells you whether a glitch belongs
+to the voice, the model, the engine, or the text.
 
 ## Design decisions
 
@@ -84,23 +100,38 @@ all installed. Piper voices: <https://huggingface.co/rhasspy/piper-voices>.
 
 ### Multi-speaker models
 
-Models such as `multi_english-deutsch-libritts-high` (265 speakers) are used as
-`MODEL:SPEAKER`, e.g. `tts-speak -v multi_english-deutsch-libritts-high:thor`.
-SPEAKER is looked up by name in the model's `speaker_id_map` first (here the
-names are mostly numbers: `161065` is id 1), then taken as a raw id. An id out
-of range makes Piper write empty wavs while exiting 0; `tts-speak` detects
-that and reports it. `tts-speak list` marks multi-speaker models.
+Models such as `en+de-libritts-multi-high` (265 speakers, renamed from
+`multi_english-deutsch-libritts-high`) are used as `MODEL:SPEAKER`, e.g.
+`tts-speak -v en+de-libritts-multi-high:thor`. SPEAKER is looked up by name in
+the model's `speaker_id_map` first (here the names are mostly numbers: `161065`
+is id 1), then taken as a raw id. An id out of range makes Piper write empty
+wavs while exiting 0; `tts-speak` detects that and reports it. `tts-speak list`
+marks multi-speaker models. Sources: <https://huggingface.co/rhasspy/piper-voices>
+(e.g. `en_US-libritts-multi-high`, 904 speakers) and
+<https://huggingface.co/fox3000foxy/piper-voices-collection>.
 
-Caveat: that model's config has `espeak.voice = en`, so German text is
-phonemized with English rules. Whether `:thor` sounds right for German needs a
-listening test against plain `de_DE-thorsten-high`.
+### Listening results (2026-10-21)
+
+- **Voxtral** (http): clearly more natural than Piper, fewer TTS artifacts;
+  numbers, ordinals and abbreviations read correctly ("am dritten Oktober
+  zweitausendsechsundzwanzig"). English voices a little monotonous.
+- **Piper German:** `de_DE-thorsten-high` best, `de_DE-audio_book-medium`
+  close behind (a good narrator). All Piper voices stumble on numbers:
+  "3." is read as "drei" with a sentence-end drop, and multi-digit numbers get
+  short pauses inside the word ("fünf | unddreißig", "zweitausendsechs |
+  undzwanzig"). `de_DE-kantodel` clips the first word and garbles some words.
+- **`en+de-libritts-multi-high:thor`** is unusable for German: a pause after
+  almost every word, strong English accent (the model phonemizes with
+  `espeak.voice = en`). The model is a collection that also holds voices
+  installed separately (Bender, Thorsten).
+- Unnatural pauses in hard-wrapped text (Gutenberg) were a `tts-clean` bug,
+  fixed: German nouns are capitalized, so case says nothing about a wrap.
 
 ## Next
 
-- Try Voxtral (already documented in `cb-voice-lab/docs/voxtral-tts`) behind
-  an OpenAI-style server, then Chatterbox and Supertonic 3 (31 languages incl.
-  German, but the upstream repo is archived). Judge on one German and one
-  English paragraph.
-- The `http` engine is written but untested against a real server.
+- Piper number handling: spell out numbers and ordinals in `tts-clean`
+  (German), if Piper stays in daily use. Voxtral does not need it.
+- Try Chatterbox and Supertonic 3 (31 languages incl. German, upstream repo
+  archived) behind the same http interface.
 - Decide where Piper and its voices get installed from (module) once the
   engine choice is settled.

@@ -2,7 +2,16 @@
 # vim: ft=zsh:et:ts=2:sts=2:sw=2
 #
 # Completion for tts-compare (bin/tts-compare in the dotfiles repo).
-# Keep in sync with its usage().
+# Keep in sync with its usage(). Multi-speaker model names are discovered live.
+
+_tts-compare_multi() {
+  local dir=${TTS_PIPER_DIR:-$HOME/.cache/piper-tts} f
+  local -a models
+  for f in "${dir}"/*.onnx.json(N); do
+    (( $(jq -r '.num_speakers // 1' "$f" 2>/dev/null) > 1 )) && models+=("${${f:t}%.onnx.json}")
+  done
+  (( ${#models} )) && _values 'multi-speaker model' "${models[@]}"
+}
 
 _arguments -s \
   '(-l --lang)'{-l,--lang}'[Language]:language:(de en)' \
@@ -10,6 +19,8 @@ _arguments -s \
   '(-L --list)'{-L,--list}'[Voice list file]:file:_files' \
   '(-a --auto)'{-a,--auto}'[Ignore the voice list; discover voices]' \
   '(-e --engine)'{-e,--engine}'[Only voices of this engine]:engine:(piper http)' \
+  '(-m --multi)'{-m,--multi}'[Compare the speakers of one multi-speaker model]:model:_tts-compare_multi' \
+  '--limit[With -m: at most N speakers, evenly spread (0 = all)]:count:(10 20 50 0)' \
   '(-g --grep)'{-g,--grep}'[Only voices matching this regex]:regex: ' \
   '(-s --speed)'{-s,--speed}'[Speaking speed]:speed:(0.8 0.9 1.0 1.1 1.2)' \
   '(-d --dir)'{-d,--dir}'[Keep the clips in this directory]:directory:_files -/' \

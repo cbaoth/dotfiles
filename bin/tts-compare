@@ -18,6 +18,7 @@ declare -r VOICES_FILE="${TTS_VOICES:-${XDG_CONFIG_HOME:-${HOME}/.config}/tts/vo
 declare -r OUT_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}/tts-compare"
 declare -r PIPER_DIR="${TTS_PIPER_DIR:-${HOME}/.cache/piper-tts}"
 declare -r HTTP_URL="${TTS_HTTP_URL:-http://127.0.0.1:8880/v1/audio/speech}"
+declare -r JUMP_SCRIPT="${XDG_CONFIG_HOME:-${HOME}/.config}/tts/mpv-jump.lua"
 
 declare -r SAMPLE_DE='Als Zarathustra dreissig Jahr alt war, verliess er seine Heimat und den See seiner Heimat und ging in das Gebirge. Hier genoss er seines Geistes und seiner Einsamkeit und wurde dessen zehn Jahr nicht müde.
 
@@ -35,9 +36,11 @@ usage() {
 Usage: tts-compare [OPTIONS] [TEXT | -f FILE]
 
 Render one text with many voices (one clip each), print the synthesis time per
-clip, then play all clips in a single mpv playlist: '>' next, '<' previous,
-space pause, L loop the current clip. Use it to tell whether a glitch or an
-unnatural pause comes from the voice, the model, the engine or the text.
+clip, then play all clips in a single mpv playlist with your own mpv keys
+('>' next, '<' previous, ...). Type a clip number (e.g. 6, or 1 2 for 12) to
+jump to it; the current clip number and name are shown in the status line.
+Use it to tell whether a glitch or an unnatural pause comes from the voice,
+the model, the engine or the text.
 
 Without TEXT/-f: a built-in sample for the language (stdin if piped).
 
@@ -47,6 +50,10 @@ Options:
   -L, --list F     voice list (default: ${VOICES_FILE} if it exists, else auto-discover)
   -a, --auto       ignore the voice list file; discover voices instead
   -e, --engine E   only voices of this engine (piper | http)
+  -m, --multi M    compare the speakers of ONE multi-speaker Piper model M
+                   instead (these are left out of the normal comparison)
+      --limit N    with -m: at most N speakers, evenly spread over all of
+                   them (default: 20, 0 = all)
   -g, --grep RE    only voices whose "engine voice" line matches RE
   -s, --speed X    speaking speed for all clips (default: 1.0)
   -d, --dir D      keep the clips in D (default: ${OUT_BASE}/<timestamp>)
@@ -59,8 +66,11 @@ Voice list format (one voice per line, # comments):
   piper  en_US_fortune-multi-high:joy   fortune-joy
   http   de_female                      voxtral-de-f
 The optional third column is a label for the file name.
-Auto-discovery: single-speaker Piper models and named speakers of multi-speaker
-models matching the language, plus all voices the http server lists (/v1/audio/voices).
+Auto-discovery: single-speaker Piper models of the language (name starts with
+"de_"/"en_"), plus the http server's voices (/v1/audio/voices) for the language.
+Multi-speaker models hold hundreds of voices (some of them other languages),
+so they are only compared on their own, with -m. Clip files are named
+NN_ENGINE_LABEL.wav, with MODEL.SPEAKER as the label for -m.
 EOF
 }
 
@@ -69,20 +79,13 @@ p_err() { printf 'tts-compare: %s\n' "$*" >&2; }
 # Print "engine voice label" lines.
 discover() {
   local -r lang="$1" engine_filter="$2"
-  local f name n spk
+  local f name spk
   if [[ -z "${engine_filter}" || "${engine_filter}" == piper ]]; then
     while IFS= read -r f; do
       name="$(basename "${f}" .onnx)"
-      [[ "${name}" == "${lang}"_* || "${name}" == multi_* || "${name}" == *"${lang}"* ]] || continue
-      n="$(jq -r '.num_speakers // 1' "${f}.json" 2> /dev/null)"
-      if (( n > 1 )); then
-        # Named speakers only (numeric ones are hundreds of ids).
-        while IFS= read -r spk; do
-          printf 'piper %s:%s %s-%s\n' "${name}" "${spk}" "${name}" "${spk}"
-        done < <(jq -r '.speaker_id_map // {} | keys[] | select(test("^[0-9]+$") | not)' "${f}.json" 2> /dev/null)
-      else
-        printf 'piper %s %s\n' "${name}" "${name}"
-      fi
+      [[ "${name}" == "${lang}"_* ]] || continue
+      (( $(jq -r '.num_speakers // 1' "${f}.json" 2> /dev/null || echo 1) > 1 )) && continue
+      printf 'piper %s %s\n' "${name}" "${name}"
     done < <(find "${PIPER_DIR}" -maxdepth 1 -name '*.onnx' | LC_ALL=C sort)
   fi
   if [[ -z "${engine_filter}" || "${engine_filter}" == http ]]; then
@@ -93,12 +96,32 @@ discover() {
   fi
 }
 
+# Print "piper MODEL:SPEAKER MODEL.SPEAKER" for the speakers of one model, in
+# speaker-id order, at most LIMIT of them spread evenly (0 = all).
+discover_multi() {
+  local -r model="$1" limit="$2"
+  local -r json="${PIPER_DIR}/${model}.onnx.json"
+  [[ -f "${json}" ]] || { p_err "model not found: ${json}"; return 1; }
+  local -a speakers
+  mapfile -t speakers < <(jq -r '.speaker_id_map // {} | to_entries | sort_by(.value) | .[].key' "${json}")
+  local -i total=${#speakers[@]} count i
+  (( total > 0 )) || { p_err "${model} has no speakers (single-speaker model?)"; return 1; }
+  count=${total}
+  (( limit > 0 && limit < total )) && count=${limit}
+  (( count < total )) && p_err "${model}: ${count} of ${total} speakers (--limit 0 for all)"
+  for (( i = 0; i < count; i++ )); do
+    local spk="${speakers[i * total / count]}"
+    printf 'piper %s:%s %s.%s\n' "${model}" "${spk}" "${model}" "${spk}"
+  done
+}
+
 duration() { ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2> /dev/null; }
 
 # }}} = FUNCTIONS =============================================================
 
 main() {
   local lang=de text_file="" list_file="" auto=0 engine_filter="" pattern="" speed=1.0 dir="" blind=0 play=1
+  local multi="" limit=20
   local -a words=()
   while (( $# > 0 )); do
     case "$1" in
@@ -107,6 +130,8 @@ main() {
       -L|--list)   list_file="$2"; shift ;;
       -a|--auto)   auto=1 ;;
       -e|--engine) engine_filter="$2"; shift ;;
+      -m|--multi)  multi="$2"; shift ;;
+      --limit)     limit="$2"; shift ;;
       -g|--grep)   pattern="$2"; shift ;;
       -s|--speed)  speed="$2"; shift ;;
       -d|--dir)    dir="$2"; shift ;;
@@ -136,7 +161,9 @@ main() {
 
   local -a voices=()
   if (( ! auto )) && [[ -z "${list_file}" && -f "${VOICES_FILE}" ]]; then list_file="${VOICES_FILE}"; fi
-  if (( ! auto )) && [[ -n "${list_file}" ]]; then
+  if [[ -n "${multi}" ]]; then
+    mapfile -t voices < <(discover_multi "${multi}" "${limit}")
+  elif (( ! auto )) && [[ -n "${list_file}" ]]; then
     mapfile -t voices < <(grep -v -E '^\s*(#|$)' "${list_file}")
   else
     mapfile -t voices < <(discover "${lang}" "${engine_filter}")
@@ -152,50 +179,62 @@ main() {
   if (( ${#picked[@]} == 0 )); then p_err "no voices selected"; return 1; fi
 
   printf 'Rendering %d clips to %s\n' "${#picked[@]}" "${dir}"
+  # Clips are numbered by their playlist position, so the number printed here
+  # is the one to type in mpv; failed voices get no number.
   local -a clips=() labels=()
-  local -i n=0
-  local voice label out t0 t1 dur
+  local -i k=0
+  local voice label out t0 t1 dur fmt='%02d'
+  (( ${#picked[@]} > 99 )) && fmt='%03d'
   for v in "${picked[@]}"; do
     read -r engine voice label <<< "${v}"
     [[ -n "${label}" ]] || label="${voice}"
-    (( ++n ))
-    printf -v out '%s/%02d_%s_%s.wav' "${dir}" "${n}" "${engine}" "${label//[^A-Za-z0-9._+-]/-}"
+    # shellcheck disable=SC2059
+    printf -v out "%s/${fmt}_%s_%s.wav" "${dir}" "$(( k + 1 ))" "${engine}" "${label//[^A-Za-z0-9._+-]/-}"
     t0="$(date +%s.%N)"
     if tts-speak -e "${engine}" -l "${lang}" -v "${voice}" -s "${speed}" -o "${out}" < "${dir}/text.txt" 2> "${out}.err" &&
       [[ -s "${out}" ]]; then
       t1="$(date +%s.%N)"
       dur="$(duration "${out}")"
-      awk -v n="${n}" -v e="${engine}" -v l="${label}" -v a="${t0}" -v b="${t1}" -v d="${dur:-0}" \
-        'BEGIN { printf "  %2d  %-5s %-45s %5.1fs audio, %4.1fs to render (%.2fx realtime)\n", n, e, l, d, b - a, (b - a) / (d ? d : 1) }'
+      (( ++k ))
+      awk -v n="${k}" -v e="${engine}" -v l="${label}" -v a="${t0}" -v b="${t1}" -v d="${dur:-0}" \
+        'BEGIN { printf "  %3d  %-5s %-45s %5.1fs audio, %4.1fs to render (%.2fx realtime)\n", n, e, l, d, b - a, (b - a) / (d ? d : 1) }'
       clips+=("${out}"); labels+=("${engine} ${voice}")
       rm -f -- "${out}.err"
     else
-      printf '  %2d  %-5s %-45s FAILED: %s\n' "${n}" "${engine}" "${label}" "$(tail -n 1 "${out}.err" 2> /dev/null)"
+      printf '    -  %-5s %-45s FAILED: %s\n' "${engine}" "${label}" "$(tail -n 1 "${out}.err" 2> /dev/null)"
+      rm -f -- "${out}"
     fi
   done
   if (( ${#clips[@]} == 0 )); then p_err "all voices failed"; return 1; fi
   (( play )) || { printf 'Clips: %s\n' "${dir}"; return 0; }
   command -v mpv > /dev/null 2>&1 || { p_err "mpv not found; clips are in ${dir}"; return 1; }
 
+  # ${...} are mpv property expansions. Status line: clip number and name.
+  # shellcheck disable=SC2016
+  local -a mpv_args=(--no-video --msg-level=all=error
+    '--term-playing-msg=>> clip ${playlist-pos-1}/${playlist-count}: ${filename/no-ext}'
+    '--term-status-msg=${?pause==yes:(Paused) }[${playlist-pos-1}/${playlist-count}] ${filename/no-ext}  ${time-pos} / ${duration}')
+  [[ -f "${JUMP_SCRIPT}" ]] && mpv_args+=("--script=${JUMP_SCRIPT}")
+
   if (( blind )); then
     # Anonymous, shuffled copies; the key is written next to them.
     local -a order=() blind_files=()
     mapfile -t order < <(shuf -i 0-$(( ${#clips[@]} - 1 )))
-    local -i k=0 idx
+    local -i b=0 idx
     : > "${dir}/key.txt"
     for idx in "${order[@]}"; do
-      (( ++k ))
-      printf -v out '%s/blind_%02d.wav' "${dir}" "${k}"
+      (( ++b ))
+      printf -v out '%s/blind_%02d.wav' "${dir}" "${b}"
       cp -- "${clips[idx]}" "${out}"
       blind_files+=("${out}")
-      printf 'blind_%02d = %s\n' "${k}" "${labels[idx]}" >> "${dir}/key.txt"
+      printf 'blind_%02d = %s\n' "${b}" "${labels[idx]}" >> "${dir}/key.txt"
     done
-    printf 'Blind test: %d clips. Key is revealed after playback.\n' "${k}"
-    mpv --no-video --force-media-title=blind --msg-level=all=error "${blind_files[@]}"
+    printf 'Blind test: %d clips. Type a number to jump; the key is revealed after playback.\n' "${b}"
+    mpv "${mpv_args[@]}" "${blind_files[@]}"
     printf '\nKey:\n'; cat -- "${dir}/key.txt"
   else
-    printf 'Playing: > next, < previous, space pause, L loop, q quit\n'
-    mpv --no-video --msg-level=all=error "${clips[@]}"
+    printf 'Playing: type a clip number to jump, < > previous/next, q quit (your mpv keys)\n'
+    mpv "${mpv_args[@]}" "${clips[@]}"
   fi
 }
 

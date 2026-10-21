@@ -36,7 +36,10 @@ TTS_CHUNK_CHARS="${TTS_CHUNK_CHARS:-300}"
 # term | window | none (none = plain background playback, no controls)
 TTS_UI="${TTS_UI:-auto}"
 # Extra mpv arguments, e.g. TTS_MPV_ARGS=(--volume=80 --autofit=600x160)
-declare -a TTS_MPV_ARGS=("${TTS_MPV_ARGS[@]:-}")
+declare -a TTS_MPV_ARGS=()
+# Silence before the first chunk and after saved files (ms): the audio device
+# often wakes up late and swallows the first syllable.
+TTS_PAD_MS="${TTS_PAD_MS:-250}"
 TTS_PIPER_BIN="${TTS_PIPER_BIN:-${HOME}/.venv/bin/piper}"
 TTS_PIPER_DIR="${TTS_PIPER_DIR:-${HOME}/.cache/piper-tts}"
 TTS_PIPER_VOICE_DE="${TTS_PIPER_VOICE_DE:-de_DE-thorsten-high}"
@@ -76,9 +79,9 @@ Options:
   -s, --speed X    speaking speed, 1.0 = normal (default: ${TTS_SPEED})
   -o, --output F   write audio to F (any ffmpeg extension) instead of playing
   -u, --ui U       auto | term | window | none (default: ${TTS_UI})
-                   term/window play in mpv: space pause, left/right seek,
-                   < > previous/next chunk (a few sentences), L loop, [ ] speed,
-                   q quit. Run from a terminal, term is the default and the
+                   term/window play in mpv with your own mpv keys (pause, seek,
+                   loop, speed, ...); < > go to the previous/next chunk (a few
+                   sentences). Run from a terminal, term is the default and the
                    command stays in the foreground; from a hotkey, window.
       --no-clean   read the text exactly as given
   -h, --help       this help
@@ -159,7 +162,10 @@ engine_piper() {
 
 engine_http() {
   local -r lang="$1" voice="$2" speed="$3" chunks="$4" out_dir="$5"
-  local line n=0 body tmp
+  local line n=0 body tmp state
+  # A server that unloads its model when idle needs ~30 s for the first clip; say so.
+  state="$(curl -s -m 1 "${TTS_HTTP_URL%/v1/audio/speech}/health" 2> /dev/null | jq -r '.model // empty' 2> /dev/null)"
+  [[ -z "${state}" || "${state}" == loaded ]] || notify "TTS server is loading its model (${state}); the first clip can take ~30 s"
   while IFS= read -r line; do
     (( ++n ))
     printf -v tmp '%s/%04d.part' "${out_dir}" "${n}"
@@ -219,8 +225,14 @@ mpv_ipc() {
 # navigable (pause, seek, previous/next chunk, loop).
 play_mpv() {
   local -r out_dir="$1" prod="$2" ui="$3"
+  # ${...} below are mpv property expansions, not shell ones.
+  # shellcheck disable=SC2016
+  # Override what a personal mpv config may set: a looping playlist (loop-playlist=inf)
+  # would never end, so the worker would never exit. Toggle looping in mpv itself if wanted.
   local -a args=(--idle=yes --input-ipc-server="${MPV_SOCK}" --gapless-audio=yes --keep-open=no
-    --audio-display=no --msg-level=all=error --title=tts-speak)
+    --loop-playlist=no --loop-file=no --audio-display=no --msg-level=all=error --title=tts-speak
+    --wayland-app-id=tts-speak '--osd-playing-msg=${playlist-pos-1}/${playlist-count}'
+    '--term-status-msg=${?pause==yes:(Paused) }[${playlist-pos-1}/${playlist-count}] ${time-pos} / ${duration}')
   rm -f -- "${MPV_SOCK}"
   if [[ "${ui}" == term ]]; then
     # stdin is the text; keystrokes must come from the terminal itself.
@@ -244,7 +256,11 @@ play_mpv() {
     kill -0 "${prod}" 2> /dev/null && alive=1 || alive=0
     mapfile -t files < <(find "${out_dir}" -maxdepth 1 -name '*.wav' | LC_ALL=C sort)
     if (( ${#files[@]} > i + 1 )) || { (( alive == 0 )) && (( ${#files[@]} > i )); }; then
-      mpv_ipc loadfile "${files[i]}" append-play > /dev/null
+      if (( i == 0 && TTS_PAD_MS > 0 )); then
+        mpv_ipc loadfile "${files[i]}" append-play -1 "af=lavfi=[adelay=${TTS_PAD_MS}:all=1]" > /dev/null
+      else
+        mpv_ipc loadfile "${files[i]}" append-play > /dev/null
+      fi
       (( ++i ))
       idle_checks=0
     elif (( alive == 0 )); then
@@ -291,7 +307,10 @@ save_chunks() {
   : > "${list}"
   while IFS= read -r f; do printf "file '%s'\n" "${f}" >> "${list}"; done \
     < <(find "${out_dir}" -maxdepth 1 -name '*.wav' | LC_ALL=C sort)
-  ffmpeg -loglevel error -y -f concat -safe 0 -i "${list}" "${out_file}"
+  local pad_s
+  pad_s="$(awk -v ms="${TTS_PAD_MS}" 'BEGIN { printf "%.3f", ms / 1000 }')"
+  ffmpeg -loglevel error -y -f concat -safe 0 -i "${list}" \
+    -af "adelay=${TTS_PAD_MS}:all=1,apad=pad_dur=${pad_s}" "${out_file}"
 }
 
 list_all() {
@@ -341,7 +360,7 @@ speak() {
   elif [[ "${ui}" == none ]]; then
     play_chunks "${tmp}/out" "${prod}"
   else
-    [[ "${ui}" == term ]] && printf 'tts-speak: space pause | left/right seek | < > prev/next chunk | L loop | q quit\n' >&2
+    [[ "${ui}" == term ]] && printf 'tts-speak: mpv controls (see your input.conf): space pause, < > prev/next chunk, q quit\n' >&2
     play_mpv "${tmp}/out" "${prod}" "${ui}"
   fi
 }
