@@ -48,6 +48,10 @@ BULLET_RE = re.compile(r"^\s*(?:[-*+•]|\d{1,3}[.)])\s+", re.MULTILINE)
 EMPHASIS_RE = re.compile(r"(\*\*|__|\*|_|~~)(?=\S)(.+?)(?<=\S)\1")
 INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
 TABLE_RULE_RE = re.compile(r"^\s*\|?[\s:|-]{3,}\|?\s*$", re.MULTILINE)
+# Marks the start of a list item between strip_markup() and reflow().
+ITEM_MARK = "\x01"
+# A line at least this fraction of the widest line is taken as hard-wrapped, not as a heading/item.
+WRAP_RATIO = 0.6
 SENTENCE_END = tuple(".!?:;…。\"')]”»")
 
 # Spoken forms. Matched case-sensitively, with optional space after inner dots.
@@ -134,7 +138,7 @@ def strip_markup(text: str) -> str:
     text = TABLE_RULE_RE.sub("", text)
     text = text.replace("|", " ")
     text = HEADING_RE.sub("", text)
-    text = BULLET_RE.sub("", text)
+    text = BULLET_RE.sub(ITEM_MARK, text)
     text = INLINE_CODE_RE.sub(r"\1", text)
     text = EMPHASIS_RE.sub(r"\2", text)
     return text
@@ -143,25 +147,35 @@ def strip_markup(text: str) -> str:
 def reflow(text: str) -> str:
     """Join hard-wrapped lines; give short unpunctuated lines (headings, bullets) a sentence end.
 
-    A blank line stays a paragraph break. A single newline is a wrap when the next line continues
-    in lowercase, otherwise it is a separate item and gets a full stop so the voice pauses.
+    A blank line stays a paragraph break. A single newline is a soft wrap when the line before it
+    runs close to the text's widest line (or ends in a comma or hyphen); a clearly shorter line
+    without punctuation is a heading or list item and gets a full stop so the voice pauses.
+    A lowercase start also means "continuation"; an uppercase start proves nothing, since German
+    capitalizes every noun.
     """
+    blocks = [
+        [ln for ln in (re.sub(r"[ \t]+", " ", raw).strip() for raw in block.split("\n")) if ln]
+        for block in re.split(r"\n\s*\n", text.replace("\r", ""))
+    ]
     paragraphs: list[str] = []
-    for block in re.split(r"\n\s*\n", text.replace("\r", "")):
-        lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in block.split("\n")]
-        lines = [ln for ln in lines if ln]
+    for lines in blocks:
         if not lines:
             continue
-        out = lines[0]
+        # Per block, so one long unwrapped line elsewhere cannot skew the wrap width.
+        width = max(len(ln.lstrip(ITEM_MARK)) for ln in lines)
+        out = lines[0].lstrip(ITEM_MARK)
         for prev, nxt in zip(lines, lines[1:]):
-            if prev.endswith("-") and nxt[:1].islower():
-                out = out[:-1] + nxt  # hyphenated wrap: "recog-" + "nition"
-            elif not prev.endswith(SENTENCE_END) and nxt[:1].islower():
-                out += " " + nxt  # soft wrap mid-sentence
-            elif prev.endswith(SENTENCE_END):
+            prev = prev.lstrip(ITEM_MARK)
+            item = nxt.startswith(ITEM_MARK)
+            nxt = nxt.lstrip(ITEM_MARK)
+            if item:
+                out += (" " if prev.endswith(SENTENCE_END) else ". ") + nxt
+            elif prev.endswith("-") and len(prev) > 1 and prev[-2].isalpha():
+                out = (out[:-1] if nxt[:1].islower() else out) + nxt  # "recog-" + "nition", "Lebens-" + "Weise"
+            elif prev.endswith(SENTENCE_END + (",",)) or nxt[:1].islower() or len(prev) >= WRAP_RATIO * width:
                 out += " " + nxt
             else:
-                out += ". " + nxt  # separate item without punctuation
+                out += ". " + nxt  # short line without punctuation: heading or item
         paragraphs.append(out if out.endswith(SENTENCE_END) else out + ".")
     return "\n\n".join(paragraphs)
 
