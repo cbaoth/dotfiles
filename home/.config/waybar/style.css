@@ -27,6 +27,7 @@
 @define-color fg          #d8dee9;
 @define-color fg_dim      #8a93a0;
 @define-color fg_inv      #000000;
+@define-color ok          #2ecc71;
 @define-color info        #5dade2;
 @define-color info_bg     #2471a3;
 @define-color notice      #f1c40f;
@@ -255,11 +256,14 @@ button:hover {
 }
 
 #power-profiles-daemon.balanced {
-    color: @fg_dim;
+    color: @info;
 }
 
-#power-profiles-daemon.performance,
 #power-profiles-daemon.power-saver {
+    color: @ok;
+}
+
+#power-profiles-daemon.performance {
     color: @notice;
 }
 
