@@ -6,7 +6,7 @@
 #
 # Connect to an Android device via ADB over Wi-Fi and launch scrcpy.
 
-declare -r DEFAULT_DEVICE_IP="10.0.23.40"
+declare -r DEFAULT_DEVICE_IP="10.0.23.20"
 declare -ra SEARCH_DIRS=("${HOME}/bin" "${HOME}" "/opt/bin" "/opt/scrcpy")
 
 # Find a command in PATH or well-known fallback directories.
