@@ -24,12 +24,19 @@ declare -r CONF_FILE="${TTS_CONF:-${XDG_CONFIG_HOME:-${HOME}/.config}/tts/tts-sp
 # stale "playing" flag behind across a reboot.
 declare -r RUN_DIR="${XDG_RUNTIME_DIR:-/tmp/$(id -u)}/tts-speak"
 declare -r PID_FILE="${RUN_DIR}/worker.pid"
+# mpv's IPC socket; one job at a time, so a fixed path lets pause/prev/next find it.
+declare -r MPV_SOCK="${RUN_DIR}/mpv.sock"
 
 # Defaults, overridable in CONF_FILE or the environment. The conf file is
 # sourced after these, so it wins; explicit command line options win over both.
 TTS_ENGINE="${TTS_ENGINE:-piper}"
 TTS_SPEED="${TTS_SPEED:-1.0}"
 TTS_CHUNK_CHARS="${TTS_CHUNK_CHARS:-300}"
+# auto: terminal UI when run from a terminal, small window otherwise (hotkey);
+# term | window | none (none = plain background playback, no controls)
+TTS_UI="${TTS_UI:-auto}"
+# Extra mpv arguments, e.g. TTS_MPV_ARGS=(--volume=80 --autofit=600x160)
+declare -a TTS_MPV_ARGS=("${TTS_MPV_ARGS[@]:-}")
 TTS_PIPER_BIN="${TTS_PIPER_BIN:-${HOME}/.venv/bin/piper}"
 TTS_PIPER_DIR="${TTS_PIPER_DIR:-${HOME}/.cache/piper-tts}"
 TTS_PIPER_VOICE_DE="${TTS_PIPER_VOICE_DE:-de_DE-thorsten-high}"
@@ -47,7 +54,7 @@ TTS_HTTP_VOICE_EN="${TTS_HTTP_VOICE_EN:-}"
 usage() {
   cat <<EOF
 Usage: tts-speak [OPTIONS] [--] [TEXT...]
-       tts-speak toggle | stop | list
+       tts-speak toggle | stop | pause | prev | next | list
 
 Read TEXT aloud. Without TEXT: stdin if piped, else the primary selection
 (falls back to the clipboard). Text is cleaned first (tts-clean): footnote
@@ -56,6 +63,9 @@ markers, URLs, markdown and dotted abbreviations are not read out.
 Commands:
   toggle           stop if currently speaking, else read the selection (hotkey)
   stop             stop speaking
+  pause            pause/resume (mpv UI only)
+  prev | next      restart the current chunk (or go to the previous one if
+                   it just started) / skip to the next chunk
   list             list engines and voices
 
 Options:
@@ -65,6 +75,11 @@ Options:
                    piper multi-speaker models: MODEL:SPEAKER (name or id)
   -s, --speed X    speaking speed, 1.0 = normal (default: ${TTS_SPEED})
   -o, --output F   write audio to F (any ffmpeg extension) instead of playing
+  -u, --ui U       auto | term | window | none (default: ${TTS_UI})
+                   term/window play in mpv: space pause, left/right seek,
+                   < > previous/next chunk (a few sentences), L loop, [ ] speed,
+                   q quit. Run from a terminal, term is the default and the
+                   command stays in the foreground; from a hotkey, window.
       --no-clean   read the text exactly as given
   -h, --help       this help
 
@@ -191,6 +206,85 @@ play_chunks() {
   done
 }
 
+# mpv JSON IPC. Arguments are the mpv command and its parameters. Prints the
+# reply's data field (if any); a missing socket or reply is not an error.
+mpv_ipc() {
+  [[ -S "${MPV_SOCK}" ]] || return 1
+  jq -nc '{command: $ARGS.positional}' --args "$@" | socat -t "${MPV_WAIT:-0.3}" - "UNIX-CONNECT:${MPV_SOCK}" 2> /dev/null |
+    jq -r 'select(has("error")) | .data // empty' 2> /dev/null
+}
+
+# Play through mpv: it is started idle and every finished chunk is appended to
+# its playlist, so playback starts early AND the whole playlist stays
+# navigable (pause, seek, previous/next chunk, loop).
+play_mpv() {
+  local -r out_dir="$1" prod="$2" ui="$3"
+  local -a args=(--idle=yes --input-ipc-server="${MPV_SOCK}" --gapless-audio=yes --keep-open=no
+    --audio-display=no --msg-level=all=error --title=tts-speak)
+  rm -f -- "${MPV_SOCK}"
+  if [[ "${ui}" == term ]]; then
+    # stdin is the text; keystrokes must come from the terminal itself.
+    mpv "${args[@]}" --no-video --input-terminal=yes "${TTS_MPV_ARGS[@]}" < /dev/tty &
+  else
+    mpv "${args[@]}" --force-window=yes --autofit=520x140 --no-terminal "${TTS_MPV_ARGS[@]}" \
+      < /dev/null > /dev/null 2>&1 &
+  fi
+  local -r player=$!
+
+  local -i n
+  for (( n = 0; n < 100; n++ )); do
+    [[ -S "${MPV_SOCK}" ]] && break
+    kill -0 "${player}" 2> /dev/null || { p_err "mpv exited at startup"; return 1; }
+    sleep 0.05
+  done
+
+  local -i i=0 alive idle_checks=0
+  local -a files
+  while kill -0 "${player}" 2> /dev/null; do
+    kill -0 "${prod}" 2> /dev/null && alive=1 || alive=0
+    mapfile -t files < <(find "${out_dir}" -maxdepth 1 -name '*.wav' | LC_ALL=C sort)
+    if (( ${#files[@]} > i + 1 )) || { (( alive == 0 )) && (( ${#files[@]} > i )); }; then
+      mpv_ipc loadfile "${files[i]}" append-play > /dev/null
+      (( ++i ))
+      idle_checks=0
+    elif (( alive == 0 )); then
+      # Everything appended: done once mpv has gone idle twice in a row (a
+      # single check can race with the first file still loading).
+      if [[ "$(mpv_ipc get_property idle-active)" == true ]]; then
+        (( ++idle_checks >= 2 )) && break
+      else
+        idle_checks=0
+      fi
+    else
+      sleep 0.1
+    fi
+  done
+  MPV_WAIT=0 mpv_ipc quit > /dev/null || true
+  wait "${player}" 2> /dev/null || true
+}
+
+# pause / prev / next for hotkeys: they talk to the running mpv.
+player_control() {
+  if [[ ! -S "${MPV_SOCK}" ]] || ! is_running; then
+    p_err "no mpv playback running (see --ui)"
+    return 1
+  fi
+  case "$1" in
+    pause) MPV_WAIT=0 mpv_ipc cycle pause > /dev/null ;;
+    next)  MPV_WAIT=0 mpv_ipc playlist-next > /dev/null ;;
+    prev)
+      # Like a music player: restart the chunk, unless it only just started.
+      local pos
+      pos="$(mpv_ipc get_property time-pos)"
+      if awk -v p="${pos:-0}" 'BEGIN { exit !(p > 2) }'; then
+        MPV_WAIT=0 mpv_ipc seek 0 absolute > /dev/null
+      else
+        MPV_WAIT=0 mpv_ipc playlist-prev > /dev/null
+      fi
+      ;;
+  esac
+}
+
 save_chunks() {
   local -r out_dir="$1" out_file="$2"
   local list="${out_dir}/concat.txt" f
@@ -208,18 +302,21 @@ list_all() {
     printf '  %s%s\n' "$(basename "${f}" .onnx)" "$([[ "${n}" -gt 1 ]] && echo "  (${n} speakers, use MODEL:SPEAKER)")"
   done < <(find "${TTS_PIPER_DIR}" -maxdepth 1 -name '*.onnx' | LC_ALL=C sort)
   printf '\nin use: de=%s  en=%s\nhttp: %s\n' "${TTS_PIPER_VOICE_DE}" "${TTS_PIPER_VOICE_EN}" "${TTS_HTTP_URL}"
+  local voices
+  voices="$(curl -s -m 1 "${TTS_HTTP_URL%/audio/speech}/audio/voices" 2> /dev/null | jq -r '.voices[]?' 2> /dev/null | tr '\n' ' ')"
+  if [[ -n "${voices}" ]]; then printf '  server voices: %s\n' "${voices}"; else printf '  (server not reachable)\n'; fi
 }
 
 # Worker: runs detached so the sway binding returns immediately.
 speak() {
-  local -r engine="$1" lang_opt="$2" voice_opt="$3" speed="$4" out_file="$5" do_clean="$6" text_file="$7"
+  local -r engine="$1" lang_opt="$2" voice_opt="$3" speed="$4" out_file="$5" do_clean="$6" ui="$7" text_file="$8"
   local text
   text="$(< "${text_file}")"
   rm -f -- "${text_file}"
 
   # Global on purpose: the EXIT trap runs after this function's locals are gone.
   tmp="$(mktemp -d "${RUN_DIR}/job.XXXXXX")"
-  trap 'jobs -p | xargs -r kill 2> /dev/null; { [[ -n "${TTS_KEEP:-}" ]] || rm -rf -- "${tmp:-/nonexistent}"; }; rm -f "${PID_FILE}"' EXIT
+  trap 'jobs -p | xargs -r kill 2> /dev/null; { [[ -n "${TTS_KEEP:-}" ]] || rm -rf -- "${tmp:-/nonexistent}"; }; rm -f "${PID_FILE}" "${MPV_SOCK}"' EXIT
   trap 'exit 130' INT TERM HUP
 
   local lang="${lang_opt}"
@@ -241,8 +338,11 @@ speak() {
   if [[ -n "${out_file}" ]]; then
     wait "${prod}" || return 1
     save_chunks "${tmp}/out" "${out_file}" && notify "saved ${out_file}"
-  else
+  elif [[ "${ui}" == none ]]; then
     play_chunks "${tmp}/out" "${prod}"
+  else
+    [[ "${ui}" == term ]] && printf 'tts-speak: space pause | left/right seek | < > prev/next chunk | L loop | q quit\n' >&2
+    play_mpv "${tmp}/out" "${prod}" "${ui}"
   fi
 }
 
@@ -260,21 +360,22 @@ main() {
     worker "$@"
     return
   fi
-  local engine lang=auto voice="" speed out_file="" do_clean=1 cmd=speak
+  local engine lang=auto voice="" speed out_file="" do_clean=1 cmd=speak ui
   local -a words=()
 
   # shellcheck disable=SC1090
   [[ -f "${CONF_FILE}" ]] && source "${CONF_FILE}"
-  engine="${TTS_ENGINE}"; speed="${TTS_SPEED}"
+  engine="${TTS_ENGINE}"; speed="${TTS_SPEED}"; ui="${TTS_UI}"
 
   while (( $# > 0 )); do
     case "$1" in
-      toggle|stop|list) cmd="$1" ;;
+      toggle|stop|pause|prev|next|list) cmd="$1" ;;
       -e|--engine) engine="$2"; shift ;;
       -l|--lang)   lang="$2"; shift ;;
       -v|--voice)  voice="$2"; shift ;;
       -s|--speed)  speed="$2"; shift ;;
       -o|--output) out_file="$2"; shift ;;
+      -u|--ui)     ui="$2"; shift ;;
       --no-clean)  do_clean=0 ;;
       -h|--help)   usage; return 0 ;;
       --)          shift; words+=("$@"); break ;;
@@ -288,20 +389,30 @@ main() {
   case "${cmd}" in
     list) list_all; return 0 ;;
     stop) stop_speaking || p_err "not speaking"; return 0 ;;
+    pause|prev|next) player_control "${cmd}"; return ;;
     toggle) stop_speaking && return 0 ;;
   esac
 
   declare -F "engine_${engine}" > /dev/null || { p_err "unknown engine: ${engine}"; return 2; }
 
-  local text
+  local text=""
   if (( ${#words[@]} > 0 )); then
     text="${words[*]}"
-  elif [[ ! -t 0 ]]; then
-    text="$(cat)"
   else
-    text="$(get_selection)"
+    [[ -t 0 ]] || text="$(cat)"
+    # No text on stdin (a terminal, or an empty/closed stdin as under a hotkey): use the selection.
+    [[ -n "${text//[[:space:]]/}" ]] || text="$(get_selection)"
   fi
   if [[ -z "${text//[[:space:]]/}" ]]; then notify "nothing selected"; return 1; fi
+
+  # Resolve the UI: mpv gives pause/seek/loop for free; without it (or when
+  # writing a file) fall back to plain pw-play.
+  if [[ -n "${out_file}" ]] || ! command -v mpv > /dev/null 2>&1 || ! command -v socat > /dev/null 2>&1; then
+    ui=none
+  elif [[ "${ui}" == auto || "${ui}" == term ]]; then
+    if [[ -t 1 && -r /dev/tty ]]; then ui=term; else ui=window; fi
+  fi
+  [[ "${ui}" =~ ^(term|window|none)$ ]] || { p_err "unknown ui: ${ui}"; return 2; }
 
   # Replace a running read-aloud instead of overlapping two voices.
   stop_speaking || true
@@ -311,12 +422,12 @@ main() {
   text_file="$(mktemp "${RUN_DIR}/input.XXXXXX")"
   printf '%s' "${text}" > "${text_file}"
 
-  if [[ -n "${out_file}" || -n "${TTS_FOREGROUND:-}" ]]; then
-    speak "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${text_file}"
+  if [[ -n "${out_file}" || "${ui}" == term || -n "${TTS_FOREGROUND:-}" ]]; then
+    worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" "${text_file}"
   else
     # Detached worker: as session leader its pid is the process group id that
     # stop_speaking() signals.
-    setsid -f "${SELF}" --worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${text_file}"
+    setsid -f "${SELF}" --worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" "${text_file}"
   fi
 }
 

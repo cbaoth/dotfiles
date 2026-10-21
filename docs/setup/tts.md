@@ -25,6 +25,41 @@ Selecting is enough (primary selection; clipboard is the fallback).
 | `~/.config/tts/tts-speak.conf` | Engine, speed, voice per language (shipped as `home/.config/tts/`) |
 | sway binding | `40-keybindings.conf`, `bindsym --no-repeat $altgr+F9 exec tts-speak toggle` |
 
+## Playback, pause, rewind
+
+Audio is **streamed in chunks** (a few sentences each, the first one short):
+the engine writes one wav per chunk and playback starts as soon as the first
+is ready; it is never one big clip. mpv is the player, started idle, with each
+finished chunk appended to its playlist over its JSON IPC socket (`socat`), so
+all of mpv's controls work and nothing is reinvented:
+
+| Key | Action |
+| --- | ------ |
+| space | pause / resume |
+| left / right | seek 5 s |
+| `<` / `>` | previous / next chunk |
+| `L` | loop the current chunk |
+| `[` / `]` | slower / faster (pitch preserved) |
+| `q` | quit |
+
+The UI follows where it runs: from a terminal, `tts-speak` stays in the
+foreground with mpv's terminal UI (Ctrl-C quits); from the sway hotkey there is
+no terminal, so a small mpv window opens (`-u window`; sway's existing mpv
+rules apply). `-u none` is the old plain background playback. For hotkeys
+without focusing the window: `tts-speak pause`, `tts-speak prev` (restarts the
+chunk, or goes to the previous one if it just started) and `tts-speak next`.
+Use `-o FILE` to render to a file and play it with any player.
+
+## Comparing voices
+
+`tts-compare` renders one text with many voices (auto-discovered Piper models,
+named speakers of multi-speaker models, and the http server's voices; or a
+list in `~/.config/tts/voices.list`), prints render time per clip, and plays
+them back to back in one mpv playlist (`>` next, `L` loop). `--blind` shuffles
+and anonymizes the clips and shows the key afterwards. The same clip with
+several voices tells you whether a glitch belongs to the voice, the model, the
+engine, or the text.
+
 ## Design decisions
 
 - **Cleaning is separate from synthesis** because no TTS model reliably skips

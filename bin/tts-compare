@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash disable=SC1112
+#
+# tts-compare: render the same text with many TTS voices and play the clips back to back.
+
+# -e omitted intentionally: one voice failing (server down, bad speaker) must
+# not abort the comparison of all the others.
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = CONSTANTS =============================================================
+
+declare -r VOICES_FILE="${TTS_VOICES:-${XDG_CONFIG_HOME:-${HOME}/.config}/tts/voices.list}"
+declare -r OUT_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}/tts-compare"
+declare -r PIPER_DIR="${TTS_PIPER_DIR:-${HOME}/.cache/piper-tts}"
+declare -r HTTP_URL="${TTS_HTTP_URL:-http://127.0.0.1:8880/v1/audio/speech}"
+
+declare -r SAMPLE_DE='Als Zarathustra dreissig Jahr alt war, verliess er seine Heimat und den See seiner Heimat und ging in das Gebirge. Hier genoss er seines Geistes und seiner Einsamkeit und wurde dessen zehn Jahr nicht müde.
+
+Am 3. Oktober 2026 kamen 35 Gäste, z. B. aus Köln, d.h. etwa 12,5 Prozent mehr als 2025. Die S.M.A.R.T.-Werte waren okay.'
+declare -r SAMPLE_EN='Zarathustra is my brother’s most personal work; it is the history of his most individual experiences, of his friendships, ideals, raptures, bitterest disappointments and sorrows. Above it all, however, there soars, transfiguring it, the image of his greatest hopes.
+
+On October 3rd, 2026, 35 guests arrived, e.g. from Cologne, i.e. about 12.5 percent more than in 2025. The S.M.A.R.T. values were fine.'
+
+# }}} = CONSTANTS =============================================================
+
+# {{{ = FUNCTIONS =============================================================
+
+usage() {
+  cat <<EOF
+Usage: tts-compare [OPTIONS] [TEXT | -f FILE]
+
+Render one text with many voices (one clip each), print the synthesis time per
+clip, then play all clips in a single mpv playlist: '>' next, '<' previous,
+space pause, L loop the current clip. Use it to tell whether a glitch or an
+unnatural pause comes from the voice, the model, the engine or the text.
+
+Without TEXT/-f: a built-in sample for the language (stdin if piped).
+
+Options:
+  -l, --lang L     de | en                      (default: de)
+  -f, --file F     read the text from F
+  -L, --list F     voice list (default: ${VOICES_FILE} if it exists, else auto-discover)
+  -a, --auto       ignore the voice list file; discover voices instead
+  -e, --engine E   only voices of this engine (piper | http)
+  -g, --grep RE    only voices whose "engine voice" line matches RE
+  -s, --speed X    speaking speed for all clips (default: 1.0)
+  -d, --dir D      keep the clips in D (default: ${OUT_BASE}/<timestamp>)
+  -b, --blind      shuffled, anonymous clips; the key is printed after playback
+  -n, --no-play    only render
+  -h, --help       this help
+
+Voice list format (one voice per line, # comments):
+  piper  de_DE-thorsten-high
+  piper  en_US_fortune-multi-high:joy   fortune-joy
+  http   de_female                      voxtral-de-f
+The optional third column is a label for the file name.
+Auto-discovery: single-speaker Piper models and named speakers of multi-speaker
+models matching the language, plus all voices the http server lists (/v1/audio/voices).
+EOF
+}
+
+p_err() { printf 'tts-compare: %s\n' "$*" >&2; }
+
+# Print "engine voice label" lines.
+discover() {
+  local -r lang="$1" engine_filter="$2"
+  local f name n spk
+  if [[ -z "${engine_filter}" || "${engine_filter}" == piper ]]; then
+    while IFS= read -r f; do
+      name="$(basename "${f}" .onnx)"
+      [[ "${name}" == "${lang}"_* || "${name}" == multi_* || "${name}" == *"${lang}"* ]] || continue
+      n="$(jq -r '.num_speakers // 1' "${f}.json" 2> /dev/null)"
+      if (( n > 1 )); then
+        # Named speakers only (numeric ones are hundreds of ids).
+        while IFS= read -r spk; do
+          printf 'piper %s:%s %s-%s\n' "${name}" "${spk}" "${name}" "${spk}"
+        done < <(jq -r '.speaker_id_map // {} | keys[] | select(test("^[0-9]+$") | not)' "${f}.json" 2> /dev/null)
+      else
+        printf 'piper %s %s\n' "${name}" "${name}"
+      fi
+    done < <(find "${PIPER_DIR}" -maxdepth 1 -name '*.onnx' | LC_ALL=C sort)
+  fi
+  if [[ -z "${engine_filter}" || "${engine_filter}" == http ]]; then
+    while IFS= read -r spk; do
+      # English voices have no language prefix; others are "de_female", "fr_male", ...
+      if [[ "${spk}" == "${lang}"_* || ! "${spk}" =~ ^[a-z]{2}_ ]]; then printf 'http %s http-%s\n' "${spk}" "${spk}"; fi
+    done < <(curl -s -m 2 "${HTTP_URL%/audio/speech}/audio/voices" 2> /dev/null | jq -r '.voices[]?' 2> /dev/null)
+  fi
+}
+
+duration() { ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2> /dev/null; }
+
+# }}} = FUNCTIONS =============================================================
+
+main() {
+  local lang=de text_file="" list_file="" auto=0 engine_filter="" pattern="" speed=1.0 dir="" blind=0 play=1
+  local -a words=()
+  while (( $# > 0 )); do
+    case "$1" in
+      -l|--lang)   lang="$2"; shift ;;
+      -f|--file)   text_file="$2"; shift ;;
+      -L|--list)   list_file="$2"; shift ;;
+      -a|--auto)   auto=1 ;;
+      -e|--engine) engine_filter="$2"; shift ;;
+      -g|--grep)   pattern="$2"; shift ;;
+      -s|--speed)  speed="$2"; shift ;;
+      -d|--dir)    dir="$2"; shift ;;
+      -b|--blind)  blind=1 ;;
+      -n|--no-play) play=0 ;;
+      -h|--help)   usage; return 0 ;;
+      --)          shift; words+=("$@"); break ;;
+      -*)          p_err "unknown option: $1"; usage >&2; return 2 ;;
+      *)           words+=("$1") ;;
+    esac
+    shift
+  done
+  command -v tts-speak > /dev/null 2>&1 || { p_err "tts-speak not found (run dotfiles-link)"; return 1; }
+
+  [[ -n "${dir}" ]] || dir="${OUT_BASE}/$(date +%Y%m%d-%H%M%S)"
+  mkdir -p -- "${dir}"
+
+  local text=""
+  if [[ -n "${text_file}" ]]; then text="$(< "${text_file}")"
+  elif (( ${#words[@]} > 0 )); then text="${words[*]}"
+  elif [[ ! -t 0 ]]; then text="$(cat)"; fi
+  # Empty stdin (cron, hotkey, tool runners) must not shadow the sample.
+  if [[ -z "${text//[[:space:]]/}" ]]; then
+    if [[ "${lang}" == de ]]; then text="${SAMPLE_DE}"; else text="${SAMPLE_EN}"; fi
+  fi
+  printf '%s\n' "${text}" > "${dir}/text.txt"
+
+  local -a voices=()
+  if (( ! auto )) && [[ -z "${list_file}" && -f "${VOICES_FILE}" ]]; then list_file="${VOICES_FILE}"; fi
+  if (( ! auto )) && [[ -n "${list_file}" ]]; then
+    mapfile -t voices < <(grep -v -E '^\s*(#|$)' "${list_file}")
+  else
+    mapfile -t voices < <(discover "${lang}" "${engine_filter}")
+  fi
+  local -a picked=()
+  local v engine
+  for v in "${voices[@]}"; do
+    engine="${v%% *}"
+    [[ -z "${engine_filter}" || "${engine}" == "${engine_filter}" ]] || continue
+    [[ -z "${pattern}" || "${v}" =~ ${pattern} ]] || continue
+    picked+=("${v}")
+  done
+  if (( ${#picked[@]} == 0 )); then p_err "no voices selected"; return 1; fi
+
+  printf 'Rendering %d clips to %s\n' "${#picked[@]}" "${dir}"
+  local -a clips=() labels=()
+  local -i n=0
+  local voice label out t0 t1 dur
+  for v in "${picked[@]}"; do
+    read -r engine voice label <<< "${v}"
+    [[ -n "${label}" ]] || label="${voice}"
+    (( ++n ))
+    printf -v out '%s/%02d_%s_%s.wav' "${dir}" "${n}" "${engine}" "${label//[^A-Za-z0-9._+-]/-}"
+    t0="$(date +%s.%N)"
+    if tts-speak -e "${engine}" -l "${lang}" -v "${voice}" -s "${speed}" -o "${out}" < "${dir}/text.txt" 2> "${out}.err" &&
+      [[ -s "${out}" ]]; then
+      t1="$(date +%s.%N)"
+      dur="$(duration "${out}")"
+      awk -v n="${n}" -v e="${engine}" -v l="${label}" -v a="${t0}" -v b="${t1}" -v d="${dur:-0}" \
+        'BEGIN { printf "  %2d  %-5s %-45s %5.1fs audio, %4.1fs to render (%.2fx realtime)\n", n, e, l, d, b - a, (b - a) / (d ? d : 1) }'
+      clips+=("${out}"); labels+=("${engine} ${voice}")
+      rm -f -- "${out}.err"
+    else
+      printf '  %2d  %-5s %-45s FAILED: %s\n' "${n}" "${engine}" "${label}" "$(tail -n 1 "${out}.err" 2> /dev/null)"
+    fi
+  done
+  if (( ${#clips[@]} == 0 )); then p_err "all voices failed"; return 1; fi
+  (( play )) || { printf 'Clips: %s\n' "${dir}"; return 0; }
+  command -v mpv > /dev/null 2>&1 || { p_err "mpv not found; clips are in ${dir}"; return 1; }
+
+  if (( blind )); then
+    # Anonymous, shuffled copies; the key is written next to them.
+    local -a order=() blind_files=()
+    mapfile -t order < <(shuf -i 0-$(( ${#clips[@]} - 1 )))
+    local -i k=0 idx
+    : > "${dir}/key.txt"
+    for idx in "${order[@]}"; do
+      (( ++k ))
+      printf -v out '%s/blind_%02d.wav' "${dir}" "${k}"
+      cp -- "${clips[idx]}" "${out}"
+      blind_files+=("${out}")
+      printf 'blind_%02d = %s\n' "${k}" "${labels[idx]}" >> "${dir}/key.txt"
+    done
+    printf 'Blind test: %d clips. Key is revealed after playback.\n' "${k}"
+    mpv --no-video --force-media-title=blind --msg-level=all=error "${blind_files[@]}"
+    printf '\nKey:\n'; cat -- "${dir}/key.txt"
+  else
+    printf 'Playing: > next, < previous, space pause, L loop, q quit\n'
+    mpv --no-video --msg-level=all=error "${clips[@]}"
+  fi
+}
+
+main "$@"
