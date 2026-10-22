@@ -49,6 +49,8 @@ TTS_PIPER_BIN="${TTS_PIPER_BIN:-${HOME}/.venv/bin/piper}"
 TTS_PIPER_DIR="${TTS_PIPER_DIR:-${HOME}/.cache/piper-tts}"
 TTS_PIPER_VOICE_DE="${TTS_PIPER_VOICE_DE:-de_DE-thorsten-high}"
 TTS_PIPER_VOICE_EN="${TTS_PIPER_VOICE_EN:-en_US-amy-medium}"
+# Pronunciation fixes: DIR/piper-LANG.sed, applied to the text before piper
+TTS_PIPER_FIXES_DIR="${TTS_PIPER_FIXES_DIR:-${CONF_FILE%/*}}"
 # OpenAI-compatible /v1/audio/speech endpoint (Kokoro-FastAPI, Chatterbox server, ...)
 TTS_HTTP_URL="${TTS_HTTP_URL:-http://127.0.0.1:8880/v1/audio/speech}"
 TTS_HTTP_MODEL="${TTS_HTTP_MODEL:-tts-1}"
@@ -158,10 +160,16 @@ engine_piper() {
     fi
     speaker_args=(-s "${speaker}")
   fi
+  # Pronunciation fixes for espeak-ng's mistakes (see the shipped piper-de.sed).
+  local input="${chunks}" fixes="${TTS_PIPER_FIXES_DIR}/piper-${lang}.sed"
+  if [[ -f "${fixes}" ]]; then
+    input="${out_dir}/../chunks.piper.txt"
+    sed -E -f "${fixes}" "${chunks}" > "${input}" || { p_err "bad sed script: ${fixes}"; input="${chunks}"; }
+  fi
   # One process for all chunks: model load is paid once, and piper writes one
   # wav per input line as soon as it is synthesized.
   "${TTS_PIPER_BIN}" -m "${model}" --data-dir "${TTS_PIPER_DIR}" --length-scale "${scale}" \
-    "${speaker_args[@]}" -d "${out_dir}" < "${chunks}" > /dev/null 2> "${out_dir}/../piper.err"
+    "${speaker_args[@]}" -d "${out_dir}" < "${input}" > /dev/null 2> "${out_dir}/../piper.err"
   # Piper can exit 0 yet write empty wavs (e.g. speaker id out of range).
   if grep -q -E 'Error|Traceback' "${out_dir}/../piper.err"; then
     p_err "piper failed: $(tail -n 1 "${out_dir}/../piper.err")"

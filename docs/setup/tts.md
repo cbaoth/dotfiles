@@ -125,14 +125,21 @@ to the voice, the model, the engine, or the text.
   and crams the rest in: rushed, slurred, odd pauses. Measured with
   thorsten-high (2026-10-22), one sentence of growing length:
 
-  | chars | 70 | 131 | 174 | 231 | 274 | 345 | 382 |
-  | ----- | -- | --- | --- | --- | --- | --- | --- |
-  | s     | 3.7 | 7.1 | 9.2 | 12.4 | 13.0 | 13.6 | 13.9 |
+  | chars   | 70   | 131  | 174  | 231  | 274  | 345  | 382  |
+  | ------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+  | s       | 3.7  | 7.1  | 9.2  | 12.4 | 13.0 | 13.6 | 13.9 |
   | chars/s | 18.9 | 18.6 | 19.0 | 18.6 | 21.1 | 25.3 | 27.4 |
 
   So an over-long sentence is cut at `; : –` (else a comma) and each piece
   gets its own line, i.e. its own pass. The Karamasow opening (a 283-char
   sentence at 26 chars/s, partly unintelligible) now renders at 17–20.
+- **Mispronunciations are fixed per engine, not in `tts-clean`.** Piper
+  phonemizes with espeak-ng, which gets some German words wrong (`vergeuden`
+  as "ver-ge-uden", `-ium` with a long i and a stressed "um"); the voice
+  says exactly what it is given. `~/.config/tts/piper-LANG.sed` (shipped:
+  `home/.config/tts/piper-de.sed`) runs over the chunks before Piper only:
+  a respelling (`geud` -> `gäud`) or `[[phonemes]]`, which Piper reads
+  verbatim. The http engines have their own front-ends and never see it.
 - **Speed: prefer the player's.** `-s` changes the synthesis (Piper's
   `length_scale`) and did not fix the long-sentence rush. mpv's speed
   (`[` `]`, or `TTS_MPV_ARGS=(--speed=1.5)`) time-stretches at constant
