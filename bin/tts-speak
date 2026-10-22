@@ -40,6 +40,8 @@ declare -a TTS_MPV_ARGS=()
 # Silence before the first chunk and after saved files (ms): the audio device
 # often wakes up late and swallows the first syllable.
 TTS_PAD_MS="${TTS_PAD_MS:-250}"
+# Keep every read-aloud as a session dir under this dir (empty = don't keep)
+TTS_KEEP_DIR="${TTS_KEEP_DIR:-}"
 TTS_PIPER_BIN="${TTS_PIPER_BIN:-${HOME}/.venv/bin/piper}"
 TTS_PIPER_DIR="${TTS_PIPER_DIR:-${HOME}/.cache/piper-tts}"
 TTS_PIPER_VOICE_DE="${TTS_PIPER_VOICE_DE:-de_DE-thorsten-high}"
@@ -78,7 +80,12 @@ Options:
                    piper multi-speaker models: MODEL:SPEAKER (name or id)
   -s, --speed X    speaking speed, 1.0 = normal (default: ${TTS_SPEED})
   -o, --output F   write audio to F (any ffmpeg extension) instead of playing
-  -u, --ui U       auto | term | window | none (default: ${TTS_UI})
+  -k, --keep D     also keep the audio: one session dir per read-aloud under D
+                   (<date>_<engine>-<voice>_<first words>/: audio/NNNN.wav,
+                   playlist.m3u, text.txt, meta.json); replay: mpv DIR/playlist.m3u
+                   (default: TTS_KEEP_DIR, currently '${TTS_KEEP_DIR}')
+      --no-keep    don't keep, even if TTS_KEEP_DIR is set
+  -u, --ui U      auto | term | window | none (default: ${TTS_UI})
                    term/window play in mpv with your own mpv keys (pause, seek,
                    loop, speed, ...); < > go to the previous/next chunk (a few
                    sentences). Run from a terminal, term is the default and the
@@ -192,6 +199,12 @@ voice_for() {
   esac
 }
 
+# Chunk files in speaking order. -V, not a plain sort: piper names them by
+# monotonic_ns, whose digit count grows with uptime (10^13 ns is ~2.8 h).
+list_wavs() {
+  find "$1" -maxdepth 1 -name '*.wav' | LC_ALL=C sort -V
+}
+
 # Play files as the engine produces them. Liveness is checked BEFORE listing so
 # a file written just before the engine exited is never missed.
 play_chunks() {
@@ -200,7 +213,7 @@ play_chunks() {
   local -a files
   while :; do
     kill -0 "${prod}" 2> /dev/null && alive=1 || alive=0
-    mapfile -t files < <(find "${out_dir}" -maxdepth 1 -name '*.wav' | LC_ALL=C sort)
+    mapfile -t files < <(list_wavs "${out_dir}")
     if (( ${#files[@]} > i + 1 )) || { (( alive == 0 )) && (( ${#files[@]} > i )); }; then
       pw-play -- "${files[i]}" || sleep 0.2
       (( ++i ))
@@ -258,7 +271,7 @@ play_mpv() {
   local -a files
   while kill -0 "${player}" 2> /dev/null; do
     kill -0 "${prod}" 2> /dev/null && alive=1 || alive=0
-    mapfile -t files < <(find "${out_dir}" -maxdepth 1 -name '*.wav' | LC_ALL=C sort)
+    mapfile -t files < <(list_wavs "${out_dir}")
     if (( ${#files[@]} > i + 1 )) || { (( alive == 0 )) && (( ${#files[@]} > i )); }; then
       if (( i == 0 && TTS_PAD_MS > 0 )); then
         mpv_ipc loadfile "${files[i]}" append-play -1 "af=lavfi=[adelay=${TTS_PAD_MS}:all=1]" > /dev/null
@@ -328,14 +341,119 @@ player_control() {
 
 save_chunks() {
   local -r out_dir="$1" out_file="$2"
-  local list="${out_dir}/concat.txt" f
+  local list="${out_dir}/../concat.txt" f
   : > "${list}"
-  while IFS= read -r f; do printf "file '%s'\n" "${f}" >> "${list}"; done \
-    < <(find "${out_dir}" -maxdepth 1 -name '*.wav' | LC_ALL=C sort)
-  local pad_s
+  while IFS= read -r f; do printf "file '%s'\n" "${f}" >> "${list}"; done < <(list_wavs "${out_dir}")
+  local pad_s rc=0
   pad_s="$(awk -v ms="${TTS_PAD_MS}" 'BEGIN { printf "%.3f", ms / 1000 }')"
   ffmpeg -loglevel error -y -f concat -safe 0 -i "${list}" \
-    -af "adelay=${TTS_PAD_MS}:all=1,apad=pad_dur=${pad_s}" "${out_file}"
+    -af "adelay=${TTS_PAD_MS}:all=1,apad=pad_dur=${pad_s}" "${out_file}" || rc=$?
+  rm -f -- "${list}"
+  return "${rc}"
+}
+
+# File name part: anything but letters, digits, . _ - becomes one dash.
+slugify() {
+  local -r max="$2"
+  local s="${1//[^[:alnum:]._-]/-}"
+  s="$(sed -E 's/-+/-/g; s/^-//' <<< "${s:0:${max}}")"
+  printf '%s' "${s%-}"
+}
+
+# Create the session dir for a kept read-aloud: named so `ls` shows when, with
+# what and which text; meta.json has everything needed to render it again.
+new_session() {
+  local -r keep_dir="$1" engine="$2" voice="$3" lang="$4" speed="$5" do_clean="$6" chunks="$7"
+  local -a words
+  read -r -a words < "${chunks}"
+  local base dir
+  base="$(date +%Y%m%d-%H%M%S)_$(slugify "${engine}${voice:+-${voice}}" 40)_$(slugify "${words[*]:0:6}" 40)"
+  dir="${keep_dir}/${base}"
+  local -i n=1
+  while [[ -e "${dir}" ]]; do dir="${keep_dir}/${base}-$(( ++n ))"; done
+  mkdir -p -- "${dir}" || return 1
+
+  local regen
+  printf -v regen 'tts-speak -e %q -l %q -s %q' "${engine}" "${lang}" "${speed}"
+  [[ -z "${voice}" ]] || regen+=" -v $(printf '%q' "${voice}")"
+  [[ "${do_clean}" == 1 ]] || regen+=" --no-clean"
+  [[ "${engine}" != http ]] ||
+    regen="$(printf 'TTS_HTTP_URL=%q TTS_HTTP_MODEL=%q ' "${TTS_HTTP_URL}" "${TTS_HTTP_MODEL}")${regen}"
+  jq -n --arg created "$(date -Iseconds)" --arg host "${HOSTNAME:-}" --arg engine "${engine}" \
+    --arg voice "${voice}" --arg lang "${lang}" --argjson speed "${speed}" \
+    --argjson clean "$([[ "${do_clean}" == 1 ]] && echo true || echo false)" \
+    --argjson chunk_chars "${TTS_CHUNK_CHARS}" --argjson chunks "$(wc -l < "${chunks}")" \
+    --arg regen "${regen} < text.txt" --arg url "${TTS_HTTP_URL}" --arg model "${TTS_HTTP_MODEL}" \
+    '{created: $created, host: $host, engine: $engine, voice: $voice, lang: $lang, speed: $speed,
+      clean: $clean, chunk_chars: $chunk_chars, chunks: $chunks, regenerate: $regen}
+     + (if $engine == "http" then {http_url: $url, http_model: $model} else {} end)' \
+    > "${dir}/meta.json"
+  printf '%s' "${dir}"
+}
+
+# Turn a kept session into a self-contained one: chunks renumbered in speaking
+# order and a playlist any player can open. A stopped read-aloud keeps what was
+# fully rendered; per the engine contract the newest file is only complete
+# once the engine has exited.
+finish_session() {
+  local -r dir="$1" engine_done="$2"
+  local -a files
+  rm -f -- "${dir}/audio/"*.part
+  mapfile -t files < <(list_wavs "${dir}/audio")
+  if (( engine_done == 0 && ${#files[@]} > 0 )); then
+    rm -f -- "${files[-1]}"
+    unset 'files[-1]'
+  fi
+  if (( ${#files[@]} == 0 )); then
+    rm -rf -- "${dir}"
+    return 0
+  fi
+  local -i i
+  local name
+  : > "${dir}/playlist.m3u"
+  for (( i = 0; i < ${#files[@]}; i++ )); do
+    printf -v name '%04d.wav' "$(( i + 1 ))"
+    [[ "${files[i]}" == "${dir}/audio/${name}" ]] || mv -- "${files[i]}" "${dir}/audio/${name}"
+    printf 'audio/%s\n' "${name}" >> "${dir}/playlist.m3u"
+  done
+  # piper logs one INFO line per chunk; only a failure is worth keeping.
+  grep -q -E 'Error|Traceback' "${dir}/piper.err" 2> /dev/null || rm -f -- "${dir}/piper.err"
+  jq --argjson n "${#files[@]}" '. + {chunks_kept: $n, complete: ($n == .chunks)}' "${dir}/meta.json" \
+    > "${dir}/meta.json.part" && mv -- "${dir}/meta.json.part" "${dir}/meta.json"
+  p_err "kept ${#files[@]} chunk(s) in ${dir}"
+}
+
+# Stop the engine and wait (briefly) until it is really gone: the engine
+# function runs in a subshell, and killing that alone would orphan piper.
+stop_engine() {
+  local -r pid="$1"
+  local -a kids
+  mapfile -t kids < <(pgrep -P "${pid}")
+  kill "${pid}" "${kids[@]}" 2> /dev/null
+  local -i n
+  local k
+  for k in "${pid}" "${kids[@]}"; do
+    for (( n = 0; n < 20; n++ )); do
+      kill -0 "${k}" 2> /dev/null || break
+      sleep 0.05
+    done
+  done
+}
+
+# EXIT trap of the worker; the globals it reads are set by speak().
+cleanup() {
+  local -i engine_done=1
+  if [[ -n "${engine_pid:-}" ]] && kill -0 "${engine_pid}" 2> /dev/null; then
+    engine_done=0
+    stop_engine "${engine_pid}"
+  fi
+  jobs -p | xargs -r kill 2> /dev/null
+  if [[ -n "${session:-}" ]]; then
+    finish_session "${session}" "${engine_done}"
+  elif [[ -z "${TTS_KEEP:-}" ]]; then
+    rm -rf -- "${tmp:-/nonexistent}"
+  fi
+  rm -f "${PID_FILE}" "${MPV_SOCK}"
 }
 
 list_all() {
@@ -353,14 +471,18 @@ list_all() {
 
 # Worker: runs detached so the sway binding returns immediately.
 speak() {
-  local -r engine="$1" lang_opt="$2" voice_opt="$3" speed="$4" out_file="$5" do_clean="$6" ui="$7" text_file="$8"
+  local -r engine="$1" lang_opt="$2" voice_opt="$3" speed="$4" out_file="$5" do_clean="$6" ui="$7" \
+    keep_dir="$8" text_file="$9"
   local text
   text="$(< "${text_file}")"
   rm -f -- "${text_file}"
 
-  # Global on purpose: the EXIT trap runs after this function's locals are gone.
+  # Globals on purpose: the EXIT trap runs after this function's locals are gone.
+  # tmp: the job dir; session: the same dir once it is kept; engine_pid: the engine.
   tmp="$(mktemp -d "${RUN_DIR}/job.XXXXXX")"
-  trap 'jobs -p | xargs -r kill 2> /dev/null; { [[ -n "${TTS_KEEP:-}" ]] || rm -rf -- "${tmp:-/nonexistent}"; }; rm -f "${PID_FILE}" "${MPV_SOCK}"' EXIT
+  session=""
+  engine_pid=""
+  trap cleanup EXIT
   trap 'exit 130' INT TERM HUP
 
   local lang="${lang_opt}"
@@ -375,18 +497,33 @@ speak() {
 
   local voice="${voice_opt}"
   [[ -n "${voice}" ]] || voice="$(voice_for "${engine}" "${lang}")" || true
-  mkdir -p -- "${tmp}/out"
-  "engine_${engine}" "${lang}" "${voice}" "${speed}" "${tmp}/chunks.txt" "${tmp}/out" &
-  local -r prod=$!
+
+  # Kept: render straight into the session dir (on disk, not tmpfs), no copy.
+  if [[ -n "${keep_dir}" ]]; then
+    local dir
+    if dir="$(new_session "${keep_dir}" "${engine}" "${voice}" "${lang}" "${speed}" "${do_clean}" "${tmp}/chunks.txt")"; then
+      mv -- "${tmp}/chunks.txt" "${dir}/"
+      printf '%s\n' "${text}" > "${dir}/text.txt"
+      rmdir -- "${tmp}"
+      tmp="${dir}"
+      session="${dir}"
+    else
+      p_err "cannot create a session dir in ${keep_dir}; not keeping this one"
+    fi
+  fi
+
+  mkdir -p -- "${tmp}/audio"
+  "engine_${engine}" "${lang}" "${voice}" "${speed}" "${tmp}/chunks.txt" "${tmp}/audio" &
+  engine_pid=$!
 
   if [[ -n "${out_file}" ]]; then
-    wait "${prod}" || return 1
-    save_chunks "${tmp}/out" "${out_file}" && notify "saved ${out_file}"
+    wait "${engine_pid}" || return 1
+    save_chunks "${tmp}/audio" "${out_file}" && notify "saved ${out_file}"
   elif [[ "${ui}" == none ]]; then
-    play_chunks "${tmp}/out" "${prod}"
+    play_chunks "${tmp}/audio" "${engine_pid}"
   else
     [[ "${ui}" == term ]] && printf 'tts-speak: mpv controls (see your input.conf): space pause, < > prev/next chunk, q quit\n' >&2
-    play_mpv "${tmp}/out" "${prod}" "${ui}"
+    play_mpv "${tmp}/audio" "${engine_pid}" "${ui}"
   fi
 }
 
@@ -404,12 +541,12 @@ main() {
     worker "$@"
     return
   fi
-  local engine lang=auto voice="" speed out_file="" do_clean=1 cmd=speak ui
+  local engine lang=auto voice="" speed out_file="" do_clean=1 cmd=speak ui keep_dir
   local -a words=()
 
   # shellcheck disable=SC1090
   [[ -f "${CONF_FILE}" ]] && source "${CONF_FILE}"
-  engine="${TTS_ENGINE}"; speed="${TTS_SPEED}"; ui="${TTS_UI}"
+  engine="${TTS_ENGINE}"; speed="${TTS_SPEED}"; ui="${TTS_UI}"; keep_dir="${TTS_KEEP_DIR}"
 
   while (( $# > 0 )); do
     case "$1" in
@@ -419,6 +556,8 @@ main() {
       -v|--voice)  voice="$2"; shift ;;
       -s|--speed)  speed="$2"; shift ;;
       -o|--output) out_file="$2"; shift ;;
+      -k|--keep)   keep_dir="$2"; shift ;;
+      --no-keep)   keep_dir="" ;;
       -u|--ui)     ui="$2"; shift ;;
       --no-clean)  do_clean=0 ;;
       -h|--help)   usage; return 0 ;;
@@ -457,6 +596,8 @@ main() {
     if [[ -t 1 && -r /dev/tty ]]; then ui=term; else ui=window; fi
   fi
   [[ "${ui}" =~ ^(term|window|none)$ ]] || { p_err "unknown ui: ${ui}"; return 2; }
+  # Absolute: the detached worker reports and writes it from wherever it runs.
+  [[ -z "${keep_dir}" ]] || keep_dir="$(realpath -m -- "${keep_dir}")"
 
   # Replace a running read-aloud instead of overlapping two voices.
   stop_speaking || true
@@ -467,11 +608,12 @@ main() {
   printf '%s' "${text}" > "${text_file}"
 
   if [[ -n "${out_file}" || "${ui}" == term || -n "${TTS_FOREGROUND:-}" ]]; then
-    worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" "${text_file}"
+    worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" "${keep_dir}" "${text_file}"
   else
     # Detached worker: as session leader its pid is the process group id that
     # stop_speaking() signals.
-    setsid -f "${SELF}" --worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" "${text_file}"
+    setsid -f "${SELF}" --worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" \
+      "${keep_dir}" "${text_file}"
   fi
 }
 

@@ -3,7 +3,7 @@ title: Text-to-speech (read selection aloud)
 hosts: [motoko]
 status: resolved
 tags: [tts, piper, sway, accessibility, voxtral]
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 
 # Text-to-speech: read the selection aloud
@@ -21,7 +21,7 @@ Selecting is enough (primary selection; clipboard is the fallback).
 | Piece | Role |
 | ----- | ---- |
 | `bin/tts-clean` | Engine-independent text cleaner: footnotes, URLs, markdown, dotted abbreviations (`S.M.A.R.T.` -> "Smart", `z.B.` -> "zum Beispiel"), line-wrap repair, sentence chunking, de/en detection |
-| `bin/tts-speak` | Selection/stdin/args -> clean -> engine -> `pw-play`. Playback starts while later chunks are still being synthesized. `toggle` / `stop` / `list`, `-o file` to save |
+| `bin/tts-speak` | Selection/stdin/args -> clean -> engine -> `pw-play`. Playback starts while later chunks are still being synthesized. `toggle` / `stop` / `list`, `-o file` to save, `-k DIR` to keep sessions |
 | `~/.config/tts/tts-speak.conf` | Engine, speed, voice per language (shipped as `home/.config/tts/`) |
 | sway binding | `40-keybindings.conf`, `bindsym --no-repeat $altgr+F9 exec tts-speak toggle` |
 
@@ -54,6 +54,29 @@ The UI follows where it runs:
   it, as it covers every floating window.
 - `-u none` is plain background playback without controls; `-o FILE` renders
   to a file for any player.
+
+## Keeping sessions (`-k DIR`)
+
+Normally the chunks live in a tmpfs job dir (`$XDG_RUNTIME_DIR/tts-speak/job.*`)
+and are deleted when the read-aloud ends; piper names them by
+`monotonic_ns` timestamp. With `-k DIR` (or `TTS_KEEP_DIR` in the conf, which
+then covers the hotkey too; `--no-keep` overrides it) the job renders straight
+into a session dir on disk instead, and playback is unchanged:
+
+```text
+DIR/20261022-143012_piper-de_DE-thorsten-high_Erstes-Kapitel-Es-war-einmal/
+  audio/0001.wav ...   chunks, renumbered in speaking order at the end
+  playlist.m3u         relative paths: mpv DIR/.../playlist.m3u, or any player
+  text.txt chunks.txt  the input as given, and as cleaned and chunked
+  meta.json            engine, voice, lang, speed, ...; "regenerate" command;
+                       chunks / chunks_kept / complete
+```
+
+A stopped read-aloud keeps what was fully rendered (`complete: false`); the
+newest file is dropped, since it may be half-written. Nothing is pruned: the
+dir only grows (piper WAV is ~2.6 MB per minute). To make one file for a
+phone: `ffmpeg -f concat -safe 0 -i <(sed "s|.*|file '$PWD/&'|" playlist.m3u) -c:a libopus -b:a 32k out.opus`
+from inside the session dir.
 
 **Keys (sway):** the media keys and their alternatives (`$mod+Alt+Space`,
 `Comma`, `Period`) control a running read-aloud first and fall through to

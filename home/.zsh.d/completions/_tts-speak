@@ -53,6 +53,8 @@ _arguments -s \
   '(-v --voice)'{-v,--voice}'[Voice/model (engine-specific)]:voice:_tts-speak_voices' \
   '(-s --speed)'{-s,--speed}'[Speaking speed, 1.0 = normal]:speed:(0.8 0.9 1.0 1.1 1.2 1.5)' \
   '(-o --output)'{-o,--output}'[Write audio to FILE instead of playing]:file:_files' \
+  '(-k --keep --no-keep)'{-k,--keep}'[Also keep the audio as a session dir under DIR]:directory:_files -/' \
+  '(-k --keep)--no-keep[Do not keep the audio, even if TTS_KEEP_DIR is set]' \
   '(-u --ui)'{-u,--ui}'[Player UI: terminal, window, or plain background]:ui:(auto term window none)' \
   '--no-clean[Read the text exactly as given]' \
   '(-h --help)'{-h,--help}'[Show help]' \
