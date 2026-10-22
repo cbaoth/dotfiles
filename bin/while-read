@@ -58,6 +58,15 @@ Filter Input:
                         tial repetitions only, duplicates are never tracked
                         globally. Has no effect on --clipboard mode (see below).
 
+Terminal Input History (privacy: kept in memory only, unless asked):
+  -H, --history[=FILE]  Persist the input history and reuse it in later runs,
+                        in FILE or by default in
+                        ~/.local/state/while-read/COMMAND.history (mode 0600).
+                        Without this option the history lives in memory only
+                        and is gone when while-read exits. Note: the optional
+                        FILE needs the = form (--history=FILE), else it would
+                        be taken for the COMMAND.
+
 Verbosity:
   -v, --verbose         Verbose output, print full command before execution.
   -xn, --xnotify        Use notify-send (if available) to show each processed
@@ -66,6 +75,10 @@ Verbosity:
 Terminal Input Mode (default):
   Reads terminal text input line-by-line. Each time a newline is entered,
   COMMAND is executed using the given text as final argument.
+
+  On a terminal (and with the default delimiter) the line is read via
+  readline: prompt, inline editing, up/down history and ctrl-r search work
+  like in the shell. Piped input is read as is, without prompt or history.
 
   If a different delimiter is used, the line may be split up into individual
   items (e.g. separated by space), each item executing the COMMAND.
@@ -123,6 +136,8 @@ declare allow_dupes=false
 declare match_whole=false
 declare xnotify=false
 declare delimiter=$'\n'
+declare history=false
+declare history_file=""
 declare regex=""
 declare pollrate=.2
 declare -a cmd_arg=()
@@ -168,6 +183,16 @@ parse_args() {
         fi
         delimiter="$2"
         shift 2
+        ;;
+      -H|--history)
+        history=true
+        shift
+        ;;
+      --history=*)
+        history=true
+        history_file="${1#--history=}"
+        history_file="${history_file/#\~\//${HOME}/}"
+        shift
         ;;
       --allow-duplicates)
         allow_dupes=true
@@ -222,6 +247,10 @@ parse_args() {
   fi
   cmd_arg+=("$@")
 
+  if ${history} && [[ -z "${history_file}" ]]; then
+    history_file="${XDG_STATE_HOME:-${HOME}/.local/state}/while-read/${1##*/}.history"
+  fi
+
   if ${allow_dupes} && ${clipboard}; then
     p_war "Ignoring --allow-duplicates option in --clipboard mode."
     allow_dupes=false
@@ -239,12 +268,49 @@ parse_args() {
   fi
 }
 
+# Terminal input via readline (prompt, editing, history)? Only for a terminal
+# and the default delimiter, since readline always ends a line at newline.
+use_readline() {
+  ! ${clipboard} && [[ -t 0 && "${delimiter}" == $'\n' ]]
+}
+
+# Set up readline history: in memory only, or additionally loaded from / saved
+# to the history file (--history). The file is created private (0600).
+history_init() {
+  set -o history  # off in non-interactive shells, but read -e needs it
+  HISTSIZE=1000
+  ${history} || return 0
+  HISTFILE="${history_file}"
+  HISTFILESIZE=1000
+  if [[ ! -e "${HISTFILE}" ]]; then
+    (umask 077; mkdir -p -- "${HISTFILE%/*}" && : > "${HISTFILE}") \
+      || { p_war "cannot create history file [${HISTFILE}], history not persisted"; history=false; return 0; }
+  fi
+  history -r
+}
+
+# Remember a line in the history (not empty, not a repeat of the last line).
+history_add() {
+  [[ -z "$1" || "$1" == "${history_last:-}" ]] && return 0
+  history_last="$1"
+  history -s -- "$1"
+  # append only the new line instead of rewriting the file (parallel sessions)
+  ${history} && history -a
+  return 0
+}
+
 # start reading / monitoring
 read_loop() {
   local input      # current input (clipboard content / read line)
   local input_prev # input from previous iteration
   local item       # input or part of input (separated via delimiter)
   local first=true # is first iteration?
+  local readline=false
+  local history_last=""
+  if use_readline; then
+    readline=true
+    history_init
+  fi
 
   # keep reading input
   while true; do
@@ -262,7 +328,12 @@ read_loop() {
       fi
     else
       # EOF (ctrl-d): stop, but still process a final line without newline
-      IFS='' read -r -d $'\n' input || [[ -n "${input}" ]] || break
+      if ${readline}; then
+        IFS='' read -e -r -p '> ' input || [[ -n "${input}" ]] || break
+        history_add "${input}"
+      else
+        IFS='' read -r -d $'\n' input || [[ -n "${input}" ]] || break
+      fi
     fi
     first=false
 
