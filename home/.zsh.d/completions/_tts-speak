@@ -47,6 +47,14 @@ _tts-speak_voices() {
   esac
 }
 
+# --fixes: a NAME from the fixes dir (listed live), or any .sed file.
+_tts-speak_fixes() {
+  local dir=${TTS_PIPER_FIXES_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/tts}/fixes
+  local -a names
+  names=("${dir}"/*.sed(N:t:r))
+  _alternative "names:fixes:compadd -a names" 'files:file:_files -g "*.sed"'
+}
+
 _arguments -s \
   '(-e --engine)'{-e,--engine}'[Engine to use]:engine:_tts-speak_engines' \
   '(-l --lang)'{-l,--lang}'[Text language]:language:(de en auto)' \
@@ -55,6 +63,8 @@ _arguments -s \
   '(-o --output)'{-o,--output}'[Write audio to FILE instead of playing]:file:_files' \
   '(-k --keep --no-keep)'{-k,--keep}'[Also keep the audio as a session dir under DIR]:directory:_files -/' \
   '(-k --keep)--no-keep[Do not keep the audio, even if TTS_KEEP_DIR is set]' \
+  '*--fixes[Piper: extra pronunciation fixes (sed script or NAME)]:fixes:_tts-speak_fixes' \
+  '*'{-p,--piper-opt}'[Piper tuning KEY=VAL,...]:option:(noise_scale= noise_w= length_scale= sentence_silence=)' \
   '(-u --ui)'{-u,--ui}'[Player UI: terminal, window, or plain background]:ui:(auto term window none)' \
   '--no-clean[Read the text exactly as given]' \
   '(-h --help)'{-h,--help}'[Show help]' \

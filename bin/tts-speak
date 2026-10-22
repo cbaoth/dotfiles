@@ -49,8 +49,12 @@ TTS_PIPER_BIN="${TTS_PIPER_BIN:-${HOME}/.venv/bin/piper}"
 TTS_PIPER_DIR="${TTS_PIPER_DIR:-${HOME}/.cache/piper-tts}"
 TTS_PIPER_VOICE_DE="${TTS_PIPER_VOICE_DE:-de_DE-thorsten-high}"
 TTS_PIPER_VOICE_EN="${TTS_PIPER_VOICE_EN:-en_US-amy-medium}"
-# Pronunciation fixes: DIR/piper-LANG.sed, applied to the text before piper
+# Pronunciation fixes: DIR/piper-LANG.sed, applied to the text before piper;
+# --fixes NAME looks in DIR/fixes/NAME.sed (per book or project, e.g. names)
 TTS_PIPER_FIXES_DIR="${TTS_PIPER_FIXES_DIR:-${CONF_FILE%/*}}"
+# Tuning, KEY=VAL[,KEY=VAL]: noise_scale, noise_w, length_scale, sentence_silence
+# (empty = the model's defaults from its .onnx.json; -p adds to it)
+TTS_PIPER_OPTS="${TTS_PIPER_OPTS:-}"
 # OpenAI-compatible /v1/audio/speech endpoint (Kokoro-FastAPI, Chatterbox server, ...)
 TTS_HTTP_URL="${TTS_HTTP_URL:-http://127.0.0.1:8880/v1/audio/speech}"
 TTS_HTTP_MODEL="${TTS_HTTP_MODEL:-tts-1}"
@@ -90,6 +94,14 @@ Options:
                    playlist.m3u, text.txt, meta.json); replay: mpv DIR/playlist.m3u
                    (default: TTS_KEEP_DIR, currently '${TTS_KEEP_DIR}')
       --no-keep    don't keep, even if TTS_KEEP_DIR is set
+      --fixes F    piper: extra pronunciation fixes (sed -E script), e.g. the
+                   names of a book; F is a file or a NAME from
+                   ${TTS_PIPER_FIXES_DIR}/fixes/NAME.sed; repeatable
+  -p, --piper-opt KEY=VAL[,KEY=VAL]
+                   piper tuning, as in the model's .onnx.json "inference":
+                   noise_scale (voice variation), noise_w (timing variation),
+                   length_scale (pace; -s divides it), sentence_silence (s);
+                   repeatable, adds to TTS_PIPER_OPTS ('${TTS_PIPER_OPTS}')
   -u, --ui U      auto | term | window | none (default: ${TTS_UI})
                    term/window play in mpv with your own mpv keys (pause, seek,
                    loop, speed, ...); < > go to the previous/next chunk (a few
@@ -135,20 +147,37 @@ stop_speaking() {
 # Read one chunk per line from CHUNKS_FILE and write playable audio files that
 # sort in speaking order (*.wav) into OUT_DIR. A file must be complete once the
 # next one exists, or once the engine has exited.
+# Engine-specific settings come as globals set by speak(): piper_opts, piper_fixes.
 
 engine_piper() {
   local -r lang="$1" voice="$2" speed="$3" chunks="$4" out_dir="$5"
   [[ -x "${TTS_PIPER_BIN}" ]] || { p_err "piper not found: ${TTS_PIPER_BIN}"; return 1; }
+  local -r model="${voice%%:*}"
+  local -r model_json="${TTS_PIPER_DIR}/${model}.onnx.json"
+
+  # Tuning: the model's own defaults (.onnx.json "inference"), overridden by
+  # TTS_PIPER_OPTS / -p. The speed divides the length scale instead of
+  # replacing it, so a voice that ships a length_scale keeps its pace at -s 1.
+  local base opt
+  local -a tune_args=() opts=()
+  base="$(jq -r '.inference.length_scale // 1' "${model_json}" 2> /dev/null)"
+  IFS=, read -r -a opts <<< "${piper_opts:-}"
+  for opt in "${opts[@]}"; do
+    case "${opt%%=*}" in
+      length_scale)     base="${opt#*=}" ;;
+      noise_scale)      tune_args+=(--noise-scale "${opt#*=}") ;;
+      noise_w)          tune_args+=(--noise-w-scale "${opt#*=}") ;;
+      sentence_silence) tune_args+=(--sentence-silence "${opt#*=}") ;;
+    esac
+  done
   local scale
-  scale="$(awk -v s="${speed}" 'BEGIN { printf "%.3f", 1 / s }')"
+  scale="$(awk -v b="${base:-1}" -v s="${speed}" 'BEGIN { printf "%.3f", b / s }')"
+
   # Multi-speaker models: "MODEL:SPEAKER", SPEAKER = name from the model's
   # speaker_id_map (e.g. "thor") or a plain id.
   local -a speaker_args=()
-  local model="${voice}"
   if [[ "${voice}" == *:* ]]; then
-    local speaker="${voice#*:}" model_json
-    model="${voice%%:*}"
-    model_json="${TTS_PIPER_DIR}/${model}.onnx.json"
+    local speaker="${voice#*:}"
     # Names win over ids: libritts-style models name speakers by number ("161065" is id 1).
     local sid
     sid="$(jq -r --arg s "${speaker}" '.speaker_id_map[$s] // empty' "${model_json}" 2> /dev/null)"
@@ -160,15 +189,27 @@ engine_piper() {
     fi
     speaker_args=(-s "${speaker}")
   fi
-  # Pronunciation fixes for espeak-ng's mistakes (see the shipped piper-de.sed).
-  local input="${chunks}" fixes="${TTS_PIPER_FIXES_DIR}/piper-${lang}.sed"
-  if [[ -f "${fixes}" ]]; then
+  # Pronunciation fixes for espeak-ng's mistakes: the language's own
+  # (piper-LANG.sed, see the shipped piper-de.sed), then any --fixes, in order.
+  local input="${chunks}" f
+  local -a sed_args=() extra=()
+  [[ -f "${TTS_PIPER_FIXES_DIR}/piper-${lang}.sed" ]] && sed_args+=(-f "${TTS_PIPER_FIXES_DIR}/piper-${lang}.sed")
+  IFS=: read -r -a extra <<< "${piper_fixes:-}"
+  for f in "${extra[@]}"; do sed_args+=(-f "${f}"); done
+  if (( ${#sed_args[@]} > 0 )); then
+    # Piper drops what directly follows a [[phonemes]] block: espeak-ng never
+    # sees a leading ", Iwan" comma, and the space only survives if the next
+    # text starts with one ("Mitja. Fjord" came out as one word). Punctuation
+    # is a phoneme too, so move it into the block, and keep a space after it.
+    # Piper also glues the next sentence onto a block's sentence (an over-long
+    # utterance again), so a block ending a sentence ends the line: one more wav.
+    sed_args+=(-e 's/\]\]([,.;:!?]+)/\1]]/g' -e 's/\]\]([^ ])/]] \1/g' -e 's/([.!?])\]\] +/\1]]\n/g')
     input="${out_dir}/../chunks.piper.txt"
-    sed -E -f "${fixes}" "${chunks}" > "${input}" || { p_err "bad sed script: ${fixes}"; input="${chunks}"; }
+    sed -E "${sed_args[@]}" "${chunks}" > "${input}" || { p_err "a fixes script failed; reading unfixed"; input="${chunks}"; }
   fi
   # One process for all chunks: model load is paid once, and piper writes one
   # wav per input line as soon as it is synthesized.
-  "${TTS_PIPER_BIN}" -m "${model}" --data-dir "${TTS_PIPER_DIR}" --length-scale "${scale}" \
+  "${TTS_PIPER_BIN}" -m "${model}" --data-dir "${TTS_PIPER_DIR}" --length-scale "${scale}" "${tune_args[@]}" \
     "${speaker_args[@]}" -d "${out_dir}" < "${input}" > /dev/null 2> "${out_dir}/../piper.err"
   # Piper can exit 0 yet write empty wavs (e.g. speaker id out of range).
   if grep -q -E 'Error|Traceback' "${out_dir}/../piper.err"; then
@@ -196,6 +237,14 @@ engine_http() {
       return 1
     fi
   done < "${chunks}"
+}
+
+# --fixes argument -> absolute path: a file, else a name in the fixes dir.
+resolve_fixes() {
+  local f="$1"
+  [[ -f "${f}" ]] || f="${TTS_PIPER_FIXES_DIR}/fixes/${1%.sed}.sed"
+  [[ -f "${f}" ]] || { p_err "fixes not found: $1 (nor ${f})"; return 1; }
+  realpath -- "${f}"
 }
 
 # Voice per language; "list"/"-v" can override. For piper this is a model name.
@@ -390,7 +439,17 @@ new_session() {
   [[ "${do_clean}" == 1 ]] || regen+=" --no-clean"
   [[ "${engine}" != http ]] ||
     regen="$(printf 'TTS_HTTP_URL=%q TTS_HTTP_MODEL=%q ' "${TTS_HTTP_URL}" "${TTS_HTTP_MODEL}")${regen}"
+  [[ -z "${piper_opts}" ]] || regen+=" -p $(printf '%q' "${piper_opts}")"
+  # A copy of each --fixes script: the session renders the same even after
+  # the book's list grew. The language's own fixes are not copied (git has them).
+  local f
+  local -a extra=() copies=()
+  IFS=: read -r -a extra <<< "${piper_fixes}"
+  for f in "${extra[@]}"; do
+    cp -- "${f}" "${dir}/" && copies+=("${f##*/}") && regen+=" --fixes ./$(printf '%q' "${f##*/}")"
+  done
   jq -n --arg created "$(date -Iseconds)" --arg host "${HOSTNAME:-}" --arg engine "${engine}" \
+    --arg piper_opts "${piper_opts}" \
     --arg voice "${voice}" --arg lang "${lang}" --argjson speed "${speed}" \
     --argjson clean "$([[ "${do_clean}" == 1 ]] && echo true || echo false)" \
     --argjson chunk_chars "${TTS_CHUNK_CHARS}" --argjson sentence_chars "${TTS_SENTENCE_CHARS}" \
@@ -399,7 +458,8 @@ new_session() {
     '{created: $created, host: $host, engine: $engine, voice: $voice, lang: $lang, speed: $speed,
       clean: $clean, chunk_chars: $chunk_chars, sentence_chars: $sentence_chars, chunks: $chunks,
       regenerate: $regen}
-     + (if $engine == "http" then {http_url: $url, http_model: $model} else {} end)' \
+     + (if $engine == "http" then {http_url: $url, http_model: $model}
+        else {piper_opts: $piper_opts, fixes: $ARGS.positional} end)' --args "${copies[@]}" \
     > "${dir}/meta.json"
   printf '%s' "${dir}"
 }
@@ -431,9 +491,11 @@ finish_session() {
   done
   # piper logs one INFO line per chunk; only a failure is worth keeping.
   grep -q -E 'Error|Traceback' "${dir}/piper.err" 2> /dev/null || rm -f -- "${dir}/piper.err"
-  jq --argjson n "${#files[@]}" '. + {chunks_kept: $n, complete: ($n == .chunks)}' "${dir}/meta.json" \
+  # files, not chunks: an engine may write more files than it got lines.
+  jq --argjson n "${#files[@]}" --argjson finished "$(( engine_done ? 1 : 0 ))" \
+    '. + {files: $n, complete: ($finished == 1)}' "${dir}/meta.json" \
     > "${dir}/meta.json.part" && mv -- "${dir}/meta.json.part" "${dir}/meta.json"
-  p_err "kept ${#files[@]} chunk(s) in ${dir}"
+  p_err "kept ${#files[@]} file(s) in ${dir}"
 }
 
 # Stop the engine and wait (briefly) until it is really gone: the engine
@@ -485,16 +547,19 @@ list_all() {
 # Worker: runs detached so the sway binding returns immediately.
 speak() {
   local -r engine="$1" lang_opt="$2" voice_opt="$3" speed="$4" out_file="$5" do_clean="$6" ui="$7" \
-    keep_dir="$8" text_file="$9"
+    keep_dir="$8" text_file="${11}"
   local text
   text="$(< "${text_file}")"
   rm -f -- "${text_file}"
 
   # Globals on purpose: the EXIT trap runs after this function's locals are gone.
   # tmp: the job dir; session: the same dir once it is kept; engine_pid: the engine.
+  # piper_fixes (":"-separated paths) and piper_opts are read by engine_piper().
   tmp="$(mktemp -d "${RUN_DIR}/job.XXXXXX")"
   session=""
   engine_pid=""
+  piper_fixes="$9"
+  piper_opts="${10}"
   trap cleanup EXIT
   trap 'exit 130' INT TERM HUP
 
@@ -555,12 +620,13 @@ main() {
     worker "$@"
     return
   fi
-  local engine lang=auto voice="" speed out_file="" do_clean=1 cmd=speak ui keep_dir
+  local engine lang=auto voice="" speed out_file="" do_clean=1 cmd=speak ui keep_dir piper_opts fixes=""
   local -a words=()
 
   # shellcheck disable=SC1090
   [[ -f "${CONF_FILE}" ]] && source "${CONF_FILE}"
   engine="${TTS_ENGINE}"; speed="${TTS_SPEED}"; ui="${TTS_UI}"; keep_dir="${TTS_KEEP_DIR}"
+  piper_opts="${TTS_PIPER_OPTS}"
 
   while (( $# > 0 )); do
     case "$1" in
@@ -572,6 +638,8 @@ main() {
       -o|--output) out_file="$2"; shift ;;
       -k|--keep)   keep_dir="$2"; shift ;;
       --no-keep)   keep_dir="" ;;
+      --fixes)     fixes+="${fixes:+:}$(resolve_fixes "$2")" || return 2; shift ;;
+      -p|--piper-opt) piper_opts+="${piper_opts:+,}$2"; shift ;;
       -u|--ui)     ui="$2"; shift ;;
       --no-clean)  do_clean=0 ;;
       -h|--help)   usage; return 0 ;;
@@ -612,6 +680,18 @@ main() {
   [[ "${ui}" =~ ^(term|window|none)$ ]] || { p_err "unknown ui: ${ui}"; return 2; }
   # Absolute: the detached worker reports and writes it from wherever it runs.
   [[ -z "${keep_dir}" ]] || keep_dir="$(realpath -m -- "${keep_dir}")"
+  local opt
+  local -a opts=()
+  IFS=, read -r -a opts <<< "${piper_opts}"
+  for opt in "${opts[@]}"; do
+    [[ "${opt}" =~ ^(noise_scale|noise_w|length_scale|sentence_silence)=[0-9]*\.?[0-9]+$ ]] ||
+      { p_err "bad piper option: '${opt}' (KEY=NUMBER: noise_scale noise_w length_scale sentence_silence)"; return 2; }
+  done
+  # Only piper reads them; don't let them land in a kept session of another engine.
+  if [[ "${engine}" != piper ]]; then
+    [[ -z "${fixes}" ]] || p_err "--fixes only applies to the piper engine; ignored"
+    fixes="" piper_opts=""
+  fi
 
   # Replace a running read-aloud instead of overlapping two voices.
   stop_speaking || true
@@ -622,12 +702,13 @@ main() {
   printf '%s' "${text}" > "${text_file}"
 
   if [[ -n "${out_file}" || "${ui}" == term || -n "${TTS_FOREGROUND:-}" ]]; then
-    worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" "${keep_dir}" "${text_file}"
+    worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" "${keep_dir}" \
+      "${fixes}" "${piper_opts}" "${text_file}"
   else
     # Detached worker: as session leader its pid is the process group id that
     # stop_speaking() signals.
     setsid -f "${SELF}" --worker "${engine}" "${lang}" "${voice}" "${speed}" "${out_file}" "${do_clean}" "${ui}" \
-      "${keep_dir}" "${text_file}"
+      "${keep_dir}" "${fixes}" "${piper_opts}" "${text_file}"
   fi
 }
 

@@ -69,7 +69,7 @@ DIR/20261022-143012_piper-de_DE-thorsten-high_Erstes-Kapitel-Es-war-einmal/
   playlist.m3u         relative paths: mpv DIR/.../playlist.m3u, or any player
   text.txt chunks.txt  the input as given, and as cleaned and chunked
   meta.json            engine, voice, lang, speed, ...; "regenerate" command;
-                       chunks / chunks_kept / complete
+                       chunks, files, complete; piper_opts, fixes
 ```
 
 A stopped read-aloud keeps what was fully rendered (`complete: false`); the
@@ -140,6 +140,30 @@ to the voice, the model, the engine, or the text.
   `home/.config/tts/piper-de.sed`) runs over the chunks before Piper only:
   a respelling (`geud` -> `gäud`) or `[[phonemes]]`, which Piper reads
   verbatim. The http engines have their own front-ends and never see it.
+- **Names go in a per-book list, not the global one.** `--fixes NAME` adds
+  `~/.config/tts/fixes/NAME.sed` (or any file; repeatable) after the
+  language's fixes; a kept session stores a copy. Example:
+  `fixes/die-brueder-karamasow.sed`. espeak-ng reads Russian names by
+  German rules ("Fjodor" as "Eff-jodor", "Dmitri" as "De-mitri") and mostly
+  stresses the wrong syllable; a name recurs hundreds of times in a novel,
+  a one-off word does not, so only names and systematic errors are worth an
+  entry. A one-off oddity ("wodu-urch" once, fine the next time) has
+  identical phonemes both times: that is the model's timing noise
+  (`noise_w`), not something a list can fix.
+- **`[[phonemes]]` quirks** (piper 1.x, `voice.py`), handled by tts-speak
+  after all fixes scripts: punctuation right after a block is dropped and the
+  following word is glued on (`Mitja. Fjord` -> one word), so punctuation is
+  moved into the block (it is a phoneme too) and a space kept. Piper also
+  glues the next sentence onto a block's sentence, so a block that ends a
+  sentence ends the line, i.e. one more wav file than chunks.
+- **Tuning: `-p KEY=VAL,...` / `TTS_PIPER_OPTS`**, the model's own
+  `.onnx.json` "inference" names: `noise_scale`, `noise_w`, `length_scale`,
+  plus `sentence_silence`. Unset keys keep the model's defaults. `-s` divides
+  the `length_scale` instead of replacing it; before that, a `length_scale`
+  edited in the `.onnx.json` had no effect, since tts-speak always passed
+  `--length-scale 1/speed`. Piper reads the `.onnx.json` on every start;
+  nothing is cached. `noise_w=0.1` vs. `0.8` made one phrase ~8 % shorter
+  and steadier: audible, but subtle.
 - **Speed: prefer the player's.** `-s` changes the synthesis (Piper's
   `length_scale`) and did not fix the long-sentence rush. mpv's speed
   (`[` `]`, or `TTS_MPV_ARGS=(--speed=1.5)`) time-stretches at constant
