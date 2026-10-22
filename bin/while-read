@@ -279,6 +279,9 @@ use_readline() {
 history_init() {
   set -o history  # off in non-interactive shells, but read -e needs it
   HISTSIZE=1000
+  # An inherited (exported) HISTFILE, e.g. zsh's, must not leak in or be written
+  history -c
+  unset HISTFILE
   ${history} || return 0
   HISTFILE="${history_file}"
   HISTFILESIZE=1000
