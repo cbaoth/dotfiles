@@ -295,9 +295,15 @@ history_init() {
   ${history} || return 0
   HISTFILE="${history_file}"
   HISTFILESIZE=1000
+  if [[ -d "${HISTFILE}" ]]; then
+    p_war "history file [${HISTFILE}] is a directory, history not persisted"
+    history=false; unset HISTFILE; return 0
+  fi
   if [[ ! -e "${HISTFILE}" ]]; then
-    (umask 077; mkdir -p -- "${HISTFILE%/*}" && : > "${HISTFILE}") \
-      || { p_war "cannot create history file [${HISTFILE}], history not persisted"; history=false; return 0; }
+    # dirname, not ${HISTFILE%/*}: that returns a slash-less path unchanged
+    (umask 077; mkdir -p -- "$(dirname -- "${HISTFILE}")" && : > "${HISTFILE}") \
+      || { p_war "cannot create history file [${HISTFILE}], history not persisted"
+           history=false; unset HISTFILE; return 0; }
   fi
   history -r
 }
