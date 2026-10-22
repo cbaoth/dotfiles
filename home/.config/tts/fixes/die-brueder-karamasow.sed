@@ -9,12 +9,15 @@
 # phonemes ([[ ]], read verbatim by Piper) with the Russian stress; (s?)
 # keeps a German genitive. Spellings differ between translations, hence the
 # alternatives (-ow/-off, -i/-ij). How to check a fix: see ../piper-de.sed.
+# Use espeak-ng's German symbols, the ones the voice was trained on: r before
+# a vowel, ɾ only after one (ɾ before a vowel came out nearly silent:
+# "Karamasow" as "Kamasow"); prefer full vowels over Russian ə/ɐ reduction.
 
 # The family
 s/\bFjodorowitsch(s?)\b/[[fjˈoːdɔrɔvɪtʃ\1]]/g
 s/\bFjodor(s?)\b/[[fjˈoːdɔɾ\1]]/g
 s/\bPawlowitsch(s?)\b/[[pˈavlɔvɪtʃ\1]]/g
-s/\bKaramas(ow|off)(s?)\b/[[kaɾamˈaːzɔf\2]]/g
+s/\bKaramas(ow|off)(s?)\b/[[karamˈaːzɔf\2]]/g
 s/\bAlex(ej|ei)(s?)\b/[[alɛksˈɛj\2]]/g
 s/\bDmitrij?(s?)\b/[[dmˈiːtrɪj\1]]/g
 s/\bMitja(s?)\b/[[mˈiːtja\1]]/g
