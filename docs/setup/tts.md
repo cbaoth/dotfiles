@@ -119,6 +119,24 @@ to the voice, the model, the engine, or the text.
   installed, and Piper is fast enough without a GPU (17 s of audio in ~2 s).
 - **Worker is detached** via `setsid`, so its pid is its process group and
   `stop` is one signal. State is in `$XDG_RUNTIME_DIR/tts-speak/`.
+- **Long sentences are split** (`TTS_SENTENCE_CHARS=150`, `tts-clean
+  --sentence`). Piper speaks one sentence (up to `.!?`; `;` and `:` do not
+  end one) in a single pass, and past ~13 s of speech it stops getting longer
+  and crams the rest in: rushed, slurred, odd pauses. Measured with
+  thorsten-high (2026-10-22), one sentence of growing length:
+
+  | chars | 70 | 131 | 174 | 231 | 274 | 345 | 382 |
+  | ----- | -- | --- | --- | --- | --- | --- | --- |
+  | s     | 3.7 | 7.1 | 9.2 | 12.4 | 13.0 | 13.6 | 13.9 |
+  | chars/s | 18.9 | 18.6 | 19.0 | 18.6 | 21.1 | 25.3 | 27.4 |
+
+  So an over-long sentence is cut at `; : –` (else a comma) and each piece
+  gets its own line, i.e. its own pass. The Karamasow opening (a 283-char
+  sentence at 26 chars/s, partly unintelligible) now renders at 17–20.
+- **Speed: prefer the player's.** `-s` changes the synthesis (Piper's
+  `length_scale`) and did not fix the long-sentence rush. mpv's speed
+  (`[` `]`, or `TTS_MPV_ARGS=(--speed=1.5)`) time-stretches at constant
+  pitch, can change mid-read, and leaves kept sessions at normal speed.
 
 ## Voices
 

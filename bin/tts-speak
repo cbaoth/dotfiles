@@ -32,6 +32,9 @@ declare -r MPV_SOCK="${RUN_DIR}/mpv.sock"
 TTS_ENGINE="${TTS_ENGINE:-piper}"
 TTS_SPEED="${TTS_SPEED:-1.0}"
 TTS_CHUNK_CHARS="${TTS_CHUNK_CHARS:-300}"
+# Longer sentences are split at clause breaks into lines of their own: Piper
+# speeds up and slurs once one sentence passes ~13 s of speech (~230 chars).
+TTS_SENTENCE_CHARS="${TTS_SENTENCE_CHARS:-150}"
 # auto: terminal UI when run from a terminal, small window otherwise (hotkey);
 # term | window | none (none = plain background playback, no controls)
 TTS_UI="${TTS_UI:-auto}"
@@ -382,10 +385,12 @@ new_session() {
   jq -n --arg created "$(date -Iseconds)" --arg host "${HOSTNAME:-}" --arg engine "${engine}" \
     --arg voice "${voice}" --arg lang "${lang}" --argjson speed "${speed}" \
     --argjson clean "$([[ "${do_clean}" == 1 ]] && echo true || echo false)" \
-    --argjson chunk_chars "${TTS_CHUNK_CHARS}" --argjson chunks "$(wc -l < "${chunks}")" \
+    --argjson chunk_chars "${TTS_CHUNK_CHARS}" --argjson sentence_chars "${TTS_SENTENCE_CHARS}" \
+    --argjson chunks "$(wc -l < "${chunks}")" \
     --arg regen "${regen} < text.txt" --arg url "${TTS_HTTP_URL}" --arg model "${TTS_HTTP_MODEL}" \
     '{created: $created, host: $host, engine: $engine, voice: $voice, lang: $lang, speed: $speed,
-      clean: $clean, chunk_chars: $chunk_chars, chunks: $chunks, regenerate: $regen}
+      clean: $clean, chunk_chars: $chunk_chars, sentence_chars: $sentence_chars, chunks: $chunks,
+      regenerate: $regen}
      + (if $engine == "http" then {http_url: $url, http_model: $model} else {} end)' \
     > "${dir}/meta.json"
   printf '%s' "${dir}"
@@ -488,7 +493,8 @@ speak() {
   local lang="${lang_opt}"
   if [[ "${do_clean}" == 1 ]]; then
     [[ "${lang}" == auto ]] && lang="$(tts-clean --detect <<< "${text}")"
-    tts-clean --lang "${lang}" --chunk "${TTS_CHUNK_CHARS}" <<< "${text}" > "${tmp}/chunks.txt"
+    tts-clean --lang "${lang}" --chunk "${TTS_CHUNK_CHARS}" --sentence "${TTS_SENTENCE_CHARS}" \
+      <<< "${text}" > "${tmp}/chunks.txt"
   else
     [[ "${lang}" == auto ]] && lang="$(tts-clean --detect <<< "${text}")"
     tr '\n' ' ' <<< "${text}" > "${tmp}/chunks.txt"; echo >> "${tmp}/chunks.txt"

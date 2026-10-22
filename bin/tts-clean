@@ -54,6 +54,8 @@ ITEM_MARK = "\x01"
 # A line at least this fraction of the widest line is taken as hard-wrapped, not as a heading/item.
 WRAP_RATIO = 0.6
 SENTENCE_END = tuple(".!?:;…。\"')]”»")
+# Where an over-long sentence may be split, before falling back to commas.
+CLAUSE_BREAKS = ("; ", ": ", " – ", " — ", " - ")
 
 # Spoken forms. Matched case-sensitively, with optional space after inner dots.
 ABBREVIATIONS = {
@@ -316,20 +318,36 @@ def clean(text: str, lang: str = "auto", spell_numbers: bool = True) -> str:
     return text.strip()
 
 
-def chunk(text: str, limit: int) -> list[str]:
+def split_point(sentence: str, limit: int) -> int:
+    """Index to cut an over-long sentence at: the strongest clause break within ``limit``.
+
+    A break in the first third is skipped (it would leave the rest nearly as long), so a
+    late comma beats an early semicolon. Last resort: the last space, then a hard cut.
+    """
+    for marks in (CLAUSE_BREAKS, (", ",), (" ",)):
+        lo = limit // 3 if marks[0] != " " else 1
+        best = max((i + len(m) for m in marks if (i := sentence.rfind(m, lo, limit)) > 0), default=0)
+        if best:
+            return best
+    return limit
+
+
+def chunk(text: str, limit: int, sentence_limit: int = 0) -> list[str]:
     """Split into single-line chunks of at most ``limit`` chars, breaking at sentence ends.
 
     The first chunk is kept short (a third of the limit) so playback starts quickly while
-    the rest is still being synthesized. An over-long sentence is cut at the last comma/space.
+    the rest is still being synthesized. A sentence longer than ``sentence_limit`` (0: the
+    chunk limit) is cut at clause breaks and each piece gets a line of its own: engines
+    speak a line's sentence in one go, and Piper rushes and slurs beyond ~13 s of speech.
     """
     sentences = [s for para in text.split("\n\n") for s in re.split(r"(?<=[.!?\u2026])\s+", para.replace("\n", " ")) if s]
+    sentence_limit = min(sentence_limit or limit, limit)
     chunks: list[str] = []
     current = ""
     for sentence in sentences:
-        while len(sentence) > limit:  # pathological: no sentence end within the limit
-            cut = max(sentence.rfind(", ", 0, limit), sentence.rfind(" ", 0, limit))
-            cut = cut if cut > 0 else limit
-            sentence, rest = sentence[:cut + 1].strip(), sentence[cut + 1:].strip()
+        while len(sentence) > sentence_limit:
+            cut = split_point(sentence, sentence_limit)
+            sentence, rest = sentence[:cut].strip(), sentence[cut:].strip()
             if current:
                 chunks.append(current)
                 current = ""
@@ -353,6 +371,9 @@ def main() -> int:
                         help="language for abbreviation expansion (default: auto-detect)")
     parser.add_argument("-c", "--chunk", type=int, metavar="N",
                         help="output one chunk per line, each at most N chars (sentence-aligned)")
+    parser.add_argument("-s", "--sentence", type=int, metavar="N", default=0,
+                        help="with --chunk: split sentences longer than N chars at clause breaks "
+                             "(; : – then commas), one piece per line (default: the chunk size)")
     parser.add_argument("--no-numbers", action="store_true", help="keep digits (German numbers are spelled out by default)")
     parser.add_argument("--detect", action="store_true", help="print the detected language (de/en) and exit")
     args = parser.parse_args()
@@ -363,7 +384,7 @@ def main() -> int:
         return 0
     cleaned = clean(text, args.lang, spell_numbers=not args.no_numbers)
     if args.chunk:
-        print("\n".join(chunk(cleaned, args.chunk)))
+        print("\n".join(chunk(cleaned, args.chunk, args.sentence)))
     else:
         print(cleaned)
     return 0
