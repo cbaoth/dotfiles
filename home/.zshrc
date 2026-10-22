@@ -506,6 +506,11 @@ if $IS_ZINIT; then
 # https://github.com/zsh-users/zsh-autosuggestions
 # loaded immediately so its `^ ` accept binding (keybindings section) works
 ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=25
+# Bind widgets once (first prompt), not on every precmd. Otherwise the
+# turbo-loaded fast-syntax-highlighting wraps them after the first bind, the
+# next precmd wraps them again, and partial accept (ctrl-right, alt-f) runs
+# nested: `cd .ca` + `che/x` became `cd .cache/xche/x` (2026-10).
+ZSH_AUTOSUGGEST_MANUAL_REBIND=1
 zinit light zsh-users/zsh-autosuggestions
 
 # https://github.com/zsh-users/zaw
