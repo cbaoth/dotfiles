@@ -1,0 +1,34 @@
+#compdef while-read
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for while-read (bin/while-read in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above.
+#
+# The COMMAND words are completed by _normal, so every command that has (or
+# later gets) a completion function works out of the box, including its own
+# options and arguments (e.g. `while-read tts-speak -<TAB>`).
+#
+# Keep in sync with bin/while-read: options mirror p_hlp().
+
+_while-read() {
+  # -A '-*': options are only completed up to the first non-option word,
+  # everything after COMMAND belongs to COMMAND. No -s: -xn is one option.
+  _arguments -S -A '-*' \
+    '(-b --background)'{-b,--background}'[run the command as background job]' \
+    '(-d --delimiter)'{-d,--delimiter}'[input delimiter (default: newline)]:delimiter:' \
+    '(-c --clipboard -x --xclip)'{-c,--clipboard}'[monitor the Wayland clipboard]' \
+    '(-c --clipboard -x --xclip)'{-x,--xclip}'[deprecated alias for --clipboard]' \
+    '--pollrate[clipboard poll rate (default: 0.2s)]:seconds (suffix s/m/h/d):' \
+    '(-m --match)'{-m,--match}'[only process items matching the regex]:regex:' \
+    '--match-whole[match the whole input instead of each item]' \
+    '--allow-duplicates[do not ignore sequential repeated input]' \
+    '(-H --history)-H[persist the input history (default file)]' \
+    '(-H --history)--history=-[persist the input history in FILE]::history file:_files' \
+    '(-v --verbose)'{-v,--verbose}'[print the full command before execution]' \
+    '(-xn --xnotify)'{-xn,--xnotify}'[show each item as desktop notification]' \
+    '(- *)'{-h,--help}'[show help]' \
+    '(-):command: _command_names -e' \
+    '*:: :_normal'
+}
+
+_while-read "$@"
