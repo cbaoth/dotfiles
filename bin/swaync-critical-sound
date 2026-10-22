@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Play the sound for critical swaync notifications, silent while DND is on.
+# Called from the swaync "waybar-urgency-critical" script (config.json).
+# Sounds to audition: /usr/share/sounds/freedesktop/stereo/*.oga
+
+set -euo pipefail
+
+# Alternative: message.oga
+readonly SOUND="${SWAYNC_CRITICAL_SOUND:-/usr/share/sounds/freedesktop/stereo/complete.oga}"
+readonly VOLUME="${SWAYNC_CRITICAL_VOLUME:-0.3}"
+
+[[ "$(swaync-client --get-dnd 2>/dev/null)" == "true" ]] && exit 0
+exec pw-play --volume "$VOLUME" -- "$SOUND"

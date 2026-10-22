@@ -329,7 +329,13 @@ _acquire_lock() {
 }
 
 # Sends a BEDTIME GUI notification to BSS_USER_NAME and broadcasts a message to all terminals.
+# Usage: _notify_user [--urgency=LEVEL] MESSAGE...   (default: critical)
 _notify_user() {
+  local urgency=critical
+  if [[ "${1:-}" == --urgency=* ]]; then
+    urgency="${1#--urgency=}"
+    shift
+  fi
   local -r msg="$*"
   _log_debug "Attempting to notify user [$BSS_USER_NAME] with message: $msg"
 
@@ -338,7 +344,7 @@ _notify_user() {
   # This is async via notify-send, so no need to wait
   _log_debug "Sending GUI notification to user '$BSS_USER_NAME': $msg"
   sudo -u "$BSS_USER_NAME" DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"${USER_ID}"/bus \
-    notify-send --urgency=critical "BEDTIME" "$msg" 2>/dev/null || {
+    notify-send --urgency="$urgency" "BEDTIME" "$msg" 2>/dev/null || {
     _log_warn "GUI notification to user '$BSS_USER_NAME' failed (user may not be logged in)"
   }
 
@@ -371,7 +377,7 @@ _exit_if_emergency_override() {
     # We use lsblk to check all block device labels
     if lsblk -o LABEL -n 2>/dev/null | grep -Fqx "$BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL"; then
       _log "Emergency override triggered: Block device with label '$BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL' detected"
-      _notify_user "EMERGENCY OVERRIDE: Hardware key with label '$BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL' detected. Skipping shutdown."
+      _notify_user --urgency=normal "EMERGENCY OVERRIDE: Hardware key with label '$BSS_EMERGENCY_OVERRIDE_BLOCK_DEVICE_LABEL' detected. Skipping shutdown."
       exit 0
     else
       _log_debug "No matching block device label found"
@@ -387,7 +393,7 @@ _exit_if_emergency_override() {
       local -r first_override_file="$(find "$BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR" -maxdepth 2 -name "$BSS_EMERGENCY_OVERRIDE_FILE_NAME" -print -quit | head -n 1 2>/dev/null)"
       if [[ -n "$first_override_file" ]]; then
         _log "Emergency override triggered: File '${first_override_file}' detected"
-        _notify_user "EMERGENCY OVERRIDE: Hardware key with file '${first_override_file}' detected. Skipping shutdown."
+        _notify_user --urgency=normal "EMERGENCY OVERRIDE: Hardware key with file '${first_override_file}' detected. Skipping shutdown."
         exit 0
       else
         _log_debug "No matching emergency override file found in $BSS_EMERGENCY_OVERRIDE_FILE_MEDIA_DIR"
@@ -403,7 +409,7 @@ _exit_if_emergency_override() {
     # Search for specific USB device ID (format: "1234:abcd")
     if lsusb -d "$BSS_EMERGENCY_OVERRIDE_USB_ID" >/dev/null 2>&1; then
       _log "Emergency override triggered: USB device '$BSS_EMERGENCY_OVERRIDE_USB_ID' detected"
-      _notify_user "EMERGENCY OVERRIDE: USB Device '$BSS_EMERGENCY_OVERRIDE_USB_ID' detected. Skipping shutdown."
+      _notify_user --urgency=normal "EMERGENCY OVERRIDE: USB Device '$BSS_EMERGENCY_OVERRIDE_USB_ID' detected. Skipping shutdown."
       exit 0
     else
       _log_debug "No matching USB device found"

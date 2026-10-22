@@ -50,7 +50,7 @@
     },
     "waybar-urgency-critical": {
       "urgency": "Critical",
-      "exec": "swaync-waybar record; pw-play /usr/share/sounds/freedesktop/stereo/dialog-warning.oga"
+      "exec": "swaync-waybar record; swaync-critical-sound"
     },
     "click-focus-low": {
       "urgency": "Low",
