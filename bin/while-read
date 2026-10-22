@@ -247,6 +247,16 @@ parse_args() {
   fi
   cmd_arg+=("$@")
 
+  # Fail early on an unknown command, and hint at the usual slip: -H takes no
+  # argument, so `-H FILE` makes FILE the command.
+  if ! command -v -- "$1" > /dev/null 2>&1; then
+    p_err "command not found: [$1]"
+    if ${history} && [[ "$1" == */* || "$1" == \~* ]]; then
+      p_err "-H takes no argument, to use a history file: --history=$1 COMMAND..."
+    fi
+    exit 127
+  fi
+
   if ${history} && [[ -z "${history_file}" ]]; then
     history_file="${XDG_STATE_HOME:-${HOME}/.local/state}/while-read/${1##*/}.history"
   fi
