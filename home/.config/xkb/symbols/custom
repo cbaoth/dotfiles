@@ -12,35 +12,50 @@
 //
 // Basic sway input block to use this custom layout:
 // input "type:keyboard" {
-//    # Use custom layouts, primary (Colemak) and alt (QWERTY)
-//    xkb_layout  "custom,custom"
-//    xkb_variant "basic,qwerty"
+//    # Use custom layouts: Colemak + Extend, Colemak, QWERTY
+//    xkb_layout  "custom,custom,custom"
+//    xkb_variant "extend,basic,qwerty"
 //    # Use plain Colemak
 //    #xkb_layout us
 //    #xkb_variant colemak
 // }
 
-xkb_symbols "basic" {
-    // Full Colemak layout (includes CapsLock → Backspace)
-    include "us(colemak)"
-    name[Group1] = "Colemak (US)";
-
+// Modifier plumbing shared by all variants.
+//
+// XKB has only 8 real modifiers, and with Extend all of them are spoken for:
+//   Shift  Lock  Control  Mod1=Alt  Mod2=LevelFive (Extend)  Mod3=Hyper
+//   Mod4=Super  Mod5=LevelThree (AltGr)
+// Stock pc puts LevelFive on Mod3 next to Hyper. Sharing breaks sway: it also
+// matches bindings against the unshifted keysym, so Extend+E (Down) would fire
+// `$hyper+e`. NumLock gives up Mod2 instead (no numpad in use; sway sets
+// numpad:mac so a keypad still types digits).
+//
+// Modifier maps are per key, not per group, so the Caps key must not be in
+// one: Ctrl here and LevelFive in custom(extend) both use explicit actions.
+partial modifier_keys
+xkb_symbols "mods" {
     // ISO key (<LSGT>): the key between Left Shift and Z on ISO keyboards.
     // us(colemak) maps this key to minus/underscore; override it with Hyper_L
     // so sway can use it as $hyper (Mod3) in bindsym directives.
     key <LSGT> { [ Hyper_L, Hyper_L ] };
     modifier_map Mod3 { <LSGT> };
 
-    // AltGr+CapsLock -> Delete, complementing the CapsLock -> BackSpace that
-    // us(colemak) already provides. Windows binds this to Super instead
-    // (AutoHotkey #BackSpace::Delete), which is not reproducible here:
-    // `key <CAPS> { type = "PC_SUPER_LEVEL2", [ BackSpace, Delete ] };` compiles
-    // and yields the right keysym, but toolkits never treat Mod4 as consumed
-    // (Super+X must stay available as a shortcut), so clients see Super+Delete —
-    // foot emits \e[3;9~ (zsh drops into vicmd), VS Code inserts U+007F as text,
-    // browsers ignore it. AltGr is a level shifter and *is* consumed, so every
-    // client sees a bare Delete.
-    key <CAPS> { [ BackSpace, BackSpace, Delete, Delete ] };
+    // CapsLock -> Ctrl (formerly BackSpace via us(colemak), plus AltGr+Caps ->
+    // Delete; neither caught on).
+    key <CAPS> { type[Group1] = "ONE_LEVEL", symbols[Group1] = [ Control_L ],
+                 actions[Group1] = [ SetMods(modifiers=Control) ] };
+
+    // Free Mod2 for LevelFive: void the NumLock key (an unmapped NumLock would
+    // otherwise lock Mod2 = permanent Extend) and move pc's fake <LVL5> key.
+    key <NMLK> { type[Group1] = "ONE_LEVEL", [ VoidSymbol ] };
+    modifier_map Mod2 { <LVL5> };
+};
+
+xkb_symbols "basic" {
+    // Full Colemak layout
+    include "us(colemak)"
+    include "custom(mods)"
+    name[Group1] = "Colemak (US)";
 
     // AltGr+Delete -> Insert (AutoHotkey <^>!Del::Insert). Mainly for keyboards
     // with no dedicated Insert key, e.g. the Logitech MX Mechanical Mini, where
@@ -80,8 +95,98 @@ xkb_symbols "qwerty" {
     // Plain US QWERTY layout (maps <LSGT> to backslash/bar, overridden below).
     // Activated via Scroll_Lock toggle (kbd-layout-toggle) for gaming / QWERTY sessions.
     include "us(basic)"
+    include "custom(mods)"
     name[Group1] = "QWERTY (US)";
+};
 
-    key <LSGT> { [ Hyper_L, Hyper_L ] };
-    modifier_map Mod3 { <LSGT> };
+xkb_symbols "extend" {
+    // Colemak + DreymaR's Extend layer: hold CapsLock for navigation, editing
+    // and home-row modifiers. https://dreymar.colemak.org/layers-extend.html
+    // Layer map, design and known limits: docs/setup/extend-layer.md
+    include "custom(basic)"
+    name[Group1] = "Colemak (US) + Extend";
+
+    // Main layer only. Left out: extend(lv5_fk) (media keys on F1-F12, eats
+    // Ctrl+Alt+F# and collides with the $altgr+F# sway bindings) and
+    // extend(lv5_sk) (Extend on Backspace/Enter, flaky in some toolkits).
+    include "extend(lv5)"
+
+    // CapsLock held = Extend.
+    key <CAPS> { type[Group1] = "ONE_LEVEL", symbols[Group1] = [ ISO_Level5_Shift ],
+                 actions[Group1] = [ SetMods(modifiers=LevelFive) ] };
+
+    // extend(lv5) maps <LSGT> to Delete with explicit actions, which also
+    // kills Hyper on levels 1-4. Put Hyper back.
+    key <LSGT> { type[Group1] = "ONE_LEVEL", symbols[Group1] = [ Hyper_L ],
+                 actions[Group1] = [ SetMods(modifiers=Mod3) ] };
+
+    // Home-row modifiers (a/s/t = Alt/Shift/Ctrl) must not auto-repeat:
+    // Wayland clients repeat keys themselves and re-send the key with the
+    // modifier now active, so a held Extend+T arrived as Ctrl+t (zsh
+    // transpose-chars, VS Code "Go to Symbol"). Repeat is per key, not per
+    // group: holding a/s/t no longer repeats the letter in any group.
+    key <AC01> { repeat = no };
+    key <AC03> { repeat = no };
+    key <AC04> { repeat = no };
+
+    // Key types: extend(lv5) uses EIGHT_LEVEL_SEMIALPHABETIC, which consumes
+    // Shift on Extend levels, so Extend+S+T+N arrives as Ctrl+Left instead of
+    // Ctrl+Shift+Left (no word selection). The *_WITH_LEVEL5_LOCK types keep
+    // Shift (preserve[LevelFive+Shift]); their NumLock entries are inert since
+    // NumLock is unmapped (see "mods").
+    // Extend+` (Pointer_EnableKeys, an X11 MouseKeys toggle): disabled, the
+    // key is kept free for later use. NoSymbol keeps levels 1-4 from Colemak.
+    key <TLDE> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK",
+                 symbols[Group1] = [ NoSymbol, NoSymbol, NoSymbol, NoSymbol,
+                                     VoidSymbol, VoidSymbol, VoidSymbol, VoidSymbol ] };
+    key <ESC>  { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE01> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE02> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE03> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE04> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE05> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE06> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE07> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE08> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE09> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE10> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE11> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AE12> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    // Colemak letters (q w f p g j l u y / a r s t d h n e i o / z x c v b k m)
+    key <AD01> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AD02> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AD03> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AD04> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AD05> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AD06> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AD07> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AD08> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AD09> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC01> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC02> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC03> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC04> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC05> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC06> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC07> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC08> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC09> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AC10> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AB01> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AB02> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AB03> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AB04> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AB05> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AB06> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    key <AB07> { type[Group1] = "EIGHT_LEVEL_ALPHABETIC_WITH_LEVEL5_LOCK" };
+    // Non-letter keys in the letter block
+    key <AD10> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AD11> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AD12> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <BKSL> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AC11> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AB08> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AB09> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <AB10> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
+    key <SPCE> { type[Group1] = "EIGHT_LEVEL_WITH_LEVEL5_LOCK" };
 };

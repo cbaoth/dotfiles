@@ -45,14 +45,14 @@ To read the effective config as one stream (e.g. to connect a `$variable` defini
 
 | Keys | Action |
 | ---- | ------ |
-| `Scroll_Lock` / `$mod+Insert` | Colemak ↔ QWERTY (`kbd-layout-toggle`) |
-| `Shift+Scroll_Lock` / `$mod+Delete` | CapsLock Backspace ↔ Ctrl (`kbd-layout-toggle caps`) |
+| `Scroll_Lock` / `$mod+Insert` | Cycle Colemak + Extend → Colemak → QWERTY (`kbd-layout-toggle`) |
 | `$mod+y`, then a key | Same as `$hyper+<key>`, for keyboards without the ISO key |
 
-- **CapsLock → Ctrl** is the xkb option `ctrl:nocaps` set at runtime, persisted
-  in `~/.local/state/kbd-caps-ctrl` and re-applied by `exec_always
-  kbd-layout-toggle sync`. While active, AltGr+CapsLock → Delete is gone.
-- **XWayland keeps its own keymap** (VS Code runs under XWayland): every layout
+- **CapsLock = Ctrl** in all groups, built into `custom(mods)`; in the Extend
+  group it is the Extend key instead (see [extend-layer.md](extend-layer.md)).
+  NumLock is disabled to free Mod2 for Extend; `numpad:mac` keeps a keypad on
+  digits.
+- **XWayland keeps its own keymap** (Wine/Proton games, legacy X11 apps): every layout
   change must go through `kbd-layout-toggle`, which also runs `setxkbmap` on
   `:0`. A bare `swaymsg … xkb_switch_layout` leaves X11 apps on the old layout;
   `swaymsg reload` resyncs it.

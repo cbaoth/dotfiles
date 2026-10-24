@@ -1,46 +1,36 @@
 ---
-title: Extend layer (DreymaR) for XKB/sway — handover
+title: Extend layer (DreymaR) for XKB/sway
 hosts: [motoko, puppet]
 status: open
+revisit: 2026-11
 tags: [keyboard, xkb, colemak, extend, sway, layers, autohotkey]
 updated: 2026-10-23
 ---
 
-# Extend layer — handover
+# Extend layer
 
-Plan for bringing DreymaR's *Extend* layer (CapsLock held = navigation /
-editing / media layer) to this setup. The Windows half already exists; this
-note is the Linux half, written to be picked up and discussed on an actual
-sway desktop (none of it has been tested — WSL has no `xkbcli` and no sway).
+DreymaR's *Extend* layer: hold CapsLock for a navigation / editing layer with
+home-row modifiers. Implemented as pure XKB data, no daemon. On trial as the
+default (first) layout group; `status: open` until it is decided whether it stays.
 
 Upstream: <https://dreymar.colemak.org/layers-extend.html>
 
-## Why this note exists
+| Platform | Implementation |
+| -------- | -------------- |
+| Linux (sway) | `custom(extend)` in `home/.config/xkb/symbols/custom` + vendored `home/.config/xkb/symbols/extend` |
+| Windows (work) | `~/git/AutoHotkey/Incl/Extend.ahk` (AHK v2; EPKL is not allowed there) |
 
-The reference implementation is [EPKL](https://github.com/DreymaR/BigBagKbdTrixPKL)
-(Windows) and [BigBagKbdTrixXKB](https://github.com/DreymaR/BigBagKbdTrixXKB)
-(Linux). On the work Windows machine, running EPKL is not an option — software
-has to come from the IT kiosk, and a niche keyboard tool will not get onto the
-company allow-list. AutoHotkey v2 *is* available there, so the Windows side was
-reimplemented in the existing AHK repo instead.
+## Usage
 
-On Linux there is no such constraint, but there is also no need for one: a full
-Extend layer is **pure XKB data**, no daemon, no binary. It fits straight into
-the existing `~/.config/xkb/symbols/custom` setup.
+`Scroll_Lock` / `$mod+Insert` cycles the groups (`bin/kbd-layout-toggle`,
+notification shows the active one):
 
-## Current state
+1. `custom(extend)` — Colemak, **CapsLock held = Extend** (default)
+2. `custom(basic)` — Colemak, CapsLock = Ctrl
+3. `custom(qwerty)` — US QWERTY, CapsLock = Ctrl
 
-| Platform | State |
-| -------- | ----- |
-| Windows (work) | **Done.** `~/git/AutoHotkey/Incl/Extend.ahk`, included from `AutoHotkey.ahk`. Syntax-validated, not yet lived with. |
-| Linux (sway)   | **Not started.** This note. |
-
-Relevant existing files here:
-
-- `home/.config/xkb/symbols/custom` — variants `basic` (Colemak) and `qwerty`
-- `home/.config/sway/config.d/10-output-input.conf` — `xkb_layout "custom,custom"`, `xkb_variant "basic,qwerty"`
-- `bin/kbd-layout-toggle` — switches groups at runtime, also toggles `ctrl:nocaps`
-- `docs/reference/keyboard-input.md`, `docs/troubleshooting/xkb-altgr-key-mappings.md`
+All three: ISO key = Hyper (`$hyper`, Mod3), AltGr layer unchanged, NumLock
+disabled.
 
 ## The layer
 
@@ -48,202 +38,152 @@ Extend1, positional. Letters are **Colemak** letters (what the key types here):
 
 ``` text
 +------+------+------+------+------+------+------+------+------+------+------+------+------+
-|Esc   |F1    |F2    |F3    |F4    |F5    |F6    |F7    |F8    |F9    |F10   |F11   |F12   |
-| Caps | Play | Prev | Next | Stop | Mute | Vol- | Vol+ | Media| Home | Srch | File | Calc |
-+======+======+======+======+======+======+======+======+======+======+======+======+======+
 |`     |1     |2     |3     |4     |5     |6     |7     |8     |9     |0     |-     |=     |
-|      | F1   | F2   | F3   | F4   | F5   | F6   | F7   | F8   | F9   | F10  | F11  | F12  |
+| (off)| F1   | F2   | F3   | F4   | F5   | F6   | F7   | F8   | F9   | F10  | F11  | F12  |
 +------+------+------+------+------+------+------+------+------+------+------+------+------+
 |Tab   |Q     |W     |F     |P     |G     |J     |L     |U     |Y     |;     |[     |]     |
-|      | Esc  | WhUp | BrBck| BrFwd| MsUp | PgUp | Home | Up   | End  | Del  | Esc  | Ins  |
+|      | Esc  | WhUp~| BrBck| BrFwd| MsUp~| PgUp | Home | Up   | End  | Del  | Esc  | Ins  |
 +------+------+------+------+------+------+------+------+------+------+------+------+------+
 |Caps+ |A     |R     |S     |T     |D     |H     |N     |E     |I     |O     |'     |\     |
-| EXT  | Alt  | WhDn | Shift| Ctrl | MsDn | PgDn | Left | Down | Right| Back | Menu | BrFav|
+| EXT  | Alt  | WhDn~| Shift| Ctrl | MsDn~| PgDn | Left | Down | Right| Back | Menu | BrFav|
 +------+------+------+------+------+------+------+------+------+------+------+------+------+
-|      |Z     |X     |C     |V     |B     |K     |M     |,     |.     |/     |Spc   |Entr  |
-|      | Undo | Cut  | Copy | Paste| MBt1 | MBt2 | MBt3 | MsLe | MsRi |      | Enter| PrtSc|
-+------+------+------+------+------+------+------+------+------+------+------+------+------+
+|ISO   |Z     |X     |C     |V     |B     |K     |M     |,     |.     |/     |Spc   |
+|Hyper | Undo*| Cut* | Copy*|Paste*| MBt1 | MBt2 | MBt3 | MsLe~| MsRi~|Compse| Enter|
++------+------+------+------+------+------+------+------+------+------+------+------+
+* = keysym only, ~ = unusable (see Known limits).   Esc+Ext = CapsLock
+Mouse keys (W R G D B K M , .) are unused; free for reassignment once the trial shows what is missing.
 ```
 
-The point is not the arrows — it is the **home-row modifiers** `A`/`S`/`T` =
-Alt/Shift/Ctrl, which chord with the rest of the layer:
+The point is the **home-row modifiers** `A`/`S`/`T` = Alt/Shift/Ctrl, which
+chord with the rest of the layer, and Shift passes through:
 
 - `Ext-T+N` → Ctrl-Left (previous word)
 - `Ext-S+T+N` → Ctrl-Shift-Left (select previous word)
 - `Ext-T+O` → Ctrl-Backspace (delete previous word)
 - `Ext-A+4` → Alt-F4
 
-## The CapsLock problem (decide this first)
+## How it is built
 
-`us(colemak)` gives CapsLock → BackSpace, and `custom(basic)` extends that with
-AltGr+Caps → Delete. Extend wants the same key as its layer modifier.
+`custom(extend)` = `custom(basic)` + `extend(lv5)`, then three local fixes.
+`symbols/extend` is vendored **unmodified** (header names the upstream commit),
+so it can be re-vendored; every adjustment lives in `custom`.
 
-**XKB has no tap-hold.** There is no way, in XKB alone, to get "tap = Backspace,
-hold = Extend". Three ways out:
+### Modifier budget: NumLock gave up Mod2
 
-| Option | Trade-off |
-| ------ | --------- |
-| **A. Caps = Extend only** (DreymaR's own answer) | Backspace moves to `Ext-O` (QWERTY `;` position, right ring finger). Zero extra software. Both platforms behave identically if `EXT_TAP := ""` is set on the Windows side too. |
-| **B. Caps = Extend, Backspace elsewhere** | e.g. keep a dedicated Backspace on the ISO key or on `Ext-O` *and* the physical Backspace. Same as A really, just a different crutch. |
-| **C. `keyd` / `kanata` for tap-hold** | Gets tap=Backspace + hold=Extend, matching the AHK behaviour exactly. Costs a root daemon that grabs `/dev/input` — see the "grabbed devices" section of `docs/reference/keyboard-input.md`, it will show up there. |
+XKB has 8 real modifiers, and Extend needs one:
 
-Recommendation: start with **A**. It is the configuration DreymaR himself uses,
-it is what the layer was designed around (`Ext-O` is deliberately a good
-position), and it keeps Linux dependency-free. Revisit C only if `Ext-O` turns
-out to be unbearable after a couple of weeks.
+| Shift | Lock | Control | Mod1 | Mod2 | Mod3 | Mod4 | Mod5 |
+| ----- | ---- | ------- | ---- | ---- | ---- | ---- | ---- |
+| Shift | CapsLock | Ctrl | Alt | **LevelFive (Extend)** | Hyper | Super | LevelThree (AltGr) |
 
-Note the asymmetry if A is chosen: `Incl/Extend.ahk` on Windows currently does
-tap=Backspace. Set `EXT_TAP := ""` there to keep the muscle memory identical.
+Stock `pc` puts LevelFive on **Mod3, next to Hyper**. That is not cosmetic:
+sway matches bindings against the translated keysym *and* the unshifted one, so
+Extend+E (Down) would also be seen as `Mod3+e` and fire `$hyper+e`. NumLock was
+the cheapest thing to give up (no numpad in use), so `custom(mods)`:
 
-## Implementation
+- moves pc's fake `<LVL5>` key to `modifier_map Mod2`;
+- voids `<NMLK>` — a NumLock still on Mod2 would *lock* Extend on;
+- sway sets `xkb_options numpad:mac`, so a keypad types digits anyway.
 
-Stock `xkeyboard-config` already ships everything needed:
+libxkbcommon then gives NumLock its own pure-virtual bit (`NumLock=0x100`), so
+nothing reaches Mod2 but Extend.
 
-- `symbols/level5` → `level5(caps_switch)`: `key <CAPS> { [ ISO_Level5_Shift ], type[group1]="ONE_LEVEL" };`
-- `types/level5` → `EIGHT_LEVEL`, `EIGHT_LEVEL_ALPHABETIC`, `…_WITH_LEVEL5_LOCK`
+### CapsLock via explicit actions, not modifier maps
 
-So levels 5–8 are reachable with a `caps_switch` include and `EIGHT_LEVEL` key
-types. Levels 3/4 (AltGr, the dead keys and the arrow glyphs added in
-`custom(basic)`) are untouched.
+`modifier_map` is **per key, not per group**. `modifier_map Control { <CAPS> }`
+would make Caps add Ctrl in the Extend group too. So Caps carries explicit
+actions per group: `SetMods(modifiers=Control)` in `custom(mods)`,
+`SetMods(modifiers=LevelFive)` in `custom(extend)`. This replaced the old
+runtime `ctrl:nocaps` toggle (and the Caps → Backspace / AltGr+Caps → Delete
+mappings, which never caught on).
 
-### Step 1 — vendor DreymaR's symbols file
+### Shift-preserving key types
 
-Hand-rolling the full layer is possible but tedious (see the trap below), so
-vendor the upstream data file. It is a keymap, not an executable:
+`extend(lv5)` uses `EIGHT_LEVEL_SEMIALPHABETIC`, which *consumes* Shift on
+levels 5/6: Ext-S+T+N arrived as Ctrl+Left. `custom(extend)` re-types every
+Extend key to `EIGHT_LEVEL[_ALPHABETIC]_WITH_LEVEL5_LOCK`, which has
+`preserve[LevelFive+Shift] = Shift`. Their NumLock entries (NumLock as
+level-5 lock) are inert because nothing can set NumLock any more.
 
-``` shell
-curl -L -o ~/dotfiles/home/.config/xkb/symbols/extend \
-  https://raw.githubusercontent.com/DreymaR/BigBagKbdTrixXKB/main/xkb-data_xmod/xkb/symbols/extend
-dotfiles-link   # ~/.config/xkb/symbols/extend
-```
+### Hyper restored
 
-`libxkbcommon` searches `~/.config/xkb/` before the system paths, so
-`include "extend(lv5)"` resolves to this file with no root involved and no
-`install-dreymar-xmod.sh` run.
+`extend(lv5)` maps `<LSGT>` to Delete with explicit actions, which also kills
+Hyper on levels 1–4. `custom(extend)` redefines it as Hyper.
 
-The file provides, among others:
+### No auto-repeat on the home-row modifiers
 
-| Variant | Contents |
-| ------- | -------- |
-| `extend(lv5)` | The main layer — everything except F# row and Backspace/Enter |
-| `extend(lv5_fk)` | F# row (media keys). **Off by default upstream** because it eats `Ctrl+Alt+F#` TTY switching. |
-| `extend(lv5_sk)` | Backspace/Enter mappings. Off by default, known to misbehave in some toolkits. |
-| `extend(lv7)` | Second layer: numpad + nav block moved to the left hand (needs Caps+AltGr) |
+Upstream sets `repeat=yes` on every key, including A/S/T. On Wayland the
+*client* repeats a held key, and re-sends it with the modifier it set now
+active: a held Extend+T arrived as Ctrl+t (zsh `transpose-chars`, VS Code
+"Go to Symbol"). `custom(extend)` sets `repeat = no` on `<AC01>`, `<AC03>`,
+`<AC04>`. Repeat is a per-key property, so holding `a`/`s`/`t` no longer
+repeats the letter in **any** group — the price, judged acceptable.
 
-### Step 2 — new variant in `custom`
+### Extend+` disabled
 
-Add a third variant rather than changing `basic`, so a bad day is one
-`swaymsg reload` away from the old behaviour:
+`extend(lv5)` puts `Pointer_EnableKeys` (an X11 MouseKeys toggle, no use here)
+on `` ` ``; `custom(extend)` voids levels 5–8 to keep the key free.
 
-``` c
-xkb_symbols "extend" {
-    // Colemak, minus the CapsLock → BackSpace mapping: Caps is the layer key.
-    include "us(colemak)"
-    name[Group1] = "Colemak (US) + Extend";
+### Left out on purpose
 
-    key <LSGT> { [ Hyper_L, Hyper_L ] };
-    modifier_map Mod3 { <LSGT> };
+- `extend(lv5_fk)` — media keys on F1–F12. Eats `Ctrl+Alt+F#` and collides with
+  the `$altgr+F#` sway bindings.
+- `extend(lv5_sk)` — Extend on Backspace/Enter; flaky in some toolkits.
+- `extend(lv7)` — Extend2, numpad layer on Caps+AltGr. Only if Extend1 sticks.
 
-    key <DELE> { [ Delete, Delete, Insert, Insert ] };
-    key <AB09> { [ period, greater, dead_abovedot,  U2192 ] };
-    key <AB08> { [ comma,  less,    dead_cedilla,   U2190 ] };
-    key <AB07> { [ m,      M,       dead_macron,    U21D2 ] };
-    key <AB06> { [ k,      K,       dead_abovering, U21D0 ] };
+## Known limits
 
-    include "level5(caps_switch)"   // CapsLock held = ISO_Level5_Shift
-    include "extend(lv5)"
-};
-```
-
-Open question: this duplicates most of `custom(basic)`. `include "custom(basic)"`
-followed by an override of `<CAPS>` would be nicer — but `level5(caps_switch)`
-sets `type[group1]="ONE_LEVEL"` on `<CAPS>` and XKB include merge order
-(`override` vs `augment`) decides whether that wins over the four-level
-BackSpace definition from `us(colemak)`. **Test it; if the include ordering
-works, collapse the duplication.**
-
-### Step 3 — sway
-
-``` conf
-input "type:keyboard" {
-    xkb_layout  "custom,custom"
-    xkb_variant "extend,qwerty"   # was: basic,qwerty
-}
-```
-
-`bin/kbd-layout-toggle` and the comment block in
-`config.d/10-output-input.conf` both still claim group 1 is `custom(basic)` with
-Caps → Backspace — update both. Also check what the script's `ctrl:nocaps`
-toggle does to a Caps that is now a level-5 switch; it very likely has to go.
-
-## Known traps
-
-1. **`modifier_map` is per-key, not per-level.** Putting `Alt_L` on level 5 of
-   `<AC01>` does *not* give "Alt while Extend is held" — `modifier_map Mod1
-   { Alt_L }` matches the *key*, so that key becomes Alt at every level and `a`
-   stops typing `a`. The home-row modifiers need explicit actions:
-   `actions[Group1] = [ …, SetMods(modifiers=Alt, clearmods=LevelFive) ]`.
-   Upstream's file does this correctly — this is the main reason to vendor it
-   rather than hand-roll.
-2. **Levels 1–4 must be `Any`.** Upstream writes `symbols[Group1] = [ Any, Any,
-   Any, Any, <keysym> ]` so the existing AltGr/dead-key levels from
-   `custom(basic)` pass through. Do not replace them with concrete keysyms.
-3. **Autorepeat is lost on keys that define actions** (XKB bug). Upstream adds
-   `repeat=true` per key; if arrows still do not repeat, the fallback is
-   `seq -s " r " 8 255 | xargs xset r` — which is X11-only and therefore useless
-   under sway. Verify repeat behaviour early; it would be a deal-breaker.
-4. **The lv5 modifier is not always eaten**, so some clients see
-   `ISO_Level5_Shift` alongside the keysym. Upstream `clearmods` it per key.
-5. **F# row vs TTY.** `extend(lv5_fk)` steals `Ctrl+Alt+F#`. Leave it out at
-   first, or accept that VT switching needs `chvt`.
-6. **Mod3 is already taken** by `Hyper_L` on `<LSGT>` for sway's `$hyper`
-   bindings. `level5(caps_switch)` only assigns the `LevelFive` *virtual*
-   modifier, so there should be no clash — but confirm with `wev` that
-   `$hyper` bindings still fire.
-7. **Group 2 (`qwerty`) is unaffected**, so the gaming/QWERTY toggle keeps a
-   plain CapsLock. That is probably desirable; decide whether Extend should
-   exist there too.
+1. **libxkbcommon ignores `Redirect`** (compile warning `XKB-362`): the app
+   gets the *physical* key (Q, 1, Z) carrying the Extend keysym (Escape, F1,
+   Undo). Everything that reads the keysym works; consequences:
+   - Ext+Z/X/C/V send the `Undo`/`XF86Cut`/`XF86Copy`/`XF86Paste` keysyms, not
+     Ctrl+Z/X/C/V. Cut/Copy/Paste work in GTK, Firefox and VS Code; Undo only
+     in GTK; Shift+Ext+Z (`Redo`) nowhere by default.
+   - **VS Code needs `"keyboard.dispatch": "keyCode"`.** The default `code`
+     matches shortcuts by physical key, so Ext+Q did not close the command
+     palette, Ext+1… did nothing, and T-then-S fired Ctrl+S. Undo/Redo are
+     chords in `keybindings.json` (`capslock z`, `capslock shift+z`): VS Code
+     has no Undo/Redo key names and sees CapsLock, then a bare Z.
+2. **Mouse keys only half work.** Clicks (B/K/M) and single pointer steps
+   (G/D/,/.) do work — what executes them on Wayland is unconfirmed — but
+   pointer moves do not repeat (≈80 presses across a terminal window), and the
+   wheel keys W/R act erratically (Firefox jumps to the end, VS Code pages).
+   Not worth fixing; the keys are up for reassignment.
+3. **X11 / XWayland apps get no Extend.** The X server cannot load
+   `~/.config/xkb`; `kbd-layout-toggle` gives XWayland plain Colemak with
+   `ctrl:nocaps` in the Extend group. Affects Wine/Proton games, not VS Code
+   (native Wayland).
+4. **No tap-hold.** XKB cannot do "tap Caps = X, hold = Extend". That needs
+   `keyd`/`kanata` (root daemon on `/dev/input`); deliberately not used.
+5. **Key recorders see CapsLock.** VS Code's "record keybinding" turns Extend
+   combos into a `CapsLock …` chord; write the binding in the JSON instead.
+6. **zsh has no bindings for Shift+arrows or F-keys**, so Ext+S+N prints `D`
+   and Ext+5 a `~` — same as the real keys; not an Extend problem.
+7. **Windows parity:** `Extend.ahk` still defaults to tap = Backspace. Set
+   `EXT_TAP := ""` there for identical muscle memory.
 
 ## Validation
 
 ``` shell
-# compiles at all?
-xkbcli compile-keymap --layout custom --variant extend > /dev/null
+# compile check with the library sway uses (libxkbcommon-tools, desktop profile)
+xkbcli compile-keymap --layout custom,custom,custom \
+  --variant extend,basic,qwerty --options numpad:mac --test
 
-# what does the kernel/sway actually see?
-input-keyboards debug          # evtest wrapper, docs/reference/keyboard-input.md
-wev                            # keysyms as sway sees them
+# compile from the repo, before dotfiles-link, with warnings
+xkbcli compile-keymap --include home/.config/xkb --include-defaults \
+  --layout custom,custom,custom --variant extend,basic,qwerty \
+  --options numpad:mac --verbose 2>&1 >/dev/null | grep WARNING
 
-# effective keymap of the running compositor
-swaymsg -t get_inputs | jq '.[] | select(.type=="keyboard") | .xkb_active_layout_name'
+wev                            # keysyms + modifiers as sway hands them out
+swaymsg -t get_inputs | jq -r '[.[] | select(.type=="keyboard")][0].xkb_active_layout_name'
 ```
 
-Smoke test, in order: `Caps+N/E/I/U` arrows → `Caps+T+N` word jump →
-`Caps+S+T+N` word select → `Caps+O` backspace → `Caps+Z/X/C/V`.
-
-## Windows counterpart (for reference / parity)
-
-`~/git/AutoHotkey/Incl/Extend.ahk` — AHK v2, same positional map.
-
-- CapsLock grabbed by scan code (`SC03A`) so it works whether the active Windows
-  layout maps that key to CapsLock or to BackSpace.
-- Tap/hold split: `EXT_TAP` (default `{BackSpace}`), `EXT_TAP_TIMEOUT` 250 ms.
-- Home-row mods are genuine `{LAlt down}` / `{LShift down}` / `{LCtrl down}`
-  presses, released when Caps is released; everything else is sent `{Blind}` so
-  held modifiers pass through.
-- Mouse keys `G/D/,/.` + buttons `B/K/M`, wheel on `W/R`.
-- Not yet implemented there: Extend2 (numpad layer), tap-Extend dead-key layers,
-  shifted media keys.
-
-Known difference to settle once the Linux side exists: see the CapsLock section
-above (`EXT_TAP`).
+Smoke test in the Extend group, in order: `Caps+N/E/I/U` arrows → `Caps+T+N` word jump
+→ `Caps+S+T+N` word select → `Caps+O` backspace → hold `Caps+E` (repeat) →
+`ISO+w` still opens the browser → `Caps+E` must **not** open doublecmd.
 
 ## Open questions
 
-- Option A or C for CapsLock (see above)?
-- Keep `basic` as group 1 during the trial and put `extend` in a third group, or
-  swap `basic` → `extend` outright?
-- Is Extend2 (`extend(lv7)`, numpad on Caps+AltGr) worth it, given the ScrollLock
-  numpad layer that already exists in the AHK config and has no Linux equivalent?
-- Should `bin/kbd-layout-toggle` grow an Extend on/off toggle, or is layout group
-  switching enough?
+- Keep `basic` and `extend` side by side, or retire `basic` after the trial?
+- Extend2 (`extend(lv7)`) — only after Extend1 has stuck.
+- Rearrange the dead keys (mouse, Z/X/C/V) to something useful on Wayland?

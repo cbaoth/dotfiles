@@ -234,6 +234,25 @@ Why each was dropped, plus the Super/Mod4 and VS Code dead ends:
       adopted (GNOME, …). A chord prefix needs an evdev-level remapper; check
       first whether that compositor lets the remapper's own keymap survive.
 
+## Keyboard — Extend layer & Hyper (trial started 2026-10-23)
+
+Extend1 is the default layout group (`custom(extend)`, 2026-10-24); design, limits and
+smoke test: [`docs/setup/extend-layer.md`](setup/extend-layer.md). The ideas
+below wait until the trial has settled.
+
+- [ ] [S] Decide after a few weeks: keep Extend, retire `custom(basic)`, or both
+- [ ] [S] Windows parity: `EXT_TAP := ""` in `~/git/AutoHotkey/Incl/Extend.ahk`
+- [ ] [M] Re-map the keys that are dead on Wayland (mouse keys, Ext+Z/X/C/V
+      only send `Undo`/`XF86Copy`… keysyms) to something useful
+- [ ] [M] Use Hyper (ISO key) more: non-critical shortcuts in emacs, VS Code,
+      sway, maybe zsh/foot. ISO-only, so never for anything an ANSI keyboard
+      (notebook) needs. Check first what Electron makes of Mod3
+- [ ] [S] ISO key as a second Extend key, or a key for a further layer
+- [ ] [L] Extend for pointer devices: gestures, temporary pointer/scroll speed
+      change, virtual extra mouse buttons (Ext+Btn1/2/3 → 6/7/8), or a mouse
+      thumb button as the layer key. Probably needs libinput/sway config or an
+      evdev remapper, not XKB
+
 ## Window Placement & Layout Persistence
 
 Background, with the sway-1.11 source traces behind every claim:

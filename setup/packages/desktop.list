@@ -102,6 +102,9 @@ solaar
 # on a headless server, hence desktop only.
 evtest
 wev
+# xkbcli: compile/check keymaps with libxkbcommon, the library sway itself
+# uses (xkbcomp from x11-xkb-utils is the X server's compiler and differs).
+libxkbcommon-tools
 
 # Screenshot shutter sound: canberra-gtk-play (the binary lives in
 # gnome-session-canberra) plays the freedesktop "screen-capture" event.
