@@ -214,10 +214,10 @@ out"); the latter is the cheaper, more actionable signal week to week.
 | `rkhunter`, `lynis` weekly | see above |
 | `fail2ban-summary-mail.sh` | Netdata health rules on the `go.d/fail2ban` charts → ntfy. The mail path is dead anyway: `postfix.service` is failed and the outbound relay was never finished |
 
-## Notes on this host are a read-only replica
+## Notes on this host: commit and pull, never push
 
-`~/notes` here pulls, never pushes. `notes-pull.timer` (hourly,
-`notes-sync --pull-only`) instead of `notes-sync.timer`; the fine-grained
+`~/notes` here commits and pulls, never pushes. `notes-pull.timer` (hourly,
+`notes-sync --no-push`) instead of `notes-sync.timer`; the fine-grained
 GitHub token is **Contents+Metadata read-only** and lives in a repo-scoped git
 credential helper at `~/.config/git/notes-credentials` (mode 600), so it is
 never offered to any other remote.
@@ -229,12 +229,20 @@ readable *and writable*, and those notes get read back as instructions. Read
 exposure is much cheaper: a shell on this box is already in the `docker` group,
 which is root-equivalent.
 
-Corollary: **do not author notes on this host.** Edits stay uncommitted on
-purpose so they show up as drift, and `--pull-only` warns every run if local
-commits exist. When something must be written here, push it by hand with
-`git push-token`, which disables every credential helper for one command so the
-write token is prompted for and never stored. A plain `git push` here returns
-403 — that is the design working, not a fault.
+Edits here are auto-committed every hour (autosave message with host and
+paths) and wait for a manual push. Until 2026-10-24 this host ran
+`--pull-only` and left edits uncommitted on purpose so they showed up as drift;
+that was dropped because notes do get written here (agent sessions), and
+committing costs no credential.
+
+Push by hand, usually at the end of a session:
+
+- `notgc`: commit now and pull (`notes-sync --no-push`).
+- `notgcp`: `notgc`, then `git push-token` if anything is unpushed.
+
+`git push-token` disables every credential helper for one command, so the write
+token is prompted for and never stored. A plain `git push` here returns 403 —
+that is the design working, not a fault.
 
 ## Open
 

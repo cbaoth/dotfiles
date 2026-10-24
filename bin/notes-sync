@@ -49,10 +49,11 @@ Does nothing when the working tree is clean, so it is safe to run on a timer.
 Options:
   -n, --dry-run   Show what would happen; change nothing
   -q, --quiet     Only print on error or on an actual commit (for timers)
-      --no-push   Commit locally, but do not pull or push
-      --pull-only Pull only: never commit, never push. For hosts that should
-                  READ the notes but must not hold a push credential (the
-                  public-facing vserver) — see the note in the source.
+      --no-push   Commit locally and pull --rebase, but never push. For hosts
+                  that must not hold a push credential (the public-facing
+                  vserver): commits wait there until pushed by hand with
+                  \`git push-token\` — see the note in the source.
+      --pull-only Pull only: never commit, never push.
   -h, --help      This help
 
 Environment:
@@ -105,7 +106,9 @@ fail_or_tolerate() {
   fi
 
   ahead="$(git rev-list --count "${upstream}..HEAD" 2>/dev/null)" || ahead=0
-  if (( ahead > MAX_UNPUSHED )); then
+  # With --no-push, unpushed commits are the normal state (they wait for a
+  # manual push), so the count says nothing about how stale the sync is.
+  if (( ! no_push && ahead > MAX_UNPUSHED )); then
     p_err "${reason}; ${ahead} commits unpushed (> ${MAX_UNPUSHED}) — notes have not synced for a while"
     exit 1
   fi
@@ -153,19 +156,18 @@ main() {
   fi
 
   # {{{ - Pull-only ------------------------------------------------------------
-  # Read-only replica mode, for a host that must NOT hold a push credential.
+  # Pure read-only mode. The vserver used this until 2026-10-24 and now runs
+  # --no-push (see below); kept for a replica where nobody writes at all.
   #
-  # The threat is not "an attacker reads my notes" — anyone with a shell on the
+  # Why a host may hold no push credential: the threat is not "an attacker reads my notes" — anyone with a shell on the
   # vserver is in the docker group, which is root-equivalent, and can enumerate
   # the whole box in minutes. It is the CREDENTIAL: a token that can push to the
   # notes repo turns "one host compromised" into "every host's documentation
   # compromised, and writable" — notes that both humans and agents later read
   # back as instructions.
   #
-  # So: pull, never commit, never push. Local edits are deliberately left
-  # uncommitted so they show up as drift rather than accumulating into commits
-  # that can never leave the box (the exact `_local/` failure this repo already
-  # learned once). --autostash keeps them across the rebase.
+  # So: pull, never commit, never push. Local edits stay uncommitted and
+  # --autostash keeps them across the rebase.
   if (( pull_only )); then
     if ! git remote get-url origin >/dev/null 2>&1; then
       p_err "--pull-only needs an 'origin' remote"
@@ -205,21 +207,24 @@ main() {
   else
     local -i n_files
     n_files="$(git status --porcelain | wc -l)"
-    local -r msg="notes: autosave $(date -Is) (${n_files} file(s))"
+    # Host in the subject: on a --no-push host commits pile up until a manual
+    # push, so `git log` must show where each one came from.
+    local -r msg="notes: autosave $(hostname -s) $(date -Is) (${n_files} file(s))"
 
     if (( dry_run )); then
       printf 'would commit %d file(s):\n' "${n_files}"
       git status --short
     else
       git add -A || { p_err "git add failed"; exit 1; }
-      git commit -q -m "${msg}" || { p_err "git commit failed"; exit 1; }
+      # Body = the changed paths, so a batch of autosaves can be reviewed with
+      # `git log` before pushing, without a diff per commit.
+      git commit -q -m "${msg}" -m "$(git diff --cached --name-status)" \
+        || { p_err "git commit failed"; exit 1; }
       # Not gated on --quiet: an actual commit is the one thing worth logging.
       printf '%s\n' "${msg}"
     fi
   fi
   # }}} - Commit --------------------------------------------------------------
-
-  (( no_push )) && return 0
 
   # No remote yet (e.g. before the GitHub repo exists) is fine — commit and stop.
   if ! git remote get-url origin >/dev/null 2>&1; then
@@ -228,7 +233,7 @@ main() {
   fi
 
   if (( dry_run )); then
-    p_msg "would pull --rebase and push to $(git remote get-url origin)"
+    p_msg "would pull --rebase$( (( no_push )) || printf ' and push') with $(git remote get-url origin)"
     return 0
   fi
 
@@ -238,6 +243,21 @@ main() {
   if ! git pull --rebase --autostash -q; then
     fail_or_tolerate "pull --rebase failed (conflict? offline?)"
   fi
+
+  # {{{ - No-push -------------------------------------------------------------
+  # Commit + pull, for a host without a push credential (see Pull-only above
+  # for why). Unlike --pull-only, edits are committed: the commits wait here
+  # until pushed by hand (`git push-token`, or `notgcp` on the vserver), and
+  # committing first means a pull conflict stops as a rebase in progress,
+  # which the next run reports, instead of a failed autostash pop.
+  if (( no_push )); then
+    local -i ahead=0
+    ahead="$(git rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo 0)"
+    (( ahead > 0 )) && p_msg "${ahead} local commit(s) not pushed (git push-token)"
+    p_msg "pulled from $(git remote get-url origin), not pushing (--no-push)"
+    return 0
+  fi
+  # }}} - No-push -------------------------------------------------------------
 
   if ! git push -q; then
     fail_or_tolerate "push failed (offline? auth?)"

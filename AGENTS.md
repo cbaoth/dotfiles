@@ -252,9 +252,10 @@ Two systemd user timers exist; enable **one**, never both:
 | Timer | For | Credential it needs |
 | ----- | --- | ------------------- |
 | `notes-sync.timer` | authoring hosts (motoko) — commits every 5 min **and pushes** | one that can **write** the notes repo |
-| `notes-pull.timer` | read-only replicas (the public-facing vserver) — hourly `git pull`, never commits, never pushes | one that can only **read** |
+| `notes-pull.timer` | hosts without a push credential (the public-facing vserver) — hourly commit + `git pull`, **never pushes** | one that can only **read** |
 
-Both drive `bin/notes-sync`; the replica adds `--pull-only`.
+Both drive `bin/notes-sync`; the vserver adds `--no-push` (`--pull-only`, which
+never commits, still exists for a replica nobody writes on).
 
 The split is about the **credential, not the content**. A push token on an
 internet-facing box escalates "one host compromised" into "every host's
@@ -263,14 +264,18 @@ instructions by both humans and agents. Read exposure is far less serious:
 anyone with a shell there is already in the `docker` group, which is
 root-equivalent, and can enumerate the box in minutes anyway.
 
-On a replica, local edits are deliberately left **uncommitted** so they surface
-as drift; `--pull-only` warns on every run if local commits exist, because
-nothing on that host can ever push them. Write there only when you must, and
-push by hand:
+On the vserver, local edits are **auto-committed** (with an autosave message
+that names the host and lists the paths) but never pushed: the commits wait
+until the user pushes by hand, usually at the end of an agent session:
 
 ```bash
+notgc                     # commit now + pull (notes-sync --no-push)
+notgcp                    # notgc, then git push-token if anything is unpushed
 git push-token            # bin/git-push-token
 ```
+
+`notgc`/`notgcp` live in `home/.zsh.d/aliases-11001001_org.zsh`. Agents on that
+host may commit notes with a real message as usual; just don't try to push.
 
 A plain `git push` on a replica fails with **403**, and that is correct — it
 reuses the stored read-only token. Git cannot pick a credential per operation

@@ -1,5 +1,5 @@
 [Unit]
-Description=Pull the private notes repo (~/notes) read-only
+Description=Commit and pull the private notes repo (~/notes), never push
 Documentation=file:%h/dotfiles/bin/notes-sync
 After=network-online.target
 Wants=network-online.target
@@ -11,22 +11,25 @@ OnFailure=notes-sync-failed.service
 [Service]
 Type=oneshot
 
-# --pull-only: never commits, never pushes.
+# --no-push: commits local edits and pulls, never pushes. The commits wait
+# here until pushed by hand with `git push-token` (or `notgcp`). The unit keeps
+# its old name from when it ran --pull-only, to avoid a re-enable on the host.
 #
 # This is the counterpart to notes-sync, NOT a replacement — enable exactly ONE
 # of the two per host:
 #
 #   notes-sync.timer   authoring hosts (motoko). Commits + pushes. Needs a
 #                      credential that can WRITE the notes repo.
-#   notes-pull.timer   read-only replicas (the public-facing vserver). Needs a
-#                      credential that can only READ.
+#   notes-pull.timer   hosts without a push credential (the public-facing
+#                      vserver). Commits, never pushes. Needs a credential
+#                      that can only READ.
 #
 # The split exists because of the credential, not the content: a push token on
 # an internet-facing box turns "one host compromised" into "every host's
 # documentation compromised, and writable" — notes that humans and agents later
 # read back as instructions. Read exposure is far less serious; anyone with a
 # shell there is already in the docker group, which is root-equivalent.
-ExecStart=%h/bin/notes-sync --pull-only --quiet
+ExecStart=%h/bin/notes-sync --no-push --quiet
 
 # The fine-grained read-only token is supplied by a git credential helper scoped
 # to this repo, so no prompt should ever appear. If auth breaks, fail rather

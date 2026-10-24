@@ -1,11 +1,11 @@
 [Unit]
-Description=Pull ~/notes hourly (read-only replica)
+Description=Commit and pull ~/notes hourly (no push)
 Documentation=file:%h/dotfiles/bin/notes-sync
 
 [Timer]
-# Hourly, not the 5 minutes notes-sync uses. A replica has no unsaved work to
-# protect — the only cost of being stale is reading yesterday's note — so this
-# trades freshness for far fewer wakeups and log lines.
+# Hourly, not the 5 minutes notes-sync uses. Nothing leaves the host before a
+# manual push anyway, so a commit is only a local checkpoint; `notgc`/`notgcp`
+# commit on demand at the end of a session. Far fewer wakeups and log lines.
 OnStartupSec=3min
 OnUnitActiveSec=1h
 
