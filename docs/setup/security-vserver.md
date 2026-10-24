@@ -237,8 +237,10 @@ committing costs no credential.
 
 Push by hand, usually at the end of a session:
 
-- `notgc`: commit now and pull (`notes-sync --no-push`).
-- `notgcp`: `notgc`, then `git push-token` if anything is unpushed.
+- `notc`: commit now and pull (`notes-sync --no-push`).
+- `notsy`: `notc`, then pull and push; push goes through `git push-token`
+  here (`CB_PUSH_NEEDS_TOKEN=1`) and is skipped when nothing is unpushed.
+- `sy`: the same for dotfiles and notes together.
 
 `git push-token` disables every credential helper for one command, so the write
 token is prompted for and never stored. A plain `git push` here returns 403 —

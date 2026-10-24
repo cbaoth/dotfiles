@@ -247,7 +247,7 @@ main() {
   # {{{ - No-push -------------------------------------------------------------
   # Commit + pull, for a host without a push credential (see Pull-only above
   # for why). Unlike --pull-only, edits are committed: the commits wait here
-  # until pushed by hand (`git push-token`, or `notgcp` on the vserver), and
+  # until pushed by hand (`git push-token`, or `notsy`), and
   # committing first means a pull conflict stops as a rebase in progress,
   # which the next run reports, instead of a failed autostash pop.
   if (( no_push )); then

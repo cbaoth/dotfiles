@@ -269,13 +269,14 @@ that names the host and lists the paths) but never pushed: the commits wait
 until the user pushes by hand, usually at the end of an agent session:
 
 ```bash
-notgc                     # commit now + pull (notes-sync --no-push)
-notgcp                    # notgc, then git push-token if anything is unpushed
+notc                      # commit now + pull (notes-sync --no-push)
+notsy                     # notc, then pull + push (git push-token here)
 git push-token            # bin/git-push-token
 ```
 
-`notgc`/`notgcp` live in `home/.zsh.d/aliases-11001001_org.zsh`. Agents on that
-host may commit notes with a real message as usual; just don't try to push.
+`notc`/`notsy` and the rest of the `dot*`/`not*` repo wrappers live in
+`home/.aliases` (*REPO SYNC*). Agents on that host may commit notes with a real
+message as usual; just don't try to push.
 
 A plain `git push` on a replica fails with **403**, and that is correct — it
 reuses the stored read-only token. Git cannot pick a credential per operation

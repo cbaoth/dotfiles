@@ -1249,16 +1249,34 @@ repo-sync() {
   git -C "${_dir}" push-token
 }
 
-# dotfiles: relink after pulling, since a pull can add or rename linked files.
-dots() { repo-sync "$(_repo_dotfiles)" && dotfiles-link; }
-alias nots='repo-sync "$(_repo_notes)"'
+# Suffixes follow the `gi` git aliases where the meaning matches:
+#   s = status, c = commit, pu = push, u = update (pull), sy = sync.
+# Sync used to be `dots`/`nots`; `s` is status now, like `gis`, so the old
+# habit lands on a read-only command. No `pl`: `u` is the pull, and a dotfiles
+# pull without relinking would be a footgun. No `dotc`: the dotfiles repo is
+# public and gets real commit messages, never autosaves.
+alias dots='dotg status -sb'
+alias nots='notg status -sb'
+alias dotpu='dotg push'                       # token-aware, see _repo_git
+alias notpu='notg push'
 alias notu='notg pull --rebase --autostash'   # pull only; the twin of dotu
+
+# notes: commit pending edits with an autosave message, then pull. Same as the
+# timers do (bin/notes-sync), on demand — e.g. at the end of an agent session.
+notc() { NOTES_DIR="$(_repo_notes)" notes-sync --no-push "$@"; }
+
+# Sync = pull --rebase, then push if anything is ahead (see repo-sync).
+# dotfiles: relink after pulling, since a pull can add or rename linked files.
+# notes: commit first, so pending edits are pushed instead of autostashed.
+gisy() { repo-sync "$(git rev-parse --show-toplevel)"; }
+dotsy() { repo-sync "$(_repo_dotfiles)" && dotfiles-link; }
+notsy() { notc && repo-sync "$(_repo_notes)"; }
 
 # Both repos. Independent, so a failure in one does not skip the other.
 syncall() {
   local _rc=0
-  dots || _rc=1
-  repo-sync "$(_repo_notes)" || _rc=1
+  dotsy || _rc=1
+  notsy || _rc=1
   return "${_rc}"
 }
 alias sy='syncall'

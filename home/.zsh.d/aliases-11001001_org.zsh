@@ -98,29 +98,4 @@ sb-passwd() {
 }
 # }}} - SILVERBULLET ---------------------------------------------------------
 
-# {{{ - NOTES ----------------------------------------------------------------
-# ~/notes here commits and pulls but never pushes (notes-pull.timer runs
-# `notes-sync --no-push` hourly): no write credential lives on this host.
-# These do the same on demand, and push with a token typed in at the prompt.
-
-# notgc: commit pending ~/notes edits (autosave message) and pull.
-notgc() {
-  notes-sync --no-push "$@"
-}
-
-# notgcp: notgc, then push with a prompted token, but only if there is
-# something to push, so a clean repo never asks for the token.
-notgcp() {
-  notgc || return
-  local -i ahead
-  ahead="$(git -C ~/notes rev-list --count '@{upstream}..HEAD')" || return
-  if (( ahead == 0 )); then
-    print "notgcp: nothing to push"
-    return 0
-  fi
-  git -C ~/notes log --oneline '@{upstream}..HEAD'
-  git -C ~/notes push-token
-}
-# }}} - NOTES ----------------------------------------------------------------
-
 return 0

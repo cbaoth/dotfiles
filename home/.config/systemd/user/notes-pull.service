@@ -12,7 +12,7 @@ OnFailure=notes-sync-failed.service
 Type=oneshot
 
 # --no-push: commits local edits and pulls, never pushes. The commits wait
-# here until pushed by hand with `git push-token` (or `notgcp`). The unit keeps
+# here until pushed by hand with `git push-token` (or `notsy`). The unit keeps
 # its old name from when it ran --pull-only, to avoid a re-enable on the host.
 #
 # This is the counterpart to notes-sync, NOT a replacement — enable exactly ONE
