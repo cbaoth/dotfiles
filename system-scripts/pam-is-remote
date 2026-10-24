@@ -1,0 +1,18 @@
+#!/bin/sh
+# pam-is-remote: exit 0 if the process that invoked PAM (sudo, su) was started
+# from an ssh session, non-zero otherwise (including on any error).
+#
+# Called by pam_exec from /etc/pam.d/common-auth to skip pam_u2f for remote
+# sudo: nobody is at the keyboard to touch the key, so the password is asked
+# instead. pam_exec drops the caller's environment, hence the parent's initial
+# environment is read from /proc (needs root: pam_exec must run with `seteuid`).
+#
+# Fails closed: if this cannot tell, it says "not remote" and pam_u2f keeps
+# asking for the key as before. A user can fake SSH_CONNECTION to skip the key,
+# which only ever makes the login stricter (password instead of key).
+#
+# INSTALL A COPY, never a symlink into a user-writable tree: PAM runs this as
+# root, so it must be root-owned and not writable by anyone else.
+#   sudo install -m 755 -o root -g root system-scripts/pam-is-remote /usr/local/sbin/pam-is-remote
+# See docs/setup/security.md.
+tr '\0' '\n' < "/proc/${PPID}/environ" 2> /dev/null | grep -q '^SSH_CONNECTION=.'

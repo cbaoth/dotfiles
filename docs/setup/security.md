@@ -3,7 +3,7 @@ title: Security — KeePassXC, FIDO2/U2F, firewall
 hosts: [motoko]
 status: workaround
 tags: [security, pam, u2f, fido2, keepassxc, ufw, keyring, swayidle, sleep]
-updated: 2026-07-23
+updated: 2026-10-23
 ---
 
 # Security
@@ -96,6 +96,16 @@ exec swayidle -w \
        before-sleep 'swaylock -f -c 000000; ~/bin/lock-secrets' \
 ```
 
+**The hooks pass `--keep-keyring`** (2026-10-23): gnome-keyring is left unlocked
+and only KeePassXC and the SSH agent are locked. The keyring holds app tokens and
+browser storage keys, is encrypted at rest (password, ~2200 SHA-256 iterations —
+a weak KDF, so keep the password strong; a PIN would fall in minutes) and has no
+idle timeout (`lock_timeout 0` in the file header). Re-locking it on every
+resume only bought a second password prompt. It is unlocked once per login;
+`unlock-secrets` still prompts for it if the daemon ever restarts locked.
+Without the flag `lock-secrets` still locks it. Editing the hooks needs a
+`swayidle` restart (see `90-launch-apps.conf`).
+
 **The tiering is deliberate.** The screen locks at 15min — cheap to undo, one
 password. Secrets lock at 30min — expensive to undo, the master password. But
 always before sleep, where the machine is left unattended by intent.
@@ -140,6 +150,18 @@ fido2-token -L          # generic
 # ykman list            # genuine YubiKey (yubikey-manager)
 ```
 
+### Where the key applies (decision 2026-10-23)
+
+| Context | Key? | Why |
+| ------- | ---- | --- |
+| `sudo`, TTY login (local) | yes | avoids retyping the password in a session that is already unlocked |
+| `swaylock` | **no** | the key stays plugged in; anyone at the locked PC could touch it (LUKS does not help once the machine is running) |
+| ssh login | n/a | password auth is off in sshd; keys only |
+| `sudo` inside an ssh session | no | same |
+
+LUKS and KeePassXC are deliberately password-only: a key that lives in the PC is
+a possession-only factor, and a thief takes both.
+
 ### Where to store the key mapping
 
 **In `$HOME`** (default) — simple, but fails if `$HOME` is encrypted separately
@@ -154,8 +176,14 @@ mkdir -p ~/.config/Yubico && pamu2fcfg >> ~/.config/Yubico/u2f_keys
 ```shell
 pamu2fcfg | sudo tee -a /etc/u2f_keys
 sudo chown root:root /etc/u2f_keys
-sudo chmod 600 /etc/u2f_keys
+sudo chmod 644 /etc/u2f_keys
 ```
+
+**Mode 644, not 600.** The file holds only key handles and public keys, no
+secret. With 600, every PAM service that runs *as the user* (`swaylock`, a
+screensaver) cannot read it, and `nouserok` turns that into a silent "ignore":
+no touch prompt, no blink, just a password check. Root-run services (sudo,
+login, sshd) never noticed.
 
 ### Enabling it
 
@@ -175,6 +203,41 @@ auth sufficient pam_u2f.so authfile=/etc/u2f_keys cue nouserok
 Omit `nouserok` and you have locked out every user who has not enrolled a key.
 That includes you, on the console, right now. Keep it until every account is
 enrolled.
+
+### Password for sudo over ssh
+
+`pam_u2f` blocks until the key is touched and has no timeout (libpam-u2f 1.4);
+Ctrl-C does nothing. For `sudo` run in an ssh session that means waiting for a
+key nobody can reach. One line in `common-auth`, **above** the `pam_u2f.so`
+line, skips it; if the helper fails or is missing, PAM ignores the line and the
+key is asked for as before:
+
+```
+# sudo/su started from an ssh session: skip the key. success=1 jumps over the
+# next line (pam_u2f). seteuid is required, the helper reads the caller's
+# /proc/PID/environ.
+auth [success=1 default=ignore] pam_exec.so quiet seteuid /usr/local/sbin/pam-is-remote
+```
+
+ssh *logins* need no rule: password auth is disabled in sshd on every host, so
+sshd never runs the auth stack (a `service = sshd` skip line was tried and
+dropped, 2026-10-24).
+
+The helper is [`system-scripts/pam-is-remote`](../../system-scripts/pam-is-remote).
+Install a **copy** (PAM runs it as root; a symlink into `$HOME` would let any
+process of yours run code as root):
+
+```shell
+sudo install -m 755 -o root -g root system-scripts/pam-is-remote /usr/local/sbin/pam-is-remote
+```
+
+Gotchas:
+
+- A tmux server started over ssh keeps `SSH_CONNECTION` in its panes, so sudo
+  there asks for the password even at the PC: stricter, never looser.
+- Test with a real command (`sudo -k; sudo ls /root`), not `sudo true`: that one
+  is `NOPASSWD` on purpose (next section).
+- `sudo -k` wipes the credential cache; do not use it to "test" caching.
 
 ### The `sudo -n true` trap
 
