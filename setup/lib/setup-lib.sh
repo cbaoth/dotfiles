@@ -166,7 +166,10 @@ st::read_list() {
   local -a _st_items=()
   local line
   while IFS= read -r line || [[ -n "${line}" ]]; do
-    line="${line%%#*}"                       # strip comments
+    # strip comments: '#' at line start or after whitespace only, so a '#'
+    # inside an entry survives (nix flake refs: nixpkgs#foo)
+    [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+    line="${line%%[[:space:]]#*}"
     line="${line#"${line%%[![:space:]]*}"}"  # ltrim
     line="${line%"${line##*[![:space:]]}"}"  # rtrim
     [[ -z "${line}" ]] && continue
