@@ -819,13 +819,12 @@ add-zle-hook-widget keymap-select _cb_cursor_shape
 add-zle-hook-widget line-init     _cb_cursor_shape
 # }}} - CURSOR SHAPE = MODE INDICATOR ----------------------------------------
 
-# alt-x (emacs-mode default) runs execute-named-cmd: zsh's own M-x, it prompts
-# for any zle widget by name (Tab completes), e.g. `alt-x quote-line`.
+# alt-x and ctrl-x ctrl-z are bound in ~/.zsh.d/zle-mx.zsh (sourced below): an
+# fzf widget picker that shows keys and descriptions, replacing the built-in
+# execute-named-cmd / execute-last-named-cmd.
 # ctrl-x ctrl-x is left at its default, exchange-point-and-mark (jump to the
 # other end of the selection, as in Emacs); it was a second execute-named-cmd
 # key until 2026-10.
-#bindkey '^x^x' execute-named-cmd # in addition to alt-x (if alt not working)
-bindkey '^x^z' execute-last-named-cmd # in addition to alt-x (if alt not working)
 
 # sudo
 #bindkey "^[^[" sudo-command-line # esc, esc (if \e\e doesn't work)
@@ -903,6 +902,8 @@ fpath=("$HOME/.zsh.d/functions" "${fpath[@]}")
 
 # quick notes front-end (qn, qne, qnee, qt, qte); after keybindings + plugins
 source_ifex $HOME/.zsh.d/quicknote.zsh
+# alt-x widget picker and zle-keys cheat sheet; after keybindings + plugins
+source_ifex $HOME/.zsh.d/zle-mx.zsh
 
 # shell-agnostic os/host env vars first (may gate the aliases below), then aliases
 source_ifex_custom $HOME/lib/env

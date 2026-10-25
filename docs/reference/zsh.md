@@ -238,7 +238,14 @@ a small wrapper, `_cb-edit-command-line`, that redraws the whole prompt
 afterwards: Emacs leaves the cursor in column 0, and without the redraw the
 edit overwrote the `❯` on screen (the command itself was always right).
 | `Ctrl-X a` | `_expand_alias` | expand the alias under the cursor **on demand** |
-| `Alt-X` | `execute-named-cmd` | zsh's own `M-x`: run any zle widget by name (`Tab` completes), e.g. `quote-line`, `which-command` |
+| `Alt-X` | `_cb-mx` | `M-x` picker (fzf): every widget with its keys, description and keywords; `Enter` runs it, e.g. `swap` → `transpose-chars` |
+| `Ctrl-X Ctrl-Z` | `_cb-mx-last` | run the last `Alt-X` pick again |
+
+**Cheat sheet:** `zle-keys [PAT…]` prints the bound widgets with keys,
+description and keywords (rows must match all `PAT`s); `zle-keys -a` includes
+unbound ones. Both come from `~/.zsh.d/zle-mx.zsh`: keys are read live from
+`bindkey`, built-in descriptions from `man zshzle`. A search that should have
+found something but did not → add synonyms to `_CB_MX_KEYWORDS` there.
 
 > **`Alt-.` is the path-reuse trick.** After `ll /long/path`, type e.g. `vim `
 > then `Alt-.` → `vim /long/path`, without ever editing the long expanded alias.
