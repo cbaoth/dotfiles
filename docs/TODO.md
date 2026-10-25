@@ -124,9 +124,12 @@ sourced libs need explicit handling. `lib/functions.sh` already fixed
 
 Follow-ups after the zplug → zinit migration:
 
-- [ ] [S] Turbo-load `zsh-autosuggestions` and `zaw` too (currently loaded
-  synchronously so their keybindings resolve). Move their `bindkey` calls into
-  `atload'…'` ice so the widgets exist when bound, then drop the sync loads.
+- [ ] [S] Turbo-load `zsh-autosuggestions` too (currently loaded
+  synchronously so its keybinding resolves). Move its `bindkey` call into an
+  `atload'…'` ice so the widget exists when bound, then drop the sync load.
+- [ ] [S] fzf trial (replaced zaw 2026-10-18): decide which of Ctrl-R /
+  Ctrl-T / Alt-C / `**<Tab>` stay, rebind or drop the rest (FZF section in
+  `home/.zshrc`).
 - [ ] [S] Clean up leftover zplug state once the migration is confirmed good:
   `rm -rf ~/.zplug ~/.zplug-skip-install-prompt ~/.zplug-force-install`.
 - [ ] [S] Re-evaluate `zsh-expand` config vars (`ZPWR_EXPAND*`, `ZPWR_CORRECT`,

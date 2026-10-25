@@ -45,6 +45,7 @@ python3-pygments
 
 # Search & find
 fd-find
+fzf
 ripgrep
 # TODO look into ripgrep-all
 

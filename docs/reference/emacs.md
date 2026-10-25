@@ -104,7 +104,7 @@ Same keys, same action: `C-a` `C-e` `C-f` `C-b` `M-f` `M-b` `C-k` `C-y`
 | `C-w` without selection | delete word left | cut from the mark |
 | `C-g` without selection | abort the line | nothing to cancel |
 | `C-u` | delete to line start | prefix argument (`C-u 8 *` → `********`) |
-| `C-r` | fuzzy history (zaw) | search backward |
+| `C-r` | fuzzy history (fzf) | search backward |
 
 **Prompt → Emacs:** `C-x C-e` at the zsh prompt opens the line in Emacs;
 `C-x C-s C-x C-c` puts the result back at the prompt. `C-c s` saves a copy as

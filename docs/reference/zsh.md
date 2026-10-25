@@ -3,7 +3,7 @@ title: zsh notes (options, globbing, keybindings)
 hosts: [all]
 status: resolved
 tags: [zsh, shell, keybindings, emacs-mode, vi-mode, glob, foot, fzf]
-updated: 2026-10-10
+updated: 2026-10-18
 ---
 
 Some random notes on zsh, mostly for my own reference.
@@ -182,7 +182,7 @@ in the `ZSH KEYBINDINGS` section of `~/.zshrc`.
 
 Switching back to vi mode is a two-line toggle in `~/.zshrc`: swap
 `bindkey -e`/`#bindkey -v` and uncomment `KEYTIMEOUT=20` (0.2 s, a fast `ESC`
-into command mode that still leaves time for the zaw `Alt`-chords). Everything
+into command mode that still leaves time for multi-key `Alt`-chords). Everything
 else works in both modes:
 
 - The single-press editing keys below are bound in the main keymap, whichever
@@ -197,7 +197,7 @@ both):
 | --- | --- | --- |
 | `Ctrl-W` | no selection: delete word left | no selection: cut from the mark |
 | `Ctrl-U` | delete to start of line | numeric prefix argument |
-| `Ctrl-R` | fuzzy history (zaw) | search backward |
+| `Ctrl-R` | fuzzy history (fzf) | search backward |
 
 ## Single-press editing keys
 
@@ -301,10 +301,15 @@ it literally instead of acting on it:
 
 | Key | Widget | Action |
 | --- | --- | --- |
-| `Ctrl-R` | `zaw-history` | fuzzy-filter command history (`zaw`) |
+| `Ctrl-R` | `fzf-history-widget` | fuzzy-filter command history (fzf) |
 | `Ctrl-X r` | `history-incremental-search-backward` | plain incremental reverse search |
-| `Alt-R` | `zaw` | open the `zaw` source menu |
-| `Alt-V Alt-L/R/S` | `zaw-git-log` / `-reflog` / `-status` | git pickers via `zaw` |
+| `Ctrl-T` | `fzf-file-widget` | insert file path(s) via fzf |
+| `Alt-C` | `fzf-cd-widget` | cd into a subdirectory via fzf |
+| `**<Tab>` | `fzf-completion` | fuzzy completion (`vim **<Tab>`) |
+
+fzf replaced zaw on 2026-10-18 and is on trial; see the FZF section in
+`home/.zshrc`. From the command line, `h PAT…` (`history-grep`) regex-searches
+history commands, all patterns must match; `hm GLOB` uses `fc -m`.
 
 ## Terminal (foot): grab text from output above the prompt
 

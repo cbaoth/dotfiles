@@ -497,7 +497,7 @@ unset _cb_plain_term
 # TODO consider https://github.com/zsh-users/zsh-completions
 #
 # Loading strategy:
-# - starship (above) and the widget plugins below (autosuggestions, zaw)
+# - starship (above) and the widget plugin below (autosuggestions)
 #   load immediately, so their keybindings further down are always available.
 # - everything else is turbo-loaded (async) via `zt` when $ZINIT_TURBO is set.
 # - fast-syntax-highlighting is declared last so it highlights everything.
@@ -512,10 +512,6 @@ ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=25
 # nested: `cd .ca` + `che/x` became `cd .cache/xche/x` (2026-10).
 ZSH_AUTOSUGGEST_MANUAL_REBIND=1
 zinit light zsh-users/zsh-autosuggestions
-
-# https://github.com/zsh-users/zaw
-# loaded immediately so its zle widgets are bound in the keybindings section
-zinit light zsh-users/zaw
 
 # {{{ - OH MY ZSH ------------------------------------------------------------
 # oh-my-zsh plugins as individual zinit snippets (no full OMZ framework).
@@ -559,12 +555,6 @@ if ${HAS_CONDA:-false}; then
   zt; zinit light esc/conda-zsh-completion
 fi
 
-# TODO review and consider potential key binding conflicts
-# https://github.com/junegunn/fzf/blob/master/shell/key-bindings.zsh
-#
-# if command -v fzf >/dev/null 2>&1; then
-#   zt; zinit snippet https://github.com/junegunn/fzf/blob/master/shell/key-bindings.zsh
-# fi
 # }}} - OH MY ZSH ------------------------------------------------------------
 
 # {{{ - OTHER PLUGINS --------------------------------------------------------
@@ -748,7 +738,7 @@ bindkey -e
 
 # ESC latency in vi mode. Default is 40 (0.4s), which feels laggy when leaving
 # insert mode. Lowering it speeds up ESC, but multi-key Alt-chords typed with a
-# human pause (e.g. the zaw git binds `Alt-v Alt-l` below) need enough time
+# human pause (e.g. `Alt-v Alt-l`) need enough time
 # between chords — 20 (0.2s) is a good compromise; drop toward 1 for snappier
 # ESC if you don't use those chords. (Alt-<key> itself is unaffected: terminals
 # send it as one atomic ESC+key burst.)
@@ -891,33 +881,21 @@ bindkey -M vicmd '^v' _cb-edit-command-line  # ctrl-v: edit line in editor
 # selection; `V` selects line-wise. Then `y` yank / `d` delete / `x` cut work
 # natively. History search from command mode (/ and ?) is on by default.
 # }}} - VI MODE (command-mode binds) -----------------------------------------
-# {{{ - ZAW ------------------------------------------------------------------
-# https://github.com/zsh-users/zaw (loaded immediately, so its widgets exist here)
-if $IS_ZINIT; then
-  bindkey '^[r' zaw # alt-r
-  bindkey '^r' zaw-history # ctrl-r
-
-  # git bindings
-  bindkey '^[v^[l' zaw-git-log # alt-v, alt-l
-  bindkey '^[v^[r' zaw-git-reflog # alt-v, alt-r
-  bindkey '^[v^[s' zaw-git-status # alt-v, alt-s
-
-  # filterlist bindings
-  if $IS_ZINIT; then
-    bindkey -M filterselect '^r' down-line-or-history
-    bindkey -M filterselect '^w' up-line-or-history
-    bindkey -M filterselect '^ ' accept-search
-    bindkey -M filterselect '\e' send-break # esc
-    bindkey -M filterselect '^[' send-break # esc
-  fi
-
-  # filterlist style
-  zstyle ':filter-select:highlight' matched fg=green
-  zstyle ':filter-select' max-lines 5
-  zstyle ':filter-select' case-insensitive yes
-  zstyle ':filter-select' extended-search yes
+# {{{ - FZF ------------------------------------------------------------------
+# https://github.com/junegunn/fzf (apt: fzf; replaced zaw 2026-10-18).
+# `fzf --zsh` (fzf >= 0.48) prints the key bindings and `**<Tab>` completion
+# matching the installed binary, so no version drift as with a fetched snippet.
+# Must stay after `bindkey -e`, which would reset its main-keymap binds.
+# ON TRIAL (2026-10-18): keep what gets used, then rebind or drop the rest.
+#   Ctrl-R      fuzzy history search (was zaw-history)
+#   Ctrl-T      insert file path(s)  (shadows transpose-chars; foot's theme
+#               toggle is Ctrl+Shift+t, so no clash)
+#   Alt-C       cd into a subdirectory (shadows capitalize-word)
+#   **<Tab>     fuzzy completion, e.g. `vim **<Tab>`, `kill -9 **<Tab>`
+if command -v fzf > /dev/null 2>&1; then
+  source <(fzf --zsh)
 fi
-# }}} - ZAW ------------------------------------------------------------------
+# }}} - FZF ------------------------------------------------------------------
 # }}} = ZSH KEYBINDINGS ======================================================
 
 # {{{ = SOURCE CUSTOM ALIASES AND FUNCTIONS ==================================
