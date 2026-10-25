@@ -4,7 +4,7 @@ hosts: [all]
 status: open
 revisit: 2026-12
 tags: [emacs, editor, terminal, zsh, vscode, keyboard]
-updated: 2026-10-15
+updated: 2026-10-25
 automated_by: setup/modules/00-apt-base.sh
 ---
 
@@ -25,8 +25,10 @@ Key cheatsheet: [docs/reference/emacs.md](../reference/emacs.md).
 2. **One config for terminal and GUI.** GUI-only settings apply to graphical
    frames only, not in a separate setup.
 3. **Same on every host.** Deployed by `dotfiles-link`, and built-in features
-   first, so a fresh host starts offline with nothing to download. The one
-   exception so far, atomic-chrome, is desktop-daemon-only (see *Packages*).
+   first, so a fresh host starts offline with nothing to download. Exceptions
+   (see *Packages*): marginalia and orderless (every host, downloaded on the
+   first online start; offline, `M-x` stays plain fido) and atomic-chrome
+   (desktop daemon only).
 
 ## Install
 
@@ -177,6 +179,25 @@ or hacking on packages; revisit then, as a switch, not a mix.
 | Package | Source | Where | Why |
 | --- | --- | --- | --- |
 | atomic-chrome | git, fork `KarimAziev/atomic-chrome` (`:vc`, newest commit) | desktop daemon only | edit browser text fields in Emacs via the [chrome-emacs](https://github.com/KarimAziev/chrome-emacs) extension |
+| marginalia | GNU ELPA (pinned) | every host | `M-x` shows each command's key binding and docstring summary |
+| orderless | GNU ELPA (pinned) | every host | `M-x` search by space-separated parts in any order; `&word` searches the description, so `&exit` finds `kill-emacs` |
+
+marginalia/orderless notes:
+
+- Gap they fill: fido's `M-x` matches command names only, so a search for
+  `exit` never finds `kill-emacs` ("Exit the Emacs job…"). Same idea as the
+  zsh `Alt-X` picker (`home/.zsh.d/zle-mx.zsh`).
+- **Pinned to GNU ELPA** via `package-pinned-packages`: MELPA's date-style
+  versions (`20261013…`) always sort newer and would win otherwise. Not
+  use-package's `:pin`, which needs `package-archives` before package.el is
+  loaded.
+- **fido stays.** `fido-mode` forces `completion-styles` to `flex` in every
+  minibuffer; `icomplete-minibuffer-setup-hook` runs after that, so setting
+  orderless there wins. Categories with their own defaults (files, buffers)
+  keep fido's flex; `M-x` and most other prompts get orderless.
+- SPC is unbound in `minibuffer-local-completion-map` (stock: word
+  completion, which turns `buffer kill` into `buffer-kill`).
+- Update: `M-x package-upgrade`.
 
 atomic-chrome notes:
 

@@ -69,6 +69,8 @@
 ;; Live, fuzzy-filtered candidates for M-x, C-x C-f, C-x b.
 ;; Gotcha: RET takes the highlighted candidate. To create a new file whose
 ;; name is a prefix of an existing one, type the name and press M-j instead.
+;; marginalia and orderless (see "Packages") add descriptions to M-x and make
+;; them searchable.
 (fido-vertical-mode 1)
 
 ;;; Programming and text
@@ -191,6 +193,38 @@ shebang added if there is none."
   :if (and (daemonp) (featurep 'pgtk))
   :vc (:url "https://github.com/KarimAziev/atomic-chrome" :rev :newest)
   :config (atomic-chrome-start-server))
+
+;; M-x that finds `quit' when searching for `exit': marginalia shows each
+;; candidate's key binding and the first docstring line next to it, and
+;; orderless can search that text. Both from GNU ELPA, on every host. Offline
+;; before the first download, *Warnings* reports "Cannot load", startup goes
+;; on and M-x stays plain fido.
+;;
+;; orderless input: space-separated parts, all must match, in any order
+;; (`buffer kill'). Each part matches literally or as a regexp; a prefix
+;; changes how one part matches:
+;;   &quit  search the annotation (key, description) instead of the name
+;;   !foo   exclude candidates matching foo
+;;   ,ffap  initialism: f-f-a-p
+;;   ~trnsp flex (fuzzy), like fido's default
+;;   =exact literal, no regexp
+(setq package-pinned-packages  ; MELPA's date-versioned snapshots would win
+      '((marginalia . "gnu") (orderless . "gnu")))
+(use-package marginalia
+  :ensure t
+  :config (marginalia-mode 1))
+
+;; fido-mode forces `completion-styles' to flex in every minibuffer; this hook
+;; runs after that, so orderless wins. Only where no category default applies
+;; (M-x and most other prompts): files and buffers keep fido's flex, as before.
+(use-package orderless
+  :ensure t
+  :config
+  (add-hook 'icomplete-minibuffer-setup-hook
+            (lambda () (setq-local completion-styles '(orderless basic))))
+  ;; SPC separates orderless parts; stock M-x binds it to word completion,
+  ;; which turns `buffer kill' into `buffer-kill'.
+  (keymap-unset minibuffer-local-completion-map "SPC" t))
 
 ;;; Legacy preferences (2005-2011 config), all off for now
 

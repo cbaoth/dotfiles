@@ -3,7 +3,7 @@ title: Emacs cheatsheet (relearning the basics)
 hosts: [all]
 status: resolved
 tags: [emacs, editor, keybindings, cheatsheet]
-updated: 2026-10-10
+updated: 2026-10-25
 ---
 
 # Emacs cheatsheet
@@ -78,10 +78,24 @@ where it fails.
 | `C-h f` / `C-h v` | describe function / variable |
 | `C-h m` | help for the current mode(s) |
 | `C-h b` | all bindings |
-| `M-x` | run any command by name (fuzzy) |
+| `M-x` | run any command by name; shows keys and descriptions (see below) |
 | prefix + wait | which-key lists what can follow (e.g. `C-x`, then pause) |
 
 `q` closes a help window.
+
+`M-x` search (orderless): space-separated parts, all must match, any order
+(`buffer kill`). A prefix changes how one part matches:
+
+| Prefix | Matches | Example |
+| --- | --- | --- |
+| `&` | the description / key binding instead of the name | `&exit` → `kill-emacs` |
+| `!` | excludes | `kill !buffer` |
+| `~` | fuzzy (flex) | `~trnsps` → `transpose-sexps` |
+| `,` | initialism | `,ffap` → `find-file-at-point` |
+| `=` / `^` | literal / literal prefix | `=c++` |
+
+Searching all docstrings, not just the first line: `C-h d`
+(`apropos-documentation`).
 
 ## Own bindings (init.el)
 
