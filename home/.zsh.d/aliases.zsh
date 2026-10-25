@@ -29,6 +29,12 @@ reload-aliases() {
   source_ifex_custom -e .zsh $HOME/.zsh.d/aliases
 }
 
+# History - overrides ha from .aliases (h=history-grep is shared there)
+history-match() { fc -liDm "*$**" 1 ; }
+alias hm=history-match
+alias ha='fc -liD 1'
+alias hr='fc -s'
+
 # Fix a corrupted zsh history file by extracting printable strings and reloading it.
 zsh-history-fix() {
   mv $HOME/.zsh_history $HOME/.zsh_history_corrupt \

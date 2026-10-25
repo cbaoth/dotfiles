@@ -1,7 +1,7 @@
 # -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
 # vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
-# shellcheck shell=bash disable=SC2148
+# shellcheck shell=bash disable=SC2148,SC2329
 #
 # ~/.aliases: Common aliases.
 
@@ -1265,9 +1265,33 @@ alias sy='syncall'
 # }}} - REPO SYNC ------------------------------------------------------------
 
 # {{{ - SHELL NAVIGATION -----------------------------------------------------
-# alias /='cd /' is zsh-only (invalid alias name in bash) — defined in aliases.zsh
-alias h='history'
-alias hs='history | grep -Ei'
+# Regex-search the command text of history entries. Each argument is a perl
+# regex (case-insensitive; prefix one with (?-i) for case-sensitive), and an
+# entry must match ALL of them, in any order. The metadata prefix (event
+# number, date, time, duration) is printed but never matched or highlighted.
+#   history-grep 17          # no match for an entry that is only event no. 17
+#   history-grep cat grep tee            # entries using all three
+#   history-grep '^git (push|pull)\b'    # quote a pattern containing spaces
+# zsh lists via `fc -liD`, bash via `fc -l`. No pattern lists everything.
+history-grep() {
+  local _list=(fc -l 1)
+  [[ -n "${ZSH_VERSION-}" ]] && _list=(fc -liD 1)
+  if [[ $# -eq 0 ]]; then "${_list[@]}"; return; fi
+  local _color=
+  [[ -t 1 ]] && _color=1
+  "${_list[@]}" | _HG_COLOR="${_color}" perl -ne '
+    BEGIN { @re = map { qr/$_/i } @ARGV; @ARGV = (); $any = join "|", @re; $n = 0 }
+    my ($meta, $cmd) = /^(\s*\d+\*?\s+(?:\d{4}-\d\d-\d\d\s+\d\d:\d\d(?::\d\d)?\s+[\d:]+\s+)?)(.*)$/s
+      or next;
+    next if grep { $cmd !~ $_ } @re;
+    $cmd =~ s/($any)/length $1 ? "\e[01;31m$1\e[m" : ""/ge if $ENV{_HG_COLOR};
+    print $meta, $cmd; $n++;
+    END { exit($n ? 0 : 1) }' -- "$@"
+}
+# aliases.zsh overrides ha with more details and adds hm (fc's glob match `-m`)
+alias h='history-grep'
+alias ha='fc -l 1'
+alias hr='fc -s'
 # }}} - SHELL NAVIGATION -----------------------------------------------------
 
 # {{{ - PYTHON / CONDA -------------------------------------------------------
