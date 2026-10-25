@@ -288,11 +288,14 @@ cmd_reset() {
   state_clear
 }
 
-# ls-like sample colors from LS_COLORS (dircolors defaults as fallback).
+# ls-like sample colors from LS_COLORS (often unset: then ls uses its built-in
+# defaults, which the fallbacks mirror).
 ls_color() {
   local -r key="$1" fallback="$2"
   local entry
-  for entry in ${LS_COLORS//:/ }; do
+  local -a entries=()
+  IFS=: read -ra entries <<< "${LS_COLORS:-}"
+  for entry in "${entries[@]}"; do
     [[ "${entry}" == "${key}="* ]] && { printf '%s' "${entry#*=}"; return; }
   done
   printf '%s' "${fallback}"
