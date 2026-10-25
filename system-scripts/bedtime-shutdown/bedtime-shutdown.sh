@@ -667,12 +667,28 @@ _terminate_root_shells() {
   rm -f /run/sudo/ts/* 2>/dev/null || true
 }
 
+# Echo the start (HHMM) of the currently active sudo rule - EXTENDED while
+# today's sudo grant is active, else DEFAULT - so the terminator follows the
+# real sudo cutoff. Deliberately narrow: only a `!AlHHMM-HHMM` times field is
+# understood; anything else returns 1 (the caller warns and falls back).
+_sudo_rule_start() {
+  [[ "${BSS_PAM_SUDO_ENABLE:-false}" == "true" ]] || return 1
+  local rule="${BSS_PAM_SUDO_DEFAULT:-}"
+  _sudo_extended_active && rule="${BSS_PAM_SUDO_EXTENDED:-}"
+  local times="${rule##*;}"
+  times="${times//[[:space:]]/}"
+  [[ "$times" =~ ^!Al(([01][0-9]|2[0-3])[0-5][0-9])-[0-9]{4}$ ]] || return 1
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+
 # Runs the root-shell terminator on EVERY tick within its own window
 # [BSS_KILL_ROOT_SHELLS_START, BSS_SHUTDOWN_END) - independent of the sleep and
 # shutdown phases. This clears lingering root shells EARLY (ideally from the sudo
 # cutoff, e.g. 19:00) and repeatedly, long before any bedtime notification -
 # which is when the "just stop the timer" impulse strikes and an open root shell
-# is the easy way out. Falls back to BSS_SHUTDOWN_START when START is unset.
+# is the easy way out. START=sudo derives it from the active sudo rule (so a
+# sudo-extension grant moves it too); unset, or an underivable rule, falls back
+# to BSS_SHUTDOWN_START.
 _maybe_terminate_root_shells() {
   local -r mode="${BSS_KILL_ROOT_SHELLS:-false}"
   case "$mode" in
@@ -680,7 +696,13 @@ _maybe_terminate_root_shells() {
     *) return 0 ;;   # false/unset/invalid: _terminate_root_shells also re-checks
   esac
 
-  local -r kstart="${BSS_KILL_ROOT_SHELLS_START:-$BSS_SHUTDOWN_START}"
+  local kstart="${BSS_KILL_ROOT_SHELLS_START:-$BSS_SHUTDOWN_START}"
+  if [[ "$kstart" == "sudo" ]]; then
+    if ! kstart=$(_sudo_rule_start); then
+      kstart="$BSS_SHUTDOWN_START"
+      _log_warn "Root-shell terminator: cannot derive start from the active sudo rule (needs BSS_PAM_SUDO_ENABLE=true and a '!AlHHMM-HHMM' times field); falling back to BSS_SHUTDOWN_START ($(_format_time "$kstart"))."
+    fi
+  fi
   local -r now=$(date +%H%M)
   if ! _in_window "$now" "$kstart" "$BSS_SHUTDOWN_END"; then
     _log_debug "Root-shell terminator: $(_format_time "$now") outside kill window [$(_format_time "${kstart//:/}"), $(_format_time "${BSS_SHUTDOWN_END//:/}")); skipping."

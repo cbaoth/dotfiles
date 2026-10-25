@@ -518,8 +518,20 @@ by hand once, see *Advanced Lock-in (PAM)* above).
 The weakest link is a **pre-opened root shell** (`sudo -s`, or a root shell in
 tmux/TTY) left running before the auth cutoff: at bedtime it can `systemctl stop
 bedtime.service` / disable the timer with near-zero effort. When
-`BSS_KILL_ROOT_SHELLS` is enabled, the **hard-shutdown phase** (never the softer
-sleep phase) terminates them after the user grace notification:
+`BSS_KILL_ROOT_SHELLS` is enabled, **every 5-min tick** within
+`[BSS_KILL_ROOT_SHELLS_START, BSS_SHUTDOWN_END)` terminates them, independent of
+the sleep/shutdown phases:
+
+- `BSS_KILL_ROOT_SHELLS_START="sudo"` (recommended) follows the **active** sudo
+  rule: the start of `BSS_PAM_SUDO_DEFAULT`, or of `BSS_PAM_SUDO_EXTENDED` while a
+  `bedtime-sudo-extra` grant is active, so root shells live exactly as long as
+  sudo does. **Caveat:** only a `!AlHHMM-HHMM` times field is parsed; any other
+  form (or `BSS_PAM_SUDO_ENABLE=false`) logs a `WARN` every tick and falls back
+  to `BSS_SHUTDOWN_START`.
+- A fixed `HHMM` / `HH:MM` ignores sudo grants; unset falls back to
+  `BSS_SHUTDOWN_START`.
+
+Selection and kill:
 
 - Selects `EUID 0` processes that **own a controlling tty** *and* are a shell
   (`BSS_KILL_ROOT_SHELLS_COMMS`, default `bash zsh sh dash fish`) *or* a direct
@@ -636,7 +648,9 @@ bedtime-sudo-extra -y     # skip the confirmation prompt
 The preview shows the extended rule and the current time so you can sanity-check
 the window before confirming (e.g. if it's already past the extended start,
 there's nothing to gain). The grant reverts to `DEFAULT` automatically at the
-next allowance-day. `bedtime-sudo-extra` is a user command deployed by
+next allowance-day. With `BSS_KILL_ROOT_SHELLS_START="sudo"` the root-shell
+terminator moves with the grant (see above); with a fixed start it still kills
+pre-opened root shells at the default cutoff. `bedtime-sudo-extra` is a user command deployed by
 `dotfiles-link` (it needs no root); the rest deploys with `install.sh`.
 
 ## Bedtime extension — `bedtime-extra`
