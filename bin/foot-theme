@@ -44,12 +44,17 @@ Commands:
   save dark|light THEME [-c TEXT]
                        write THEME to ${CONF_DIR/#"${HOME}"/\~}/theme-{dark,light}.ini
                        (foot cannot reload: takes effect in new windows)
+  install FILE...      copy theme files into DIR (existing names are skipped)
+  uninstall THEME...   delete themes from DIR (refused while one is a saved
+                       dark/light palette)
 
 Options:
   -d, --dir DIR        theme directory (default: \$FOOT_THEME_DIR, else
                        ~/.config/foot/themes), e.g. ~/git/iTerm2-Color-Schemes/foot
   -p, --preview        apply/next/prev: run preview afterwards
   -c, --comment TEXT   save: add TEXT as a comment to the saved palette
+  -f, --force          install: overwrite existing themes; uninstall: delete
+                       even a saved palette's theme (the palette keeps its copy)
   -h, --help           show this help
 
 Environment:
@@ -365,10 +370,93 @@ cmd_save() {
   printf 'foot cannot reload its config: open a new foot window to use it.\n'
 }
 
+# install FORCE FILE...: copy theme files into THEME_DIR, named after the file.
+cmd_install() {
+  local -ri force="$1"
+  shift
+  mkdir -p "${THEME_DIR}"
+  local -i installed=0 skipped=0
+  local file name target
+  for file in "$@"; do
+    name="$(theme_name "${file}")"
+    target="${THEME_DIR}/${name}.ini"
+    if [[ ! -f "${file}" ]]; then
+      p_war "skipped ${file}: no such file"
+    elif [[ -z "$(parse_theme "${file}")" ]]; then
+      p_war "skipped ${file}: no [colors*] section"
+    elif [[ "${file}" -ef "${target}" ]]; then
+      p_war "skipped ${name}: that is the installed file itself"
+    elif [[ -e "${target}" ]] && (( ! force )); then
+      p_war "skipped ${name}: already installed (-f overwrites)"
+    else
+      cp -f -- "${file}" "${target}"
+      printf 'Installed %s\n' "${name}"
+      (( ++installed ))
+      continue
+    fi
+    (( ++skipped ))
+  done
+  if (( installed + skipped > 1 )); then
+    printf '%d installed, %d skipped (in %s)\n' "${installed}" "${skipped}" "$(tilde "${THEME_DIR}")"
+  fi
+  (( skipped == 0 ))
+}
+
+# Slots (dark, light) whose saved palette came from theme NAME, read from the
+# "# Theme: NAME (from PATH)" line cmd_save writes.
+saved_slots() {
+  local -r name="$1"
+  local slot line
+  for slot in dark light; do
+    line="$(grep -m1 '^# Theme: ' "${CONF_DIR}/theme-${slot}.ini" 2> /dev/null)" || continue
+    line="${line#'# Theme: '}"
+    [[ "${line% (from *}" == "${name}" ]] && printf '%s\n' "${slot}"
+  done
+  return 0
+}
+
+# uninstall FORCE THEME...: delete themes from THEME_DIR. A saved palette is
+# a copy and keeps working, but deleting its theme loses the way back to it,
+# so that needs -f.
+cmd_uninstall() {
+  local -ri force="$1"
+  shift
+  local -i removed=0 skipped=0
+  local theme name file slot
+  local -a slots
+  for theme in "$@"; do
+    name="$(theme_name "${theme}")"
+    file="${THEME_DIR}/${name}.ini"
+    if [[ ! -f "${file}" ]]; then
+      p_war "skipped ${name}: not installed (in $(tilde "${THEME_DIR}"))"
+      (( ++skipped ))
+      continue
+    fi
+    mapfile -t slots < <(saved_slots "${name}")
+    if (( ${#slots[@]} > 0 && ! force )); then
+      p_err "skipped ${name}: it is the saved ${slots[*]} palette. Replace it first:"
+      for slot in "${slots[@]}"; do
+        printf '  %s save %s OTHER-THEME\n' "${SCRIPT_NAME}" "${slot}" >&2
+      done
+      printf '  or delete it anyway (the palette keeps its own copy): %s uninstall -f %q\n' \
+        "${SCRIPT_NAME}" "${name}" >&2
+      (( ++skipped ))
+      continue
+    fi
+    rm -f -- "${file}"
+    printf 'Uninstalled %s%s\n' "${name}" "${slots[*]:+ (the saved ${slots[*]} palette keeps its copy)}"
+    (( ++removed ))
+  done
+  if (( removed + skipped > 1 )); then
+    printf '%d uninstalled, %d skipped\n' "${removed}" "${skipped}"
+  fi
+  (( skipped == 0 ))
+}
+
 # }}} = COMMANDS =============================================================
 
 main() {
-  local comment="" preview=0
+  local comment="" preview=0 force=0
   local -a args=()
   while (( $# > 0 )); do
     case "$1" in
@@ -376,6 +464,7 @@ main() {
       -d|--dir)     (( $# > 1 )) || die "$1 needs an argument"; THEME_DIR="${2%/}"; shift ;;
       -c|--comment) (( $# > 1 )) || die "$1 needs an argument"; comment="$2"; shift ;;
       -p|--preview) preview=1 ;;
+      -f|--force)   force=1 ;;
       --)           shift; args+=("$@"); break ;;
       -*)           die "unknown option: $1 (see --help)" ;;
       *)            args+=("$1") ;;
@@ -391,6 +480,8 @@ main() {
       (( nargs == 0 )) || die "${cmd}: takes no argument" ;;
     apply) (( nargs == 1 )) || die "apply: needs exactly one THEME" ;;
     save)  (( nargs == 2 )) || die "save: needs dark|light and THEME" ;;
+    install|uninstall)
+      (( nargs > 0 )) || die "${cmd}: needs at least one theme" ;;
     *)     die "unknown command: ${cmd} (see --help)" ;;
   esac
 
@@ -402,6 +493,8 @@ main() {
     reset)     cmd_reset ;;
     preview)   cmd_preview ;;
     save)      cmd_save "${args[1]}" "${args[2]}" "${comment}" ;;
+    install)   cmd_install "${force}" "${args[@]:1}" ;;
+    uninstall) cmd_uninstall "${force}" "${args[@]:1}" ;;
   esac
   if (( preview )) && [[ "${cmd}" == apply || "${cmd}" == next || "${cmd}" == prev ]]; then
     cmd_preview

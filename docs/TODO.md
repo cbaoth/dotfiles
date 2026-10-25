@@ -762,7 +762,7 @@ hostname for ssh/root). Remote sessions (detected through sudo/su/tmux by
 `cl::is_remote`, plus saito/vserver as a safety net) tint the first segment
 amber via a generated `palette = "remote"` copy; root gets a red username and
 a red `▲ λ` block on the input line (added 2026-10-07). foot has two palettes,
-`theme-dark.ini` (GitHub Dark Default) and `theme-light.ini` (GitHub Dark),
+`theme-dark.ini` and `theme-light.ini` (current picks: their `# Theme:` line),
 toggled with `Ctrl+Shift+t`; any other theme can be tried per window with
 `foot-theme` (added 2026-10-25, see `docs/reference/foot-themes.md`).
 

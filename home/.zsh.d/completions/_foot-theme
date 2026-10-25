@@ -8,14 +8,20 @@
 # Theme names are discovered live from the theme directory: -d/--dir on the
 # command line, else $FOOT_THEME_DIR, else ~/.config/foot/themes.
 
-_foot-theme_themes() {
+# Theme names in the active theme directory.
+_foot-theme_names() {
   local dir="${FOOT_THEME_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/foot/themes}"
   local opt_dir="${opt_args[-d]:-${opt_args[--dir]}}"
   [[ -n "${opt_dir}" ]] && dir="${${(Q)opt_dir}/#\~/${HOME}}"
   local -a names
   names=( "${dir}"/*.ini(N-.:t:r) )
+  _wanted themes expl theme compadd -a names
+}
+
+# Theme names or .ini file paths.
+_foot-theme_themes() {
   _alternative \
-    "themes:theme:compadd -a names" \
+    'themes:theme:_foot-theme_names' \
     'files:theme file:_files -g "*.ini(-.)"'
 }
 
@@ -28,6 +34,7 @@ _foot-theme() {
     '(-d --dir)'{-d,--dir}'[theme directory]:directory:_files -/' \
     '(-p --preview)'{-p,--preview}'[print a preview after apply/next/prev]' \
     '(-c --comment)'{-c,--comment}'[save: comment for the saved palette]:comment: ' \
+    '(-f --force)'{-f,--force}'[install: overwrite; uninstall: delete a saved palette'"'"'s theme]' \
     '(- *)'{-h,--help}'[show help]' \
     '1:command:->command' \
     '*::argument:->argument' && ret=0
@@ -43,6 +50,8 @@ _foot-theme() {
         'reset:restore the configured palette'
         'preview:print the palette and samples'
         'save:save a theme as the dark or light palette'
+        'install:copy theme files into the theme directory'
+        'uninstall:delete themes from the theme directory'
       )
       _describe -t commands command commands && ret=0
       ;;
@@ -50,6 +59,8 @@ _foot-theme() {
       case "${words[1]}:${CURRENT}" in
         apply:2|save:3) _foot-theme_themes && ret=0 ;;
         save:2)         _values slot dark light && ret=0 ;;
+        install:*)      _files -g '*.ini(-.)' && ret=0 ;;
+        uninstall:*)    _foot-theme_names && ret=0 ;;
       esac
       ;;
   esac

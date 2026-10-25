@@ -24,6 +24,9 @@ themes can be tried, cycled, and compared side by side in separate windows.
 | `theme-light.ini` | the `[colors-light]` palette (`Ctrl+Shift+t`) |
 | `themes/*.ini` | theme library: collected favorites, one theme per file |
 
+`themes/` is linked as one directory (`LINK_DIRS` in `tools/link-config.conf`),
+so `foot-theme install`/`uninstall` change the repo directly — commit them.
+
 Library files are verbatim copies of
 [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)
 `foot/*.ini` (plus a `# Source:` line), so its whole collection works as a
@@ -40,7 +43,16 @@ foot-theme reset                # back to the configured palette
 foot-theme -d ~/git/iTerm2-Color-Schemes/foot next   # browse the full collection
 FOOT_THEME_LIST='Eldritch:GitHub Dark:Tango Black' foot-theme next  # own list
 foot-theme save dark 'GitHub Dark Default' -c 'daytime'  # new default palette
+foot-theme install ~/git/iTerm2-Color-Schemes/foot/Ubuntu.ini  # add to library
+foot-theme install ~/git/iTerm2-Color-Schemes/foot/Zen*.ini    # several at once
+foot-theme uninstall Ubuntu Zenburn                            # remove again
 ```
+
+- **install** skips themes that already exist (`-f` overwrites) and files
+  without a colors section. **uninstall** refuses a theme that is a saved
+  palette (its `# Theme:` line) and prints the `save` command to replace it
+  first; `-f` deletes it anyway (the palette file is a copy and keeps working).
+  Both exit 1 if anything was skipped.
 
 - **State is per window:** the current theme is kept per terminal session in
   `$XDG_RUNTIME_DIR/foot-theme/` (gone after logout). If it is not in the list
