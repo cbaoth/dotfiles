@@ -179,10 +179,11 @@ enables + restarts the timer. Edit the unit files **in the repo**, never in
 `/etc`, then redeploy.
 
 The timer fires every 5 minutes over a deliberately **wide** range
-(10:00–04:55), not just the bedtime window. This is intentional: the script
+(10:00–06:55), not just the bedtime window. This is intentional: the script
 self-checks the actual sleep/shutdown windows and exits in the safe zone, so
 firing early is harmless — and you rarely need to retune the timer when the
-configured windows change. The window between 05:00 and 10:00 is always safe.
+configured windows change. The window between 07:00 and 10:00 is always safe,
+so keep `BSS_SHUTDOWN_END` at or before 07:00 (ticks stop at 06:55).
 (Calendar specs cannot span midnight, hence the two `OnCalendar` ranges.)
 
 Verify after deploying:
@@ -191,7 +192,7 @@ Verify after deploying:
 systemd-analyze verify /etc/systemd/system/bedtime.timer
 systemctl list-timers bedtime.timer
 # Preview the next 5 fire times for a calendar spec:
-systemd-analyze calendar --iterations=5 "*-*-* 00..04:00/5"
+systemd-analyze calendar --iterations=5 "*-*-* 00..06:00/5"
 ```
 
 **Manual alternative** (without `install.sh`): copy `bedtime.service` and
