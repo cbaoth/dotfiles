@@ -41,13 +41,30 @@ function conky_color_cpu_tccd1(warn, crit, ok)
                            tonumber(warn), tonumber(crit), ok)
 end
 
+-- Any hwmon sensor by device NAME (not index, which can change between boots),
+-- e.g. ${lua_parse conky_color_hwmon coretemp temp 1 85 95 green}. Also used by
+-- the puppet config.
+function conky_color_hwmon(dev, typ, n, warn, crit, ok)
+    return threshold_color(
+        tonumber(conky_parse("${hwmon " .. dev .. " " .. typ .. " " .. n .. "}")) or 0,
+        tonumber(warn), tonumber(crit), ok)
+end
+
+-- Battery charge: low values are the bad ones, so thresholds count downwards
+-- (e.g. ${lua_parse conky_color_battery BAT1 20 10 green}).
+function conky_color_battery(bat, warn, crit, ok)
+    local val = tonumber(conky_parse("${battery_percent " .. bat .. "}")) or 100
+    return threshold_color(100 - val, 100 - tonumber(warn), 100 - tonumber(crit), ok)
+end
+
 -- Overall CPU usage percentage
 function conky_color_cpu(warn, crit, ok)
     return threshold_color(tonumber(conky_parse("${cpu}")) or 0,
                            tonumber(warn), tonumber(crit), ok)
 end
 
--- Per-core CPU usage: n is 0-based core index (e.g. 0 for cpu0, 7 for cpu7)
+-- Per-core CPU usage: n is conky's cpu index -- 0 is the overall total, threads
+-- count from 1 (cpu1..cpuN), the same as ${cpubar cpuN} and ${freq_g N}
 function conky_color_cpu_core(n, warn, crit, ok)
     return threshold_color(
         tonumber(conky_parse("${cpu cpu" .. n .. "}")) or 0,

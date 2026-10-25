@@ -93,6 +93,11 @@ blueman
 fonts-font-awesome
 xdg-desktop-portal-wlr
 
+# System monitor (bin/conky-restart, ~/.config/conky/<host>/). conky-all is
+# the all-features build; the configs use out_to_wayland, battery, wireless
+# and Lua, so pick it over conky-std rather than chase which build has what.
+conky-all
+
 # Wayland related tools
 flameshot
 solaar

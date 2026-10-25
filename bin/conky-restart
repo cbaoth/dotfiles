@@ -59,10 +59,17 @@ declare -ra CONKY_CONFIGS_motoko=(
   "$HOME/.config/conky/motoko/conky-left-4.conf"
 )
 
+# shellcheck disable=SC2034 # unused variable: deferred use with declare -n
+declare -ra CONKY_CONFIGS_puppet=(
+  "$HOME/.config/conky/puppet/conky-left.conf"
+  "$HOME/.config/conky/puppet/conky-right.conf"
+)
+
 # Map hostname -> config array name; used to resolve configs and check known hosts
 declare -rA HOST_CONFIGS=(
   ["saito"]="CONKY_CONFIGS_saito"
   ["motoko"]="CONKY_CONFIGS_motoko"
+  ["puppet"]="CONKY_CONFIGS_puppet"
 )
 
 declare -a CONKY_ARGS=(-p 5)

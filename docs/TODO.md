@@ -195,8 +195,14 @@ Removable as dead weight, not a correctness issue.
 
 ## Conky
 
-- [ ] [M] Add conky config for puppet (notebook): derive from motoko config, adapt for
-  smaller viewport, no Nvidia GPU, no Windows/dual-boot partitions
+- [x] [M] Add conky config for puppet (notebook): first draft (2026-10-18), stats
+  left third (`conky-left.conf`), journal + session log right two thirds
+  (`conky-right.conf`)
+- [ ] [S] Tune the puppet conky draft on screen (sizes, fold width, line counts)
+- [ ] [S] motoko conky: per-core rows are off by one -- `cpubar cpu0` and
+  `conky_color_cpu_core 0` are the overall total, threads count from `cpu1`, so
+  "Core #1" shows the total and the last thread is missing (`freq_g` is
+  1-based too)
 
 ## Clipboard — XWayland → Wayland copy (resolved 2026-10-17)
 
