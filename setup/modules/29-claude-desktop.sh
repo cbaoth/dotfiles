@@ -23,6 +23,12 @@
 #      every upgrade; a module that also rewrote it would flap against the
 #      package the moment upstream edits that header. Bootstrapping it here and
 #      handing ownership over is what keeps a re-run at zero changes.
+#      One exception: a marker-owned file with no active entry. A release
+#      upgrade that cannot migrate a .list to deb822 moves its entries to
+#      claude-desktop.list.disabled and leaves only the header; the package
+#      would restore it on its next configure, but no upgrade arrives from a
+#      repo that is gone. The package always writes the entry active, so
+#      restoring it cannot flap.
 #
 # Writing it with the marker rather than without also matters: an unmarked file
 # is treated as admin-owned and left alone, which would silently drop the
@@ -87,12 +93,27 @@ cd_setup_key() {
 }
 
 cd_setup_sources() {
+  local action="write"
   if [[ -f "${CD_SOURCES_FILE}" ]]; then
-    st::noop "apt sources already present: ${CD_SOURCES_FILE}"
-    return 0
+    if [[ "$(head -n 1 "${CD_SOURCES_FILE}")" != "${CD_SOURCES_CONTENT%%$'\n'*}" ]]; then
+      st::noop "apt sources present, admin-owned (no package marker): ${CD_SOURCES_FILE}"
+      return 0
+    fi
+    if grep -qE '^[[:space:]]*deb[[:space:]]' "${CD_SOURCES_FILE}"; then
+      st::noop "apt sources already present: ${CD_SOURCES_FILE}"
+      return 0
+    fi
+    # Same opt-out the package's postinst honours
+    if grep -qsE '^[[:space:]]*(export[[:space:]]+)?CLAUDE_DESKTOP_ADD_REPO=["'"'"']?false' \
+         /etc/default/claude-desktop; then
+      st::noop "apt entry opted out (CLAUDE_DESKTOP_ADD_REPO=false): ${CD_SOURCES_FILE}"
+      return 0
+    fi
+    # Header only: emptied by a release upgrade, see the file header
+    action="restore entry in"
   fi
 
-  st::run_sh "write ${CD_SOURCES_FILE}" \
+  st::run_sh "${action} ${CD_SOURCES_FILE}" \
     "printf '%s\n' $(printf '%q' "${CD_SOURCES_CONTENT}") \
       | sudo tee $(printf '%q' "${CD_SOURCES_FILE}") >/dev/null \
       && sudo chmod 0644 $(printf '%q' "${CD_SOURCES_FILE}")"

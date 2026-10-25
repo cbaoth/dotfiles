@@ -3,7 +3,7 @@ title: Claude Code CLI and Claude Desktop
 hosts: [motoko, saito, 11001001]
 status: resolved
 tags: [claude, anthropic, apt, gpg, cli, desktop, ai, sandbox, apparmor]
-updated: 2026-10-06
+updated: 2026-10-25
 automated_by: setup/modules/28-claude-code.sh, setup/modules/29-claude-desktop.sh
 ---
 
@@ -217,6 +217,12 @@ registers the repo so updates arrive afterwards:
   a marker comment on line 1 and rewrites it on every upgrade. A module that
   also rewrote it would flap against the package as soon as upstream edits that
   header, and "a re-run reports zero changes" would quietly stop being true.
+  The one rewrite: a marker-owned file without an active `deb` line. A release
+  upgrade that cannot migrate a `.list` to deb822 moves its entries to
+  `claude-desktop.list.disabled` and leaves only the header — the repo is
+  gone, so the package upgrade that would restore it never arrives. The module
+  restores it (`bin/apt-sources reenable` does the same right after an
+  upgrade); the package always writes the entry active, so this cannot flap.
 
 The module writes the file *with* that marker, byte-identical to the package's
 own version. Writing it without would be read as admin-owned and left alone —
