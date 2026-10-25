@@ -64,8 +64,15 @@ on one store corrupt it). Per host:
 | ---- | ------------------ |
 | puppet | apt Nix 2.34.8 via `23-nix` (migrated 2026-10-25) |
 | motoko | Determinate, contents unchecked (host was offline) |
-| saito | Determinate, only `hermes-agent` (`github:NousResearch/hermes-agent`) |
+| saito | no Nix: Determinate and its only package (Hermes, a test) purged 2026-10-25 |
 
-saito is a server profile with no `nix-server.list`, so the module skips it.
-Keeping Hermes there means a host-specific `nix profile add` after the
-migration, or dropping Nix from saito if Hermes is no longer used.
+saito is a server profile with no `nix-server.list`, so the module skips it
+and the host stays Nix-free. Its purge found two things worth knowing for
+motoko:
+
+- Determinate's daemon ran a Sentry `crashpad_handler` that reports crashes
+  to Determinate (another reason to drop it).
+- The uninstaller (v3.17.3) removed its `/etc/zsh/zshrc` block but left the
+  one in `/etc/bash.bashrc` (inert once `/nix` is gone). Check both files
+  afterwards; remove a leftover with
+  `sudo sed -i '/^# Nix$/,/^# End Nix$/d' /etc/bash.bashrc`.

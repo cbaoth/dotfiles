@@ -3,7 +3,7 @@ title: Hardware inventory — saito (LAN server)
 hosts: [saito]
 status: resolved
 tags: [hardware, inventory, raid, storage]
-updated: 2026-07-12
+updated: 2026-10-25
 ---
 
 # saito — hardware
@@ -32,7 +32,7 @@ Storage controllers: Intel 7 Series/C210 6-port SATA + ASMedia ASM1062.
 | `wlp2s0` | Intel Wi-Fi 6 AX200NGW (PCIe) | WiFi + Bluetooth |
 | `nordlynx` | — | NordVPN |
 
-Also runs Docker and Determinate Nix.
+Also runs Docker.
 
 The i3-3240 is the reason `setup/packages/server.list` keeps things lean, and why
 [`docs/setup/unattended-upgrades.md`](../setup/unattended-upgrades.md) matters more
