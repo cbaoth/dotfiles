@@ -1,0 +1,11 @@
+# Nix packages for desktops (flake refs, one per line).
+# Installed by: setup/modules/23-nix.sh (profile: desktop)
+# Docs:         docs/setup/nix.md, docs/reference/package-managers.md
+#
+# Nix is the last resort (package-managers.md): only for tools with no apt,
+# flatpak or snap package. A profile without a nix-<profile>.list gets no Nix
+# at all, so keep this list short.
+
+# Auto idle-inhibit while audio plays (exec'd by sway, 90-launch-apps.conf;
+# docs/setup/sway.md). Not packaged for Ubuntu.
+nixpkgs#wayland-pipewire-idle-inhibit

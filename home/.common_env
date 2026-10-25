@@ -405,14 +405,18 @@ if [[ -d "${HOME}/.local/share/fnm" ]]; then
   fi
 fi
 
-# Nix: Determinate Nix (determinate-nixd) puts nix on PATH system-wide, so only
-# its shell completion is per-user (see cb_devtools_completions). Without it, fall
-# back to sourcing the official single-user profile (PATH/env), if present.
-if ! command -v determinate-nixd >/dev/null 2>&1 \
-    && ! command -v nix >/dev/null 2>&1 \
-    && [[ -f "${HOME}/.nix-profile/etc/profile.d/nix.sh" ]]; then
-  # shellcheck source=/dev/null
-  source "${HOME}/.nix-profile/etc/profile.d/nix.sh"
+# Nix (setup/modules/23-nix.sh: upstream Nix from apt, nix-setup-systemd). The
+# package only ships the nix binaries in /usr/bin; the user profile's bin and
+# share (desktop entries for launchers) are added here. Installs that bring
+# their own profile script (nixos.org installer) are sourced instead.
+if [[ -d "${HOME}/.nix-profile/bin" && ":${PATH}:" != *":${HOME}/.nix-profile/bin:"* ]]; then
+  if [[ -f "${HOME}/.nix-profile/etc/profile.d/nix.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${HOME}/.nix-profile/etc/profile.d/nix.sh"
+  else
+    export PATH="${HOME}/.nix-profile/bin:${PATH}"
+    export XDG_DATA_DIRS="${HOME}/.nix-profile/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  fi
 fi
 
 # Rust/Cargo env (adds ~/.cargo/bin to PATH), if installed

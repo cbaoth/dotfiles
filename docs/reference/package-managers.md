@@ -3,7 +3,7 @@ title: Which package manager? (apt / flatpak / snap / AppImage / nix / uv)
 hosts: [all]
 status: resolved
 tags: [apt, flatpak, snap, appimage, nix, packaging, decisions]
-updated: 2026-09-18
+updated: 2026-10-18
 ---
 
 # Which package manager?
@@ -121,8 +121,10 @@ Two snap traps, both hit with `bottom`:
 creates the desktop entries and metadata AppImages otherwise lack. Needs
 `libfuse2t64`.
 
-**nix** — installed, barely used. Hermes lives here (see the notes repo,
-`projects/06-future-ideas.md`).
+**nix** — barely used: upstream Nix from apt (`nix-setup-systemd`), only on
+profiles with a `setup/packages/nix-<profile>.list` (`system-setup 23-nix`,
+[nix.md](../setup/nix.md)). Desktop: `wayland-pipewire-idle-inhibit`. Hermes
+lives here on saito (see the notes repo, `projects/06-future-ideas.md`).
 
 **pip / uv** — Python only, and **uv**, not pip. Never install into the system
 python; use `uv` or a venv.

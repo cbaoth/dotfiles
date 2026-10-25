@@ -3,7 +3,7 @@ title: Sway setup
 hosts: [motoko, puppet]
 status: resolved
 tags: [sway, wayland, waybar, keepassxc, nvidia, tray, config, keyboard, modes, osd]
-updated: 2026-10-17
+updated: 2026-10-18
 automated_by: setup/modules/00-apt-base.sh
 ---
 
@@ -565,7 +565,9 @@ systemctl --user restart swayosd.service       # re-register cleanly
 
 **Automatic (media/games)** — `wayland-pipewire-idle-inhibit` keeps the screen awake whenever audio plays through PipeWire, filtering short notification sounds via `media_minimum_duration` (config: `~/.config/wayland-pipewire-idle-inhibit/config.toml`). Apps that set their own inhibitor (Firefox video, mpv) and any fullscreen window (`inhibit_idle fullscreen` catch-all) are covered too. These register as **application** inhibitors.
 
-Install (prebuilt binary from nixpkgs, requires Determinate Nix / Nix):
+Install: `system-setup 23-nix` (Nix + `setup/packages/nix-desktop.list`, see
+[nix.md](nix.md)). Restart sway afterwards from a fresh shell, so it inherits
+`~/.nix-profile/bin`. By hand, with Nix already set up:
 
 ``` bash
 nix profile add nixpkgs#wayland-pipewire-idle-inhibit
