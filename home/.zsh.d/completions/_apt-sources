@@ -20,7 +20,8 @@ _apt-sources() {
   if (( CURRENT == 2 )); then
     _describe command '(
       "reenable:re-enable and re-target sources after a release upgrade"
-      "keys:verify signing keys, refresh them from the keyserver"
+      "keys:verify signing keys, refresh or pin them"
+      "cleanup:delete leftover backups apt ignores"
     )'
     return
   fi
@@ -33,6 +34,10 @@ _apt-sources() {
       ;;
     keys)
       _arguments -S "${common[@]}"
+      ;;
+    cleanup)
+      # no FILE arguments
+      _arguments -S "${(@)common[1,-2]}"
       ;;
   esac
 }

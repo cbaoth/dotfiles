@@ -4,7 +4,7 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# Maintain third-party apt .sources: re-enable after a release upgrade, fix signing keys.
+# Maintain third-party apt sources: re-enable after a release upgrade, fix keys, clean up.
 
 # No `set -e`: a probe returning 404, or a signature check failing, is normal
 # control flow here, every call site checks its own status.
@@ -32,6 +32,8 @@ declare SQV_POLICY="/usr/share/apt/default-sequoia.config"
 [[ -r /etc/crypto-policies/back-ends/apt-sequoia.config ]] \
   && SQV_POLICY="/etc/crypto-policies/back-ends/apt-sequoia.config"
 declare -r SQV_POLICY
+# One-line entry: TYPE [OPTIONS] URI SUITE [COMPONENTS]; groups 1 3 4 5 6
+declare -r LIST_RE='^(deb|deb-src)[[:space:]]+(\[([^]]*)\][[:space:]]+)?([^[:space:]]+)[[:space:]]+([^[:space:]]+)[[:space:]]*(.*)$'
 
 # }}} = CONSTANTS ============================================================
 
@@ -51,19 +53,30 @@ Commands:
                 if the server still publishes it.
               - Release-bound suite: use the target release if published,
                 otherwise pick one of the newest published older releases.
+              - NAME.list.disabled (entries the upgrade could not migrate):
+                restore them into NAME.list if that file still exists (kept
+                by a package, e.g. claude-desktop), else into NAME.sources.
   keys      Verify each enabled stanza's Release signature exactly as apt
             does (sqv + apt's crypto policy). If it fails, fetch the same
             key(s), by fingerprint, from ${KEYSERVER}; if that copy
             verifies (typical: the owner re-signed an old SHA1-bound key),
             offer to replace the embedded key or the keyring file.
             Only keys already trusted are refreshed, never new ones.
+            A stanza without Signed-By (trusts every global key): find the
+            global key (/etc/apt/trusted.gpg[.d]) that verifies it, embed
+            it as Signed-By, and offer to remove it from the global keyrings.
+  cleanup   Delete leftovers in ${SOURCES_DIR} that apt ignores:
+            *.distUpgrade, *.bak, *.curtin.orig, *.save, dpkg/ucf files,
+            unknown extensions. A *.list.disabled is only offered once its
+            entries are active again (see reenable).
 
 Every changed file is shown as a diff and only written after confirmation
 ([y]es, [n]o, [e]dit, [q]uit). Writing uses sudo when not run as root;
 the previous version is kept as FILE.bak (ignored by apt).
 
 Arguments:
-  FILE              .sources files to check (default: ${SOURCES_DIR}/*.sources)
+  FILE              reenable, keys: .sources (or reenable: .list.disabled) files
+                    to check (default: all in ${SOURCES_DIR})
 
 Options:
   -r, --release CN  reenable: target release codename (default:
@@ -140,13 +153,17 @@ parse_args() {
     esac
   done
   case "${COMMAND}" in
-    reenable|keys) ;;
+    reenable|keys|cleanup) ;;
     '') p_err "missing COMMAND"; p_usg >&2; exit 1 ;;
     *) p_err "unknown command: ${COMMAND}"; p_usg >&2; exit 1 ;;
   esac
-  if [[ "${COMMAND}" == keys ]]; then
+  if [[ "${COMMAND}" != reenable ]]; then
     [[ -z "${TARGET}" ]] || { p_err "--release only applies to reenable"; exit 1; }
     CHECK_KEYS=true
+  fi
+  if [[ "${COMMAND}" == cleanup ]] && (( ${#FILES[@]} )); then
+    p_err "cleanup takes no FILE arguments"
+    exit 1
   fi
 }
 
@@ -281,6 +298,19 @@ key_fprs() {
     | awk -F: '$1 == "pub" { p = 1; next } p && $1 == "fpr" { print $10; p = 0 }'
 }
 
+# split_keyring KEYRING: export each key of KEYRING to its own armored file,
+# print the paths. Imports into a throwaway homedir, never the user's.
+split_keyring() {
+  local -r home="${TMP_DIR}/gnupg-split"
+  local fpr
+  [[ -d "${home}" ]] || mkdir -m 700 "${home}"
+  gpg --batch --quiet --no-options --homedir "${home}" --import "$1" 2>/dev/null || return 1
+  while IFS= read -r fpr; do
+    gpg --batch --no-options --homedir "${home}" --armor --export "${fpr}" > "${TMP_DIR}/key-${fpr}.asc" \
+      && printf '%s\n' "${TMP_DIR}/key-${fpr}.asc"
+  done < <(key_fprs "$1")
+}
+
 declare REFRESHED=""
 
 # refresh_key KEYRING: fetch the keyring's (single) key from the keyserver by
@@ -308,7 +338,7 @@ refresh_key() {
 }
 
 declare -a NEW_KEY=()            # stanza index -> armored key replacing the embedded one
-declare -a KEYRING_WRITES=()     # "keyring path|new armored key" for the current file
+declare -a KEYRING_WRITES=()     # "write|keyring|new armored key" or "remove|keyring", current file
 declare -A KEYRING_PLANNED=()    # keyring paths already handled in this run
 
 # plan_keys I: verify stanza I as it will be after plan_stanza; plan a key
@@ -326,8 +356,8 @@ plan_keys() {
   local -r signed="${S_KEY[i]}"
 
   if [[ -z "${signed//[[:space:]]/}" ]]; then
-    show_header; p_war "${label}: no Signed-By, apt trusts any key in its global keyrings for it"
-    return 1
+    plan_pin_key "${i}" "${label}" "${uri}" "${suite}"
+    return
   fi
   if ! fetch_release "${uri}" "${suite}"; then
     p_dbg 1 "${label}: no Release metadata, key check skipped"
@@ -388,9 +418,54 @@ plan_keys() {
           "(the ${KEYSERVER} copy of ${fpr} would verify)"
     return 1
   fi
-  KEYRING_WRITES+=("${keyring}|${REFRESHED}")
+  KEYRING_WRITES+=("write|${keyring}|${REFRESHED}")
   note "${label}: replace keyring ${keyring} with ${KEYSERVER} copy of ${fpr} (verifies)"
   return 0
+}
+
+# plan_pin_key I LABEL URI SUITE: stanza I has no Signed-By, so apt accepts a
+# signature by any global key. Embed the one global key that verifies it (no
+# new trust, it only narrows it) and offer to drop that key from the globals.
+plan_pin_key() {
+  local -ri i="$1"
+  local -r label="$2" uri="$3" suite="$4"
+  show_header
+  p_war "${label}: no Signed-By, apt trusts any key in its global keyrings for it"
+  if ! fetch_release "${uri}" "${suite}"; then
+    p_war "${label}: no Release metadata, cannot tell which key signs it"
+    return 1
+  fi
+  local g k found="" global=""
+  local -a globals=(/etc/apt/trusted.gpg)
+  shopt -s nullglob
+  globals+=(/etc/apt/trusted.gpg.d/*.gpg /etc/apt/trusted.gpg.d/*.asc)
+  shopt -u nullglob
+  for g in "${globals[@]}"; do
+    [[ -r "${g}" ]] || continue
+    while IFS= read -r k; do
+      if verify "${k}"; then found="${k}"; global="${g}"; break 2; fi
+    done < <(split_keyring "${g}")
+  done
+  if [[ -z "${found}" ]]; then
+    p_war "${label}: no global key verifies it either, get the vendor's key"
+    return 1
+  fi
+  local -r fpr="$(key_fprs "${found}")"
+  NEW_KEY[i]="${found}"
+  note "${label}: embed key ${fpr} (from ${global}) as Signed-By (verifies)"
+  if dpkg -S "${global}" > /dev/null 2>&1 || [[ -n "${KEYRING_PLANNED[${global}]+x}" ]]; then
+    return 0
+  fi
+  KEYRING_PLANNED["${global}"]=1
+  if (( $(key_fprs "${global}" | wc -l) != 1 )); then
+    note "  ${global} holds more keys, left as is"
+  elif ${ASSUME_YES}; then
+    note "  ${global} stays trusted for every repo; remove it by hand if nothing else needs it"
+  else
+    KEYRING_WRITES+=("remove|${global}")
+    note "  and remove ${global}: stops trusting it for every repo (a source without Signed-By" \
+         "that relied on it then fails; 'apt-sources keys' finds and fixes those the same way)"
+  fi
 }
 
 # }}} = KEYS =================================================================
@@ -446,18 +521,34 @@ parse_file() {
 
 declare -a NEW_SUITES=() ENABLE=()
 
+# key_field NAME KEYFILE: armored key as deb822 multiline field (one leading
+# space, " ." for empty lines)
+key_field() {
+  local line="$1:" k
+  while IFS= read -r k; do
+    if [[ "${line}" == *: ]]; then line+=" ${k}"; continue; fi
+    [[ -z "${k}" ]] && k="."
+    line+=$'\n'" ${k}"
+  done < "$2"
+  printf '%s\n' "${line}"
+}
+
 # Print FILE with the planned NEW_SUITES / ENABLE / NEW_KEY applied, all else
 # verbatim.
 rewrite_file() {
   local -r file="$1"
-  local line key k in_stanza=false skip_cont=false
+  local line key in_stanza=false skip_cont=false has_key=false
   local -i i=-1
   while IFS= read -r line || [[ -n "${line}" ]]; do
     if [[ "${line}" =~ ^[[:space:]]*$ ]]; then
+      # stanza end: add a Signed-By the stanza did not have at all
+      if ${in_stanza} && ! ${has_key} && [[ -n "${NEW_KEY[i]:-}" ]]; then
+        key_field Signed-By "${NEW_KEY[i]}"
+      fi
       in_stanza=false
       skip_cont=false
     else
-      if ! ${in_stanza}; then in_stanza=true; i+=1; fi
+      if ! ${in_stanza}; then in_stanza=true; has_key=false; i+=1; fi
       if [[ "${line}" == [[:space:]]* ]]; then
         ${skip_cont} && continue
       elif [[ "${line}" != '#'* ]]; then
@@ -470,19 +561,17 @@ rewrite_file() {
           line="${key}: ${NEW_SUITES[i]}"
         fi
         if [[ "${key,,}" == signed-by && -n "${NEW_KEY[i]:-}" ]]; then
-          # deb822 multiline value: one leading space, " ." for empty lines
-          line="${key}:"
-          while IFS= read -r k; do
-            if [[ "${line}" == *: ]]; then line+=" ${k}"; continue; fi
-            [[ -z "${k}" ]] && k="."
-            line+=$'\n'" ${k}"
-          done < "${NEW_KEY[i]}"
+          line="$(key_field "${key}" "${NEW_KEY[i]}")"
+          has_key=true
           skip_cont=true
         fi
       fi
     fi
     printf '%s\n' "${line}"
   done < "${file}"
+  if ${in_stanza} && ! ${has_key} && [[ -n "${NEW_KEY[i]:-}" ]]; then
+    key_field Signed-By "${NEW_KEY[i]}"
+  fi
 }
 
 # }}} = DEB822 ===============================================================
@@ -615,7 +704,142 @@ plan_stanza() {
   [[ -n "${NEW_SUITES[i]:-}" || -n "${ENABLE[i]:-}" ]]
 }
 
+# uri_active URI: is URI used by any active source (a .sources URIs field, or
+# an uncommented .list line)? Trailing slashes do not matter.
+uri_active() {
+  local -r u="${1%/}"
+  local line w
+  while IFS= read -r line; do
+    for w in ${line}; do [[ "${w%/}" == "${u}" ]] && return 0; done
+  done < <(cat "${SOURCES_DIR}"/*.sources "${SOURCES_DIR}"/*.list 2>/dev/null \
+             | grep -E '^[[:space:]]*(URIs:|deb(-src)?[[:space:]])')
+  return 1
+}
+
+# disabled_entries FILE: the commented-out one-line entries of a .list.disabled
+disabled_entries() {
+  sed -nE 's/^#[[:space:]]*((deb|deb-src)[[:space:]].*)/\1/p' "$1"
+}
+
+declare -a L_LINE=()   # stanza index -> one-line entry it was built from
+
+# restore_disabled FILE: NAME.list.disabled, written by the release upgrade for
+# entries it could not migrate to deb822. Restore the entries not active again
+# (re-targeted like any other stanza): into NAME.list if it still exists (a
+# package keeps managing it, e.g. claude-desktop rewrites only a .list carrying
+# its marker), else into a new NAME.sources.
+restore_disabled() {
+  local -r file="$1"
+  local -r name="${file%.list.disabled}"
+  local -r src="${TMP_DIR}/$(basename "${name}").restore"
+  local entry o k v
+  local -i n=0
+  L_LINE=()
+  printf '# Restored from %s by apt-sources\n' "$(basename "${file}")" > "${src}"
+  while IFS= read -r entry; do
+    [[ "${entry}" =~ ${LIST_RE} ]] || continue
+    if uri_active "${BASH_REMATCH[4]}"; then
+      p_dbg 1 "${file}: ${BASH_REMATCH[4]} already active"
+      continue
+    fi
+    L_LINE[n]="${entry}"
+    (( n )) && printf '\n' >> "${src}"
+    n+=1
+    {
+      printf 'Types: %s\nURIs: %s\nSuites: %s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
+      [[ -n "${BASH_REMATCH[6]}" ]] && printf 'Components: %s\n' "${BASH_REMATCH[6]}"
+      for o in ${BASH_REMATCH[3]}; do
+        k="${o%%=*}"; v="${o#*=}"
+        case "${k}" in
+          arch) k=Architectures ;;
+          lang) k=Languages ;;
+          target) k=Targets ;;
+          *) k="$(sed -E 's/(^|-)([a-z])/\1\u\2/g' <<<"${k}")" ;;  # signed-by -> Signed-By
+        esac
+        printf '%s: %s\n' "${k}" "${v//,/ }"
+      done
+      printf 'Enabled: no\n'
+    } >> "${src}"
+  done < <(disabled_entries "${file}")
+  (( n )) || { p_dbg 1 "${file}: nothing left to restore"; return 0; }
+  if [[ -e "${name}.list" ]]; then
+    process_file "${src}" "${name}.list" list "restore from $(basename "${file}")"
+  else
+    process_file "${src}" "${name}.sources" sources "restore from $(basename "${file}")"
+  fi
+}
+
 # }}} = REENABLE =============================================================
+
+# {{{ = CLEANUP ==============================================================
+
+cleanup() {
+  local f base reason live state ans all=false
+  local -i width=0
+  local -a legacy=()
+  shopt -s nullglob
+  for f in "${SOURCES_DIR}"/*; do
+    base="${f##*/}"
+    (( ${#base} > width )) && width=${#base}
+  done
+  for f in "${SOURCES_DIR}"/*; do
+    [[ -f "${f}" ]] || continue
+    base="${f##*/}"
+    live=""
+    case "${base}" in
+      *.sources) continue ;;
+      *.list)
+        head -n 1 "${f}" | grep -q 'Managed by' || legacy+=("${f}")
+        continue
+        ;;
+      *.distUpgrade)            reason="release-upgrade backup"; live="${f%.distUpgrade}" ;;
+      *.curtin.orig)            reason="installer (curtin) original"; live="${f%.curtin.orig}" ;;
+      *.bak)                    reason="backup"; live="${f%.bak}" ;;
+      *.save|*.orig)            reason="backup"; live="${f%.*}" ;;
+      *.dpkg-*|*.ucf-*)         reason="dpkg/ucf leftover"; live="${f%.*}" ;;
+      *~)                       reason="editor backup"; live="${f%\~}" ;;
+      *.list.disabled)
+        local entry
+        local -i inactive=0
+        while IFS= read -r entry; do
+          [[ "${entry}" =~ ${LIST_RE} ]] && ! uri_active "${BASH_REMATCH[4]}" && inactive+=1
+        done < <(disabled_entries "${f}")
+        if (( inactive )); then
+          p_war "${f}: entries not active again (${inactive}), run 'apt-sources reenable' first"
+          continue
+        fi
+        reason="disabled by release upgrade, entries active again"
+        ;;
+      *) reason="unknown extension, apt ignores it (with a notice)" ;;
+    esac
+    state=""
+    if [[ -n "${live}" ]]; then
+      if [[ ! -e "${live}" ]]; then state="live file gone"
+      elif cmp -s "${f}" "${live}"; then state="identical to live"
+      else state="differs from live"
+      fi
+    fi
+    printf '  %-*s  %s%s\n' "${width}" "${base}" "${reason}" "${state:+, ${state}}"
+    ${DRY_RUN} && continue
+    if ! ${ASSUME_YES} && ! ${all}; then
+      read -r -p "    delete? [y/n/a(ll)/q(uit)] " ans || break
+      case "${ans}" in
+        a|A) all=true ;;
+        y|Y) ;;
+        q|Q) break ;;
+        *) N_SKIPPED+=1; continue ;;
+      esac
+    fi
+    root_for "${f}" rm -f -- "${f}" && N_APPLIED+=1
+  done
+  shopt -u nullglob
+  if (( ${#legacy[@]} )); then
+    p_nfo "legacy one-line .list files: ${legacy[*]##*/}"
+    p_msg "     'sudo apt modernize-sources' converts them to .sources (keeps them as .list.bak)"
+  fi
+}
+
+# }}} = CLEANUP ==============================================================
 
 # {{{ = APPLY ================================================================
 
@@ -632,7 +856,7 @@ root_for() {
 # mode), optionally dearmoring NEW for a binary keyring.
 write_file() {
   local -r file="$1" new="$2" mode="${3:-}"
-  if ${BACKUP}; then
+  if ${BACKUP} && [[ -e "${file}" ]]; then
     root_for "${file}" cp -p -- "${file}" "${file}.bak" || return 1  # .bak: ignored by apt
   fi
   if [[ "${mode}" == binary ]]; then
@@ -640,31 +864,39 @@ write_file() {
   else
     root_for "${file}" tee -- "${file}" < "${new}" > /dev/null
   fi
+  [[ "$(stat -c %a "${file}")" == 644 ]] || root_for "${file}" chmod 0644 -- "${file}"
 }
 
-# Apply the current file's planned changes (the .sources and keyring files)
+# Apply the current file's planned changes (the sources file, then keyrings:
+# the sources file must hold its own key before a global one is removed)
 apply_changes() {
   local -r file="$1" tmp="$2"
-  local w keyring mode
-  if ! cmp -s "${file}" "${tmp}"; then
+  local w action keyring mode
+  if ! cmp -s "${file}" "${tmp}" 2>/dev/null; then
     write_file "${file}" "${tmp}" || return 1
   fi
   for w in "${KEYRING_WRITES[@]}"; do
-    keyring="${w%%|*}"
+    IFS='|' read -r action keyring w <<<"${w}"
+    if [[ "${action}" == remove ]]; then
+      root_for "${keyring}" rm -f -- "${keyring}" || return 1
+      continue
+    fi
     mode=binary
     head -c 64 "${keyring}" | grep -q -- '-----BEGIN' && mode=armored
-    write_file "${keyring}" "${w#*|}" "${mode}" || return 1
+    write_file "${keyring}" "${w}" "${mode}" || return 1
   done
   N_APPLIED+=1
 }
 
 # Diff without the base64 lines of embedded keys, unless verbose
 show_diff() {
+  local old="$1"
+  [[ -e "${old}" ]] || old=/dev/null
   if (( VERBOSE )); then
-    diff -u --color=auto --label "$1" --label "$1 (new)" "$1" "$2"
+    diff -u --color=auto --label "$1" --label "$1 (new)" "${old}" "$2"
     return 0
   fi
-  diff -u --label "$1" --label "$1 (new)" "$1" "$2" | awk '
+  diff -u --label "$1" --label "$1 (new)" "${old}" "$2" | awk '
     # hold back hunk headers until the hunk has a visible line
     /^@@/ { hunk = $0; next }
     /^[-+ ] / { n++; next }
@@ -674,15 +906,34 @@ show_diff() {
 
 declare -i N_APPLIED=0 N_SKIPPED=0
 
-# process_file FILE: returns 3 when the user asked to quit
+# render_list TARGET: TARGET plus the planned stanzas that end up enabled, as
+# the one-line entries they came from (suite re-targeted)
+render_list() {
+  local -r target="$1"
+  local -i i
+  local -a f
+  cat -- "${target}"
+  for (( i = 0; i < S_COUNT; i++ )); do
+    [[ -n "${ENABLE[i]:-}" && -n "${L_LINE[i]:-}" ]] || continue
+    [[ -n "${NEW_KEY[i]:-}" ]] && p_war "${L_LINE[i]}: a key cannot be embedded in a .list, fix it by hand"
+    [[ "${L_LINE[i]}" =~ ${LIST_RE} ]] || continue
+    f=("${BASH_REMATCH[@]}")
+    printf '%s %s%s %s%s\n' "${f[1]}" "${f[2]}" "${f[4]}" "${NEW_SUITES[i]:-${f[5]}}" "${f[6]:+ ${f[6]}}"
+  done
+}
+
+# process_file SRC [TARGET [FORMAT [NOTE]]]: plan SRC's stanzas, show the diff
+# against TARGET (default SRC; may not exist yet), write TARGET on confirm.
+# FORMAT "list" renders the result as one-line entries appended to TARGET.
+# Returns 3 when the user asked to quit.
 process_file() {
-  local -r file="$1"
+  local -r src="$1" file="${2:-$1}" format="${3:-sources}"
   local -r tmp="${TMP_DIR}/$(basename "${file}")"
   local -i i changed=0
   local ans
-  CUR_FILE="${file}"; HDR_SHOWN=false
+  CUR_FILE="${file}${4:+ (${4})}"; HDR_SHOWN=false
   NEW_SUITES=(); ENABLE=(); NEW_KEY=(); KEYRING_WRITES=()
-  parse_file "${file}"
+  parse_file "${src}"
   for (( i = 0; i < S_COUNT; i++ )); do
     [[ "${COMMAND}" == reenable ]] && plan_stanza "${i}" && changed+=1
     ${CHECK_KEYS} && plan_keys "${i}" && changed+=1
@@ -691,8 +942,12 @@ process_file() {
     p_dbg 1 "${file}: nothing to do"
     return 0
   fi
-  rewrite_file "${file}" > "${tmp}"
-  cmp -s "${file}" "${tmp}" || show_diff "${file}" "${tmp}"
+  if [[ "${format}" == list ]]; then
+    render_list "${file}" > "${tmp}"
+  else
+    rewrite_file "${src}" > "${tmp}"
+  fi
+  cmp -s "${file}" "${tmp}" 2>/dev/null || show_diff "${file}" "${tmp}"
   ${DRY_RUN} && return 0
   if ${ASSUME_YES}; then
     apply_changes "${file}" "${tmp}"
@@ -711,7 +966,7 @@ process_file() {
         ;;
       e|E)
         "${VISUAL:-${EDITOR:-vi}}" "${tmp}"
-        if cmp -s "${file}" "${tmp}" && (( ${#KEYRING_WRITES[@]} == 0 )); then
+        if cmp -s "${file}" "${tmp}" 2>/dev/null && (( ${#KEYRING_WRITES[@]} == 0 )); then
           p_msg "  no changes left, skipped"
           N_SKIPPED+=1
           return 0
@@ -747,24 +1002,34 @@ main() {
     exit 1
   fi
 
+  TMP_DIR="$(mktemp -d)" || exit 1
+  trap 'rm -rf -- "${TMP_DIR}"' EXIT
+
+  if [[ "${COMMAND}" == cleanup ]]; then
+    cleanup
+    ${DRY_RUN} || { printf '\n'; p_nfo "${N_APPLIED} file(s) deleted, ${N_SKIPPED} kept"; }
+    return 0
+  fi
+
   if (( ${#FILES[@]} == 0 )); then
     shopt -s nullglob
     FILES=("${SOURCES_DIR}"/*.sources)
+    [[ "${COMMAND}" == reenable ]] && FILES+=("${SOURCES_DIR}"/*.list.disabled)
     shopt -u nullglob
-    local -a legacy
-    mapfile -t legacy < <(grep -l '^# .*disabled on upgrade' "${SOURCES_DIR}"/*.list 2>/dev/null)
-    (( ${#legacy[@]} )) && p_war "legacy .list files with disabled entries (not handled): ${legacy[*]}"
   fi
-
-  TMP_DIR="$(mktemp -d)" || exit 1
-  trap 'rm -rf -- "${TMP_DIR}"' EXIT
   [[ "${COMMAND}" == reenable ]] && p_nfo "target release: $(cn_label "${TARGET}")"
   ${CHECK_KEYS} && p_dbg 1 "sqv policy: ${SQV_POLICY}"
 
   local f
   for f in "${FILES[@]}"; do
     [[ -r "${f}" ]] || { p_war "cannot read ${f}, skipped"; continue; }
-    process_file "${f}" || break
+    case "${f}" in
+      *.list.disabled)
+        [[ "${COMMAND}" == reenable ]] || { p_war "${f}: only reenable restores .list.disabled"; continue; }
+        restore_disabled "${f}" || break
+        ;;
+      *) process_file "${f}" || break ;;
+    esac
   done
 
   ${DRY_RUN} && return 0
