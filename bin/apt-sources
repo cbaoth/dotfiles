@@ -1,0 +1,783 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Maintain third-party apt .sources: re-enable after a release upgrade, fix signing keys.
+
+# No `set -e`: a probe returning 404, or a signature check failing, is normal
+# control flow here, every call site checks its own status.
+set -uo pipefail
+export LC_COLLATE=C
+
+# Logging
+p_msg() { printf '%s\n' "$*"; }
+p_nfo() { printf '\033[32mINFO\033[0m %s\n' "$*"; }
+p_war() { printf '\033[33mWARNING\033[0m %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_dbg() { (( "${1:-0}" <= VERBOSE )) && printf '\033[36mDEBUG\033[0m: %s\n' "${*:2}" >&2 || true; }
+
+# {{{ = CONSTANTS ============================================================
+
+declare -r SOURCES_DIR="/etc/apt/sources.list.d"
+declare -r UBUNTU_CSV="/usr/share/distro-info/ubuntu.csv"
+declare -r KEYSERVER="keyserver.ubuntu.com"
+# Older releases to offer when the target release is not published. Three is
+# usually enough to see the pattern (interim vs. LTS-only repo).
+declare -ri MAX_FALLBACKS=3
+declare -ri PROBE_TIMEOUT=10
+# apt verifies with sqv under this policy (an admin override wins)
+declare SQV_POLICY="/usr/share/apt/default-sequoia.config"
+[[ -r /etc/crypto-policies/back-ends/apt-sequoia.config ]] \
+  && SQV_POLICY="/etc/crypto-policies/back-ends/apt-sequoia.config"
+declare -r SQV_POLICY
+
+# }}} = CONSTANTS ============================================================
+
+# Usage
+p_usg() { printf 'Usage: %s COMMAND [OPTIONS] [FILE..]\n' "$(basename "$0")"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+Maintain third-party apt sources (deb822 .sources files).
+
+Commands:
+  reenable  After a release upgrade: re-enable the sources the upgrade
+            disabled, move release-bound suites (e.g. "questing") to the new
+            release, then run the key check below on every enabled stanza.
+              - Release-independent suite (stable, mozilla, ...): re-enable
+                if the server still publishes it.
+              - Release-bound suite: use the target release if published,
+                otherwise pick one of the newest published older releases.
+  keys      Verify each enabled stanza's Release signature exactly as apt
+            does (sqv + apt's crypto policy). If it fails, fetch the same
+            key(s), by fingerprint, from ${KEYSERVER}; if that copy
+            verifies (typical: the owner re-signed an old SHA1-bound key),
+            offer to replace the embedded key or the keyring file.
+            Only keys already trusted are refreshed, never new ones.
+
+Every changed file is shown as a diff and only written after confirmation
+([y]es, [n]o, [e]dit, [q]uit). Writing uses sudo when not run as root;
+the previous version is kept as FILE.bak (ignored by apt).
+
+Arguments:
+  FILE              .sources files to check (default: ${SOURCES_DIR}/*.sources)
+
+Options:
+  -r, --release CN  reenable: target release codename (default:
+                    VERSION_CODENAME from /etc/os-release)
+      --no-keys     reenable: skip the key check
+  -n, --dry-run     Show proposed changes only; write nothing, ask nothing
+  -y, --yes         Apply unambiguous changes without asking; stanzas that
+                    need a fallback release are skipped
+      --no-backup   Do not keep the previous version as FILE.bak
+  -v, --verbose     Increase verbosity (can be used multiple times)
+  -h, --help        Show this help message and exit
+EOF
+}
+
+# Parse arguments
+declare COMMAND=""
+declare TARGET=""
+declare CHECK_KEYS=true
+declare DRY_RUN=false
+declare ASSUME_YES=false
+declare BACKUP=true
+declare -i VERBOSE=0
+declare -a FILES=()
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -r|--release)
+        [[ -n "${2:-}" ]] || { p_err "$1 requires a codename"; exit 1; }
+        TARGET="$2"
+        shift 2
+        ;;
+      --release=*)
+        TARGET="${1#*=}"
+        shift
+        ;;
+      --no-keys)
+        CHECK_KEYS=false
+        shift
+        ;;
+      -n|--dry-run)
+        DRY_RUN=true
+        shift
+        ;;
+      -y|--yes)
+        ASSUME_YES=true
+        shift
+        ;;
+      --no-backup)
+        BACKUP=false
+        shift
+        ;;
+      -v|--verbose)
+        VERBOSE+=1
+        shift
+        ;;
+      -h|--help)
+        p_hlp
+        exit 0
+        ;;
+      --)
+        shift
+        FILES+=("$@")
+        break
+        ;;
+      -*)
+        p_err "unknown option: $1"
+        p_usg >&2
+        exit 1
+        ;;
+      *)
+        if [[ -z "${COMMAND}" ]]; then COMMAND="$1"; else FILES+=("$1"); fi
+        shift
+        ;;
+    esac
+  done
+  case "${COMMAND}" in
+    reenable|keys) ;;
+    '') p_err "missing COMMAND"; p_usg >&2; exit 1 ;;
+    *) p_err "unknown command: ${COMMAND}"; p_usg >&2; exit 1 ;;
+  esac
+  if [[ "${COMMAND}" == keys ]]; then
+    [[ -z "${TARGET}" ]] || { p_err "--release only applies to reenable"; exit 1; }
+    CHECK_KEYS=true
+  fi
+}
+
+# {{{ = RELEASES =============================================================
+
+declare -a CODENAMES=()   # oldest -> newest
+declare -A CN_INDEX=()    # codename -> index in CODENAMES
+declare -A VERSIONS=()    # codename -> version ("26.04 LTS")
+
+load_codenames() {
+  if [[ ! -r "${UBUNTU_CSV}" ]]; then
+    p_err "missing ${UBUNTU_CSV} (install distro-info-data)"
+    return 1
+  fi
+  local version _name series _rest
+  # Columns: version,codename,series,created,release,eol,...
+  while IFS=, read -r version _name series _rest; do
+    [[ "${version}" == version || -z "${series}" ]] && continue
+    CN_INDEX["${series}"]="${#CODENAMES[@]}"
+    CODENAMES+=("${series}")
+    VERSIONS["${series}"]="${version}"
+  done < "${UBUNTU_CSV}"
+}
+
+is_codename() { [[ -n "${CN_INDEX[$1]+x}" ]]; }
+
+# "stonking (26.10)", or just the codename if unknown to distro-info-data
+cn_label() { printf '%s%s' "$1" "${VERSIONS[$1]:+ (${VERSIONS[$1]})}"; }
+
+# }}} = RELEASES =============================================================
+
+# {{{ = REMOTE ===============================================================
+
+declare -A PROBE_CACHE=()
+declare PROBE_DATE=""
+
+# Release file URL; a suite ending in "/" is a flat repo (no dists/ tree).
+release_url() {
+  local -r uri="${1%/}" suite="$2" file="$3"
+  if [[ "${suite}" == */ ]]; then
+    printf '%s/%s%s\n' "${uri}" "${suite}" "${file}"
+  else
+    printf '%s/dists/%s/%s\n' "${uri}" "${suite}" "${file}"
+  fi
+}
+
+# probe URI SUITE: is SUITE published under URI? Sets PROBE_DATE to the Release
+# file's Date (YYYY-MM-DD, "?" if absent). Returns 0 found, 1 not found, 2 the
+# URI scheme cannot be probed (file:, cdrom:, mirror+...). Not to be called in
+# a subshell, or the cache is lost.
+probe() {
+  local -r uri="${1%/}" suite="$2"
+  local -r key="${uri}|${suite}"
+  if [[ -z "${PROBE_CACHE[${key}]+x}" ]]; then
+    local -i rc=1
+    local date="?" body raw f
+    if [[ ! "${uri}" =~ ^https?:// ]]; then
+      rc=2
+    else
+      for f in InRelease Release; do
+        # The fields precede the (large) hash lists, 4k covers them; a server
+        # ignoring the range just sends the whole file.
+        if body="$(curl -fsSL -r 0-4095 --max-time "${PROBE_TIMEOUT}" \
+                     "$(release_url "${uri}" "${suite}" "${f}")" 2>/dev/null)"; then
+          rc=0
+          raw="$(sed -n 's/^Date:[[:space:]]*//p' <<<"${body}" | head -n 1)"
+          if [[ -n "${raw}" ]]; then date="$(date -d "${raw}" +%F 2>/dev/null || printf '?')"; fi
+          break
+        fi
+      done
+    fi
+    PROBE_CACHE["${key}"]="${rc} ${date}"
+    p_dbg 1 "probe ${uri} ${suite}: rc=${rc} date=${date}"
+  fi
+  PROBE_DATE="${PROBE_CACHE[${key}]#* }"
+  return "${PROBE_CACHE[${key}]%% *}"
+}
+
+declare -A RELEASE_CACHE=()   # "uri|suite" -> dir ("" = not available)
+declare -a SQV_INPUT=()
+declare -i N_TMP=0
+
+# fetch_release URI SUITE: download the signed Release metadata, set SQV_INPUT
+# to the matching sqv arguments (InRelease, or Release + Release.gpg).
+fetch_release() {
+  local -r uri="${1%/}" suite="$2"
+  local -r key="${uri}|${suite}"
+  local dir
+  if [[ -z "${RELEASE_CACHE[${key}]+x}" ]]; then
+    N_TMP+=1
+    dir="${TMP_DIR}/release-${N_TMP}"
+    mkdir -p "${dir}"
+    curl -fsSL --max-time 30 -o "${dir}/InRelease" "$(release_url "${uri}" "${suite}" InRelease)" 2>/dev/null \
+      || rm -f "${dir}/InRelease"
+    if [[ ! -s "${dir}/InRelease" ]]; then
+      curl -fsSL --max-time 30 -o "${dir}/Release" "$(release_url "${uri}" "${suite}" Release)" 2>/dev/null \
+        && curl -fsSL --max-time 30 -o "${dir}/Release.gpg" "$(release_url "${uri}" "${suite}" Release.gpg)" 2>/dev/null \
+        || dir=""
+    fi
+    RELEASE_CACHE["${key}"]="${dir}"
+  fi
+  dir="${RELEASE_CACHE[${key}]}"
+  [[ -n "${dir}" ]] || return 1
+  if [[ -s "${dir}/InRelease" ]]; then
+    SQV_INPUT=(--cleartext --output /dev/null "${dir}/InRelease")  # --output: cleartext only
+  else
+    SQV_INPUT=(--signature-file "${dir}/Release.gpg" "${dir}/Release")
+  fi
+}
+
+# }}} = REMOTE ===============================================================
+
+# {{{ = KEYS =================================================================
+
+declare VERIFY_ERR=""
+
+# verify KEYRING..: check SQV_INPUT the way apt does; error text in VERIFY_ERR
+verify() {
+  local -a args=()
+  local k
+  for k in "$@"; do args+=(--keyring "${k}"); done
+  VERIFY_ERR="$(SEQUOIA_CRYPTO_POLICY="${SQV_POLICY}" sqv "${args[@]}" \
+                  "${SQV_INPUT[@]}" 2>&1 >/dev/null)"
+}
+
+# Primary key fingerprints in a keyring file (armored or binary). A throwaway
+# homedir keeps the user's GnuPG state out of it; --show-keys imports nothing.
+key_fprs() {
+  local -r home="${TMP_DIR}/gnupg"
+  [[ -d "${home}" ]] || mkdir -m 700 "${home}"
+  gpg --batch --no-options --homedir "${home}" --show-keys --with-colons "$1" 2>/dev/null \
+    | awk -F: '$1 == "pub" { p = 1; next } p && $1 == "fpr" { print $10; p = 0 }'
+}
+
+declare REFRESHED=""
+
+# refresh_key KEYRING: fetch the keyring's (single) key from the keyserver by
+# fingerprint into REFRESHED (armored). Pinning the fingerprint is what makes
+# this safe: new self-signatures can only be made by that key's owner.
+refresh_key() {
+  local -a fprs got
+  mapfile -t fprs < <(key_fprs "$1")
+  if (( ${#fprs[@]} != 1 )); then
+    VERIFY_ERR="keyring holds ${#fprs[@]} keys, only single-key keyrings are refreshed"
+    return 1
+  fi
+  N_TMP+=1
+  REFRESHED="${TMP_DIR}/refreshed-${N_TMP}.asc"
+  if ! curl -fsS --max-time 30 -o "${REFRESHED}" \
+         "https://${KEYSERVER}/pks/lookup?op=get&options=mr&search=0x${fprs[0]}"; then
+    VERIFY_ERR="${fprs[0]} not found on ${KEYSERVER}"
+    return 1
+  fi
+  mapfile -t got < <(key_fprs "${REFRESHED}")
+  if [[ "${got[*]}" != "${fprs[0]}" ]]; then
+    VERIFY_ERR="${KEYSERVER} returned '${got[*]}' for ${fprs[0]}"
+    return 1
+  fi
+}
+
+declare -a NEW_KEY=()            # stanza index -> armored key replacing the embedded one
+declare -a KEYRING_WRITES=()     # "keyring path|new armored key" for the current file
+declare -A KEYRING_PLANNED=()    # keyring paths already handled in this run
+
+# plan_keys I: verify stanza I as it will be after plan_stanza; plan a key
+# replacement if the check fails and a refreshed key fixes it.
+plan_keys() {
+  local -ri i="$1"
+  [[ "${S_ENABLED[i]}" == no && -z "${ENABLE[i]:-}" ]] && return 1
+  local -a uris suites
+  read -r -a uris <<<"${S_URIS[i]}"
+  read -r -a suites <<<"${NEW_SUITES[i]:-${S_SUITES[i]}}"
+  (( ${#uris[@]} && ${#suites[@]} )) || return 1
+  local -r uri="${uris[0]}" suite="${suites[0]}"
+  local -r label="${uri} ${suite}"
+  [[ "${uri}" =~ ^https?:// ]] || return 1
+  local -r signed="${S_KEY[i]}"
+
+  if [[ -z "${signed//[[:space:]]/}" ]]; then
+    show_header; p_war "${label}: no Signed-By, apt trusts any key in its global keyrings for it"
+    return 1
+  fi
+  if ! fetch_release "${uri}" "${suite}"; then
+    p_dbg 1 "${label}: no Release metadata, key check skipped"
+    return 1
+  fi
+
+  local -a keyrings=()
+  local embedded=false w
+  if [[ "${signed}" == -----BEGIN* ]]; then
+    embedded=true
+    N_TMP+=1
+    keyrings=("${TMP_DIR}/embedded-${N_TMP}.asc")
+    printf '%s\n' "${signed}" > "${keyrings[0]}"
+  else
+    for w in ${signed//,/ }; do
+      if [[ "${w}" != /* ]]; then
+        p_dbg 1 "${label}: Signed-By fingerprint '${w}', key check skipped"
+        return 1
+      fi
+      [[ -r "${w}" ]] || { show_header; p_war "${label}: keyring ${w} missing"; return 1; }
+      keyrings+=("${w}")
+    done
+  fi
+
+  if verify "${keyrings[@]}"; then
+    p_dbg 1 "${label}: signature OK"
+    return 1
+  fi
+  show_header
+  p_war "${label}: apt rejects the signature:"
+  printf '%s\n' "${VERIFY_ERR}" | sed 's/^/      /' >&2
+
+  local -r keyring="${keyrings[0]}"
+  if ! ${embedded} && [[ -n "${KEYRING_PLANNED[${keyring}]+x}" ]]; then
+    note "${label}: keyring ${keyring} already handled above"
+    return 1
+  fi
+  if (( ${#keyrings[@]} > 1 )); then
+    p_war "${label}: several keyrings, fix manually"
+    return 1
+  fi
+  if ! refresh_key "${keyring}" || ! verify "${REFRESHED}"; then
+    p_war "${label}: refreshing the key does not help (${VERIFY_ERR%%$'\n'*}); the repo may have" \
+          "rotated to a new key, get it from the vendor"
+    return 1
+  fi
+  local -r fpr="$(key_fprs "${REFRESHED}")"
+
+  if ${embedded}; then
+    NEW_KEY[i]="${REFRESHED}"
+    note "${label}: replace embedded key with ${KEYSERVER} copy of ${fpr} (verifies)"
+    return 0
+  fi
+  KEYRING_PLANNED["${keyring}"]=1
+  local owner
+  if owner="$(dpkg -S "${keyring}" 2>/dev/null)"; then
+    p_war "${label}: ${keyring} belongs to package '${owner%%:*}', upgrade or reinstall it" \
+          "(the ${KEYSERVER} copy of ${fpr} would verify)"
+    return 1
+  fi
+  KEYRING_WRITES+=("${keyring}|${REFRESHED}")
+  note "${label}: replace keyring ${keyring} with ${KEYSERVER} copy of ${fpr} (verifies)"
+  return 0
+}
+
+# }}} = KEYS =================================================================
+
+# {{{ = DEB822 ===============================================================
+
+# Stanzas are separated by blank lines; continuation lines start with
+# whitespace (an embedded Signed-By key uses " ." for empty lines, so it never
+# contains a blank line). parse_file and rewrite_file must count stanzas the
+# same way: a comment-only block counts as an (empty) stanza in both.
+
+declare -i S_COUNT=0
+declare -a S_URIS=() S_SUITES=() S_ENABLED=() S_KEY=()
+
+parse_file() {
+  local -r file="$1"
+  local line key value field="" in_stanza=false
+  local -i i=-1
+  S_URIS=(); S_SUITES=(); S_ENABLED=(); S_KEY=()
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    if [[ "${line}" =~ ^[[:space:]]*$ ]]; then
+      in_stanza=false
+      continue
+    fi
+    if ! ${in_stanza}; then
+      in_stanza=true
+      i+=1
+      S_URIS[i]=""; S_SUITES[i]=""; S_ENABLED[i]=""; S_KEY[i]=""
+    fi
+    [[ "${line}" == '#'* ]] && continue
+    if [[ "${line}" == [[:space:]]* ]]; then  # continuation
+      if [[ "${field}" == signed-by ]]; then
+        value="${line#"${line%%[![:space:]]*}"}"
+        [[ "${value}" == . ]] && value=""
+        S_KEY[i]+=$'\n'"${value}"
+      fi
+      continue
+    fi
+    key="${line%%:*}"
+    field="${key,,}"
+    value="${line#*:}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    case "${field}" in
+      uris)      S_URIS[i]="${value}" ;;
+      suites)    S_SUITES[i]="${value}" ;;
+      enabled)   S_ENABLED[i]="${value,,}" ;;
+      signed-by) S_KEY[i]="${value}" ;;
+    esac
+  done < "${file}"
+  S_COUNT=$(( i + 1 ))
+}
+
+declare -a NEW_SUITES=() ENABLE=()
+
+# Print FILE with the planned NEW_SUITES / ENABLE / NEW_KEY applied, all else
+# verbatim.
+rewrite_file() {
+  local -r file="$1"
+  local line key k in_stanza=false skip_cont=false
+  local -i i=-1
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    if [[ "${line}" =~ ^[[:space:]]*$ ]]; then
+      in_stanza=false
+      skip_cont=false
+    else
+      if ! ${in_stanza}; then in_stanza=true; i+=1; fi
+      if [[ "${line}" == [[:space:]]* ]]; then
+        ${skip_cont} && continue
+      elif [[ "${line}" != '#'* ]]; then
+        skip_cont=false
+        key="${line%%:*}"
+        if [[ "${key,,}" == enabled && "${ENABLE[i]:-}" == 1 ]]; then
+          continue  # drop "Enabled: no", the default is enabled
+        fi
+        if [[ "${key,,}" == suites && -n "${NEW_SUITES[i]:-}" ]]; then
+          line="${key}: ${NEW_SUITES[i]}"
+        fi
+        if [[ "${key,,}" == signed-by && -n "${NEW_KEY[i]:-}" ]]; then
+          # deb822 multiline value: one leading space, " ." for empty lines
+          line="${key}:"
+          while IFS= read -r k; do
+            if [[ "${line}" == *: ]]; then line+=" ${k}"; continue; fi
+            [[ -z "${k}" ]] && k="."
+            line+=$'\n'" ${k}"
+          done < "${NEW_KEY[i]}"
+          skip_cont=true
+        fi
+      fi
+    fi
+    printf '%s\n' "${line}"
+  done < "${file}"
+}
+
+# }}} = DEB822 ===============================================================
+
+# {{{ = REENABLE =============================================================
+
+declare CUR_FILE=""
+declare HDR_SHOWN=false
+
+show_header() {
+  ${HDR_SHOWN} && return 0
+  HDR_SHOWN=true
+  printf '\n\033[1m== %s\033[0m\n' "${CUR_FILE}"
+}
+
+note() { show_header; printf '  %s\n' "$*"; }
+
+# choose_release LABEL BASE HIT.. : pick one of the published fallback
+# releases (format "codename date"); sets CHOICE, returns 1 to skip.
+declare CHOICE=""
+choose_release() {
+  local -r label="$1" base="$2"
+  shift 2
+  local -a hits=("$@")
+  local -i n
+  local cn date ans
+  note "${label}: '$(cn_label "${TARGET}")' is not published, newest available:"
+  for (( n = 0; n < ${#hits[@]}; n++ )); do
+    cn="${hits[n]% *}"; date="${hits[n]#* }"
+    # date: the suite's InRelease Date, i.e. when the repo last published it
+    printf '    %d) %-9s  %-12s repo updated %-10s%s\n' "$(( n + 1 ))" "${VERSIONS[${cn}]:-?}" "${cn}" \
+      "${date}" "$([[ "${cn}" == "${base}" ]] && printf '  (current)')"
+  done
+  if ${DRY_RUN}; then
+    CHOICE="${hits[0]% *}"
+    note "  dry run: assuming 1 (${CHOICE})"
+    return 0
+  fi
+  if ${ASSUME_YES}; then
+    p_war "${label}: needs a choice, skipped (--yes)"
+    return 1
+  fi
+  while true; do
+    read -r -p "    choose [1-${#hits[@]}, s=skip] (default 1): " ans || return 1
+    ans="${ans:-1}"
+    case "${ans}" in
+      s|S) return 1 ;;
+      *[!0-9]*) ;;
+      *)
+        if (( ans >= 1 && ans <= ${#hits[@]} )); then
+          CHOICE="${hits[ans - 1]% *}"
+          return 0
+        fi
+        ;;
+    esac
+  done
+}
+
+# plan_stanza I: fill NEW_SUITES[I] / ENABLE[I]; returns 0 if anything changes.
+plan_stanza() {
+  local -ri i="$1"
+  local -a uris suites
+  read -r -a uris <<<"${S_URIS[i]}"
+  read -r -a suites <<<"${S_SUITES[i]}"
+  (( ${#uris[@]} && ${#suites[@]} )) || return 1
+  local -r uri="${uris[0]}" suite="${suites[0]}"
+  local -r base="${suite%%[-/]*}"
+  local -r suffix="${suite#"${base}"}"
+  local -r label="${uri} ${suite}"
+  local disabled=false
+  [[ "${S_ENABLED[i]}" == no ]] && disabled=true
+
+  # Release-independent suite, or already on the target: re-enable only
+  if ! is_codename "${base}" || [[ "${base}" == "${TARGET}" ]]; then
+    ${disabled} || return 1
+    probe "${uri}" "${suite}"
+    case $? in
+      0) note "${label}: re-enable (repo updated ${PROBE_DATE})" ;;
+      2) note "${label}: re-enable (${uri%%:*} URI, not verified)" ;;
+      *) show_header; p_war "${label}: not published (anymore?), leaving disabled"; return 1 ;;
+    esac
+    ENABLE[i]=1
+    return 0
+  fi
+
+  # Release-bound suite on an older (or newer) release
+  if [[ ! "${uri}" =~ ^https?:// ]]; then
+    show_header; p_war "${label}: cannot probe ${uri%%:*} URI, edit manually"
+    return 1
+  fi
+  local new=""
+  if probe "${uri}" "${TARGET}${suffix}"; then
+    new="${TARGET}"
+    note "${label}: -> $(cn_label "${TARGET}") (repo updated ${PROBE_DATE})"
+  else
+    local -a hits=()
+    local -i k start=$(( ${#CODENAMES[@]} - 1 ))
+    is_codename "${TARGET}" && start=$(( ${CN_INDEX[${TARGET}]} - 1 ))
+    for (( k = start; k >= 0 && ${#hits[@]} < MAX_FALLBACKS; k-- )); do
+      if probe "${uri}" "${CODENAMES[k]}${suffix}"; then
+        hits+=("${CODENAMES[k]} ${PROBE_DATE}")
+      fi
+    done
+    if (( ${#hits[@]} == 0 )); then
+      show_header; p_war "${label}: no release published at all, leaving as is"
+      return 1
+    fi
+    # A fallback chosen in an earlier run: keep it until something newer shows up
+    if ! ${disabled} && [[ "${hits[0]% *}" == "${base}" ]]; then
+      p_dbg 1 "${label}: '${TARGET}' not published, already on newest fallback ${base}"
+      return 1
+    fi
+    choose_release "${label}" "${base}" "${hits[@]}" || return 1
+    new="${CHOICE}"
+  fi
+
+  # Swap the codename in every suite of the stanza, keeping suffixes
+  # (questing-updates -> stonking-updates); warn about suffixes not published.
+  local s s_base out=""
+  for s in "${suites[@]}"; do
+    s_base="${s%%[-/]*}"
+    [[ "${s_base}" == "${base}" ]] && s="${new}${s#"${s_base}"}"
+    out+="${out:+ }${s}"
+    if [[ "${s}" != "${new}${suffix}" ]] && ! probe "${uri}" "${s}"; then
+      p_war "${label}: '${s}' is not published"
+    fi
+  done
+  [[ "${out}" != "${S_SUITES[i]}" ]] && NEW_SUITES[i]="${out}"
+  ${disabled} && ENABLE[i]=1
+  [[ -n "${NEW_SUITES[i]:-}" || -n "${ENABLE[i]:-}" ]]
+}
+
+# }}} = REENABLE =============================================================
+
+# {{{ = APPLY ================================================================
+
+as_root() { if (( EUID == 0 )); then "$@"; else sudo -- "$@"; fi; }
+
+# root_for FILE CMD..: run CMD, via sudo only if FILE (or its dir) is not writable
+root_for() {
+  local -r file="$1"
+  shift
+  if [[ -w "${file}" && -w "$(dirname -- "${file}")" ]]; then "$@"; else as_root "$@"; fi
+}
+
+# write_file TARGET NEW [binary]: replace TARGET's content (tee keeps owner and
+# mode), optionally dearmoring NEW for a binary keyring.
+write_file() {
+  local -r file="$1" new="$2" mode="${3:-}"
+  if ${BACKUP}; then
+    root_for "${file}" cp -p -- "${file}" "${file}.bak" || return 1  # .bak: ignored by apt
+  fi
+  if [[ "${mode}" == binary ]]; then
+    gpg --dearmor < "${new}" | root_for "${file}" tee -- "${file}" > /dev/null
+  else
+    root_for "${file}" tee -- "${file}" < "${new}" > /dev/null
+  fi
+}
+
+# Apply the current file's planned changes (the .sources and keyring files)
+apply_changes() {
+  local -r file="$1" tmp="$2"
+  local w keyring mode
+  if ! cmp -s "${file}" "${tmp}"; then
+    write_file "${file}" "${tmp}" || return 1
+  fi
+  for w in "${KEYRING_WRITES[@]}"; do
+    keyring="${w%%|*}"
+    mode=binary
+    head -c 64 "${keyring}" | grep -q -- '-----BEGIN' && mode=armored
+    write_file "${keyring}" "${w#*|}" "${mode}" || return 1
+  done
+  N_APPLIED+=1
+}
+
+# Diff without the base64 lines of embedded keys, unless verbose
+show_diff() {
+  if (( VERBOSE )); then
+    diff -u --color=auto --label "$1" --label "$1 (new)" "$1" "$2"
+    return 0
+  fi
+  diff -u --label "$1" --label "$1 (new)" "$1" "$2" | awk '
+    # hold back hunk headers until the hunk has a visible line
+    /^@@/ { hunk = $0; next }
+    /^[-+ ] / { n++; next }
+    { if (hunk != "") { print hunk; hunk = "" } print }
+    END { if (n) printf "  (%d key block lines not shown, -v shows them)\n", n }'
+}
+
+declare -i N_APPLIED=0 N_SKIPPED=0
+
+# process_file FILE: returns 3 when the user asked to quit
+process_file() {
+  local -r file="$1"
+  local -r tmp="${TMP_DIR}/$(basename "${file}")"
+  local -i i changed=0
+  local ans
+  CUR_FILE="${file}"; HDR_SHOWN=false
+  NEW_SUITES=(); ENABLE=(); NEW_KEY=(); KEYRING_WRITES=()
+  parse_file "${file}"
+  for (( i = 0; i < S_COUNT; i++ )); do
+    [[ "${COMMAND}" == reenable ]] && plan_stanza "${i}" && changed+=1
+    ${CHECK_KEYS} && plan_keys "${i}" && changed+=1
+  done
+  if (( changed == 0 )); then
+    p_dbg 1 "${file}: nothing to do"
+    return 0
+  fi
+  rewrite_file "${file}" > "${tmp}"
+  cmp -s "${file}" "${tmp}" || show_diff "${file}" "${tmp}"
+  ${DRY_RUN} && return 0
+  if ${ASSUME_YES}; then
+    apply_changes "${file}" "${tmp}"
+    return 0
+  fi
+  while true; do
+    read -r -p "  apply? [y/n/e(dit)/q(uit)] " ans || return 3
+    case "${ans}" in
+      y|Y)
+        apply_changes "${file}" "${tmp}"
+        return 0
+        ;;
+      n|N|'')
+        N_SKIPPED+=1
+        return 0
+        ;;
+      e|E)
+        "${VISUAL:-${EDITOR:-vi}}" "${tmp}"
+        if cmp -s "${file}" "${tmp}" && (( ${#KEYRING_WRITES[@]} == 0 )); then
+          p_msg "  no changes left, skipped"
+          N_SKIPPED+=1
+          return 0
+        fi
+        show_diff "${file}" "${tmp}"
+        ;;
+      q|Q)
+        return 3
+        ;;
+    esac
+  done
+}
+
+# }}} = APPLY ================================================================
+
+main() {
+  parse_args "$@"
+  local c ans
+  for c in curl sqv gpg; do
+    command -v "${c}" > /dev/null || { p_err "${c} not found"; exit 1; }
+  done
+  if [[ "${COMMAND}" == reenable ]]; then
+    load_codenames || exit 1
+    if [[ -z "${TARGET}" ]]; then
+      # shellcheck source=/dev/null
+      TARGET="$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-}")"
+      [[ -n "${TARGET}" ]] || { p_err "cannot determine release codename, use --release"; exit 1; }
+    fi
+    is_codename "${TARGET}" || p_war "'${TARGET}' is unknown to distro-info-data, fallbacks may be incomplete"
+  fi
+  if ! ${DRY_RUN} && ! ${ASSUME_YES} && [[ ! -t 0 ]]; then
+    p_err "stdin is not a terminal, use --dry-run or --yes"
+    exit 1
+  fi
+
+  if (( ${#FILES[@]} == 0 )); then
+    shopt -s nullglob
+    FILES=("${SOURCES_DIR}"/*.sources)
+    shopt -u nullglob
+    local -a legacy
+    mapfile -t legacy < <(grep -l '^# .*disabled on upgrade' "${SOURCES_DIR}"/*.list 2>/dev/null)
+    (( ${#legacy[@]} )) && p_war "legacy .list files with disabled entries (not handled): ${legacy[*]}"
+  fi
+
+  TMP_DIR="$(mktemp -d)" || exit 1
+  trap 'rm -rf -- "${TMP_DIR}"' EXIT
+  [[ "${COMMAND}" == reenable ]] && p_nfo "target release: $(cn_label "${TARGET}")"
+  ${CHECK_KEYS} && p_dbg 1 "sqv policy: ${SQV_POLICY}"
+
+  local f
+  for f in "${FILES[@]}"; do
+    [[ -r "${f}" ]] || { p_war "cannot read ${f}, skipped"; continue; }
+    process_file "${f}" || break
+  done
+
+  ${DRY_RUN} && return 0
+  printf '\n'
+  p_nfo "${N_APPLIED} file(s) updated, ${N_SKIPPED} skipped"
+  (( N_APPLIED )) || return 0
+  if ${ASSUME_YES}; then
+    as_root apt update
+  else
+    read -r -p "run 'apt update' now? [Y/n] " ans
+    [[ "${ans:-y}" == [yY]* ]] && as_root apt update
+  fi
+}
+
+declare TMP_DIR=""
+main "$@"
