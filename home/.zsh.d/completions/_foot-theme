@@ -1,0 +1,59 @@
+#compdef foot-theme
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for foot-theme (bin/foot-theme in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above.
+#
+# Keep in sync with bin/foot-theme: commands and options mirror usage().
+# Theme names are discovered live from the theme directory: -d/--dir on the
+# command line, else $FOOT_THEME_DIR, else ~/.config/foot/themes.
+
+_foot-theme_themes() {
+  local dir="${FOOT_THEME_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/foot/themes}"
+  local opt_dir="${opt_args[-d]:-${opt_args[--dir]}}"
+  [[ -n "${opt_dir}" ]] && dir="${${(Q)opt_dir}/#\~/${HOME}}"
+  local -a names
+  names=( "${dir}"/*.ini(N-.:t:r) )
+  _alternative \
+    "themes:theme:compadd -a names" \
+    'files:theme file:_files -g "*.ini(-.)"'
+}
+
+_foot-theme() {
+  local curcontext="${curcontext}" state line ret=1
+  typeset -A opt_args
+  # Return 0 if anything was added: a non-zero status makes zsh fall through
+  # to the next completer (_match, _approximate), which adds the options again.
+  _arguments -s -S -C \
+    '(-d --dir)'{-d,--dir}'[theme directory]:directory:_files -/' \
+    '(-p --preview)'{-p,--preview}'[print a preview after apply/next/prev]' \
+    '(-c --comment)'{-c,--comment}'[save: comment for the saved palette]:comment: ' \
+    '(- *)'{-h,--help}'[show help]' \
+    '1:command:->command' \
+    '*::argument:->argument' && ret=0
+
+  case "${state}" in
+    command)
+      local -a commands=(
+        'list:list theme names'
+        'apply:apply a theme to this window'
+        'next:apply the next theme'
+        'prev:apply the previous theme'
+        'current:print the theme applied in this window'
+        'reset:restore the configured palette'
+        'preview:print the palette and samples'
+        'save:save a theme as the dark or light palette'
+      )
+      _describe -t commands command commands && ret=0
+      ;;
+    argument)
+      case "${words[1]}:${CURRENT}" in
+        apply:2|save:3) _foot-theme_themes && ret=0 ;;
+        save:2)         _values slot dark light && ret=0 ;;
+      esac
+      ;;
+  esac
+  return ret
+}
+
+_foot-theme "$@"

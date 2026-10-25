@@ -13,6 +13,7 @@ Deployed to `~/.zsh.d/completions/` on every host by `dotfiles-link`.
 | `_exif-sanitize` | `bin/exif-sanitize` — options, plus `--profile`/`--strip`/`--keep` values (read live from `--list-profiles` / `--list-topics`) |
 | `_rename-timestamp-prefix` | `bin/rename-timestamp-prefix` — options, plus `--time` and `--move-to` values |
 | `_input-keyboards` | `bin/input-keyboards` — commands, `debug` options, and input devices (read live from `/sys/class/input`) |
+| `_foot-theme` | `bin/foot-theme` — commands, options, `save` slots, and theme names (read live from the `-d`/`$FOOT_THEME_DIR`/`~/.config/foot/themes` directory) |
 | `_while-read` | `bin/while-read` — options; the COMMAND words are delegated to `_normal`, so any command with a completion (e.g. `tts-speak`) completes its own options |
 
 Completions for **separate cloned projects** (e.g. `~/git/cb-voice-lab`) do

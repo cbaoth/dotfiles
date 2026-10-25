@@ -761,9 +761,10 @@ See `docs/setup/ssh-hardening.md`; host-specific addresses in
 hostname for ssh/root). Remote sessions (detected through sudo/su/tmux by
 `cl::is_remote`, plus saito/vserver as a safety net) tint the first segment
 amber via a generated `palette = "remote"` copy; root gets a red username and
-a red `▲ λ` block on the input line (added 2026-10-07). foot has two palettes: Tango in `[colors]` (default)
-and Tokyo Night in `[colors2]`, toggled with `Ctrl+Shift+t` — kept on purpose
-as a side-by-side comparison tool (no scrolling, no second window).
+a red `▲ λ` block on the input line (added 2026-10-07). foot has two palettes,
+`theme-dark.ini` (GitHub Dark Default) and `theme-light.ini` (GitHub Dark),
+toggled with `Ctrl+Shift+t`; any other theme can be tried per window with
+`foot-theme` (added 2026-10-25, see `docs/reference/foot-themes.md`).
 
 ## Terminal palette (foot)
 
@@ -775,9 +776,11 @@ as a side-by-side comparison tool (no scrolling, no second window).
     regular files turn bluish and blur into blue directories, symlinks sit
     in between with no clear hue difference. Tango keeps white files.
   - Light text on mid/bright backgrounds is hard to read (see prompt below).
-- [ ] [S] Once decided, move the winner into `[colors]`. `[colors2]` counts as
-      the *light* theme for apps querying mode 2031, so it must not be the
-      permanent dark choice. Keep the toggle for future comparisons if useful.
+- [ ] [S] Pick two themes with `foot-theme` (library: `~/.config/foot/themes`,
+      or `-d ~/git/iTerm2-Color-Schemes/foot`): a regular one, and a calmer,
+      warmer one for evenings / overstimulation. `foot-theme save dark|light`.
+      `[colors-light]` counts as the *light* theme for apps querying mode
+      2031, so a dark evening palette there may flip such apps to light mode.
 - [ ] [S] Consider `LS_COLORS` / `dircolors` tuning if the palette alone
       doesn't give distinct file types.
 - [ ] [S] Consider an explicit foot font (`font=FiraMono Nerd Font:pixelsize=12`):

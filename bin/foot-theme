@@ -1,0 +1,411 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# foot-theme: try foot color themes live in the current window (escape
+# sequences, nothing saved), cycle through a theme directory, and save a theme
+# into one of foot.ini's two palettes (theme-dark.ini / theme-light.ini).
+
+# Fail fast: every step depends on the previous one (parse -> emit / write),
+# and save must never move a half-written file into place.
+set -euo pipefail
+
+# {{{ = CONSTANTS ============================================================
+
+declare -r SCRIPT_NAME="${0##*/}"
+declare -r CONF_DIR="${FOOT_THEME_CONF_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/foot}"
+declare -r STATE_DIR="${XDG_RUNTIME_DIR:-/tmp/foot-theme-${UID}}/foot-theme"
+declare -r ST=$'\e\\'
+
+declare SAVE_TMP=""   # save's temp file, removed by the EXIT trap
+declare THEME_DIR="${FOOT_THEME_DIR:-${CONF_DIR}/themes}"
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = HELPERS ==============================================================
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_NAME} [-d DIR] COMMAND [ARG...]
+
+Recolor the current foot window with a theme (this window only, nothing is
+saved), cycle through a theme directory, or save a theme as one of the two
+palettes in foot.ini.
+
+Commands:
+  list                 list theme names in DIR (* marks this window's theme)
+  apply THEME          apply THEME: a name from DIR, or a path to an .ini file
+  next | prev          apply the next / previous theme (alphabetical, wraps)
+  current              print the theme applied in this window
+  reset                restore this window's configured palette
+  preview              print the palette, text styles and ls-like samples
+  save dark|light THEME [-c TEXT]
+                       write THEME to ${CONF_DIR/#"${HOME}"/\~}/theme-{dark,light}.ini
+                       (foot cannot reload: takes effect in new windows)
+
+Options:
+  -d, --dir DIR        theme directory (default: \$FOOT_THEME_DIR, else
+                       ~/.config/foot/themes), e.g. ~/git/iTerm2-Color-Schemes/foot
+  -p, --preview        apply/next/prev: run preview afterwards
+  -c, --comment TEXT   save: add TEXT as a comment to the saved palette
+  -h, --help           show this help
+
+Environment:
+  FOOT_THEME_DIR       default theme directory
+  FOOT_THEME_LIST      colon-separated theme names (or paths) for next/prev
+                       to cycle through instead of the whole directory. Set it
+                       without export to scope it to one shell/window:
+                         FOOT_THEME_LIST='Eldritch:GitHub Dark' foot-theme next
+
+Theme files are foot .ini files with a [colors], [colors2], [colors-dark] or
+[colors-light] section (only the first is used), like the foot/ folder of
+https://github.com/mbadolato/iTerm2-Color-Schemes. Applying sets fore-,
+background, cursor, selection and the 256-color palette; dimN, alpha and the
+cursor's text color cannot be set from inside a window and are ignored.
+next/prev remember the current theme per terminal session; if it is not in
+the list (renamed, other DIR), they start over at the first theme.
+Ctrl+Shift+t (color-theme-toggle) drops an applied theme as well.
+EOF
+}
+
+p_err() { printf '%s: %s\n' "${SCRIPT_NAME}" "$*" >&2; }
+p_war() { printf '%s: warning: %s\n' "${SCRIPT_NAME}" "$*" >&2; }
+die() { p_err "$@"; exit 1; }
+
+# Shorten $HOME to ~ for display.
+tilde() { printf '%s' "${1/#"${HOME}"/\~}"; }
+
+# Theme name of a list entry or file path: basename without .ini.
+theme_name() {
+  local name="${1##*/}"
+  printf '%s' "${name%.ini}"
+}
+
+# Path of THEME: an existing file path as given, else DIR/THEME.ini.
+resolve_theme() {
+  local -r theme="$1"
+  if [[ "${theme}" == */* || "${theme}" == *.ini ]] && [[ -f "${theme}" ]]; then
+    printf '%s' "${theme}"
+  elif [[ -f "${THEME_DIR}/${theme}.ini" ]]; then
+    printf '%s' "${THEME_DIR}/${theme}.ini"
+  else
+    die "theme not found: ${theme} (in $(tilde "${THEME_DIR}"))"
+  fi
+}
+
+# Theme names in THEME_DIR, case-insensitive alphabetical (-L: the dotfiles
+# themes are symlinks).
+list_themes() {
+  [[ -d "${THEME_DIR}" ]] || die "no such theme directory: $(tilde "${THEME_DIR}")"
+  find -L "${THEME_DIR}" -maxdepth 1 -type f -name '*.ini' -printf '%f\n' \
+    | sed 's/\.ini$//' | LC_ALL=C sort -f
+}
+
+# Entries next/prev cycle through: FOOT_THEME_LIST, else the whole THEME_DIR.
+cycle_list() {
+  if [[ -n "${FOOT_THEME_LIST:-}" ]]; then
+    local -a entries
+    IFS=: read -ra entries <<< "${FOOT_THEME_LIST}"
+    printf '%s\n' "${entries[@]}"
+  else
+    list_themes
+  fi
+}
+
+# {{{ - Session State --------------------------------------------------------
+
+# One state file per terminal session, keyed by the session id: the shell foot
+# starts is a session leader, so every command in that window shares it.
+# Lives under XDG_RUNTIME_DIR, so it is gone after logout.
+state_file() {
+  local sid
+  sid="$(ps -o sid= -p "$$" | tr -d '[:space:]')"
+  printf '%s/%s' "${STATE_DIR}" "${sid:-unknown}"
+}
+
+state_get() { cat "$(state_file)" 2> /dev/null || true; }
+
+state_set() {
+  ( umask 077; mkdir -p "${STATE_DIR}" )
+  printf '%s\n' "$1" > "$(state_file)"
+  # Prune files of sessions that no longer exist.
+  local f
+  for f in "${STATE_DIR}"/*; do
+    [[ -f "${f}" && "${f##*/}" =~ ^[0-9]+$ ]] || continue
+    kill -0 "${f##*/}" 2> /dev/null || rm -f "${f}"
+  done
+}
+
+state_clear() { rm -f "$(state_file)"; }
+
+# }}} - Session State --------------------------------------------------------
+
+# {{{ - Theme Parsing --------------------------------------------------------
+
+# Print "key<TAB>value" for each setting of the first colors section in FILE;
+# inline "# comments" are stripped.
+parse_theme() {
+  # The section names a theme may use; the first such section is the theme.
+  awk '
+    /^[[:space:]]*\[/ {
+      if (in_sec) exit
+      if ($0 ~ /^[[:space:]]*\[colors(2|-dark|-light)?\][[:space:]]*$/) in_sec = 1
+      next
+    }
+    !in_sec || /^[[:space:]]*([#;]|$)/ { next }
+    {
+      line = $0; sub(/[[:space:]]+#.*$/, "", line)
+      eq = index(line, "="); if (!eq) next
+      key = substr(line, 1, eq - 1); val = substr(line, eq + 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+      printf "%s\t%s\n", key, val
+    }' "$1"
+}
+
+# RRGGBB -> rgb:RR/GG/BB (XParseColor format, what foot's OSC parser takes).
+osc_rgb() { printf 'rgb:%s/%s/%s' "${1:0:2}" "${1:2:2}" "${1:4:2}"; }
+
+# Escape sequences that turn the window into THEME FILE: reset everything to
+# the configured palette first, so keys the theme leaves unset do not keep the
+# previous theme's values.
+theme_sequences() {
+  local -r file="$1"
+  local seq osc key val color found=0
+  seq="$(printf '\e]%s%s' 104 "${ST}" 110 "${ST}" 111 "${ST}" 112 "${ST}" 117 "${ST}" 119 "${ST}")"
+  while IFS=$'\t' read -r key val; do
+    found=1
+    color="${val##* }"   # cursor=TEXT CURSOR: only CURSOR is settable
+    osc=""
+    case "${key}" in
+      foreground)            osc=10 ;;
+      background)            osc=11 ;;
+      cursor)                osc=12 ;;
+      selection-background)  osc=17 ;;
+      selection-foreground)  osc=19 ;;
+      regular[0-7])          osc="4;${key#regular}" ;;
+      bright[0-7])           osc="4;$(( ${key#bright} + 8 ))" ;;
+      [0-9]|[0-9][0-9]|[0-9][0-9][0-9])
+        (( key <= 255 )) && osc="4;${key}" ;;
+    esac
+    [[ -n "${osc}" ]] || continue
+    if [[ ! "${color}" =~ ^[0-9a-fA-F]{6}$ ]]; then
+      p_war "$(tilde "${file}"): ${key}=${val}: not an RRGGBB color, skipped"
+      continue
+    fi
+    seq+="$(printf '\e]%s;%s%s' "${osc}" "$(osc_rgb "${color}")" "${ST}")"
+  done < <(parse_theme "${file}")
+  (( found )) || die "no [colors*] section in $(tilde "${file}")"
+  printf '%s' "${seq}"
+}
+
+# }}} - Theme Parsing --------------------------------------------------------
+
+# Write escape sequences to the terminal (not stdout: may be piped).
+emit() {
+  # TERM cannot identify foot (~/.common_env exports xterm-256color), and ssh
+  # passes the sequences through; only a multiplexer swallows them.
+  if [[ -n "${TMUX:-}" || "${TERM:-}" == screen* || "${TERM:-}" == tmux* ]]; then
+    p_war "inside tmux/screen: the multiplexer will likely swallow the colors"
+  fi
+  { printf '%s' "$1" > /dev/tty; } 2> /dev/null || die "cannot write to /dev/tty"
+}
+
+# }}} = HELPERS ==============================================================
+
+# {{{ = COMMANDS =============================================================
+
+cmd_list() {
+  local current name
+  current="$(state_get)"
+  local -r current
+  while IFS= read -r name; do
+    if [[ "${name}" == "${current}" ]]; then
+      printf '* %s\n' "${name}"
+    else
+      printf '  %s\n' "${name}"
+    fi
+  done < <(list_themes)
+}
+
+# apply THEME [POSITION]: POSITION is the "i/n" shown by next/prev.
+cmd_apply() {
+  local file name seq
+  file="$(resolve_theme "$1")"
+  name="$(theme_name "${file}")"
+  seq="$(theme_sequences "${file}")"
+  local -r file name seq
+  emit "${seq}"
+  state_set "${name}"
+  printf '%s%s\n' "${name}" "${2:+  (${2})}"
+}
+
+cmd_cycle() {
+  local -r direction="$1"
+  local -a themes
+  mapfile -t themes < <(cycle_list)
+  local -ri count="${#themes[@]}"
+  (( count > 0 )) || die "no themes to cycle through"
+
+  local current
+  current="$(state_get)"
+  local -r current
+  local -i i idx=-1
+  for (( i = 0; i < count; i++ )); do
+    if [[ "$(theme_name "${themes[i]}")" == "${current}" ]]; then
+      idx=i
+      break
+    fi
+  done
+
+  if (( idx < 0 )); then
+    idx=0   # unknown or no current theme: start over
+  elif [[ "${direction}" == next ]]; then
+    idx=$(( (idx + 1) % count ))
+  else
+    idx=$(( (idx - 1 + count) % count ))
+  fi
+  cmd_apply "${themes[idx]}" "$(( idx + 1 ))/${count}"
+}
+
+cmd_current() {
+  local current
+  current="$(state_get)"
+  local -r current
+  [[ -n "${current}" ]] || { p_err "no theme applied in this window"; return 1; }
+  printf '%s\n' "${current}"
+}
+
+cmd_reset() {
+  emit "$(printf '\e]%s%s' 104 "${ST}" 110 "${ST}" 111 "${ST}" 112 "${ST}" 117 "${ST}" 119 "${ST}")"
+  state_clear
+}
+
+# ls-like sample colors from LS_COLORS (dircolors defaults as fallback).
+ls_color() {
+  local -r key="$1" fallback="$2"
+  local entry
+  for entry in ${LS_COLORS//:/ }; do
+    [[ "${entry}" == "${key}="* ]] && { printf '%s' "${entry#*=}"; return; }
+  done
+  printf '%s' "${fallback}"
+}
+
+cmd_preview() {
+  local -i i
+  printf '         '
+  for (( i = 0; i < 8; i++ )); do printf ' %-4s' "${i}"; done
+  printf '\n regular '
+  for (( i = 0; i < 8; i++ )); do printf ' \e[4%dm    \e[0m' "${i}"; done
+  printf '\n bright  '
+  for (( i = 0; i < 8; i++ )); do printf ' \e[10%dm    \e[0m' "${i}"; done
+  printf '\n\n '
+  local -ra names=(black red green yellow blue magenta cyan white)
+  for (( i = 0; i < 8; i++ )); do printf '\e[3%dm%s\e[0m ' "${i}" "${names[i]}"; done
+  printf '\n '
+  for (( i = 0; i < 8; i++ )); do printf '\e[9%dm%s\e[0m ' "${i}" "${names[i]}"; done
+  printf '\n normal \e[1mbold\e[0m \e[2mdim\e[0m \e[3mitalic\e[0m \e[4munderline\e[0m'
+  printf ' \e[7mreverse\e[0m \e[1;31mbold-red\e[0m \e[37;41m white-on-red \e[0m'
+  printf ' \e[97;44m white-on-blue \e[0m\n'
+  printf ' \e[%smfile\e[0m \e[%smdirectory/\e[0m \e[%smsymlink@\e[0m \e[%smexecutable*\e[0m' \
+    "$(ls_color 'fi' 0)" "$(ls_color di '01;34')" "$(ls_color ln '01;36')" "$(ls_color ex '01;32')"
+  printf ' \e[%smarchive.tar.gz\e[0m \e[%smimage.png\e[0m\n' \
+    "$(ls_color '*.gz' '01;31')" "$(ls_color '*.png' '01;35')"
+}
+
+cmd_save() {
+  local -r slot="$1" theme="$2" comment="$3"
+  [[ "${slot}" == dark || "${slot}" == light ]] || die "save: slot must be dark or light, not '${slot}'"
+  local file name
+  file="$(resolve_theme "${theme}")"
+  file="$(realpath -s "${file}")"
+  name="$(theme_name "${file}")"
+  local -r file name
+  local -r target="${CONF_DIR}/theme-${slot}.ini"
+  # Write to the symlink's target (the dotfiles repo), keeping the link.
+  local real
+  real="$(readlink -f "${target}")" || die "cannot resolve $(tilde "${target}")"
+  local -r real
+
+  SAVE_TMP="$(mktemp "${real}.XXXXXX")"
+  local -r tmp="${SAVE_TMP}"
+  trap 'rm -f "${SAVE_TMP}"' EXIT
+
+  {
+    printf '# ~/.config/foot/theme-%s.ini — foot'"'"'s [colors-%s] palette, included\n' "${slot}" "${slot}"
+    printf '# by foot.ini. Written by foot-theme save %s; edit freely.\n' "${slot}"
+    printf '# Theme: %s (from %s)\n' "${name}" "$(tilde "${file}")"
+    [[ -z "${comment}" ]] || printf '# %s\n' "${comment}"
+    # Leading comments of the source (minus a "# <name>" title line), then
+    # the first colors section, renamed to this slot.
+    awk -v name="${name}" -v slot="${slot}" '
+      !started && /^[[:space:]]*#/ { if ($0 != "# " name) print; next }
+      !started && /^[[:space:]]*$/ { next }
+      /^[[:space:]]*\[/ {
+        if (in_sec) exit
+        started = 1
+        if ($0 ~ /^[[:space:]]*\[colors(2|-dark|-light)?\][[:space:]]*$/) { in_sec = 1; print "[colors-" slot "]" }
+        next
+      }
+      in_sec { buf = buf $0 "\n"; if ($0 !~ /^[[:space:]]*$/) { printf "%s", buf; buf = "" } }
+    ' "${file}"
+  } > "${tmp}"
+
+  grep -q '^\[colors-' "${tmp}" || die "no [colors*] section in $(tilde "${file}")"
+  if command -v foot > /dev/null && ! foot --check-config -c "${tmp}" > /dev/null 2>&1; then
+    foot --check-config -c "${tmp}" >&2 || true
+    die "the generated palette fails foot --check-config, $(tilde "${real}") left unchanged"
+  fi
+  mv -f "${tmp}" "${real}"
+  trap - EXIT
+
+  printf 'Saved %s as the %s palette: %s\n' "${name}" "${slot}" "$(tilde "${real}")"
+  printf 'foot cannot reload its config: open a new foot window to use it.\n'
+}
+
+# }}} = COMMANDS =============================================================
+
+main() {
+  local comment="" preview=0
+  local -a args=()
+  while (( $# > 0 )); do
+    case "$1" in
+      -h|--help)    usage; exit 0 ;;
+      -d|--dir)     (( $# > 1 )) || die "$1 needs an argument"; THEME_DIR="${2%/}"; shift ;;
+      -c|--comment) (( $# > 1 )) || die "$1 needs an argument"; comment="$2"; shift ;;
+      -p|--preview) preview=1 ;;
+      --)           shift; args+=("$@"); break ;;
+      -*)           die "unknown option: $1 (see --help)" ;;
+      *)            args+=("$1") ;;
+    esac
+    shift
+  done
+  (( ${#args[@]} > 0 )) || { usage >&2; exit 2; }
+
+  local -r cmd="${args[0]}"
+  local -ri nargs=$(( ${#args[@]} - 1 ))
+  case "${cmd}" in
+    list|current|reset|preview|next|prev)
+      (( nargs == 0 )) || die "${cmd}: takes no argument" ;;
+    apply) (( nargs == 1 )) || die "apply: needs exactly one THEME" ;;
+    save)  (( nargs == 2 )) || die "save: needs dark|light and THEME" ;;
+    *)     die "unknown command: ${cmd} (see --help)" ;;
+  esac
+
+  case "${cmd}" in
+    list)      cmd_list ;;
+    apply)     cmd_apply "${args[1]}" ;;
+    next|prev) cmd_cycle "${cmd}" ;;
+    current)   cmd_current ;;
+    reset)     cmd_reset ;;
+    preview)   cmd_preview ;;
+    save)      cmd_save "${args[1]}" "${args[2]}" "${comment}" ;;
+  esac
+  if (( preview )) && [[ "${cmd}" == apply || "${cmd}" == next || "${cmd}" == prev ]]; then
+    cmd_preview
+  fi
+}
+
+main "$@"
