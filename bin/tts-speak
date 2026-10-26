@@ -116,6 +116,15 @@ EOF
 
 p_err() { printf 'tts-speak: %s\n' "$*" >&2; }
 
+# Bold yellow "WARNING" on a terminal (NO_COLOR honoured), plain text otherwise.
+p_warn() {
+  if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
+    printf 'tts-speak: \e[1;33mWARNING: %s\e[0m\n' "$*" >&2
+  else
+    printf 'tts-speak: WARNING: %s\n' "$*" >&2
+  fi
+}
+
 notify() {
   command -v notify-send > /dev/null 2>&1 || return 0
   notify-send -a tts-speak -t 2500 "tts-speak" "$*" || true
@@ -659,6 +668,10 @@ main() {
   esac
 
   declare -F "engine_${engine}" > /dev/null || { p_err "unknown engine: ${engine}"; return 2; }
+
+  # -v swallows the next argument: "-v 'some text'" makes the text the voice and falls back to the selection.
+  [[ "${voice}" != *[[:space:]]* ]] ||
+    p_warn "voice '${voice}' contains whitespace; -v takes a voice name, not the text (put the text after the options)"
 
   local text=""
   if (( ${#words[@]} > 0 )); then
