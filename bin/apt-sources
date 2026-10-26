@@ -268,7 +268,8 @@ fetch_release() {
   dir="${RELEASE_CACHE[${key}]}"
   [[ -n "${dir}" ]] || return 1
   if [[ -s "${dir}/InRelease" ]]; then
-    SQV_INPUT=(--cleartext --output /dev/null "${dir}/InRelease")  # --output: cleartext only
+    # --output is required for cleartext; sqv refuses an existing file (so not /dev/null)
+    SQV_INPUT=(--cleartext --output "${TMP_DIR}/sqv.out" "${dir}/InRelease")
   else
     SQV_INPUT=(--signature-file "${dir}/Release.gpg" "${dir}/Release")
   fi
@@ -285,6 +286,7 @@ verify() {
   local -a args=()
   local k
   for k in "$@"; do args+=(--keyring "${k}"); done
+  rm -f -- "${TMP_DIR}/sqv.out"
   VERIFY_ERR="$(SEQUOIA_CRYPTO_POLICY="${SQV_POLICY}" sqv "${args[@]}" \
                   "${SQV_INPUT[@]}" 2>&1 >/dev/null)"
 }
