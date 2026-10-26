@@ -3,7 +3,7 @@ title: Ubuntu release upgrades — channel per host role
 hosts: [all]
 status: resolved
 tags: [apt, ubuntu, release-upgrade, eol, ubuntu-pro]
-updated: 2026-09-28
+updated: 2026-10-26
 automated_by: setup/modules/05-release-upgrades.sh
 ---
 
@@ -102,6 +102,27 @@ them out. Two kinds:
 
 If `apt update` 404s on a codename-pinned repo after the upgrade, leave it
 disabled rather than pointing it at an older series.
+
+`bin/apt-sources` does the after-upgrade pass:
+
+```bash
+apt-sources reenable -n    # what would be re-enabled / moved to the new codename
+apt-sources keys           # signature check exactly as apt does it (sqv policy)
+apt-sources disable NAME.sources   # park a source on purpose (NAME.sources.user.disabled)
+apt-sources cleanup        # .distUpgrade / .bak leftovers
+```
+
+`reenable` cannot tell "the upgrader disabled it" from "I disabled it" when
+both are just `Enabled: no` — park sources you do not want back with
+`disable`, which renames the file so `reenable` never sees it. The
+`*.distUpgrade` copies the upgrader leaves behind show the pre-upgrade state
+if in doubt.
+
+**Before the first reboot**, check that every new kernel got configured and
+has an initramfs: `dpkg -l | awk '$1 ~ /^i[UF]$/'` must be empty. A failing
+DKMS module (third-party driver) leaves the kernel half-configured without an
+initrd, and GRUB boots it anyway — see
+[../troubleshooting/nvidia-dkms-kernel-7.3-panic.md](../troubleshooting/nvidia-dkms-kernel-7.3-panic.md).
 
 Related: [unattended-upgrades.md](unattended-upgrades.md) for the *package*
 update story (a separate question — this note is only about the release itself),
