@@ -1143,6 +1143,25 @@ examples:
   return 0
 }
 
+# Print a hint after a failed mount of MOUNTPOINT when the kernel log since EPOCH says why (journal is readable via
+# group adm, the block device itself is not, so this is the only cause we can see without root).
+__mount_failure_hint() {
+  local -r m="$1" since="$2"
+  local -r c_yellow=$'\e[33m' c_reset=$'\e[0m'
+  local src fstype klog
+  src="$(findmnt -s -n -o SOURCE --evaluate -- "$m" 2>/dev/null)"
+  fstype="$(findmnt -s -n -o FSTYPE -- "$m" 2>/dev/null)"
+  [[ "${fstype}" == ntfs* && -n "${src}" ]] || return 0
+  klog="$(journalctl -k -q --no-pager --since "@${since}" 2>/dev/null | grep -F "(${src##*/}):")"
+  if [[ "${klog}" == *"volume is dirty"* ]]; then
+    printf '%sHINT: NTFS volume %s is flagged dirty: Windows is most likely hibernated (or Fast Startup is on).\n' \
+      "${c_yellow}" "${src}" >&2
+    printf '      ntfsfix cannot clear that. Boot Windows and do a full shutdown (shutdown /s /t 0).\n' >&2
+    printf '      Confirm: sudo ntfs-3g.probe --readwrite %s  (exit 14 = hibernated, 15 = unclean)\n' "${src}" >&2
+    printf '      Read-only now: sudo mount -t ntfs-3g -o ro %s %s%s\n' "${src}" "${m}" "${c_reset}" >&2
+  fi
+}
+
 # Mount and unmount functions and aliases for common mount points, with glob support and color-coded output.
 __mount_mountpoints() {
   local do_unmount=false
@@ -1171,7 +1190,7 @@ __mount_mountpoints() {
     mountpoints+=("${expanded[@]}")
   done
 
-  local cmd_err
+  local cmd_err since
   for m in "${mountpoints[@]}"; do
     if [[ $do_unmount == true ]]; then
       if ! mountpoint -q -- "$m"; then
@@ -1193,11 +1212,13 @@ __mount_mountpoints() {
         continue
       fi
       printf 'Mounting: %s ...' "$m"
+      since="$(date +%s)"
       if cmd_err="$(mount -- "$m" 2>&1)"; then
         printf ' %sdone%s\n' "$c_green" "$c_reset"
       else
         printf ' %sFAILED!%s\n' "$c_red" "$c_reset" >&2
         [[ -n "$cmd_err" ]] && printf '%sERROR: %s%s\n' "$c_red" "$cmd_err" "$c_reset" >&2
+        __mount_failure_hint "$m" "$since"
         had_failures=true
         continue
       fi
