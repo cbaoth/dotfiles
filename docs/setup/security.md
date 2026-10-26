@@ -178,7 +178,9 @@ auth required   pam_deny.so
   deliberately does not manage it.
 - On an upgrade dpkg asks about the conffile: answer **N** (keep yours). The new
   version only switches the default from `login` to `common-auth` (Debian
-  #1140096). Remove the leftover with `sudo rm /etc/pam.d/swaylock.dpkg-new`.
+  #1140096). dpkg leaves the packaged copy as `swaylock.dpkg-dist` (or
+  `.dpkg-new` while the prompt is open); it is only a reference, remove it
+  with `sudo rm /etc/pam.d/swaylock.dpkg-*`.
 - Enabling `pam_u2f` on another host? Replace its swaylock stack in the same step.
 
 ### Where to store the key mapping
