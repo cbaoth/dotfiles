@@ -25,6 +25,8 @@ alias wifi-driver-reload='sudo modprobe -r ath12k_wifi7 ath12k && sudo modprobe 
 # requires: ~/lib/functions.sh (__mount_mountpoints)
 alias mount-win='__mount_mountpoints /mnt/[c-f]/'
 alias umount-win='__mount_mountpoints -u /mnt/[c-f]/'
+# read-only C: while Windows is hibernated (ntfs3 refuses the dirty volume, ntfs-3g allows ro); unmount: umount-win
+alias mount-c-ro='sudo mount -t ntfs-3g -o "ro,uid=$(id -u),gid=$(id -g)" "$(findmnt -s -n -o SOURCE --evaluate /mnt/c)" /mnt/c'
 alias mount-saito='__mount_mountpoints /srv/saito/*/'
 alias umount-saito='__mount_mountpoints -u /srv/saito/*/'
 alias mount-all='mount-win; mount-saito'

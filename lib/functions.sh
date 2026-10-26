@@ -1158,7 +1158,8 @@ __mount_failure_hint() {
       "${c_yellow}" "${src}" >&2
     printf '      ntfsfix cannot clear that. Boot Windows and do a full shutdown (shutdown /s /t 0).\n' >&2
     printf '      Confirm: sudo ntfs-3g.probe --readwrite %s  (exit 14 = hibernated, 15 = unclean)\n' "${src}" >&2
-    printf '      Read-only now: sudo mount -t ntfs-3g -o ro %s %s%s\n' "${src}" "${m}" "${c_reset}" >&2
+    printf '      Read-only now: sudo mount -t ntfs-3g -o ro,uid=%s,gid=%s %s %s%s\n' \
+      "$(id -u)" "$(id -g)" "${src}" "${m}" "${c_reset}" >&2
   fi
 }
 
