@@ -3,16 +3,18 @@
 # vim: ft=bash:et:ts=2:sts=2:sw=2
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
+# The $-names in sway_cmd calls are sway config variables, single-quoted on purpose
+# shellcheck disable=SC2016
 #
 # Sway window state management: floating and sticky with consistent border indicators.
 #
-# Border convention:
-#   sticky + floating  → border normal 2  (visible border = sticky indicator)
-#   floating only      → border normal 0  (borderless)
-#   tiling             → border normal 2  (default tiling border)
+# Border convention (values: sway config, 20-styles.conf / 30-variables.conf):
+#   sticky + floating  → $stick:  $border_floating_stick + $title_sticky
+#   floating only      → $float:  $border_floating
+#   tiling             → $border_default, plain "%title"
 #
-# Note: per-window border colors are not supported by Sway; border thickness is
-# the only available sticky indicator without patching or a custom compositor.
+# Note: per-window border colors are not supported by Sway; border thickness
+# plus a colored (pango markup) title is the closest sticky indicator.
 #
 # Usage: sway-wstate <command>
 #   float   Toggle floating state of the focused window
@@ -27,6 +29,44 @@ set -euo pipefail
 
 p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
 
+# Sway expands config variables ($stick, ...) only while reading the config,
+# never in IPC commands, so resolve them from the same files sway reads.
+readonly SWAY_CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/sway"
+
+# Expand sway config variables in a command and run it via swaymsg.
+# Usage: sway_cmd 'COMMAND with $vars'
+sway_cmd() {
+  local cmd
+  cmd="$(awk -v tmpl="$1" '
+    # join "\" continuation lines, then collect `set $name value`
+    { line = line $0 }
+    /\\$/ { sub(/\\$/, " ", line); next }
+    line ~ /^[ \t]*set[ \t]+\$/ {
+      sub(/^[ \t]*set[ \t]+\$/, "", line)
+      name = line; sub(/[ \t].*/, "", name)
+      val = substr(line, length(name) + 1); sub(/^[ \t]+/, "", val)
+      vars[name] = val
+    }
+    { line = "" }
+    END {
+      # longest names first, so $border_floating_stick beats $border_floating;
+      # repeat for values that reference other variables
+      n = 0; for (k in vars) keys[++n] = k
+      for (i = 2; i <= n; i++)
+        for (j = i; j > 1 && length(keys[j]) > length(keys[j-1]); j--) {
+          t = keys[j]; keys[j] = keys[j-1]; keys[j-1] = t
+        }
+      for (pass = 0; pass < 10 && index(tmpl, "$"); pass++)
+        for (i = 1; i <= n; i++) {
+          k = "$" keys[i]
+          while ((p = index(tmpl, k)))
+            tmpl = substr(tmpl, 1, p - 1) vars[keys[i]] substr(tmpl, p + length(k))
+        }
+      print tmpl
+    }' "$SWAY_CONF_DIR/config" "$SWAY_CONF_DIR"/config.d/*.conf)"
+  swaymsg -- "$cmd"
+}
+
 # Output: "<sticky> <type>", e.g. "true floating_con" or "false con"
 get_focused_state() {
   swaymsg -t get_tree \
@@ -38,17 +78,14 @@ cmd_float() {
   local sticky type
   read -r sticky type < <(get_focused_state)
 
+  # $-names are sway config variables (20-styles.conf, 30-variables.conf)
   if [[ "$type" == "floating_con" ]]; then
-    swaymsg floating disable
-    swaymsg border normal 2
+    sway_cmd 'floating disable, border $border_default, title_format "%title"'
+  elif [[ "$sticky" == "true" ]]; then
+    # Preserve sticky indicator if sticky was already set
+    sway_cmd '$stick'
   else
-    swaymsg floating enable
-    # Preserve sticky border indicator if sticky was already set
-    if [[ "$sticky" == "true" ]]; then
-      swaymsg border normal 2
-    else
-      swaymsg border normal 0
-    fi
+    sway_cmd '$float'
   fi
 }
 
@@ -58,12 +95,9 @@ cmd_sticky() {
   read -r sticky type < <(get_focused_state)
 
   if [[ "$sticky" == "true" ]]; then
-    if [[ "$type" != "floating_con" ]]; then
-      swaymsg floating enable
-    fi
-    swaymsg border normal 2
+    sway_cmd '$stick'
   else
-    swaymsg border normal 0
+    sway_cmd '$unstick'
   fi
 }
 

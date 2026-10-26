@@ -192,6 +192,16 @@ Removable as dead weight, not a correctness issue.
 - [ ] [S] Verify YubiKey unlock still works (KeePassXC prompt visible at login)
 - [ ] [S] Apply the same purge to motoko, where the gdm-came-back incident
       happened — it is still installed and merely disabled there.
+- [~] [M] **Sticky indicator that follows focus** (parked 2026-10-26). Sticky
+      floating windows get a thicker border plus a pin badge via
+      `title_format "$title_sticky"` (`config.d/20-styles.conf`). Sway has no
+      per-window border color and no focused/unfocused `title_format`, so the
+      badge color is fixed; only the title text (`client.*`) follows focus. A
+      fixed color that reads well on both the focused and unfocused title bar
+      works for now. If not: a small daemon on `swaymsg -t subscribe
+      '["window"]'` that re-sets `title_format` with a focused/unfocused color
+      on the sticky window gaining/losing focus (cost: one more process,
+      possible one-frame lag).
 
 ## Conky
 
