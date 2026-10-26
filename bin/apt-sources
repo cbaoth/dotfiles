@@ -32,6 +32,11 @@ declare SQV_POLICY="/usr/share/apt/default-sequoia.config"
 [[ -r /etc/crypto-policies/back-ends/apt-sequoia.config ]] \
   && SQV_POLICY="/etc/crypto-policies/back-ends/apt-sequoia.config"
 declare -r SQV_POLICY
+# Suffix of a source disabled on purpose (disable/enable). apt ignores it
+# silently (Dir::Ignore-Files-Silently has '\.disabled$'), reenable and keys
+# never see it, and no other tool writes it (release upgrades use
+# 'Enabled: no' or NAME.list.disabled).
+declare -r USER_DISABLED=".user.disabled"
 # One-line entry: TYPE [OPTIONS] URI SUITE [COMPONENTS]; groups 1 3 4 5 6
 declare -r LIST_RE='^(deb|deb-src)[[:space:]]+(\[([^]]*)\][[:space:]]+)?([^[:space:]]+)[[:space:]]+([^[:space:]]+)[[:space:]]*(.*)$'
 
@@ -68,7 +73,15 @@ Commands:
   cleanup   Delete leftovers in ${SOURCES_DIR} that apt ignores:
             *.distUpgrade, *.bak, *.curtin.orig, *.save, dpkg/ucf files,
             unknown extensions. A *.list.disabled is only offered once its
-            entries are active again (see reenable).
+            entries are active again (see reenable). Sources disabled with
+            the disable command are listed, never offered.
+  disable   Disable sources on purpose: rename NAME.sources (or .list) to
+            NAME.sources${USER_DISABLED}. apt ignores it silently, reenable and keys
+            skip it, so a release upgrade cannot bring it back. Use it for
+            repos you may want again; delete obsolete ones instead.
+  enable    Undo disable: rename the file back, then run the key check on
+            it. The content is unchanged; a stanza that still says
+            'Enabled: no' is left to reenable.
 
 Every changed file is shown as a diff and only written after confirmation
 ([y]es, [n]o, [e]dit, [q]uit). Writing uses sudo when not run as root;
@@ -77,6 +90,8 @@ the previous version is kept as FILE.bak (ignored by apt).
 Arguments:
   FILE              reenable, keys: .sources (or reenable: .list.disabled) files
                     to check (default: all in ${SOURCES_DIR})
+                    disable, enable: required; a path, or a name relative to
+                    ${SOURCES_DIR} (with or without the ${USER_DISABLED} suffix)
 
 Options:
   -r, --release CN  reenable: target release codename (default:
@@ -153,7 +168,7 @@ parse_args() {
     esac
   done
   case "${COMMAND}" in
-    reenable|keys|cleanup) ;;
+    reenable|keys|cleanup|disable|enable) ;;
     '') p_err "missing COMMAND"; p_usg >&2; exit 1 ;;
     *) p_err "unknown command: ${COMMAND}"; p_usg >&2; exit 1 ;;
   esac
@@ -163,6 +178,10 @@ parse_args() {
   fi
   if [[ "${COMMAND}" == cleanup ]] && (( ${#FILES[@]} )); then
     p_err "cleanup takes no FILE arguments"
+    exit 1
+  fi
+  if [[ "${COMMAND}" == @(disable|enable) ]] && (( ${#FILES[@]} == 0 )); then
+    p_err "${COMMAND} requires FILE arguments"
     exit 1
   fi
 }
@@ -794,6 +813,10 @@ cleanup() {
         head -n 1 "${f}" | grep -q 'Managed by' || legacy+=("${f}")
         continue
         ;;
+      *"${USER_DISABLED}")
+        printf '  %-*s  %s\n' "${width}" "${base}" "disabled by user, kept ('apt-sources enable' restores it)"
+        continue
+        ;;
       *.distUpgrade)            reason="release-upgrade backup"; live="${f%.distUpgrade}" ;;
       *.curtin.orig)            reason="installer (curtin) original"; live="${f%.curtin.orig}" ;;
       *.bak)                    reason="backup"; live="${f%.bak}" ;;
@@ -842,6 +865,48 @@ cleanup() {
 }
 
 # }}} = CLEANUP ==============================================================
+
+# {{{ = DISABLE / ENABLE =====================================================
+
+# toggle_file FILE: disable (rename to FILE${USER_DISABLED}) or enable (rename
+# back, then key check) one source. FILE may be a bare name in SOURCES_DIR,
+# with or without the suffix. Returns 3 when the user asked to quit.
+toggle_file() {
+  local f="$1" from to ans
+  [[ "${f}" == */* ]] || f="${SOURCES_DIR}/${f}"
+  f="${f%"${USER_DISABLED}"}"
+  case "${f}" in
+    *.sources|*.list) ;;
+    *) p_war "${f}: not a .sources or .list file, skipped"; return 0 ;;
+  esac
+  if [[ "${COMMAND}" == disable ]]; then
+    from="${f}"; to="${f}${USER_DISABLED}"
+  else
+    from="${f}${USER_DISABLED}"; to="${f}"
+  fi
+  [[ -f "${from}" ]] || { p_war "${from}: not found, skipped"; N_SKIPPED+=1; return 0; }
+  [[ ! -e "${to}" ]] || { p_war "${to}: exists already, skipped"; N_SKIPPED+=1; return 0; }
+  p_msg "${COMMAND}: ${from##*/} -> ${to##*/}"
+  if ${DRY_RUN}; then
+    # key check on the file as it would be enabled
+    [[ "${COMMAND}" == enable ]] && process_file "${from}"
+    return 0
+  fi
+  if ! ${ASSUME_YES}; then
+    read -r -p "  ${COMMAND}? [y/n/q(uit)] " ans || return 3
+    case "${ans}" in
+      y|Y) ;;
+      q|Q) return 3 ;;
+      *) N_SKIPPED+=1; return 0 ;;
+    esac
+  fi
+  root_for "${from}" mv -- "${from}" "${to}" || return 1
+  N_APPLIED+=1
+  [[ "${COMMAND}" == enable && "${to}" == *.sources ]] && process_file "${to}"
+  return 0
+}
+
+# }}} = DISABLE / ENABLE =====================================================
 
 # {{{ = APPLY ================================================================
 
@@ -1019,11 +1084,21 @@ main() {
     [[ "${COMMAND}" == reenable ]] && FILES+=("${SOURCES_DIR}"/*.list.disabled)
     shopt -u nullglob
   fi
-  [[ "${COMMAND}" == reenable ]] && p_nfo "target release: $(cn_label "${TARGET}")"
+  if [[ "${COMMAND}" == reenable ]]; then
+    p_nfo "target release: $(cn_label "${TARGET}")"
+    shopt -s nullglob
+    local -a parked=("${SOURCES_DIR}"/*"${USER_DISABLED}")
+    shopt -u nullglob
+    (( ${#parked[@]} )) && p_nfo "disabled by user, skipped: ${parked[*]##*/}"
+  fi
   ${CHECK_KEYS} && p_dbg 1 "sqv policy: ${SQV_POLICY}"
 
   local f
   for f in "${FILES[@]}"; do
+    if [[ "${COMMAND}" == @(disable|enable) ]]; then
+      toggle_file "${f}" || break
+      continue
+    fi
     [[ -r "${f}" ]] || { p_war "cannot read ${f}, skipped"; continue; }
     case "${f}" in
       *.list.disabled)

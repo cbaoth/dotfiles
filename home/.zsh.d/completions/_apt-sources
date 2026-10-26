@@ -22,10 +22,20 @@ _apt-sources() {
       "reenable:re-enable and re-target sources after a release upgrade"
       "keys:verify signing keys, refresh or pin them"
       "cleanup:delete leftover backups apt ignores"
+      "disable:disable sources on purpose (rename to *.user.disabled)"
+      "enable:undo disable, then check keys"
     )'
     return
   fi
   case "${words[2]}" in
+    disable)
+      _arguments -S "${(@)common[1,-2]}" \
+        '*:sources file:_files -W /etc/apt/sources.list.d -g "*.(sources|list)"'
+      ;;
+    enable)
+      _arguments -S "${(@)common[1,-2]}" \
+        '*:disabled sources file:_files -W /etc/apt/sources.list.d -g "*.user.disabled"'
+      ;;
     reenable)
       codenames=(${(f)"$(ubuntu-distro-info --all 2>/dev/null)"})
       _arguments -S "${common[@]}" \
