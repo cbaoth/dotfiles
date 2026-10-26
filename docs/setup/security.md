@@ -3,7 +3,7 @@ title: Security — KeePassXC, FIDO2/U2F, firewall
 hosts: [motoko]
 status: workaround
 tags: [security, pam, u2f, fido2, keepassxc, ufw, keyring, swayidle, sleep]
-updated: 2026-10-23
+updated: 2026-10-26
 ---
 
 # Security
@@ -161,6 +161,25 @@ fido2-token -L          # generic
 
 LUKS and KeePassXC are deliberately password-only: a key that lives in the PC is
 a possession-only factor, and a thief takes both.
+
+### `/etc/pam.d/swaylock` on hosts with a key
+
+The package ships `@include common-auth`, which is where `pam_u2f` lives, so on
+a host with the key enabled swaylock would accept it. Such a host needs a
+password-only stack instead (hand-made on motoko, 2026-10-23):
+
+```
+auth sufficient pam_unix.so try_first_pass
+auth required   pam_deny.so
+```
+
+- **Only hosts that enable `pam_u2f`** need this (currently motoko). Hosts
+  without a key (puppet) keep the packaged file, which is why `system-setup`
+  deliberately does not manage it.
+- On an upgrade dpkg asks about the conffile: answer **N** (keep yours). The new
+  version only switches the default from `login` to `common-auth` (Debian
+  #1140096). Remove the leftover with `sudo rm /etc/pam.d/swaylock.dpkg-new`.
+- Enabling `pam_u2f` on another host? Replace its swaylock stack in the same step.
 
 ### Where to store the key mapping
 
