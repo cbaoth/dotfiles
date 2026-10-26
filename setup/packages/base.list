@@ -54,6 +54,9 @@ jq
 gawk
 parallel
 
+# Key & certificate management
+sqv
+
 # Archives
 unzip
 zip
