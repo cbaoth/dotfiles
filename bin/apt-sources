@@ -839,7 +839,8 @@ cleanup() {
     esac
     state=""
     if [[ -n "${live}" ]]; then
-      if [[ ! -e "${live}" ]]; then state="live file gone"
+      if [[ -e "${live}${USER_DISABLED}" ]]; then state="live file disabled by user"
+      elif [[ ! -e "${live}" ]]; then state="live file gone"
       elif cmp -s "${f}" "${live}"; then state="identical to live"
       else state="differs from live"
       fi
