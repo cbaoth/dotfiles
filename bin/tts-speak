@@ -214,7 +214,7 @@ engine_piper() {
     # utterance again), so a block ending a sentence ends the line: one more wav.
     sed_args+=(-e 's/\]\]([,.;:!?]+)/\1]]/g' -e 's/\]\]([^ ])/]] \1/g' -e 's/([.!?])\]\] +/\1]]\n/g')
     input="${out_dir}/../chunks.piper.txt"
-    sed -E "${sed_args[@]}" "${chunks}" > "${input}" || { p_err "a fixes script failed; reading unfixed"; input="${chunks}"; }
+    sed -E "${sed_args[@]}" "${chunks}" > "${input}" || { p_warn "a fixes script failed; reading unfixed"; input="${chunks}"; }
   fi
   # One process for all chunks: model load is paid once, and piper writes one
   # wav per input line as soon as it is synthesized.
@@ -596,7 +596,7 @@ speak() {
       tmp="${dir}"
       session="${dir}"
     else
-      p_err "cannot create a session dir in ${keep_dir}; not keeping this one"
+      p_warn "cannot create a session dir in ${keep_dir}; not keeping this one"
     fi
   fi
 
@@ -702,7 +702,7 @@ main() {
   done
   # Only piper reads them; don't let them land in a kept session of another engine.
   if [[ "${engine}" != piper ]]; then
-    [[ -z "${fixes}" ]] || p_err "--fixes only applies to the piper engine; ignored"
+    [[ -z "${fixes}" ]] || p_warn "--fixes only applies to the piper engine; ignored"
     fixes="" piper_opts=""
   fi
 
