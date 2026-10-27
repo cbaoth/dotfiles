@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# sway-wallpaper: manage and apply the per-host sway wallpaper.
+#
+# Canonical location: ~/.local/share/wallpapers/<hostname> -- a host-local
+# symlink or copy (never committed to this public repo, and never
+# dereferenced by path/extension -- content is sniffed via `file`). `set`
+# applies it via `swaymsg output '*' bg ... fill`; missing or non-image is
+# not an error, this host simply has no wallpaper configured yet, so the
+# solid_color fallback in 10-output-input.conf stands. `exec_always
+# sway-wallpaper set` in that file re-applies it on every reload too.
+
+set -o pipefail
+set -o nounset
+
+SCRIPT_FILE="$(basename "$0")"; declare -r SCRIPT_FILE
+WALLPAPER_DIR="${HOME}/.local/share/wallpapers"; declare -r WALLPAPER_DIR
+WALLPAPER_FILE="${WALLPAPER_DIR}/$(hostname -s)"; declare -r WALLPAPER_FILE
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_war() { printf '\033[33mWARNING\033[0m: %s\n' "$*" >&2; }
+p_msg() { printf '%s\n' "$*"; }
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} COMMAND [ARGS...]
+
+Manage and apply the wallpaper for the current host ($(hostname -s)),
+canonically at: ${WALLPAPER_FILE}
+
+Commands:
+  set [FILE]   Symlink FILE in as this host's wallpaper, then apply it.
+               Without FILE, (re)apply whatever is already set.
+  link FILE    Symlink FILE in as this host's wallpaper (no apply).
+  copy FILE    Copy FILE in as this host's wallpaper (no apply); use when
+               FILE's original path may later move or disappear.
+  rm           Remove this host's wallpaper (no apply; the solid_color
+               fallback takes over on the next reload).
+  get          Show this host's wallpaper path and status.
+  -h, --help   Show this help
+EOF
+}
+
+resolve_image() {
+  local path
+  path="$(realpath -e -- "$1")" || { p_err "no such file: $1"; return 1; }
+  [[ -r "${path}" ]] || { p_err "not readable: ${path}"; return 1; }
+  local mime; mime="$(file --mime-type -b -L -- "${path}")"
+  [[ "${mime}" == image/* ]] || { p_err "not an image (${mime}): ${path}"; return 1; }
+  printf '%s\n' "${path}"
+}
+
+install_wallpaper() {
+  local -r mode="$1"
+  local path; path="$(resolve_image "$2")" || return 1
+  mkdir -p "${WALLPAPER_DIR}"
+  if [[ "${mode}" == copy ]]; then
+    # rm first: a `cp` onto an existing symlink follows it and overwrites
+    # its target instead of replacing the link.
+    rm -f -- "${WALLPAPER_FILE}"
+    cp -- "${path}" "${WALLPAPER_FILE}"
+  else
+    ln -sfn -- "${path}" "${WALLPAPER_FILE}"
+  fi
+}
+
+apply_wallpaper() {
+  [[ -e "${WALLPAPER_FILE}" ]] || return 0
+
+  if [[ ! -r "${WALLPAPER_FILE}" ]]; then
+    p_war "${WALLPAPER_FILE} exists but is not readable, skipping"
+    return 0
+  fi
+
+  local mime; mime="$(file --mime-type -b -L -- "${WALLPAPER_FILE}")"
+  if [[ "${mime}" != image/* ]]; then
+    p_war "${WALLPAPER_FILE} is not an image (${mime}), skipping"
+    return 0
+  fi
+
+  swaymsg output '*' bg "${WALLPAPER_FILE}" fill > /dev/null \
+    || { p_err "swaymsg failed to set wallpaper"; return 1; }
+}
+
+cmd_get() {
+  if [[ -L "${WALLPAPER_FILE}" ]]; then
+    p_msg "${WALLPAPER_FILE} -> $(readlink -f -- "${WALLPAPER_FILE}")"
+    [[ -e "${WALLPAPER_FILE}" ]] || p_war "symlink target is missing"
+  elif [[ -e "${WALLPAPER_FILE}" ]]; then
+    p_msg "${WALLPAPER_FILE} (regular file)"
+  else
+    p_msg "not set, expected at: ${WALLPAPER_FILE}"
+  fi
+}
+
+main() {
+  (( $# > 0 )) || { p_usg >&2; return 1; }
+  local -r cmd="$1"; shift
+
+  case "${cmd}" in
+    set)
+      (( $# <= 1 )) || { p_err "set takes at most one FILE"; return 1; }
+      if (( $# == 1 )); then
+        install_wallpaper link "$1" || return 1
+      fi
+      apply_wallpaper
+      ;;
+    link)
+      (( $# == 1 )) || { p_err "link requires FILE"; return 1; }
+      install_wallpaper link "$1"
+      ;;
+    copy)
+      (( $# == 1 )) || { p_err "copy requires FILE"; return 1; }
+      install_wallpaper copy "$1"
+      ;;
+    rm)
+      if [[ -e "${WALLPAPER_FILE}" || -L "${WALLPAPER_FILE}" ]]; then
+        rm -f -- "${WALLPAPER_FILE}"
+        p_msg "removed ${WALLPAPER_FILE}"
+      else
+        p_msg "nothing to remove, ${WALLPAPER_FILE} not set"
+      fi
+      ;;
+    get)
+      cmd_get
+      ;;
+    -h|--help)
+      p_usg
+      ;;
+    *)
+      p_err "Unknown command: ${cmd}"; p_usg >&2; return 1
+      ;;
+  esac
+}
+
+main "$@"
