@@ -119,7 +119,8 @@ PY
 
 # Installed minus disabled.
 enabled_ids() {
-  comm -23 <(LC_ALL=C sort "$1") <(LC_ALL=C sort "$2")
+  local LC_ALL=C
+  comm -23 <(sort "$1") <(sort "$2")
 }
 
 # "<name>\t<location>" for every non-default profile.
