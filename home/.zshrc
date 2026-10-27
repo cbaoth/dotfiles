@@ -466,7 +466,7 @@ if $IS_STARSHIP; then
     _cb_variant=() _cb_sed=()
     if [[ -n "${CB_PROMPT_REMOTE:-}" ]]; then
       _cb_variant+=(remote)
-      _cb_sed+=(-e 's/^palette = "local"$/palette = "remote"/')
+      _cb_sed+=(-e 's/^palette = "[^"]*"$/palette = "remote"/')
     fi
     if [[ -n "${CB_PROMPT_ROOT:-}" ]]; then
       _cb_variant+=(root)

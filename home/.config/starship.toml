@@ -16,9 +16,18 @@
 #   CB_PROMPT_REMOTE  short hostname (uppercase), set only in a remote session
 #   CB_PROMPT_ROOT    set only when EUID is 0
 # For remote and/or root ~/.zshrc points STARSHIP_CONFIG at a generated copy
-# of this file (sed: `palette = "remote"`; root drops the `$character"""` line,
-# keep it on a line of its own); edit only this file.
-palette = "local"
+# of this file (sed: swaps whatever `palette = "..."` says to `palette =
+# "remote"`; root drops the `$character"""` line, keep it on a line of its
+# own); edit only this file.
+#
+# local: colour theme — every colour below is a named role (head/accent/
+# tier3/tier4/tier5/text_dark/muted/error/bright) resolved through whichever
+# palette is active here, so switching themes never touches the layout.
+# Options: "local" (current, tokyo-night-derived), "eldritch_cthulhu",
+# "eldritch_abyss" — best-effort colour ports of
+# https://github.com/eldritch-theme/starship, fine-tune the palette tables
+# below if needed. "remote" is reserved for the ssh/root variant above.
+palette = "eldritch_cthulhu"
 
 # local: directory scan budget for module detection (default 30 ms). Hit in
 # ~ on a busy disk and on NFS mounts, where each readdir is a network trip;
@@ -30,25 +39,25 @@ format = """
 $os\
 $username\
 ${env_var.CB_PROMPT_REMOTE}\
-[](bg:#769ff0 fg:head)\
+[](bg:accent fg:head)\
 $directory\
-[](fg:#769ff0 bg:#394260)\
+[](fg:accent bg:tier3)\
 $git_branch\
 $git_status\
-[](fg:#394260 bg:#212736)\
+[](fg:tier3 bg:tier4)\
 $nodejs\
 $bun\
 $rust\
 $golang\
 $php\
-[](fg:#212736 bg:#1d2230)\
+[](fg:tier4 bg:tier5)\
 $time\
-[ ](fg:#1d2230)\
+[ ](fg:tier5)\
 \n${env_var.CB_PROMPT_ROOT}\
 $character"""
 
 [directory]
-style = "fg:#0a0b0f bg:#769ff0"
+style = "fg:text_dark bg:accent"
 format = "[ $path ]($style)"
 truncation_length = 3
 truncation_symbol = "…/"
@@ -61,46 +70,46 @@ truncation_symbol = "…/"
 
 [git_branch]
 symbol = ""
-style = "bg:#394260"
-format = '[[ $symbol $branch ](fg:#769ff0 bg:#394260)]($style)'
+style = "bg:tier3"
+format = '[[ $symbol $branch ](fg:accent bg:tier3)]($style)'
 
 [git_status]
-style = "bg:#394260"
-format = '[[($all_status$ahead_behind )](fg:#769ff0 bg:#394260)]($style)'
+style = "bg:tier3"
+format = '[[($all_status$ahead_behind )](fg:accent bg:tier3)]($style)'
 
 [nodejs]
 symbol = ""
-style = "bg:#212736"
-format = '[[ $symbol ($version) ](fg:#769ff0 bg:#212736)]($style)'
+style = "bg:tier4"
+format = '[[ $symbol ($version) ](fg:accent bg:tier4)]($style)'
 
 [bun]
 symbol = ""
-style = "bg:#212736"
-format = '[[ $symbol ($version) ](fg:#769ff0 bg:#212736)]($style)'
+style = "bg:tier4"
+format = '[[ $symbol ($version) ](fg:accent bg:tier4)]($style)'
 
 [rust]
 symbol = ""
-style = "bg:#212736"
-format = '[[ $symbol ($version) ](fg:#769ff0 bg:#212736)]($style)'
+style = "bg:tier4"
+format = '[[ $symbol ($version) ](fg:accent bg:tier4)]($style)'
 
 [golang]
 symbol = ""
-style = "bg:#212736"
-format = '[[ $symbol ($version) ](fg:#769ff0 bg:#212736)]($style)'
+style = "bg:tier4"
+format = '[[ $symbol ($version) ](fg:accent bg:tier4)]($style)'
 
 [php]
 symbol = ""
-style = "bg:#212736"
-format = '[[ $symbol ($version) ](fg:#769ff0 bg:#212736)]($style)'
+style = "bg:tier4"
+format = '[[ $symbol ($version) ](fg:accent bg:tier4)]($style)'
 
 [time]
 disabled = false
 time_format = "%R" # Hour:Minute Format
-style = "bg:#1d2230"
-format = '[[  $time ](fg:#a0a9cb bg:#1d2230)]($style)'
+style = "bg:tier5"
+format = '[[  $time ](fg:muted bg:tier5)]($style)'
 
 [os]
-style = "bg:head fg:#090c0c"
+style = "bg:head fg:text_dark"
 format = "[ $symbol ]($style)"
 disabled = false
 
@@ -109,18 +118,18 @@ disabled = false
 # Root: red bold text only, the red block on the input line is the eye-catcher.
 [username]
 detect_env_vars = ["CB_PROMPT_REMOTE"]
-style_user = "bg:head fg:#090c0c"
-style_root = "bg:head fg:#c54544 bold"
+style_user = "bg:head fg:text_dark"
+style_root = "bg:head fg:error bold"
 format = "[$user ]($style)"
 
 # local: remote host, replaces the hostname module (see format above)
 [env_var.CB_PROMPT_REMOTE]
-style = "bg:head fg:#090c0c bold"
+style = "bg:head fg:text_dark bold"
 format = "[☍ $env_value ]($style)"  # same ssh marker as the old p9k prompt
 
 # local: root marker in front of the input line, old p9k style
 [env_var.CB_PROMPT_ROOT]
-format = "[ ▲ λ ](bg:#c54544 fg:#ffffff bold)[](fg:#c54544) "
+format = "[ ▲ λ ](bg:error fg:bright bold)[](fg:error) "
 
 # local: input line, old p9k style λ block in the clock segment colours
 # (non-root; root shells drop $character, see above). Same width in every state
@@ -128,12 +137,12 @@ format = "[ ▲ λ ](bg:#c54544 fg:#ffffff bold)[](fg:#c54544) "
 # lighter block = vi command mode (`bindkey -v`; emacs mode is the default).
 [character]
 format = "$symbol "
-success_symbol = "[ λ ](bg:#1d2230 fg:#a0a9cb bold)[](fg:#1d2230)"
-error_symbol = "[ ✘ ](bg:#1d2230 fg:#c54544 bold)[](fg:#1d2230)"
-vimcmd_symbol = "[ λ ](bg:#394260 fg:#769ff0 bold)[](fg:#394260)"
-vimcmd_visual_symbol = "[ λ ](bg:#394260 fg:#769ff0 bold)[](fg:#394260)"
-vimcmd_replace_symbol = "[ λ ](bg:#394260 fg:#769ff0 bold)[](fg:#394260)"
-vimcmd_replace_one_symbol = "[ λ ](bg:#394260 fg:#769ff0 bold)[](fg:#394260)"
+success_symbol = "[ λ ](bg:tier5 fg:muted bold)[](fg:tier5)"
+error_symbol = "[ ✘ ](bg:tier5 fg:error bold)[](fg:tier5)"
+vimcmd_symbol = "[ λ ](bg:tier3 fg:accent bold)[](fg:tier3)"
+vimcmd_visual_symbol = "[ λ ](bg:tier3 fg:accent bold)[](fg:tier3)"
+vimcmd_replace_symbol = "[ λ ](bg:tier3 fg:accent bold)[](fg:tier3)"
+vimcmd_replace_one_symbol = "[ λ ](bg:tier3 fg:accent bold)[](fg:tier3)"
 
 [os.symbols]
 Windows = "󰍲"
@@ -159,9 +168,54 @@ Redhat = "󱄛"
 RedHatEnterprise = "󱄛"
 Pop = ""
 
-# local: `head` = colour of the first segment, see format above
+# local: colour roles shared by every palette below — head = first segment
+# colour (see format above), accent/tier3-5 = the segment background gradient
+# (brightest to darkest), text_dark/bright = fixed-contrast text on head/error
+# blocks, muted = time text, error = root/failed-command red.
 [palettes.local]
 head = "#a3aed2"
+accent = "#769ff0"
+tier3 = "#394260"
+tier4 = "#212736"
+tier5 = "#1d2230"
+text_dark = "#0a0b0f"
+muted = "#a0a9cb"
+error = "#c54544"
+bright = "#ffffff"
 
+# Same as [palettes.local] except for `head` — used for the ssh/root variant
+# regardless of which theme is active above (see ~/.zshrc sed).
 [palettes.remote]
 head = "#e0af68"  # tokyo night yellow
+accent = "#769ff0"
+tier3 = "#394260"
+tier4 = "#212736"
+tier5 = "#1d2230"
+text_dark = "#0a0b0f"
+muted = "#a0a9cb"
+error = "#c54544"
+bright = "#ffffff"
+
+# Eldritch adaptations (https://github.com/eldritch-theme/starship) — colours
+# only, best effort; same role set as [palettes.local] above.
+[palettes.eldritch_cthulhu]
+head = "#a48cf2"       # purple
+accent = "#04d1f9"      # cyan
+tier3 = "#454759"       # surface
+tier4 = "#323449"       # currentline
+tier5 = "#212337"       # background
+text_dark = "#212337"   # background
+muted = "#7081d0"       # comment
+error = "#f16c75"       # red
+bright = "#ebfafa"      # foreground
+
+[palettes.eldritch_abyss]
+head = "#8b75d9"        # purple
+accent = "#0396b3"      # cyan
+tier3 = "#353746"       # surface
+tier4 = "#252738"       # currentline
+tier5 = "#171928"       # background
+text_dark = "#171928"   # background
+muted = "#506299"       # comment
+error = "#cc5860"       # red
+bright = "#d8e6e6"      # foreground
