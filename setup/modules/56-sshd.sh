@@ -267,6 +267,11 @@ ${allow_line}
     st::war "could not read effective config (sshd -T failed)"
     return 0
   }
+  # sshd -T echoes keywords in whatever case the config used (observed:
+  # CamelCase on OpenSSH 10.5p1), not a normalized lowercase — so compare
+  # lowercased, or every check below false-positives regardless of the actual
+  # config.
+  local -r effective_lc="${effective,,}"
 
   local expected
   for expected in \
@@ -274,7 +279,7 @@ ${allow_line}
     'kbdinteractiveauthentication no' \
     'authenticationmethods publickey' \
     'permitrootlogin no'; do
-    if printf '%s\n' "${effective}" | st::grep_q -qxF "${expected}"; then
+    if printf '%s\n' "${effective_lc}" | st::grep_q -qxF "${expected}"; then
       st::skip "effective: ${expected}"
     else
       st::war "NOT effective: ${expected} — check ${SSHD_LOCAL} and other drop-ins"
@@ -284,7 +289,7 @@ ${allow_line}
   # Print the value rather than just "it is set": the whole point of seeding
   # AllowUsers is that you can see, on every run, exactly who that leaves.
   local allow_effective
-  allow_effective="$(printf '%s\n' "${effective}" \
+  allow_effective="$(printf '%s\n' "${effective_lc}" \
     | grep -E '^(allowusers|allowgroups) ' | tr '\n' ' ')"
   if [[ -n "${allow_effective}" ]]; then
     st::skip "effective: ${allow_effective% }"
