@@ -67,37 +67,50 @@ sway_cmd() {
   swaymsg -- "$cmd"
 }
 
-# Output: "<sticky> <type>", e.g. "true floating_con" or "false con"
+# Output: "<sticky> <type> <id>", e.g. "true floating_con 217" or "false con 42"
 get_focused_state() {
   swaymsg -t get_tree \
-    | jq -r 'recurse(.nodes[]?, .floating_nodes[]?) | select(.focused == true) | "\(.sticky) \(.type)"' \
+    | jq -r 'recurse(.nodes[]?, .floating_nodes[]?) | select(.focused == true) | "\(.sticky) \(.type) \(.id)"' \
     | head -1
 }
 
+# Floating off/on loses the float rect (sway re-centers at a default size), so the
+# rect is stashed before disabling and re-applied after enabling again. Never lets
+# a failure here break the toggle. See bin/sway-float-geometry (stash/unstash).
 cmd_float() {
-  local sticky type
-  read -r sticky type < <(get_focused_state)
+  local sticky type cid
+  read -r sticky type cid < <(get_focused_state)
 
   # $-names are sway config variables (20-styles.conf, 30-variables.conf)
   if [[ "$type" == "floating_con" ]]; then
+    sway-float-geometry --con-id "$cid" stash || true
     sway_cmd 'floating disable, border $border_default, title_format "%title"'
-  elif [[ "$sticky" == "true" ]]; then
-    # Preserve sticky indicator if sticky was already set
-    sway_cmd '$stick'
   else
-    sway_cmd '$float'
+    if [[ "$sticky" == "true" ]]; then
+      # Preserve sticky indicator if sticky was already set
+      sway_cmd '$stick'
+    else
+      sway_cmd '$float'
+    fi
+    sway-float-geometry --con-id "$cid" unstash || true
   fi
 }
 
+# Both branches float the window (see $stick / $unstick), so a tiled window gets
+# re-centered at a default size: put its stashed float rect back, as cmd_float does.
 cmd_sticky() {
-  local sticky type
+  local sticky type was_type cid
+  read -r _ was_type cid < <(get_focused_state)
   swaymsg sticky toggle
-  read -r sticky type < <(get_focused_state)
+  read -r sticky type _ < <(get_focused_state)
 
   if [[ "$sticky" == "true" ]]; then
     sway_cmd '$stick'
   else
     sway_cmd '$unstick'
+  fi
+  if [[ "$was_type" != "floating_con" ]]; then
+    sway-float-geometry --con-id "$cid" unstash || true
   fi
 }
 

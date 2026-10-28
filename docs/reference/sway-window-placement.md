@@ -48,6 +48,7 @@ deployed by `dotfiles-link`. There is nothing idempotent to install.
 | "Executable name" criterion | **impossible** | — | No such attribute. Closest: `pid` + `/proc/<pid>/exe` from a script |
 | Distinguish identical-looking windows | **impossible** | — | If `app_id`+`class`+`instance`+`title` all match, sway cannot tell them apart. Only escape: `mark` them yourself |
 | Floating position/size restore | **native cmds + scripts** | S | `bin/sway-float-geometry` (`watch` daemon: snapshot + auto-restore on any output change) |
+| Float rect across a floating off/on toggle | **scripts** | S | `sway-wstate float` calls `sway-float-geometry stash` / `unstash`; state in `$XDG_RUNTIME_DIR`, keyed by con_id + sway PID, 30 min lease (`--ttl`) |
 | Reproduce container tree (splits, nesting) | **self-implemented** | L | No placeholders — see [append_layout](#append_layout-does-not-exist-in-sway) |
 | Reproduce `tabbed`/`stacked` | **already configured** | — | `workspace_layout tabbed` (20-styles.conf) makes sway wrap each workspace's children in one tabbed container automatically |
 | Reproduce order within a container | **self-implemented** | S | `move container to mark` inserts immediately AFTER the mark, so advancing the mark per window builds any order in one pass. No `move left/right` walking needed (measured) |
