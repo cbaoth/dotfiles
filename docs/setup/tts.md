@@ -3,7 +3,7 @@ title: Text-to-speech (read selection aloud)
 hosts: [motoko]
 status: resolved
 tags: [tts, piper, sway, accessibility, voxtral]
-updated: 2026-10-22
+updated: 2026-10-28
 ---
 
 # Text-to-speech: read the selection aloud
@@ -20,7 +20,7 @@ Selecting is enough (primary selection; clipboard is the fallback).
 
 | Piece | Role |
 | ----- | ---- |
-| `bin/tts-clean` | Engine-independent text cleaner: footnotes, URLs, markdown, dotted abbreviations (`S.M.A.R.T.` -> "Smart", `z.B.` -> "zum Beispiel"), line-wrap repair, sentence chunking, de/en detection |
+| `bin/tts-clean` | Engine-independent text cleaner: footnotes, URLs, markdown, dotted abbreviations (`S.M.A.R.T.` -> "Smart", `z.B.` -> "zum Beispiel"), numbers spelled out (de, en), line-wrap repair, sentence chunking, de/en detection |
 | `bin/tts-speak` | Selection/stdin/args -> clean -> engine -> `pw-play`. Playback starts while later chunks are still being synthesized. `toggle` / `stop` / `list`, `-o file` to save, `-k DIR` to keep sessions |
 | `~/.config/tts/tts-speak.conf` | Engine, speed, voice per language (shipped as `home/.config/tts/`) |
 | sway binding | `40-keybindings.conf`, `bindsym --no-repeat $altgr+F9 exec tts-speak toggle` |
@@ -107,6 +107,11 @@ to the voice, the model, the engine, or the text.
 
 - **Cleaning is separate from synthesis** because no TTS model reliably skips
   `[1]`, URLs or reads `S.M.A.R.T.` as a word. Every engine gets the same text.
+  cb-voice-lab uses the same cleaner instead of a copy of its rules:
+  `cb-qwen3-tts --text-filter tts-clean` pipes each text through it, and
+  `--filter-ref-text` does the same for the clone reference transcript. The
+  Piper fixes below are not meant for it: Qwen3 would read `[[phonemes]]`
+  out literally.
 - **An engine is a shell function** (`engine_NAME`) that turns a file of
   one-chunk-per-line into ordered `*.wav` files. Adding one is ~10 lines.
 - **Heavy GPU engines do not live here.** They run as local servers in
@@ -206,6 +211,14 @@ marks multi-speaker models. Sources: <https://huggingface.co/rhasspy/piper-voice
   a bare "Kapitel 3." stays a sentence end), dates, times, decimals, percent,
   thousands separators, years 1100-1999 as "neunzehnhundert...". Model names
   ("RTX 4070") and leading-zero codes are left alone.
+- English numbers too (2026-10-28), American style without "and": amounts
+  (`$156` -> "one hundred fifty-six dollars", `$1.50`, `$2 million`, `156 €`),
+  ordinals (`21st`), decades (`1990s`, `'80s`), years in pairs ("nineteen
+  eighty-four", "twenty twenty-six"; 2000-2009 "two thousand five"), times
+  ("three thirty P M", "twelve o'clock"), decimals, percent, `1,500`. Version
+  strings (`1.2.3`) are left alone. A bare 4-digit number from 1100 to 2099 is
+  read as a year ("1500 meters" -> "fifteen hundred meters"); with a comma
+  (`1,500`) it is a cardinal.
 - Unnatural pauses in hard-wrapped text (Gutenberg) were a `tts-clean` bug,
   fixed: German nouns are capitalized, so case says nothing about a wrap.
 
