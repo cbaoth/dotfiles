@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Respawn Trayscale whenever waybar's tray (StatusNotifierWatcher) is rebuilt.
+#
+# Background: Trayscale (via deedles.dev/tray) registers its tray icon with the
+# watcher exactly once at startup and never listens for the watcher coming
+# back. Waybar tears the watcher down and recreates it empty whenever its bar
+# is rebuilt: on resume from suspend (sway briefly has no outputs) and on
+# `swaymsg reload` (swaybar_command restarts waybar). Other tray apps
+# re-register on their own; Trayscale keeps running but its icon is gone.
+#
+# We watch `NameOwnerChanged` for org.kde.StatusNotifierWatcher and, when it
+# gains an owner, restart Trayscale -- but only if it is running (a deliberate
+# Quit stays quit). Bursts of events (rapid reloads) are debounced.
+#
+# Usage: exec trayscale-respawn     (once, from the sway config; `exec`, not
+#        `exec_always`, so a reload does not stack a second watcher -- a
+#        flock guards against that anyway)
+
+# shellcheck disable=SC2155
+declare -r SCRIPT_FILE="${0##*/}"
+
+set -o errexit
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+declare -r WATCHER_NAME="org.kde.StatusNotifierWatcher"
+declare -r APP_ID="dev.deedles.Trayscale"
+# Quiet period (seconds) after the last watcher event before acting.
+declare -ri DEBOUNCE=2
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+p_inf() { printf '%s: %s\n' "${SCRIPT_FILE}" "$*" >&2; }
+
+p_usg() {
+  cat <<EOF
+Usage: ${SCRIPT_FILE} [-h]
+
+Watch ${WATCHER_NAME} on the session bus and restart ${APP_ID}
+(if running) each time the watcher is recreated, so its tray icon comes back
+after suspend/resume or a sway reload. Runs until killed; one instance only.
+EOF
+}
+
+trayscale_running() {
+  flatpak ps --columns=application 2>/dev/null | grep -qx "${APP_ID}"
+}
+
+respawn() {
+  if ! trayscale_running; then
+    p_inf "watcher recreated, ${APP_ID} not running -- nothing to do"
+    return 0
+  fi
+  p_inf "watcher recreated -- restarting ${APP_ID}"
+  flatpak kill "${APP_ID}" || true
+  # Wait for the old instance to be gone so the new one is not forwarded to it.
+  local -i i
+  for (( i = 0; i < 50; i++ )); do
+    trayscale_running || break
+    sleep 0.1
+  done
+  setsid -f flatpak run "${APP_ID}" --hide-window > /dev/null 2>&1
+}
+
+main() {
+  case "${1:-}" in
+    -h|--help) p_usg; exit 0 ;;
+    "")        ;;
+    *)         p_err "unknown option: '$1'"; p_usg >&2; exit 1 ;;
+  esac
+
+  local cmd
+  for cmd in dbus-monitor flatpak flock; do
+    command -v "${cmd}" > /dev/null 2>&1 || { p_err "${cmd} not found"; exit 1; }
+  done
+
+  # Single instance per session.
+  exec 9> "${XDG_RUNTIME_DIR:-/tmp}/${SCRIPT_FILE}.lock"
+  flock -n 9 || { p_inf "already running"; exit 0; }
+
+  # dbus-monitor prints, per match, a signal header followed by three string
+  # lines: name, old owner, new owner. Count them to pick out the new owner.
+  # `read -t` doubles as the debounce timer: pending=1 means an event is
+  # waiting out its quiet period.
+  local line
+  local -i n=0 pending=0
+  while true; do
+    if (( pending )); then
+      if IFS= read -r -t "${DEBOUNCE}" line; then :; else
+        (( $? > 128 )) || break  # EOF: dbus-monitor died
+        pending=0
+        respawn
+        continue
+      fi
+    else
+      IFS= read -r line || break
+    fi
+
+    case "${line}" in
+      signal*) n=0 ;;
+      *'string '*)
+        n=$(( n + 1 ))
+        # Third string = new owner; non-empty means the watcher (re)appeared.
+        if (( n == 3 )) && [[ "${line}" != *'string ""'* ]]; then
+          pending=1
+        fi
+        ;;
+    esac
+  # No sender= in the rule: it never matches the bus daemon's well-known name.
+  # 9>&- keeps dbus-monitor from inheriting (and outliving us holding) the lock.
+  done < <(dbus-monitor --session \
+    "type='signal',member='NameOwnerChanged',arg0='${WATCHER_NAME}'" \
+    2>/dev/null 9>&-)
+
+  p_err "dbus-monitor exited"
+  exit 1
+}
+
+main "$@"
