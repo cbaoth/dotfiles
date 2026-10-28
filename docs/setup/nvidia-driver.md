@@ -3,7 +3,7 @@ title: NVIDIA driver and CUDA toolkit — where each comes from (motoko)
 hosts: [motoko]
 status: resolved
 tags: [nvidia, cuda, apt, pinning, kernel, steam]
-updated: 2026-10-26
+updated: 2026-10-28
 ---
 
 # NVIDIA driver and CUDA toolkit
@@ -37,12 +37,30 @@ which pins **everything** labelled "NVIDIA CUDA" at 600 — driver included. So
 on top of it:
 
 ```text
-# /etc/apt/preferences.d/cuda-no-driver
-# Driver comes from Ubuntu (prebuilt signed modules); CUDA repo only for toolkit.
+# /etc/apt/preferences.d/cuda-no-driver (comments trimmed)
+Package: nvidia-container-toolkit nvidia-container-toolkit-base libnvidia-container1 libnvidia-container-tools
+Pin: origin developer.download.nvidia.com
+Pin-Priority: 500
+
 Package: cuda-drivers* nvidia-* libnvidia-* libxnvctrl* xserver-xorg-video-nvidia* dkms dh-dkms
 Pin: origin developer.download.nvidia.com
 Pin-Priority: -1
 ```
+
+**The container toolkit exemption comes first.** The CUDA repo carries the
+same container toolkit versions as `nvidia.github.io`. Without the exemption the
+glob blocks them, and since apt ties the installed version to the CUDA repo's
+copy (identical version string, different build), that copy counts as -1 and
+**every upgrade "downgrades" (reinstalls) the four packages**, forever
+(2026-10-28). The first matching specific record wins, so the exemption must
+precede the glob. Priority **500, not 100**: at 100 the
+`nvidia.github.io` copy (500) still outranks the installed one and the loop
+continues; at equal priority apt keeps what is installed.
+
+Testing a pin without root:
+`apt-get -o Dir::Etc::PreferencesParts=/some/dir -s dist-upgrade` (a full copy
+of `preferences.d` with the edit; in zsh pass the options as an array, an
+unquoted `$opts` string is not split).
 
 The file name matters: apt reads `preferences.d` alphabetically and
 `cuda-no-driver` sorts before `cuda-repository-pin-600`. Package-specific
