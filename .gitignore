@@ -1,36 +1,85 @@
-# Zsh cache / compiled
-.zcompdump
-.zcompdump-*
-*.zwc
+# Repo-specific ignores. Generic editor/OS/language junk (swap files, .DS_Store,
+# __pycache__, node_modules, ...) and the secret patterns live in the global
+# ignore (home/.config/git/ignore -> ~/.config/git/ignore). The secret block
+# below is deliberately duplicated: this repo is public, so it must not depend
+# on a contributor having that file.
+#
+# Rule of thumb: add a pattern only for something that occurs in this repo.
+# Anchor generic names (/tmp/, not tmp/) so they cannot hit nested dirs.
+# Ideas for other languages/tools: https://github.com/github/gitignore
 
-# OS artifacts
-.DS_Store
-Thumbs.db
-desktop.ini
+# --- Local only: scratch, overrides ---
+# Per-machine scratch, never synced (see AGENTS.md: "_local/ is scratch").
+_local/
+/scratch/
+*.scratch
 
-# Editor artifacts
-.vscode/*
-.vscode/**/*
-!.vscode/extensions.json
-.idea/
+# Convention: foo.local / foo.local.conf override the tracked foo (not committed).
+*.local
+*.local.*
+# ...but *.local.example templates ARE tracked.
+!*.local.example
+# ...and a `.local` directory (e.g. home/.local/share/...) is not an override.
+# Keep these negations AFTER every *.local pattern; a later *.local re-ignores it.
+!.local/
 
-# Image viewer artifacts
-.thumbnails/
+# gitleaks config may reference real paths/fingerprints.
+.gitleaks.toml
+gitleaks.toml
 
-# Temp / scratch artifacts
-temp/
-.temp/
-tmp/
-.tmp/
-bak/
-.bak/
-*.tmp
-*.temp
-*.bak
+# --- Secrets: never commit ---
+secret/
+secrets.*
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.kdbx
+
+# --- Generated / temporary ---
 *.log
+*.tmp
+*.bak
+/tmp/
+/bak/
 
+# Downloaded installers and archives (should never be committed by accident).
+*.deb
+*.rpm
+*.AppImage
+*.flatpak
+*.snap
+*.zip
+*.7z
+*.tar
+*.tar.*
+*.tgz
+
+# --- Zsh ---
+# https://www.toptal.com/developers/gitignore?templates=zsh
+*.zwc
+*.zwc.old
+*zcompdump*
+.zsh_history
+.zsh_sessions
+.zcalc_history
+
+# --- Visual Studio Code ---
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+!*.code-workspace
+*.vsix
+
+# --- AI agent files ---
 # Track only own cb-*.md files; everything else in .github/ stays local
-# (unreviewed/unlicensed content from awesome-copilot, future extension-managed files, etc.)
+# (unreviewed/unlicensed content from awesome-copilot, future extension-managed
+# files, etc.)
 .github/*
 !.github/copilot-instructions.md
 !.github/cb-*.md
@@ -47,27 +96,7 @@ bak/
 !.github/skills/cb-*.md
 !.github/prompts/cb-*.prompt.md
 
-# local: configuratins and variables, may contain sensitive info (e.g., API keys)
+# Local Claude Code state (may contain sensitive info, e.g. API keys).
 .claude/settings.local.json
 .claude/memory/
 .claude/plans/
-
-# Environment files — may contain secrets
-.env
-.env.*
-!.env.example
-
-# Local scratch space — never commit
-# Convention: _local/ dirs are for test dumps, scratch work, ad-hoc experiments
-_local/
-/scratch/
-
-# Local config overrides — may contain sensitive data (e.g., credentials, API keys)
-# Convention: foo.local or foo.local.conf overrides the tracked foo config (not committed)
-#.local
-*.local
-*.local.*
-# ...but *.local.example templates ARE tracked — they document the local file.
-!*.local.example
-# ...and the .local directory itself (e.g. home/.local/share/...) is not a local override.
-!.local/

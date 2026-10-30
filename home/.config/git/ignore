@@ -1,8 +1,56 @@
 # ~/.config/git/ignore — global gitignore, tracked in cbaoth/dotfiles.
 # Patterns here apply to every repo on the machine. Keep to things that are
-# never wanted in any repo.
+# never wanted in any repo and cannot collide with a legitimate name.
+#
+# Not a security boundary: `git add -f` and already-tracked files bypass it.
+# A repo that deliberately tracks one of these (e.g. a test-fixture *.pem) adds
+# a `!pattern` to its own .gitignore. Symptom of a collision: a new file is
+# silently missing from `git status` -> check with `git check-ignore -v <file>`.
 
-# Claude Code writes per-directory local settings we never commit.
+# --- Claude Code: per-directory local state, never committed ---
 **/.claude/settings.local.json
-
 **/.claude/.cc-writes/
+
+# --- Local-only working dirs (sensitive: pasted dumps, saved pages, notes) ---
+# `/scratch/` is anchored to the repo root so a real `scratch` dir/package
+# deeper in the tree is unaffected.
+_local/
+/scratch/
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+!.env.sample
+.netrc
+*.kdbx
+*.p12
+*.pfx
+*.pem
+*.key
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+
+# --- OS / editor junk ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+.directory
+.fuse_hidden*
+.nfs*
+*~
+*.sw[a-p]
+.#*
+\#*\#
+*.elc
+
+# --- Tool caches / dependencies ---
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+node_modules/
