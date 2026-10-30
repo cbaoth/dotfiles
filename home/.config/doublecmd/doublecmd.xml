@@ -157,14 +157,14 @@
     </MiddleToolbar>
   </Toolbars>
   <MainWindow>
-    <Position Save="True">
-      <Left>984</Left>
-      <Top>126</Top>
-      <Width>2064</Width>
-      <Height>1357</Height>
+    <Position Save="False">
+      <Left>10</Left>
+      <Top>10</Top>
+      <Width>1920</Width>
+      <Height>1080</Height>
       <PixelsPerInch>96</PixelsPerInch>
-      <Maximized>True</Maximized>
-      <Splitter>50,1675977653631</Splitter>
+      <Maximized>False</Maximized>
+      <Splitter>50</Splitter>
     </Position>
   </MainWindow>
   <Language>
@@ -748,11 +748,27 @@
       <CursorBorder Enabled="False"/>
       <Columns>
         <Column>
-          <Title>Name</Title>
+          <Title>Filename</Title>
           <Unique>628622F9-69C8-4F2D-9673-A722A730833D</Unique>
-          <FuncString>[DC().GETFILENAMENOEXT{}]</FuncString>
-          <Width>354</Width>
+          <FuncString>[DC().GETFILENAME{}]</FuncString>
+          <Width>500</Width>
           <Align>0</Align>
+          <Font>
+            <Name>FiraCode Nerd Font</Name>
+            <Size>9</Size>
+            <Style>0</Style>
+            <Quality>0</Quality>
+          </Font>
+          <UseInvertedSelection>True</UseInvertedSelection>
+          <UseInactiveSelColor>True</UseInactiveSelColor>
+          <Overcolor>True</Overcolor>
+        </Column>
+        <Column>
+          <Title>Size</Title>
+          <Unique>7EDAEBF3-B6DB-44E7-BA89-9324C93EFADF</Unique>
+          <FuncString>[DC().GETFILESIZE{}]</FuncString>
+          <Width>65</Width>
+          <Align>1</Align>
           <Font>
             <Name>FiraCode Nerd Font</Name>
             <Size>9</Size>
@@ -780,43 +796,11 @@
           <Overcolor>True</Overcolor>
         </Column>
         <Column>
-          <Title>Type</Title>
-          <Unique>176EFD29-4CF5-425E-B729-21BE34F5AA97</Unique>
-          <FuncString>[DC().GETFILETYPE{}]</FuncString>
-          <Width>112</Width>
-          <Align>1</Align>
-          <Font>
-            <Name>FiraCode Nerd Font</Name>
-            <Size>9</Size>
-            <Style>0</Style>
-            <Quality>0</Quality>
-          </Font>
-          <UseInvertedSelection>True</UseInvertedSelection>
-          <UseInactiveSelColor>True</UseInactiveSelColor>
-          <Overcolor>True</Overcolor>
-        </Column>
-        <Column>
-          <Title>Size</Title>
-          <Unique>7EDAEBF3-B6DB-44E7-BA89-9324C93EFADF</Unique>
-          <FuncString>[DC().GETFILESIZE{}]</FuncString>
-          <Width>70</Width>
-          <Align>1</Align>
-          <Font>
-            <Name>FiraCode Nerd Font</Name>
-            <Size>9</Size>
-            <Style>0</Style>
-            <Quality>0</Quality>
-          </Font>
-          <UseInvertedSelection>True</UseInvertedSelection>
-          <UseInactiveSelColor>True</UseInactiveSelColor>
-          <Overcolor>True</Overcolor>
-        </Column>
-        <Column>
           <Title>Date</Title>
           <Unique>93199CEC-11A4-48DC-AA70-B7CE3A662090</Unique>
           <FuncString>[DC().GETFILETIME{}]</FuncString>
-          <Width>140</Width>
-          <Align>1</Align>
+          <Width>145</Width>
+          <Align>2</Align>
           <Font>
             <Name>FiraCode Nerd Font</Name>
             <Size>9</Size>
@@ -828,27 +812,11 @@
           <Overcolor>True</Overcolor>
         </Column>
         <Column>
-          <Title>Attributes</Title>
+          <Title>Attr#</Title>
           <Unique>AFD0AE74-3ED1-424B-945E-385E98A96B3A</Unique>
           <FuncString>[DC().GETFILEATTR{OCTAL}]</FuncString>
           <Width>50</Width>
-          <Align>0</Align>
-          <Font>
-            <Name>FiraCode Nerd Font</Name>
-            <Size>9</Size>
-            <Style>0</Style>
-            <Quality>0</Quality>
-          </Font>
-          <UseInvertedSelection>True</UseInvertedSelection>
-          <UseInactiveSelColor>True</UseInactiveSelColor>
-          <Overcolor>True</Overcolor>
-        </Column>
-        <Column>
-          <Title>Attr</Title>
-          <Unique>D9A52740-EDE8-4A94-BE6D-1672D037EF78</Unique>
-          <FuncString>[DC().GETFILEATTR{}]</FuncString>
-          <Width>100</Width>
-          <Align>0</Align>
+          <Align>2</Align>
           <Font>
             <Name>FiraCode Nerd Font</Name>
             <Size>9</Size>
@@ -863,8 +831,8 @@
           <Title>Owner</Title>
           <Unique>A4470662-6E5B-4355-A630-0C085F87C4CC</Unique>
           <FuncString>[DC().GETFILEOWNER{}]</FuncString>
-          <Width>60</Width>
-          <Align>0</Align>
+          <Width>50</Width>
+          <Align>2</Align>
           <Font>
             <Name>FiraCode Nerd Font</Name>
             <Size>9</Size>
@@ -879,7 +847,39 @@
           <Title>Group</Title>
           <Unique>75B99430-C34F-4461-B497-C1A75C4AD630</Unique>
           <FuncString>[DC().GETFILEGROUP{}]</FuncString>
-          <Width>62</Width>
+          <Width>50</Width>
+          <Align>2</Align>
+          <Font>
+            <Name>FiraCode Nerd Font</Name>
+            <Size>9</Size>
+            <Style>0</Style>
+            <Quality>0</Quality>
+          </Font>
+          <UseInvertedSelection>True</UseInvertedSelection>
+          <UseInactiveSelColor>True</UseInactiveSelColor>
+          <Overcolor>True</Overcolor>
+        </Column>
+        <Column>
+          <Title>Attributes</Title>
+          <Unique>D9A52740-EDE8-4A94-BE6D-1672D037EF78</Unique>
+          <FuncString>[DC().GETFILEATTR{}]</FuncString>
+          <Width>80</Width>
+          <Align>2</Align>
+          <Font>
+            <Name>FiraCode Nerd Font</Name>
+            <Size>9</Size>
+            <Style>0</Style>
+            <Quality>0</Quality>
+          </Font>
+          <UseInvertedSelection>True</UseInvertedSelection>
+          <UseInactiveSelColor>True</UseInactiveSelColor>
+          <Overcolor>True</Overcolor>
+        </Column>
+        <Column>
+          <Title>MIME type</Title>
+          <Unique>176EFD29-4CF5-425E-B729-21BE34F5AA97</Unique>
+          <FuncString>[DC().GETFILETYPE{}]</FuncString>
+          <Width>150</Width>
           <Align>0</Align>
           <Font>
             <Name>FiraCode Nerd Font</Name>
@@ -895,7 +895,7 @@
           <Title>Link To</Title>
           <Unique>8A722A0B-6215-41F9-9128-F7B2E5476B4D</Unique>
           <FuncString>[DC().GETFILELINKTO{}]</FuncString>
-          <Width>130</Width>
+          <Width>500</Width>
           <Align>0</Align>
           <Font>
             <Name>FiraCode Nerd Font</Name>
