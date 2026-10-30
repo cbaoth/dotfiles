@@ -666,6 +666,7 @@ alias gids='git diff --staged'      # staged (what a commit would capture)
 
 # add / commit
 alias gia='git add'
+alias giau='git add --update'       # only add changes to files that are already tracked
 alias giap='git add --patch'        # stage hunk by hunk
 alias gic='git commit'
 alias gicm='git commit -m'
