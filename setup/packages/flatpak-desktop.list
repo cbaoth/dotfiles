@@ -29,8 +29,8 @@ org.videolan.VLC
 io.github.quodlibet.QuodLibet
 io.github.quodlibet.ExFalso
 
-# Social
-org.signal.Signal
+# NOTE: Signal is deliberately NOT here — the flatpak lagged and could not link
+# with the phone. It is apt (setup/modules/37-signal.sh).
 
 # Utilities
 com.github.tchx84.Flatseal
