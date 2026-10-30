@@ -60,6 +60,10 @@ TTS_HTTP_URL="${TTS_HTTP_URL:-http://127.0.0.1:8880/v1/audio/speech}"
 TTS_HTTP_MODEL="${TTS_HTTP_MODEL:-tts-1}"
 TTS_HTTP_VOICE_DE="${TTS_HTTP_VOICE_DE:-}"
 TTS_HTTP_VOICE_EN="${TTS_HTTP_VOICE_EN:-}"
+# http: sampling seed (a number, or "random" = a new one per read-aloud; empty = the server's own default)
+# and a style instruction for servers that support one (cb-tts-server: Qwen3 CustomVoice speakers)
+TTS_SEED="${TTS_SEED:-}"
+TTS_INSTRUCT="${TTS_INSTRUCT:-}"
 
 # }}} = CONSTANTS =============================================================
 
@@ -88,6 +92,13 @@ Options:
   -v, --voice V    engine-specific voice/model (default: per language, see conf);
                    piper multi-speaker models: MODEL:SPEAKER (name or id)
   -s, --speed X    speaking speed, 1.0 = normal (default: ${TTS_SPEED})
+      --seed N     http: sampling seed for a different take of the same text; N is a
+                   number or "random" (a new seed per read-aloud, printed and kept
+                   in the session; default: TTS_SEED, currently '${TTS_SEED}')
+  -i, --instruct T http: style instruction in English, e.g. "cheerful, smiling"
+                   (cb-tts-server: only Qwen3 CustomVoice speakers use it, e.g. vivian,
+                   other voices ignore it; German instructions are not understood;
+                   default: TTS_INSTRUCT, currently '${TTS_INSTRUCT}')
   -o, --output F   write audio to F (any ffmpeg extension) instead of playing
   -k, --keep D     also keep the audio: one session dir per read-aloud under D
                    (<date>_<engine>-<voice>_<first words>/: audio/NNNN.wav,
@@ -125,9 +136,14 @@ p_warn() {
   fi
 }
 
+# Desktop notification (seen under a hotkey), and on a terminal also a line on stderr: a small
+# notification is easy to miss in a full-screen terminal, and a TTY has none.
 notify() {
+  if [[ -t 2 ]]; then
+    if [[ -z "${NO_COLOR:-}" ]]; then printf 'tts-speak: \e[1m%s\e[0m\n' "$*" >&2; else printf 'tts-speak: %s\n' "$*" >&2; fi
+  fi
   command -v notify-send > /dev/null 2>&1 || return 0
-  notify-send -a tts-speak -t 2500 "tts-speak" "$*" || true
+  notify-send -a tts-speak -t 2500 "tts-speak" "$*" 2> /dev/null || true
 }
 
 get_selection() {
@@ -228,17 +244,49 @@ engine_piper() {
   fi
 }
 
+# A server that loads models on demand (first request, after idle unload, engine switch) is silent for a
+# while; say so, or it looks like a bug. Uses /health ("engines": state per engine) and, if the voice is
+# known, /v1/audio/voices ("library": voices of the qwen3 engine, "custom": speakers of the qwen3-custom engine,
+# any other voice is a voxtral preset).
+# Servers without "engines" (or an empty voice = server default) fall back to the active model's state.
+http_warn_model_load() {
+  local -r voice="$1" base="${TTS_HTTP_URL%/v1/audio/speech}"
+  local health engine="" state want_state active_state
+  health="$(curl -s -m 1 "${base}/health" 2> /dev/null)" || return 0
+  state="$(jq -r '.model // empty' <<< "${health}" 2> /dev/null)"
+  [[ -n "${state}" ]] || return 0
+  if [[ -n "${voice}" ]] && jq -e '.engines' <<< "${health}" > /dev/null 2>&1; then
+    engine="$(curl -s -m 1 "${base}/v1/audio/voices" 2> /dev/null | jq -r --arg v "${voice}" \
+      'if (.library // [] | any(.name == $v)) then "qwen3"
+       elif (.custom // [] | any(. == ($v | ascii_downcase))) then "qwen3-custom"
+       else "voxtral" end' 2> /dev/null)"
+    [[ -n "${engine}" ]] || engine=voxtral
+    want_state="$(jq -r --arg e "${engine}" '.engines[$e] // empty' <<< "${health}")"
+    active_state="$(jq -r '.model // empty' <<< "${health}")"
+    [[ -z "${want_state}" || "${want_state}" == loaded ]] && return 0
+    if [[ "${active_state}" == loaded ]]; then
+      notify "TTS server is switching to the ${engine} model for '${voice}'; the first clip can take 30-80 s"
+    else
+      notify "TTS server is loading the ${engine} model (${want_state}); the first clip can take 30-80 s"
+    fi
+    return 0
+  fi
+  [[ "${state}" == loaded ]] || notify "TTS server is loading its model (${state}); the first clip can take 30-80 s"
+}
+
 engine_http() {
   local -r lang="$1" voice="$2" speed="$3" chunks="$4" out_dir="$5"
-  local line n=0 body tmp state
-  # A server that unloads its model when idle needs ~30 s for the first clip; say so.
-  state="$(curl -s -m 1 "${TTS_HTTP_URL%/v1/audio/speech}/health" 2> /dev/null | jq -r '.model // empty' 2> /dev/null)"
-  [[ -z "${state}" || "${state}" == loaded ]] || notify "TTS server is loading its model (${state}); the first clip can take ~30 s"
+  local line n=0 body tmp
+  http_warn_model_load "${voice}"
   while IFS= read -r line; do
     (( ++n ))
     printf -v tmp '%s/%04d.part' "${out_dir}" "${n}"
     body="$(jq -nc --arg m "${TTS_HTTP_MODEL}" --arg i "${line}" --arg v "${voice}" --argjson s "${speed}" \
-      '{model: $m, input: $i, response_format: "wav", speed: $s} + (if $v != "" then {voice: $v} else {} end)')"
+      --arg seed "${TTS_SEED}" --arg ins "${TTS_INSTRUCT}" \
+      '{model: $m, input: $i, response_format: "wav", speed: $s}
+       + (if $v != "" then {voice: $v} else {} end)
+       + (if $seed != "" then {seed: ($seed | tonumber)} else {} end)
+       + (if $ins != "" then {instructions: $ins} else {} end)')"
     if curl -sS --fail -H 'Content-Type: application/json' -d "${body}" -o "${tmp}" "${TTS_HTTP_URL}"; then
       mv -- "${tmp}" "${tmp%.part}.wav"
     else
@@ -449,6 +497,8 @@ new_session() {
   [[ "${engine}" != http ]] ||
     regen="$(printf 'TTS_HTTP_URL=%q TTS_HTTP_MODEL=%q ' "${TTS_HTTP_URL}" "${TTS_HTTP_MODEL}")${regen}"
   [[ -z "${piper_opts}" ]] || regen+=" -p $(printf '%q' "${piper_opts}")"
+  [[ -z "${TTS_SEED}" ]] || regen+=" --seed ${TTS_SEED}"
+  [[ -z "${TTS_INSTRUCT}" ]] || regen+=" --instruct $(printf '%q' "${TTS_INSTRUCT}")"
   # A copy of each --fixes script: the session renders the same even after
   # the book's list grew. The language's own fixes are not copied (git has them).
   local f
@@ -458,7 +508,7 @@ new_session() {
     cp -- "${f}" "${dir}/" && copies+=("${f##*/}") && regen+=" --fixes ./$(printf '%q' "${f##*/}")"
   done
   jq -n --arg created "$(date -Iseconds)" --arg host "${HOSTNAME:-}" --arg engine "${engine}" \
-    --arg piper_opts "${piper_opts}" \
+    --arg piper_opts "${piper_opts}" --arg seed "${TTS_SEED}" --arg instruct "${TTS_INSTRUCT}" \
     --arg voice "${voice}" --arg lang "${lang}" --argjson speed "${speed}" \
     --argjson clean "$([[ "${do_clean}" == 1 ]] && echo true || echo false)" \
     --argjson chunk_chars "${TTS_CHUNK_CHARS}" --argjson sentence_chars "${TTS_SENTENCE_CHARS}" \
@@ -468,6 +518,8 @@ new_session() {
       clean: $clean, chunk_chars: $chunk_chars, sentence_chars: $sentence_chars, chunks: $chunks,
       regenerate: $regen}
      + (if $engine == "http" then {http_url: $url, http_model: $model}
+          + (if $seed != "" then {seed: ($seed | tonumber)} else {} end)
+          + (if $instruct != "" then {instruct: $instruct} else {} end)
         else {piper_opts: $piper_opts, fixes: $ARGS.positional} end)' --args "${copies[@]}" \
     > "${dir}/meta.json"
   printf '%s' "${dir}"
@@ -626,6 +678,8 @@ main() {
     shift
     # shellcheck disable=SC1090
     [[ -f "${CONF_FILE}" ]] && source "${CONF_FILE}"
+    # The conf file must not undo the command line (or a drawn random seed).
+    TTS_SEED="${TTS_RUN_SEED-}" TTS_INSTRUCT="${TTS_RUN_INSTRUCT-}"
     worker "$@"
     return
   fi
@@ -644,6 +698,8 @@ main() {
       -l|--lang)   lang="$2"; shift ;;
       -v|--voice)  voice="$2"; shift ;;
       -s|--speed)  speed="$2"; shift ;;
+      --seed)      TTS_SEED="$2"; shift ;;
+      -i|--instruct) TTS_INSTRUCT="$2"; shift ;;
       -o|--output) out_file="$2"; shift ;;
       -k|--keep)   keep_dir="$2"; shift ;;
       --no-keep)   keep_dir="" ;;
@@ -704,6 +760,19 @@ main() {
   if [[ "${engine}" != piper ]]; then
     [[ -z "${fixes}" ]] || p_warn "--fixes only applies to the piper engine; ignored"
     fixes="" piper_opts=""
+  fi
+
+  # Only the http engine sends them; a random seed is drawn once, so the whole read-aloud (and its kept session)
+  # shares it and a good take can be rendered again.
+  if [[ "${engine}" == http ]]; then
+    [[ "${TTS_SEED}" != random ]] || TTS_SEED="$(( RANDOM * 32768 + RANDOM ))"
+    [[ -z "${TTS_SEED}" || "${TTS_SEED}" =~ ^[0-9]+$ ]] ||
+      { p_err "bad seed: '${TTS_SEED}' (a non-negative integer or 'random')"; return 2; }
+    [[ -z "${TTS_SEED}" || ! -t 2 ]] || printf 'tts-speak: seed %s\n' "${TTS_SEED}" >&2
+    export TTS_RUN_SEED="${TTS_SEED}" TTS_RUN_INSTRUCT="${TTS_INSTRUCT}"
+  else
+    [[ -z "${TTS_SEED}${TTS_INSTRUCT}" ]] || p_warn "--seed and --instruct only apply to the http engine; ignored"
+    TTS_SEED="" TTS_INSTRUCT=""
   fi
 
   # Replace a running read-aloud instead of overlapping two voices.
