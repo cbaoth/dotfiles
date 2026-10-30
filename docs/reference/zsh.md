@@ -3,7 +3,7 @@ title: zsh notes (options, globbing, keybindings)
 hosts: [all]
 status: resolved
 tags: [zsh, shell, keybindings, emacs-mode, vi-mode, glob, foot, fzf]
-updated: 2026-10-18
+updated: 2026-10-30
 ---
 
 Some random notes on zsh, mostly for my own reference.
@@ -317,6 +317,39 @@ it literally instead of acting on it:
 fzf replaced zaw on 2026-10-18 and is on trial; see the FZF section in
 `home/.zshrc`. From the command line, `h PAT…` (`history-grep`) regex-searches
 history commands, all patterns must match; `hm GLOB` uses `fc -m`.
+
+### fzf history search (`Ctrl-R`): keys in the list
+
+| Key | Action |
+| --- | --- |
+| `Ctrl-R` | toggle order: best match at the bottom (default) ↔ chronological (input order) |
+| `Alt-R` | toggle plain history (the unformatted list, without the multi-line display) |
+| `Ctrl-/` | toggle line wrap (long or multi-line entries shown in full) |
+| `Tab` | toggle mark on the current entry, move **down** to the next one |
+| `Shift-Tab` | toggle mark on the current entry, move **up** to the previous one |
+| `Enter` | put the marked entries (or the current one) on the command line, not run yet |
+| `Ctrl-J` / `Ctrl-K` | move down / up (fzf defaults; arrow keys work too) |
+| `Esc` / `Ctrl-C` | leave without selecting |
+
+Several marked entries land on the command line as separate lines (a multi-line
+buffer); press `Enter` again to run them.
+
+### fzf extended search syntax (typed in the query)
+
+| Syntax | Meaning | Example |
+| --- | --- | --- |
+| `foo bar` | fuzzy match of both terms (AND) | `git push` |
+| `'foo` | exact substring, no fuzzy matching | `'make install` |
+| `^foo` | line starts with `foo` | `^sudo` |
+| `foo$` | line ends with `foo` | `.zsh$` |
+| `!foo` | exclude lines containing `foo` | `!grep` |
+| `!^foo` / `!foo$` | exclude lines starting / ending with `foo` | `!^ls` |
+| `a \| b` | `a` OR `b` (the `\|` is the OR operator) | `ssh \| scp` |
+| `'foo'` | exact match at word boundaries | `'git'` |
+
+- fzf has **no recency weighting**: the order in the list does not favor
+  recent commands. Narrow with `!` and `^` to bring a recent match up.
+- Example: `^git !log` shows `git` commands that do not contain `log`.
 
 ## Terminal (foot): grab text from output above the prompt
 
