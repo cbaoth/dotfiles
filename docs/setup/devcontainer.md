@@ -3,15 +3,16 @@ title: Devcontainers (dotfiles, cb-voice-lab, web-tools)
 hosts: [motoko, saito]
 status: open
 tags: [docker, devcontainer, vscode, system-setup, claude]
-updated: 2026-10-31
+updated: 2026-11-01
 automated_by: .devcontainer/Dockerfile
 ---
 
 # Devcontainers
 
 **Automated:** `.devcontainer/` in each repo; the environment itself is
-`system-setup --profile container`. The two other repos (cb-voice-lab,
-web-tools-container) are not ported yet, hence `status: open`.
+`system-setup --profile container`. web-tools-container is ported
+(2026-11-01, motoko; saito not yet); cb-voice-lab is not, hence
+`status: open`.
 
 Quick start (any repo with a `.devcontainer/`):
 
@@ -196,6 +197,8 @@ a sleep), so it survives the SSH session. Alternatives:
 
 - VS Code Remote-SSH to saito, then *Open in Container in New Window*;
 - a compose service with `command: sleep infinity` plus `dsh NAME`.
+  web-tools-container ships one: `docker compose up -d --build`, then
+  `dsh web-tools`.
 
 ## Porting another repo
 
@@ -237,6 +240,17 @@ repo,
 and `postCreateCommand: "zsh -lc 'uv sync'"` for Python projects. GPU
 containers additionally need `--gpus=all` in `runArgs` and the
 nvidia-container-toolkit on the host (no setup module yet).
+
+Learned porting web-tools-container:
+
+- **A bind-mount source must exist on the host**, or docker creates it
+  owned by root. `"initializeCommand": "mkdir -p \"$HOME/container/<name>\""`
+  runs on the host before the container starts.
+- **Build-time warnings from extra modules are expected.** `24-yt-dlp`
+  warns "no JS runtime" and "~/.local/bin is not on PATH": `link.sh` runs
+  one layer later, so the dotfiles PATH (fnm, `~/.local/bin`) is not active
+  yet. Check at runtime instead: `yt-dlp -v --simulate` lists `JS runtimes:
+  node-…` and `curl_cffi` once the container is up.
 
 ## Later
 

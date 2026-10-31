@@ -464,9 +464,14 @@ For now, cross-host coordination = git (dotfiles + `~/notes`) as the bus, plus
 
 Pattern and current state: `docs/setup/devcontainer.md`.
 
-- [ ] [M] Port `~/git/cb-voice-lab` and `~/git/web-tools-container` to the
-      reference Dockerfile (uv instead of conda, `system-setup --profile
-      container`); web-tools also onto saito.
+- [ ] [M] Port `~/git/cb-voice-lab` to the reference Dockerfile (uv instead
+      of conda, `system-setup --profile container`).
+- [x] [M] Port `~/git/web-tools-container` the same way (2026-11-01: plus
+      `24-yt-dlp` and ffmpeg; conda, deno, nodesource, openvpn3 dropped;
+      verified on motoko, `0 changed` on a dry-run inside).
+- [ ] [S] Run web-tools-container on saito (`dcup` + `dcsh` in tmux, or its
+      compose service); symlink `~/container/web-tools` to the bulk storage
+      first if downloads should land there.
 - [ ] [M] `setup/` module for nvidia-container-toolkit (GPU devcontainers:
       cb-voice-lab TTS server, `runArgs: ["--gpus=all"]`).
 - [ ] [S] Docker prune helpers once the need shows (old `vsc-*` images pile
@@ -943,8 +948,8 @@ full open-items list: [docs/setup/emacs.md](setup/emacs.md).
 ## yt-dlp standalone install + curl_cffi (started 2026-10-30)
 
 New `setup/modules/24-yt-dlp.sh` (standalone binary into `~/.local/bin`, skips
-the vserver). Details, the apt/curl_cffi/PEP 668 reasoning, and the
-web-tools-container drift note: [docs/setup/yt-dlp.md](setup/yt-dlp.md).
+the vserver). Details and the apt/curl_cffi/PEP 668 reasoning:
+[docs/setup/yt-dlp.md](setup/yt-dlp.md).
 
 - [x] [S] Run `system-setup 24-yt-dlp` for real on motoko (2026-10-30: curl_cffi
       installed, confirmed working)
@@ -957,6 +962,6 @@ web-tools-container drift note: [docs/setup/yt-dlp.md](setup/yt-dlp.md).
       "just in case". Install manually later if a specific feature needs one
       (metadata embedding, encrypted streams, some live-chat/API paths).
 - [ ] [S] Puppet was offline during this pass — run there once back online
-- [~] [M] `~/git/web-tools-container`'s yt-dlp comes from conda-forge (stale,
-      no self-update, no curl_cffi) — only worth fixing if that container
-      becomes actual day-to-day use rather than a vserver fallback
+- [x] [M] `~/git/web-tools-container`'s yt-dlp came from conda-forge (stale,
+      no self-update, no curl_cffi). 2026-11-01: the port to `system-setup`
+      installs it via this module (see Docker & Devcontainers)

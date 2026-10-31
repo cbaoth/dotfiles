@@ -82,19 +82,13 @@ tool whose whole job is evading automated-traffic detection, on the one box
 that is actually exposed. The module hard-codes the skip by `hostname -s ==
 11001001`, independent of profile (saito is also `server` but is not skipped).
 
-If ever actually needed there: `~/git/web-tools-container` (a devcontainer
-already built for exactly this: wget/curl/aria2, yt-dlp, deno, ffmpeg,
-openvpn3, isolated from the host, downloads bind-mounted to `~/wdc-share`).
-Not wired into this module — it is a separate repo/workflow, not something
-`system-setup` manages.
-
-**Known drift in that container** (not fixed here, just noted for whoever
-revisits it): its `yt-dlp` comes from `conda-forge`
-(`.devcontainer/Dockerfile`), which — like apt — lags upstream and has no
-`-U` self-update; and it has no curl_cffi either. If the container ever
-becomes the actual day-to-day tool (not just a fallback), swapping that one
-`conda install` line for the same standalone-binary approach as this module
-would bring it in line.
+If ever actually needed there: `~/git/web-tools-container`, a devcontainer
+built for exactly this (wget/curl/aria2, yt-dlp, ffmpeg, isolated from the
+host, downloads bind-mounted from `~/container/web-tools`). Since 2026-11-01
+it is built by `system-setup --profile container` plus an explicit
+`system-setup --yes 24-yt-dlp`, so its yt-dlp is this module's standalone
+binary with curl_cffi, and node is its JS runtime (no deno). See
+[devcontainer.md](devcontainer.md).
 
 ## Hosts
 
