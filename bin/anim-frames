@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Extract all frames of an animated GIF or WebP as individual (lossless) images.
+
+# set options
+set -o errtrace
+set -o pipefail
+set -o nounset
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# traps
+trap 'printf "\nINTERRUPT\n"; exit 1' SIGINT SIGTERM
+
+# Logging
+p_nfo() { printf '\033[32mINFO\033[0m: %s\n' "$*" >&2; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+# Usage
+p_usg() { printf 'Usage: %s [-d OUTPUT_DIR] [-o OUTPUT_PATTERN] [-I] INFILE\n' "$(basename "$0")"; }
+p_hlp() {
+  p_usg
+  cat <<EOF
+
+About:
+  Extract every frame of an animated GIF or WebP file. Frames are fully
+  composited (-coalesce), so GIFs that store only partial/changed regions per
+  frame still produce complete images. Output defaults to lossless PNG, i.e.
+  exactly as good as the source (GIF is limited to 256 colors per frame).
+
+Options:
+  -d, --dir DIR         Write the frames into DIR (created if missing, with an
+                        info message) instead of next to INFILE. Keeps the
+                        default file name; combine with -o to change it.
+  -o, --output PATTERN  Output file name pattern with a printf-style frame
+                        counter, e.g. 'f_%03d.png' (default:
+                        '<INFILE stem>_f%d.png', next to INFILE). The
+                        extension selects the image format. A plain %d is
+                        zero-filled to the digits needed for the last frame
+                        index (10 frames: 0-9, 11 frames: 00-10); use e.g.
+                        %03d for a fixed width. A directory part is allowed
+                        unless -d is given as well.
+  -I, --ignore-image-hash
+                        Keep the input file name as is. By default an image
+                        hash in the input name (ix.<4-64 hex>, see
+                        image-hash-rename) is turned into a reference by
+                        prefixing it with 'ref.', so the frames can get hashes
+                        of their own without losing the link to their source.
+                        Only applies to the default file name, not to -o.
+  -h, --help            Show this help
+
+Examples:
+  $(basename "$0") anim.gif
+  # -> anim_f00.png anim_f01.png ... (for 12 frames)
+
+  $(basename "$0") -d ~/frames some_animation_ix.92eecfdb0234.gif
+  # -> ~/frames/some_animation_ref.ix.92eecfdb0234_f00.png ...
+
+  $(basename "$0") -o 'frames/%04d.png' anim.webp
+EOF
+}
+
+# parse arguments
+declare outpat=""
+declare outdir=""
+declare -i ignore_hash=0
+declare infile
+parse_args() {
+  while (( $# > 0 )); do
+    case $1 in
+      -d|--dir)
+        if [[ -z "${2:-}" ]]; then
+          p_err "missing value for $1"
+          exit 1
+        fi
+        outdir="$2"
+        shift 2
+        ;;
+      -o|--output)
+        if [[ -z "${2:-}" ]]; then
+          p_err "missing value for $1"
+          exit 1
+        fi
+        outpat="$2"
+        shift 2
+        ;;
+      -I|--ignore-image-hash)
+        ignore_hash=1
+        shift
+        ;;
+      -h|--help)
+        p_hlp
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        p_err "unknown argument: $1"
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if (( $# == 0 )); then
+    p_usg >&2
+    exit 1
+  fi
+  if (( $# > 1 )); then
+    p_err "too many arguments, provide only a single file"
+    exit 1
+  fi
+  if [[ ! -f "$1" ]]; then
+    p_err "file not found: $1"
+    exit 1
+  fi
+  infile="$1"
+
+  if [[ -n "${outpat}" && "${outpat}" != *%*d* ]]; then
+    p_err "output pattern needs a frame counter such as %d or %03d: ${outpat}"
+    exit 1
+  fi
+  if [[ -n "${outpat}" && -n "${outdir}" && "${outpat}" == */* ]]; then
+    p_err "output pattern already has a directory part, don't combine it with --dir: ${outpat}"
+    exit 1
+  fi
+  if [[ -n "${outdir}" ]]; then
+    # drop trailing slashes, but keep a bare '/'
+    outdir="${outdir%"${outdir##*[!/]}"}"
+    outdir="${outdir:-/}"
+  fi
+}
+
+# number of digits of the last frame index (10 frames: 1, 11 frames: 2)
+frame_digits() {
+  local frames
+  if ! frames="$(magick identify -ping -format '.' - < "${infile}")" || [[ -z "${frames}" ]]; then
+    p_err "cannot read frame count: ${infile}"
+    exit 1
+  fi
+  local -i last=$(( ${#frames} - 1 ))
+  printf '%d' "${#last}"
+}
+
+# turn image hashes (ix.<hex>) in the given name into references (ref.ix.<hex>)
+ref_image_hash() {
+  perl -pe 's/(?<![[:alnum:]])(ix\.[0-9a-f]{4,64})(?![[:alnum:]])/ref.$1/g' <<< "$1"
+}
+
+# set outpat and target_dir (the literal directory the frames end up in)
+declare target_dir
+build_pattern() {
+  if [[ -z "${outpat}" ]]; then
+    local base stem
+    base="$(basename -- "${infile}")"
+    stem="${base%.*}"
+    (( ignore_hash )) || stem="$(ref_image_hash "${stem}")"
+    target_dir="${outdir:-$(dirname -- "${infile}")}"
+    # '%' is special in the output pattern, a literal one has to be doubled
+    outpat="${stem//%/%%}_f%0$(frame_digits)d.png"
+  else
+    if [[ "${outpat}" == *%d* ]]; then
+      local -i digits
+      digits="$(frame_digits)"
+      outpat="${outpat//%d/%0${digits}d}"
+    fi
+    target_dir="${outdir:-$(dirname -- "${outpat}")}"
+  fi
+  # default name and plain pattern + --dir get the directory prepended
+  if [[ -n "${outdir}" || "${outpat}" != */* ]]; then
+    outpat="${target_dir//%/%%}/${outpat}"
+  fi
+}
+
+ensure_target_dir() {
+  if [[ -d "${target_dir}" ]]; then
+    return 0
+  fi
+  if [[ -e "${target_dir}" ]]; then
+    p_err "output directory is not a directory: ${target_dir}"
+    exit 1
+  fi
+  if ! mkdir -p -- "${target_dir}"; then
+    p_err "cannot create output directory: ${target_dir}"
+    exit 1
+  fi
+  p_nfo "created directory: ${target_dir}"
+}
+
+extract_frames() {
+  # 'magick' reads both GIF and WebP (libwebp delegate) and -coalesce yields
+  # complete frames. The input is piped in because ImageMagick interprets '%'
+  # (and a leading '-') in input file names.
+  if ! magick - -coalesce "${outpat}" < "${infile}"; then
+    p_err "frame extraction failed: ${infile}"
+    exit 1
+  fi
+}
+
+main() {
+  parse_args "$@"
+  command -v magick > /dev/null 2>&1 || { p_err "ImageMagick ('magick') not found"; exit 1; }
+  command -v perl > /dev/null 2>&1 || { p_err "perl not found"; exit 1; }
+  build_pattern
+  ensure_target_dir
+  extract_frames
+}
+
+main "$@"
