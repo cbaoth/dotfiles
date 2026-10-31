@@ -180,7 +180,9 @@ cb_devtools_completions() {
 #
 # Globals:
 #   CB_TMUX_AUTOATTACH  1 = enabled (default: unset, off)
-#   CB_TMUX_SESSION     session name (default: main)
+#   CB_TMUX_MODE        new    = every login gets its own fresh session (default)
+#                       attach = attach to (or create) the session CB_TMUX_SESSION
+#   CB_TMUX_SESSION     session name for attach mode (default: main)
 cb_tmux_autoattach() {
   [[ "${CB_TMUX_AUTOATTACH:-0}" == 1 ]] || return 0
   [[ -z "${TMUX:-}" ]] || return 0
@@ -191,7 +193,7 @@ cb_tmux_autoattach() {
   [[ "${TERM_PROGRAM:-}" != vscode && -z "${INSIDE_EMACS:-}" ]] || return 0
   command -v tmux > /dev/null 2>&1 || return 0
 
-  # Attach-by-NAME, deliberately: this only ever touches ${CB_TMUX_SESSION}, so
+  # Mode "attach" (CB_TMUX_MODE=attach): attach-by-NAME, deliberately: this only ever touches ${CB_TMUX_SESSION}, so
   # an SSH login always lands in a predictable shell. It will NOT pick up a
   # session started by hand (a bare `tmux` names it "0"), and that is the point
   # -- attaching into whatever ran last would put the first keystrokes of a
@@ -206,7 +208,10 @@ cb_tmux_autoattach() {
         && -d "${HOME}/.ssh" ]]; then
     ln -sfn "${SSH_AUTH_SOCK}" "${agent_link}" && SSH_AUTH_SOCK="${agent_link}"
   fi
-  tmux new-session -A -s "${CB_TMUX_SESSION:-main}"
+  case "${CB_TMUX_MODE:-new}" in
+    attach) tmux new-session -A -s "${CB_TMUX_SESSION:-main}" ;;
+    *) tmux new-session ;;
+  esac
 }
 
 # }}} = TMUX AUTO-ATTACH =====================================================

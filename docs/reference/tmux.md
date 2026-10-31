@@ -3,7 +3,7 @@ title: tmux — SSH auto-attach, sessions vs windows, and getting back to work
 hosts: [all]
 status: resolved
 tags: [tmux, ssh, shell, remote, agents]
-updated: 2026-10-10
+updated: 2026-10-31
 ---
 
 # tmux on SSH logins
@@ -11,28 +11,31 @@ updated: 2026-10-10
 Why an SSH login sometimes shows a **clean shell** while a long-running job
 (e.g. a Claude Code session) is still alive somewhere else — and how to reach it.
 
-## What the auto-attach actually does
+## What the auto-hook actually does
 
 `cb_tmux_autoattach()` in `home/.common_rc`, opt-in per host via
 `CB_TMUX_AUTOATTACH=1` in `lib/env-<host>.sh` (currently the vserver and saito),
-runs exactly one command:
+picks one of two behaviours with `CB_TMUX_MODE` (also per host):
 
-```bash
-tmux new-session -A -s "${CB_TMUX_SESSION:-main}"
-```
+| `CB_TMUX_MODE` | Command | Result |
+| -------------- | ------- | ------ |
+| `new` (default) | `tmux new-session` | every login gets its own fresh session (`0`, `1`, …); nothing is ever re-attached |
+| `attach` | `tmux new-session -A -s "${CB_TMUX_SESSION:-main}"` | attach to the session called `main` if it exists, else create it |
 
-`-A` means *attach if it exists, otherwise create*. The key word is **name**: it
-only ever touches the session called `main`.
+`new` is the default (changed 2026-10-31): attaching into a session that ran
+last would drop the first keystrokes of a half-typed command into an unknown
+window — an agent's prompt, `vim`, `less`. A fresh shell is predictable.
+Existing sessions are reached deliberately with `tmux ls` / `tmux a -t <name>`
+or `prefix s`.
 
 It skips itself when already inside tmux, with no tty (`scp`, `ssh host cmd`,
 agents), on a local console, for root, in VS Code / Emacs terminals, and when
 `SHLVL > 1`.
 
-## So why a clean shell when something is running?
+### `attach` mode and the sibling session
 
-Because a session started **by hand** is not named `main`. A bare `tmux` names
-the session `0`, `1`, … — the hook cannot match that, so it creates `main`
-alongside it:
+`attach` matches by **name** only. A session started by hand is not named
+`main` (a bare `tmux` names it `0`), so the hook creates `main` alongside it:
 
 ```
 $ tmux ls
@@ -40,22 +43,13 @@ $ tmux ls
 main  1 windows  (attached)    # created by the SSH login
 ```
 
-Two **sibling** sessions, nothing nested. That surprises people (it did here,
-2026-10-01) because the second session looks like a nested tmux, and tmux has no
-visible "you are in session X of 2" indicator by default.
+Two **sibling** sessions, nothing nested.
 
-**This is deliberate, not a bug to fix.** Attaching to whatever ran last would
-drop the first keystrokes of a half-typed command into an unknown window — an
-agent's prompt, `vim`, `less`. Landing in a predictable fresh shell is worth more
-than being saved one keypress, especially when reconnecting a day later with no
-memory of what was left running.
+### Why exiting a shell reveals another session
 
-### Why exiting that shell reveals the other session
-
-`.tmux.conf` sets `detach-on-destroy off`. When the last window of `main` exits,
-the session is destroyed, and instead of ending the connection the client
-switches to a **remaining** session — which is the one that was running all
-along. That is the setting working as intended, not a second surprise.
+`.tmux.conf` sets `detach-on-destroy off`. When the last window of a session
+exits, the client switches to a **remaining** session instead of ending the
+connection. That is the setting working as intended.
 
 ## Sessions vs. windows
 
@@ -79,7 +73,7 @@ the same session mirror each other.
 | `prefix d` | detach (leaves everything running) |
 | `prefix $` | rename the current session |
 
-From the fresh `main` shell, `prefix s` then the other session is the whole
+From the fresh shell, `prefix s` then the other session is the whole
 answer.
 
 `C-a` is also line-start in zsh and Emacs: press **`C-a C-a`** to send it to
@@ -137,11 +131,11 @@ for full-screen programs which support SIGWINCH and poor for interactive
 programs such as shells" — and these windows are mostly shells. It was briefly
 enabled on 2026-10-01 and reverted the same day once the man page was actually
 read: it addresses neither of the two cases that occur in practice here, since
-both SSH logins attach to the *same* session (`main`).
+both SSH logins attached to the *same* session (`main`, back when `attach` was the only mode).
 
 ## Related
 
-- `home/.common_rc` — the hook, with the attach-by-name rationale inline.
+- `home/.common_rc` — the hook, with the mode rationale inline.
 - `home/.tmux.conf` — prefix, `detach-on-destroy`, `aggressive-resize`.
 - `~/.claude/skills/mobile-mode/SKILL.md` — phone sessions use a detached
   window (`tmux new-window -d`) to give an interactive step a real tty.
