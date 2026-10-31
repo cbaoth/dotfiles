@@ -274,6 +274,17 @@ http_warn_model_load() {
   [[ "${state}" == loaded ]] || notify "TTS server is loading its model (${state}); the first clip can take 30-80 s"
 }
 
+# cb-tts-server sends "X-Drift: <similarity>" when its speaker guard gave up on a library voice: the clip is the
+# closest of the retries but does not sound like the voice (short lines and interjections drift most).
+http_warn_drift() {
+  local -r hdr="$1" voice="$2" n="$3"
+  local drift
+  drift="$(tr -d '\r' < "${hdr}" 2> /dev/null | sed -n 's/^[Xx]-[Dd]rift: *//p')"
+  rm -f -- "${hdr}"
+  [[ -n "${drift}" ]] || return 0
+  notify "Voice '${voice}' drifted on chunk ${n} (similarity ${drift}); try --seed random, or longer text"
+}
+
 engine_http() {
   local -r lang="$1" voice="$2" speed="$3" chunks="$4" out_dir="$5"
   local line n=0 body tmp
@@ -287,9 +298,11 @@ engine_http() {
        + (if $v != "" then {voice: $v} else {} end)
        + (if $seed != "" then {seed: ($seed | tonumber)} else {} end)
        + (if $ins != "" then {instructions: $ins} else {} end)')"
-    if curl -sS --fail -H 'Content-Type: application/json' -d "${body}" -o "${tmp}" "${TTS_HTTP_URL}"; then
+    if curl -sS --fail -H 'Content-Type: application/json' -d "${body}" -D "${tmp}.hdr" -o "${tmp}" "${TTS_HTTP_URL}"; then
+      http_warn_drift "${tmp}.hdr" "${voice}" "${n}"
       mv -- "${tmp}" "${tmp%.part}.wav"
     else
+      rm -f -- "${tmp}.hdr"
       p_err "http engine failed on chunk ${n}"
       return 1
     fi
