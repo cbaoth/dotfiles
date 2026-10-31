@@ -200,9 +200,9 @@ because `/run/user/<uid>` is read-only there. Commands still run; it's cosmetic.
 ### Mounted storage: ask rules + `mount-guard` hook
 
 With the sandbox off, nothing stops `find / …` from crawling the NFS and NTFS
-mounts (`/srv/saito/*`, `/mnt/{c,d,e,f}`, `/media/*` on the server: tens of
-TB, much of it personal). That happened on 2026-10-31. Three layers, all in
-`home/`, so they deploy to every host with `dotfiles-link`:
+mounts (`/srv/saito/*`, `/mnt/{c,d,e,f}`, and `/media/*` on saito, the NFS
+server: tens of TB, much of it personal). That happened on 2026-10-31. Three
+layers, all in `home/`, so they deploy to every host with `dotfiles-link`:
 
 | Layer | Covers | File |
 | ----- | ------ | ---- |
