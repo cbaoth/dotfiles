@@ -1413,6 +1413,14 @@ fi
 # {{{ - DOCKER / DEVCONTAINER ------------------------------------------------
 # d* = plain docker, dc* = devcontainer CLI (not `dc`: that is the RPN
 # calculator). Docs: docs/setup/devcontainer.md
+
+# predicate: should a container shell skip tmux auto-attach? True when this
+# (host) shell already sits in tmux or a VS Code terminal, so dsh/dcsh never
+# nest tmux in tmux (cb_tmux_autoattach in ~/.common_rc).
+_cb_tmux_skip_env() {
+  [[ -n "${TMUX:-}" || "${TERM_PROGRAM:-}" == vscode ]]
+}
+
 if command -v docker >/dev/null 2>&1; then
   alias dco='docker compose'
   # running containers, compact
@@ -1423,9 +1431,12 @@ if command -v docker >/dev/null 2>&1; then
     docker logs -f --tail 200 "$@"
   }
   # interactive login shell in a running container: zsh, else bash, else sh
+  # (CB_TMUX_SKIP: see _cb_tmux_skip_env)
   dsh() {
     [[ -z "${1-}" ]] && { cl::p_usg "dsh CONTAINER"; return 1; }
-    docker exec -it "$1" sh -c \
+    local -a opts=()
+    _cb_tmux_skip_env && opts=(-e CB_TMUX_SKIP=1)
+    docker exec -it "${opts[@]}" "$1" sh -c \
       'command -v zsh >/dev/null && exec zsh -l; command -v bash >/dev/null && exec bash -l; exec sh -l'
   }
 fi
@@ -1439,8 +1450,14 @@ if command -v devcontainer >/dev/null 2>&1; then
   dcup() { devcontainer up --workspace-folder "${1:-.}" "${@:2}"; }
   # rebuild: replace the existing container (named volumes are kept)
   dcre() { devcontainer up --workspace-folder "${1:-.}" --remove-existing-container "${@:2}"; }
-  # login shell in the running devcontainer of DIR
-  dcsh() { devcontainer exec --workspace-folder "${1:-.}" zsh -l; }
+  # login shell in the running devcontainer of DIR (CB_TMUX_SKIP: see
+  # _cb_tmux_skip_env). SHLVL=0: the CLI injects the env of its own probe
+  # shell (SHLVL=1), which would make this shell look nested.
+  dcsh() {
+    local -a opts=(--remote-env SHLVL=0)
+    _cb_tmux_skip_env && opts+=(--remote-env CB_TMUX_SKIP=1)
+    devcontainer exec --workspace-folder "${1:-.}" "${opts[@]}" zsh -l
+  }
 fi
 
 # Open the devcontainer of DIR in a NEW VS Code window; the current window

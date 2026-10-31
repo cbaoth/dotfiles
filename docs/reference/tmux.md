@@ -14,7 +14,8 @@ Why an SSH login sometimes shows a **clean shell** while a long-running job
 ## What the auto-hook actually does
 
 `cb_tmux_autoattach()` in `home/.common_rc`, opt-in per host via
-`CB_TMUX_AUTOATTACH=1` in `lib/env-<host>.sh` (currently the vserver and saito),
+`CB_TMUX_AUTOATTACH=1` in `lib/env-<host>.sh` (currently the vserver and saito;
+every container via `lib/env-container.sh`, see docs/setup/devcontainer.md),
 picks one of two behaviours with `CB_TMUX_MODE` (also per host):
 
 | `CB_TMUX_MODE` | Command | Result |

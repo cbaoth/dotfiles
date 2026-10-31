@@ -170,13 +170,18 @@ cb_devtools_completions() {
 
 # {{{ = TMUX AUTO-ATTACH =====================================================
 
-# Attach to (or create) one persistent tmux session on interactive SSH logins.
+# Attach to (or create) one persistent tmux session on interactive SSH logins
+# and container shells (dcsh, dsh).
 #
 # Opt-in per host: set CB_TMUX_AUTOATTACH=1 in ~/lib/env-<host>.sh (the
-# shell-agnostic host env file, sourced before this runs). Called last in the
+# shell-agnostic host env file, sourced before this runs); for containers in
+# ~/lib/env-container.sh. Called last in the
 # FINAL EXECUTIONS of .bashrc and .zshrc. Skipped when any of these hold:
 #   - already inside tmux, or no terminal (scp, rsync, `ssh host cmd`, agents)
-#   - not an SSH login (local console), or a nested shell (SHLVL > 1)
+#   - neither an SSH login nor a container shell (local console), or a nested
+#     shell (SHLVL > 1)
+#   - CB_TMUX_SKIP set: dcsh/dsh pass it into the container when the host
+#     shell is already in tmux or VS Code (no tmux nested in tmux)
 #   - root: never park a root shell in a session that lives for weeks
 #   - VS Code / Emacs terminals (they manage their own sessions)
 #
@@ -197,7 +202,8 @@ cb_tmux_autoattach() {
   [[ "${CB_TMUX_AUTOATTACH:-0}" == 1 ]] || return 0
   [[ -z "${TMUX:-}" ]] || return 0
   [[ -t 0 && -t 1 ]] || return 0
-  cl::is_ssh || return 0
+  [[ -z "${CB_TMUX_SKIP:-}" ]] || return 0
+  { cl::is_ssh || ${IS_DOCKER:-false}; } || return 0
   (( SHLVL == 1 )) || return 0
   (( EUID != 0 )) || return 0
   [[ "${TERM_PROGRAM:-}" != vscode && -z "${INSIDE_EMACS:-}" ]] || return 0

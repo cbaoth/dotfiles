@@ -103,6 +103,33 @@ This replaced the old `/workspace/local/*.local` hooks, which never fired:
 `/workspace/.devcontainer/root/workspace/local/`. The hooks also looked for
 `*.extras`, while the templates were named `*.local`.
 
+### Telling a container shell apart
+
+Several markers, so a glance is enough even among floating terminals:
+
+- **Hostname = short project name**, set by `"runArgs":
+  ["--hostname=<name>"]` in `devcontainer.json` (docker's default is the
+  container id). It shows in the prompt and in tmux. Pick a short, unique
+  name (`web-tools`, not `web-tools-container`).
+- **Starship:** the first segment turns green (palette `container`) and shows
+  the user, a docker whale (nf-linux-docker) and the hostname. Same
+  mechanism as the amber ssh variant: `~/.zshrc` exports
+  `CB_PROMPT_CONTAINER` and generates
+  `~/.cache/starship/container.toml`. The built-in `container` module was not
+  used: for docker it only shows "Docker", not the name.
+- **Username:** shown whenever the user is not `cbaoth` (`CB_PROMPT_USER`;
+  WSL exempt, the work login differs), so `vscode` always shows.
+- **tmux:** `lib/env-container.sh` sets `CB_TMUX_AUTOATTACH=1`, so `dcsh`
+  and `dsh` land in a fresh tmux session. Containers have no TPM, so tmux
+  keeps its stock green status bar, with the hostname on the right. Skipped
+  in VS Code terminals, and when the host shell is already in tmux or VS Code
+  (`dcsh`/`dsh` pass `CB_TMUX_SKIP=1`), so tmux is never nested.
+
+`dcsh` also passes `SHLVL=0`: the devcontainer CLI injects the environment of
+its own probe shell, including `SHLVL=1`, which made every `dcsh` shell look
+nested to the tmux hook. Root in the container has no dotfiles yet, so its
+prompt is the stock bash one.
+
 ## Host and container side by side (VS Code)
 
 VS Code allows one window per folder. "Reopen in Container" (and its prompt)
@@ -204,9 +231,11 @@ RUN "$HOME/dotfiles/tools/link.sh" && ZINIT_TURBO=false zsh -ic true
 
 `devcontainer.json`: `"build": {"dockerfile": "Dockerfile", "args":
 {"CACHE_BUST": "${localEnv:CACHE_BUST}"}}`, `remoteUser: vscode`, workspace
-at `/workspace`, the Claude volume and `CLAUDE_CONFIG_DIR` as in this repo,
+at `/workspace`, `"runArgs": ["--hostname=<short-name>"]` (see *Telling a
+container shell apart*), the Claude volume and `CLAUDE_CONFIG_DIR` as in this
+repo,
 and `postCreateCommand: "zsh -lc 'uv sync'"` for Python projects. GPU
-containers additionally need `"runArgs": ["--gpus=all"]` and the
+containers additionally need `--gpus=all` in `runArgs` and the
 nvidia-container-toolkit on the host (no setup module yet).
 
 ## Later
