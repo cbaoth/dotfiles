@@ -3,7 +3,7 @@ title: Monitoring (Netdata) — three hosts, one pane, ntfy alerting
 hosts: [motoko, saito, 11001001]
 status: open
 tags: [monitoring, netdata, ntfy, alerting, streaming, motoko, saito, vserver]
-updated: 2026-08-22
+updated: 2026-10-30
 automated_by: setup/modules/60-netdata.sh
 ---
 
@@ -178,6 +178,33 @@ pushing to ntfy when something is behind. This is the gap `lynis` never covered
 and the one that actually matters here; the first run found Nextcloud five patch
 releases behind.
 
+## External alive check (done 2026-10-30, saito → vserver)
+
+Every check above runs *on* the host it watches, so it cannot report that
+host's death (2026-10-18: 65 min powered off, no alert), and cannot see a ufw or
+Contabo-panel change that black-holes 443 from outside either.
+
+`bin/host-alive-check` closes that from saito (a different network): a systemd
+user timer `host-alive-check@11001001.timer`, every 2 min, targets in
+`home/.config/host-alive-check/11001001.conf` — the three public HTTPS sites
+(same body matches as the vserver's `go.d/httpcheck`), an SSH banner on 8090,
+and netdata over the tailnet.
+
+- **Push to saito's own topic** via `ntfy-send`: after 3 failed runs (~6 min);
+  `DOWN` (urgent) when all checks fail, `degraded` (high) when some do; again
+  whenever the failing set changes, a reminder every 60 min, one `recovered`
+  with the downtime.
+- **Control probe first** (ntfy.sh / 1.1.1.1): if saito itself is offline the
+  run is skipped, not counted.
+- **fail2ban-safe by construction** — anonymous GETs that match no filter, an
+  SSH banner that never attempts auth. The config header lists why, per probe,
+  and the one change that would break it (sshd jail `mode = ddos|aggressive`).
+- A broken checker (config/state error) fails the unit → `OnFailure=` push.
+- Accepted gap: saito and vserver down together → silence.
+- Not done: auto-start via the Contabo API on *stopped*
+  (`~/notes/systems/11001001/contabo-api.md`). Deliberately manual for now; the
+  panel is enough for an event this rare.
+
 ## Not covered (yet)
 
 - **Grafana/Prometheus/Loki** — the "later" track, spanning both servers. Netdata
@@ -185,9 +212,5 @@ releases behind.
 - **Pull surface** (MOTD / shell prompt segment reading the parent's API) — the
   half of alert delivery that isn't push. Open; best designed after living with
   the boxes. Do not "solve" delivery by adding a channel that gets muted.
-- **External reachability** — every check above runs *on* the host, so none of
-  them prove the services are reachable from the internet. A ufw or Contabo-panel
-  change that black-holes 443 would leave all of them green. Needs a prober
-  somewhere else (saito is on a different network).
 - **Phase 2 on saito and motoko** — the disabled-alarm trap above applies there
   too; only the vserver has been fixed.

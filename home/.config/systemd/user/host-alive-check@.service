@@ -1,0 +1,18 @@
+[Unit]
+Description=External alive check of %i (ntfy on down/recovery)
+Documentation=file:%h/dotfiles/bin/host-alive-check
+After=network-online.target
+Wants=network-online.target
+
+# A down target is NOT a unit failure — the script handles that and pushes
+# itself. This only fires when the checker is broken (config/state error).
+OnFailure=host-alive-check-failed@%i.service
+
+[Service]
+Type=oneshot
+# Instance = config name: ~/.config/host-alive-check/%i.conf, e.g.
+#   systemctl --user enable --now host-alive-check@11001001.timer
+ExecStart=%h/bin/host-alive-check %i
+
+# 5 checks x 10s + control URLs, sequential; never pile up timer firings.
+TimeoutStartSec=90

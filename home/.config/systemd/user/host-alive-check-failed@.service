@@ -1,0 +1,12 @@
+[Unit]
+Description=Alert (ntfy) that the alive check of %i itself is broken
+Documentation=file:%h/dotfiles/bin/host-alive-check
+# Started via OnFailure= in host-alive-check@.service — no timer, no [Install].
+
+[Service]
+Type=oneshot
+# Without this, a broken checker means silence — exactly the failure mode the
+# check exists to remove.
+ExecStart=%h/bin/ntfy-send --priority high --tags warning --throttle 3600 \
+  "host-alive-check BROKEN: %i" \
+  "%i is NOT being monitored. Inspect: journalctl --user -u host-alive-check@%i -n 40"

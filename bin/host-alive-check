@@ -1,0 +1,314 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# host-alive-check: probe a remote host from outside and push ntfy on down/up.
+
+# The answer to "a host cannot report its own death": its own netdata/ntfy
+# alerting dies with it, so something on another box has to notice. Run from a
+# systemd user timer (host-alive-check@<name>.timer), one instance per target.
+#
+# -e omitted intentionally: a failing probe is the expected, handled outcome
+# here, not an error. Only a broken config/state exits non-zero, which is what
+# the unit's OnFailure= alert is for ("the checker itself is broken").
+set -o nounset
+set -o pipefail
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = CONSTANTS ============================================================
+
+declare -r CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/host-alive-check"
+declare -r STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/host-alive-check"
+
+# Identifiable in the target's access/auth logs, so the probes can be told apart
+# from scanners (and grepped away) without guessing.
+declare SELF_HOST
+SELF_HOST="$(hostname -s 2>/dev/null || printf 'unknown')"
+declare -r SELF_HOST
+declare -r USER_AGENT="host-alive-check/1 (${SELF_HOST})"
+
+# A systemd user unit's PATH does not include ~/bin.
+declare NTFY_SEND
+NTFY_SEND="$(command -v ntfy-send || printf '%s' "${HOME}/bin/ntfy-send")"
+declare -r NTFY_SEND
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = ARGUMENTS ============================================================
+
+declare config=""
+declare -i dry_run=0
+declare -i verbose=0
+
+# }}} = ARGUMENTS ============================================================
+
+# {{{ = CONFIG DEFAULTS ======================================================
+# Overridden by the sourced config; documented in usage().
+
+declare HOST_LABEL=""
+declare -a CHECKS=()
+# "Is the PROBING host online at all?" Any one answering is enough. If none do,
+# the run is skipped without touching state: our own uplink being down is not
+# the target being down.
+declare -a CONTROL_URLS=("https://ntfy.sh/" "https://1.1.1.1/")
+declare -i FAIL_THRESHOLD=3
+declare -i REMIND_SECS=3600
+declare -i TIMEOUT_SECS=10
+
+# }}} = CONFIG DEFAULTS ======================================================
+
+# {{{ = STATE ================================================================
+# Persisted between runs in ${STATE_DIR}/<name>.state (sourced, printf %q).
+
+declare -i st_fails=0      # consecutive failed runs
+declare -i st_since=0      # epoch of the first failed run of the streak
+declare -i st_alerted=0    # epoch of the last down/degraded push (0 = none)
+declare st_failed=""       # failed check names at the last push
+
+# }}} = STATE ================================================================
+
+# {{{ = FUNCTIONS ============================================================
+
+usage() {
+  cat <<EOF
+Usage: host-alive-check [OPTIONS] NAME
+       host-alive-check [OPTIONS] -c FILE
+
+Probe a remote host and push ntfy (via ntfy-send) when it goes down, when the
+set of failing checks changes, every REMIND_SECS while it stays down, and once
+when it recovers.
+
+NAME selects ${CONFIG_DIR}/NAME.conf.
+
+Options:
+  -c, --config FILE  Use FILE instead of NAME
+  -n, --dry-run      Probe and print results; no state change, no push
+  -v, --verbose      Log every check result (default: only failures/changes)
+  -h, --help         This help
+
+Config (bash, sourced):
+  HOST_LABEL="myhost"                    # used in the push title
+  CHECKS=(                               # KIND|NAME|TARGET[|REGEX]
+    "http|web|https://example.org/|<title>"  # 2xx after redirects, body =~ REGEX
+    "ssh|ssh|example.org:22"             # TCP + SSH banner, no login attempt
+  )
+  CONTROL_URLS=(https://ntfy.sh/ https://1.1.1.1/)
+  FAIL_THRESHOLD=3   REMIND_SECS=3600   TIMEOUT_SECS=10
+EOF
+}
+
+p_msg()  { printf '%s host-alive-check: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; }
+p_err()  { printf '%s host-alive-check: ERROR: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; }
+
+parse_args() {
+  while [[ "${1:-}" == -* ]]; do
+    case "$1" in
+      -c|--config)  config="$2"; shift 2 ;;
+      -n|--dry-run) dry_run=1; shift ;;
+      -v|--verbose) verbose=1; shift ;;
+      -h|--help)    usage; exit 0 ;;
+      --)           shift; break ;;
+      *)            p_err "unknown option: $1"; usage >&2; exit 2 ;;
+    esac
+  done
+  if [[ -z "${config}" ]]; then
+    if (( $# != 1 )); then
+      usage >&2; exit 2
+    fi
+    config="${CONFIG_DIR}/$1.conf"
+  fi
+}
+
+# Human duration: 3725 -> "1h 2m".
+fmt_secs() {
+  local -ri s="$1"
+  if (( s >= 3600 )); then
+    printf '%dh %dm' $(( s / 3600 )) $(( s % 3600 / 60 ))
+  else
+    printf '%dm' $(( (s + 59) / 60 ))
+  fi
+}
+
+# Prints a short failure reason on stdout and returns 1, or returns 0.
+check_http() {
+  local -r url="$1" regex="$2"
+  local body rc
+  body="$(curl -fsS -L --max-redirs 5 -m "${TIMEOUT_SECS}" -A "${USER_AGENT}" "${url}" 2>&1)"
+  rc=$?
+  if (( rc != 0 )); then
+    # curl -S puts its one-line error in the captured output.
+    printf '%s' "${body##*$'\n'}"
+    return 1
+  fi
+  if [[ -n "${regex}" ]] && ! grep -Eq -- "${regex}" <<< "${body}"; then
+    printf 'body does not match /%s/' "${regex}"
+    return 1
+  fi
+  return 0
+}
+
+# Reads the server banner, then sends a valid client identification and closes.
+# Never attempts auth, so the target's sshd logs at most a
+# "Connection closed by <ip> port <n> [preauth]" — a NOFAIL line for fail2ban's
+# sshd filter in its default `mode = normal`. (It WOULD count in ddos/aggressive
+# mode; see the config for the vserver this was written for.)
+check_ssh() {
+  local -r target="$1" regex="${2:-^SSH-2\.0-}"
+  local -r host="${target%:*}" port="${target##*:}"
+  local banner
+  # shellcheck disable=SC2016  # expanded by the inner bash, on purpose
+  banner="$(timeout "${TIMEOUT_SECS}" bash -c '
+    exec 3<>"/dev/tcp/$1/$2" || exit 1
+    IFS= read -r line <&3 || exit 1
+    printf "SSH-2.0-host-alive-check\r\n" >&3
+    printf "%s" "${line}"
+  ' _ "${host}" "${port}" 2>/dev/null)"
+  banner="${banner%$'\r'}"
+  if [[ -z "${banner}" ]]; then
+    printf 'no SSH banner from %s' "${target}"
+    return 1
+  fi
+  if ! grep -Eq -- "${regex}" <<< "${banner}"; then
+    printf 'unexpected banner: %s' "${banner}"
+    return 1
+  fi
+  return 0
+}
+
+control_ok() {
+  local url
+  for url in "${CONTROL_URLS[@]}"; do
+    curl -fsS -o /dev/null -m 5 -A "${USER_AGENT}" "${url}" 2>/dev/null && return 0
+  done
+  return 1
+}
+
+load_config() {
+  if [[ ! -r "${config}" ]]; then
+    p_err "config ${config} missing/unreadable"; exit 1
+  fi
+  # shellcheck source=/dev/null
+  source "${config}" || { p_err "config ${config} failed to source"; exit 1; }
+  if [[ -z "${HOST_LABEL}" ]] || (( ${#CHECKS[@]} == 0 )); then
+    p_err "config ${config}: HOST_LABEL and CHECKS are required"; exit 1
+  fi
+}
+
+state_file() {
+  local name="${config##*/}"
+  printf '%s/%s.state' "${STATE_DIR}" "${name%.conf}"
+}
+
+load_state() {
+  local -r f="$(state_file)"
+  [[ -f "${f}" ]] || return 0
+  # shellcheck source=/dev/null
+  source "${f}" || { p_err "state ${f} corrupt — delete it to reset"; exit 1; }
+}
+
+save_state() {
+  local -r f="$(state_file)"
+  mkdir -p "${STATE_DIR}" || exit 1
+  if ! printf 'st_fails=%q\nst_since=%q\nst_alerted=%q\nst_failed=%q\n' \
+         "${st_fails}" "${st_since}" "${st_alerted}" "${st_failed}" > "${f}.tmp" \
+     || ! mv -f -- "${f}.tmp" "${f}"; then
+    p_err "cannot write state ${f}"; exit 1
+  fi
+}
+
+notify() {
+  if (( dry_run )); then
+    p_msg "dry-run, would push: $*"
+    return 0
+  fi
+  "${NTFY_SEND}" "$@"
+}
+
+# }}} = FUNCTIONS ============================================================
+
+# {{{ = MAIN =================================================================
+
+main() {
+  parse_args "$@"
+  load_config
+  load_state
+
+  if ! control_ok; then
+    p_msg "no control URL reachable — ${SELF_HOST} looks offline, skipping run"
+    exit 0
+  fi
+
+  local line kind name target regex reason
+  local -i rc
+  local -a failed=() reasons=()
+  for line in "${CHECKS[@]}"; do
+    IFS='|' read -r kind name target regex <<< "${line}"
+    case "${kind}" in
+      http) reason="$(check_http "${target}" "${regex}")"; rc=$? ;;
+      ssh)  reason="$(check_ssh "${target}" "${regex}")"; rc=$? ;;
+      *)    p_err "config ${config}: unknown check kind '${kind}' in '${line}'"; exit 1 ;;
+    esac
+    if (( rc == 0 )); then
+      (( verbose || dry_run )) && p_msg "ok    ${name}"
+    else
+      failed+=("${name}")
+      reasons+=("${name}: ${reason}")
+      p_msg "FAIL  ${name}: ${reason}"
+    fi
+  done
+
+  local -i now
+  now="$(date +%s)"
+  local -ri now total="${#CHECKS[@]}" nfail="${#failed[@]}"
+  local failed_csv
+  failed_csv="$(IFS=,; printf '%s' "${failed[*]}")"
+  local -r failed_csv
+
+  (( dry_run )) && { p_msg "${nfail}/${total} failed (dry-run: state untouched)"; exit 0; }
+
+  # {{{ - Healthy --------------------------------------------------------------
+  if (( nfail == 0 )); then
+    if (( st_alerted > 0 )); then
+      notify --priority default --tags white_check_mark \
+        "${HOST_LABEL} recovered" \
+        "All ${total} checks OK again after ~$(fmt_secs $(( now - st_since ))) (first failure $(date -d "@${st_since}" '+%a %H:%M'))."
+    elif (( st_fails > 0 )); then
+      p_msg "recovered after ${st_fails} failed run(s), below threshold — no push"
+    fi
+    st_fails=0; st_since=0; st_alerted=0; st_failed=""
+    save_state
+    exit 0
+  fi
+  # }}} - Healthy --------------------------------------------------------------
+
+  # {{{ - Failing --------------------------------------------------------------
+  (( st_fails == 0 )) && st_since=${now}
+  st_fails+=1
+
+  if (( st_fails >= FAIL_THRESHOLD )); then
+    local title priority tags
+    if (( nfail == total )); then
+      title="${HOST_LABEL} DOWN"; priority=urgent; tags=rotating_light
+    else
+      title="${HOST_LABEL} degraded (${nfail}/${total} failing)"; priority=high; tags=warning
+    fi
+    local -r msg="Failing for $(fmt_secs $(( now - st_since ))):
+$(printf '%s\n' "${reasons[@]}")"
+
+    if (( st_alerted == 0 )) || [[ "${failed_csv}" != "${st_failed}" ]]; then
+      notify --priority "${priority}" --tags "${tags}" "${title}" "${msg}"
+      st_alerted=${now}; st_failed="${failed_csv}"
+    elif (( now - st_alerted >= REMIND_SECS )); then
+      notify --priority "${priority}" --tags "${tags},repeat" "${title} (still)" "${msg}"
+      st_alerted=${now}
+    fi
+  fi
+  save_state
+  # }}} - Failing --------------------------------------------------------------
+}
+
+main "$@"
+
+# }}} = MAIN =================================================================

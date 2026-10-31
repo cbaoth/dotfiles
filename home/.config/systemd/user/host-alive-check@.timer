@@ -1,0 +1,14 @@
+[Unit]
+Description=External alive check of %i every 2 minutes
+Documentation=file:%h/dotfiles/bin/host-alive-check
+
+[Timer]
+# 2 min x FAIL_THRESHOLD 3 = ~6 min to the first push. The probes are a few
+# anonymous GETs and one SSH banner per run: negligible load on the target.
+OnStartupSec=2min
+OnUnitActiveSec=2min
+AccuracySec=15s
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target

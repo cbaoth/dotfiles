@@ -1,0 +1,26 @@
+#compdef host-alive-check
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for host-alive-check (bin/host-alive-check in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above.
+#
+# Keep in sync with bin/host-alive-check: options mirror usage(). Target NAMEs
+# are discovered live from the config directory.
+
+_host-alive-check_names() {
+  local dir="${XDG_CONFIG_HOME:-${HOME}/.config}/host-alive-check"
+  local -a names
+  names=( ${dir}/*.conf(N:t:r) )
+  _describe -t names 'target config' names
+}
+
+_host-alive-check() {
+  _arguments -s \
+    '(-c --config 1)'{-c,--config}'[config file instead of NAME]:config file:_files -g "*.conf"' \
+    '(-n --dry-run)'{-n,--dry-run}'[probe and print; no state change, no push]' \
+    '(-v --verbose)'{-v,--verbose}'[log every check result]' \
+    '(- *)'{-h,--help}'[show help]' \
+    '(-c --config)1:target:_host-alive-check_names'
+}
+
+_host-alive-check "$@"
