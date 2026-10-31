@@ -373,7 +373,14 @@ st::apt_update() {
   local -r lists="/var/lib/apt/lists"
   local -i age=999999
   local -r newest="${stamp}"
-  if [[ -e "${newest}" ]]; then
+  # No package index at all means stale, whatever the mtimes say. Container
+  # images end their apt layers with `rm -rf /var/lib/apt/lists/*`, which
+  # makes the lists dir look freshly updated: without this check every package
+  # is then judged "not available" and skipped with only a warning.
+  local -a indices=("${lists}"/*_Packages*)
+  if [[ ! -e "${indices[0]}" ]]; then
+    age=999999
+  elif [[ -e "${newest}" ]]; then
     age=$(( $(date +%s) - $(stat -c %Y "${newest}" 2>/dev/null || echo 0) ))
   elif [[ -d "${lists}" ]]; then
     age=$(( $(date +%s) - $(stat -c %Y "${lists}" 2>/dev/null || echo 0) ))
