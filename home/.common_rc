@@ -46,7 +46,7 @@ source_ifex() {
 # Source OS/host/environment-specific files matching the given base prefix(es).
 #
 # Requires: $OS, $HOST (normalized lowercase by .common_env), $IS_WSL,
-#           $IS_ANDROID, $XDG_CURRENT_DESKTOP.
+#           $IS_ANDROID, $IS_DOCKER, $XDG_CURRENT_DESKTOP.
 #
 # Options:
 #   -e EXT   File extension to append (default: .sh; pass -e .zsh for zsh-specific files)
@@ -57,6 +57,9 @@ source_ifex() {
 #               PREFIX-{os}{EXT}
 #               PREFIX-{os}_wsl{EXT}     (only when IS_WSL=true)
 #               PREFIX-{os}_android{EXT} (only when IS_ANDROID=true)
+#               PREFIX-container{EXT}    (only when IS_DOCKER=true; any
+#                                         docker/podman container, so it
+#                                         covers every devcontainer)
 #               PREFIX-{host}{EXT}
 #               PREFIX-{host}-{os}{EXT}
 #               PREFIX-{host}-{os}_wsl{EXT}     (only when IS_WSL=true)
@@ -93,6 +96,7 @@ source_ifex_custom() {
     [[ -n "$os" ]]                                       && candidates+=("${base_file}-${os}${ext}")
     ${IS_WSL:-false}     && [[ -n "$os" ]]               && candidates+=("${base_file}-${os}_wsl${ext}")
     ${IS_ANDROID:-false} && [[ -n "$os" ]]               && candidates+=("${base_file}-${os}_android${ext}")
+    ${IS_DOCKER:-false}                                  && candidates+=("${base_file}-container${ext}")
     [[ -n "$host" ]]                                     && candidates+=("${base_file}-${host}${ext}")
     [[ -n "$os" && -n "$host" ]]                         && candidates+=("${base_file}-${host}-${os}${ext}")
     ${IS_WSL:-false}     && [[ -n "$os" && -n "$host" ]] && candidates+=("${base_file}-${host}-${os}_wsl${ext}")
