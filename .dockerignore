@@ -1,0 +1,15 @@
+# Build context = repo root for .devcontainer/Dockerfile (the image copies the
+# working tree). Keep anything private or per-machine out of the image.
+
+# Scratch and local overrides (see .gitignore)
+_local/
+scratch/
+**/*.local
+**/*.local.*
+!**/*.local.example
+.env
+.env.*
+
+# Caches
+.ruff_cache/
+**/__pycache__/

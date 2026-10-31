@@ -26,6 +26,8 @@ current shell if you cannot log out.
 
 ## Not covered
 
+- Devcontainers and the docker shortcuts (`dps`, `dsh`, `dlog`, `dco`) —
+  [devcontainer.md](devcontainer.md).
 - Rootless docker — not currently used.
 - Docker's own apt repo — Ubuntu's `docker.io` has been fine; if a newer engine
   is ever needed, the repo follows the pattern in [browsers.md](browsers.md).

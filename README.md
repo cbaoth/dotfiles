@@ -36,6 +36,11 @@ in `setup/packages/*.list` as plain data, so *"what gets installed on a fresh
 box"* is answerable without reading any shell. See
 [setup/README.md](setup/README.md).
 
+The devcontainer (`.devcontainer/`) is built the same way: its Dockerfile only
+bootstraps and runs `system-setup --profile container` from the working tree,
+which makes it a clean box for testing `setup/` changes. See
+[docs/setup/devcontainer.md](docs/setup/devcontainer.md).
+
 ### Documentation & System Notes (`docs/`)
 
 Repo documentation lives at the root of `docs/`; **system notes** — knowledge

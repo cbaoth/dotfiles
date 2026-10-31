@@ -71,5 +71,3 @@ _local/
 !*.local.example
 # ...and the .local directory itself (e.g. home/.local/share/...) is not a local override.
 !.local/
-# !.devcontainer/root/workspace/local/*.local
-# !.devcontainer/root/workspace/local/*.local.*

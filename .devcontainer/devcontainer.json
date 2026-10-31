@@ -1,9 +1,12 @@
 {
+  // Docs: docs/setup/devcontainer.md
   "name": "Dotfiles Dev Container",
   "build": {
     "dockerfile": "Dockerfile",
+    // Repo root: the image is built from the working tree (see .dockerignore)
+    "context": "..",
     "args": {
-      // Set CACHE_BUST in your local env when you want to force a rebuild
+      // Set CACHE_BUST in your local env when you want to re-run system-setup
       "CACHE_BUST": "${localEnv:CACHE_BUST}"
     }
   },
@@ -18,10 +21,17 @@
       ]
     }
   },
-  // "mounts": [
-  //   "source=${localEnv:HOME}/dotfiles-dev-share,target=/home/vscode/share,type=bind"
-  // ],
-  "postCreateCommand": "node --version || echo \"Node.js not found\" && npm --version || echo \"npm not found\" && uv --version || echo \"uv not found\" && conda --version || echo \"conda not found\"",
+  "mounts": [
+    // Claude Code config + login, kept across rebuilds; separate from the
+    // host's ~/.claude so the container stays a sandbox
+    "source=claude-config-${devcontainerId},target=/home/vscode/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+  // Refresh the links inside the persisted ~/.claude volume, then the health
+  // check: a correctly built image reports "0 changed"
+  "postCreateCommand": "zsh -lc '~/dotfiles/tools/link.sh && system-setup --dry-run --profile container'",
   "remoteUser": "vscode",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "workspaceFolder": "/workspace"

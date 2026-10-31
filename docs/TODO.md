@@ -460,6 +460,24 @@ For now, cross-host coordination = git (dotfiles + `~/notes`) as the bus, plus
       NordVPN-inbound problem via relays and needs no manual trigger, but wants
       install + device pairing on both ends. Revisit if `hsync` proves too manual.
 
+## Docker & Devcontainers
+
+Pattern and current state: `docs/setup/devcontainer.md`.
+
+- [ ] [M] Port `~/git/cb-voice-lab` and `~/git/web-tools-container` to the
+      reference Dockerfile (uv instead of conda, `system-setup --profile
+      container`); web-tools also onto saito.
+- [ ] [M] `setup/` module for nvidia-container-toolkit (GPU devcontainers:
+      cb-voice-lab TTS server, `runArgs: ["--gpus=all"]`).
+- [ ] [S] Docker prune helpers once the need shows (old `vsc-*` images pile
+      up GBs: `docker system df`, `docker image prune`).
+- [ ] [S] Grow the `d*`/`dc*` shortcuts from real use; per-repo ones only if
+      a repo is used often enough.
+- [ ] [S] Shared base image in the Forgejo container registry, if the
+      per-repo builds get slow.
+- [ ] [S] 26.10 (interim release) container variant, if a desktop-only
+      issue needs a clean box.
+
 ## Quick Notes
 
 Just some quick unrefined notes, before I forget:
