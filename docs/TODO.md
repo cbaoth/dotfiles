@@ -928,13 +928,17 @@ New `setup/modules/24-yt-dlp.sh` (standalone binary into `~/.local/bin`, skips
 the vserver). Details, the apt/curl_cffi/PEP 668 reasoning, and the
 web-tools-container drift note: [docs/setup/yt-dlp.md](setup/yt-dlp.md).
 
-- [ ] [S] Run `system-setup 24-yt-dlp` for real on motoko (dry-run only so
-      far — the `--break-system-packages` curl_cffi step was blocked by the
-      agent session's permission classifier)
-- [ ] [S] Run it on saito too
+- [x] [S] Run `system-setup 24-yt-dlp` for real on motoko (2026-10-30: curl_cffi
+      installed, confirmed working)
+- [x] [S] Run it on saito too (2026-10-31: curl_cffi installed; apt never had
+      `yt-dlp` there at all, so nothing to remove)
+- [x] [S] `sudo apt remove yt-dlp` on motoko (2026-10-30) — orphaned
+      `python3-mutagen`/`pycryptodome`/`websockets` then `apt autoremove`d on
+      motoko too (2026-10-31): a real video download + merge on saito without
+      any of the three present still worked fine, so dropped rather than kept
+      "just in case". Install manually later if a specific feature needs one
+      (metadata embedding, encrypted streams, some live-chat/API paths).
 - [ ] [S] Puppet was offline during this pass — run there once back online
-- [ ] [S] `sudo apt remove yt-dlp` on motoko (and saito, if also present) once
-      confirmed nothing else needs it
 - [~] [M] `~/git/web-tools-container`'s yt-dlp comes from conda-forge (stale,
       no self-update, no curl_cffi) — only worth fixing if that container
       becomes actual day-to-day use rather than a vserver fallback
