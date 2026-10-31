@@ -74,8 +74,12 @@ of them. In `~/.ssh/config` (machine-local, not in this repo), before the Host
 blocks:
 
 ```
-Match originalhost saito,saito-lan,sa,11001001.org,11001001,vserver,11,vs exec "~/bin/ssh-wait-agent -k SHA256:<hosts-key-fp> %n"
+Match originalhost saito,saito-wifi,sa,11001001.org,11001001,vserver,11,vs exec "~/bin/ssh-wait-agent -k SHA256:<hosts-key-fp> %n"
 ```
+
+(2026-10-30: `saito-lan` no longer exists on motoko's `/etc/hosts` — plain
+`saito` now resolves to the direct LAN link, and `saito-wifi` is the explicit
+wifi-path alias, matching the live `~/.ssh/config`.)
 
 The block sets no options; it is only the hook. The script waits (up to 150s)
 for that key in the agent, only for non-interactive ssh (a terminal `ssh saito`
