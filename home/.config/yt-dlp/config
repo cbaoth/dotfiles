@@ -5,16 +5,49 @@
 --js-runtimes node
 --mtime
 
+# ASCII-only filenames: avoids Unicode punctuation/emoji/CJK that some
+# terminals/locales render as garbled escape sequences (e.g. '$'\342\200\230'').
+# Accented Latin letters are folded to plain ASCII (e.g. e -> e), everything
+# else non-ASCII is dropped, spaces become "_". Field *values* are affected;
+# literal characters in --output templates below (spaces, "()[]/") are not.
+--restrict-filenames
+
+# Default output template (common case: single video, A/V or audio-only).
+# %(resolution&_{}|)s only renders "_<resolution>" when a video stream is
+# present; for audio-only downloads it renders nothing, so one template
+# covers both without a separate "audio" variant.
+-o "%(upload_date)s - %(title)s (%(duration)ss)%(resolution&_{}|)s [%(id)s].%(ext)s"
+
 # Debug
 # -v
 
-# TODO look into aliases, e.g. (format presumably wrong, but along those lines)
-# --alias my-yt-output-full '--output "%(uploader)s (%(uploader_id)s)/%(upload_date)s - %(title)s - (%(duration)ss) [%(resolution)s] [%(id)s].%(ext)s"'
-# --alias my-yt-output-audio-full '--output "%(uploader)s (%(uploader_id)s)/%(upload_date)s - %(title)s - (%(duration)ss) [%(id)s].%(ext)s"'
-# --alias my-yt-output '--output "%(upload_date)s - %(title)s - (%(duration)ss) [%(resolution)s] [%(id)s].%(ext)s"'
-# --alias my-yt-output-audio '--output "%(upload_date)s - %(title)s - (%(duration)ss) [%(id)s].%(ext)s"'
-# --alias my-subs '--write-subs --sub-langs en.*,de.*,live-chat --write-auto-subs --convert-subs srt'
-# --alias my-meta '--add-metadata --embed-thumbnail --write-description --write-thumbnail --mtime'
-# --alias my-commons '--my-subs --my-meta --ignore-errors --js-runtimes node'
-# --alias my-yt-archive,-A '--my-commons --my-yt-output-full --merge-output-format mkv'
-# --alias my-yt-archive-audio '--my-commons --my-yt-output-audio-full -x'
+# --- Internal aliases (building blocks + combos) -----------------------
+# Order matters: an alias can only reference another alias defined above it.
+
+# Subtitles: English + German + YouTube live-chat replay, converted to srt.
+# NOTE: the special language code is "live_chat" (underscore), not "live-chat".
+--alias my-subs '--write-subs --sub-langs en.*,de.*,live_chat --write-auto-subs --convert-subs srt'
+
+# Metadata: embed tags/chapters, embed thumbnail as cover art, and also keep
+# a standalone thumbnail + description file on disk.
+--alias my-meta '--embed-metadata --embed-thumbnail --write-description --write-thumbnail'
+
+# Common archival combo: subs + meta, don't abort a batch on one failure.
+--alias my-commons '--my-subs --my-meta --ignore-errors'
+
+# Output template for archival downloads: organized into an uploader subfolder.
+# NOTE: deliberately omits the %(resolution&_{}|)s trick used in the default
+# -o above: inside an --alias OPTIONS string, a bare "{}" is consumed as that
+# alias's own ARG0 placeholder (see --alias --help), not passed through to
+# yt-dlp's output-template engine, which breaks both -A and my-yt-archive-audio.
+--alias my-yt-output-full '--output "%(uploader)s (%(uploader_id)s)/%(upload_date)s - %(title)s (%(duration)ss) [%(id)s].%(ext)s"'
+
+# Full A/V archive: subs + meta + uploader subfolder, muxed to mkv.
+# Usage: yt-dlp -A <url>  (or --my-yt-archive <url>)
+--alias my-yt-archive,-A '--my-commons --my-yt-output-full --merge-output-format mkv'
+
+# Audio-only archive (e.g. one-off channel/playlist audio+subs grab).
+# --audio-format only transcodes when the source isn't already opus (most
+# YouTube audio already is), so this is "free" in the common case.
+# Usage: yt-dlp --my-yt-archive-audio <url>
+--alias my-yt-archive-audio '--my-commons --my-yt-output-full -x --audio-format opus'
