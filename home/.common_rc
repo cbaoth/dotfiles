@@ -143,6 +143,12 @@ cb_devtools_completions() {
     eval "$(fnm completions --shell "$shell" 2> /dev/null)"
   fi
 
+  # uv -- Python package and project manager. https://docs.astral.sh/uv/
+  if command -v uv > /dev/null 2>&1; then
+    eval "$(uv generate-shell-completion "$shell" 2> /dev/null)"
+    eval "$(uvx --generate-shell-completion "$shell" 2> /dev/null)"
+  fi
+
   # Determinate Nix CLI.
   # https://docs.determinate.systems/determinate-nix/#determinate-nixd-completion
   if command -v determinate-nixd > /dev/null 2>&1; then

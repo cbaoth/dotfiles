@@ -1376,7 +1376,8 @@ uv-setup() {
     uv self update
     return $?
   fi
-  echo "Installing uv from https://astral.sh/uv/ ..."
+  echo "Installing uv from https://astral.sh/uv/ ..." \
+    "(fresh machine? prefer 'system-setup 34-uv')"
   curl -LsSf https://astral.sh/uv/install.sh \
     | env UV_NO_MODIFY_PATH=1 XDG_BIN_HOME="${HOME}/.local/bin" sh
 }
