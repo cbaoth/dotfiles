@@ -1410,6 +1410,52 @@ if command -v uv >/dev/null 2>&1; then
 fi
 # }}} - PYTHON / UV -----------------------------------------------------------
 
+# {{{ - DOCKER / DEVCONTAINER ------------------------------------------------
+# d* = plain docker, dc* = devcontainer CLI (not `dc`: that is the RPN
+# calculator). Docs: docs/setup/devcontainer.md
+if command -v docker >/dev/null 2>&1; then
+  alias dco='docker compose'
+  # running containers, compact
+  alias dps="docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
+  # follow a container's log, starting from the last 200 lines
+  dlog() {
+    [[ -z "${1-}" ]] && { cl::p_usg "dlog CONTAINER"; return 1; }
+    docker logs -f --tail 200 "$@"
+  }
+  # interactive login shell in a running container: zsh, else bash, else sh
+  dsh() {
+    [[ -z "${1-}" ]] && { cl::p_usg "dsh CONTAINER"; return 1; }
+    docker exec -it "$1" sh -c \
+      'command -v zsh >/dev/null && exec zsh -l; command -v bash >/dev/null && exec bash -l; exec sh -l'
+  }
+fi
+
+# devcontainer CLI: npm global under fnm (setup/packages/npm-global.list).
+# Iterate on a devcontainer with these instead of VS Code "Reopen in
+# Container", which replaces the current (host) window. DIR defaults to '.';
+# further arguments go to `devcontainer up`.
+if command -v devcontainer >/dev/null 2>&1; then
+  # build if needed, then start the devcontainer of DIR
+  dcup() { devcontainer up --workspace-folder "${1:-.}" "${@:2}"; }
+  # rebuild: replace the existing container (named volumes are kept)
+  dcre() { devcontainer up --workspace-folder "${1:-.}" --remove-existing-container "${@:2}"; }
+  # login shell in the running devcontainer of DIR
+  dcsh() { devcontainer exec --workspace-folder "${1:-.}" zsh -l; }
+fi
+
+# Open the devcontainer of DIR in a NEW VS Code window; the current window
+# stays as it is. Start the container first (dcup). The URI carries the host
+# folder hex-encoded; WORKSPACE is the container-side workspaceFolder.
+if command -v code >/dev/null 2>&1; then
+  dcode() {
+    local _dir _hex
+    _dir="$(cd "${1:-.}" && pwd -P)" || return 1
+    _hex="$(printf '%s' "${_dir}" | od -An -tx1 | tr -d ' \n')"
+    code --new-window --folder-uri "vscode-remote://dev-container+${_hex}${2:-/workspace}"
+  }
+fi
+# }}} - DOCKER / DEVCONTAINER ------------------------------------------------
+
 # shellcheck disable=SC1091  # optional local override; path is dynamic
 [[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"
 
