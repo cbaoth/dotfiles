@@ -3,15 +3,16 @@ title: fnm (NodeJS version manager)
 hosts: [motoko, puppet]
 status: resolved
 tags: [fnm, node, npm, claude]
-updated: 2026-10-10
+updated: 2026-10-31
 automated_by: setup/modules/22-fnm.sh
 ---
 
 # fnm (NodeJS version manager)
 
-**Automated:** `system-setup 22-fnm` (all profiles). Update the binary with
-`fnm-setup` (aliases `fnm-update`, `fnm-upgrade`, `fnm-install`): updates the
-fnm binary, then installs the newest Node LTS and makes it the default.
+**Automated:** `system-setup 22-fnm` (all profiles, incl. container). Update
+the binary with `fnm-setup` (aliases `fnm-update`, `fnm-upgrade`,
+`fnm-install`): updates the fnm binary, then installs the newest Node LTS and
+makes it the default.
 
 ## Why fnm, why this way
 
@@ -47,6 +48,14 @@ and `claude doctor`; migrate an npm install with the native installer, then
 
 `npm install -g` under fnm goes to the active Node version's prefix, so
 packages are per Node version and need reinstalling after switching.
+
+## npm globals
+
+The globals a host should have are listed in `setup/packages/npm-global.list`
+(currently `@devcontainers/cli`, see [devcontainer.md](devcontainer.md)).
+`22-fnm` installs the missing ones into fnm's **default** Node
+(`fnm exec --using=default`), so after `fnm default <new version>` a re-run
+of `system-setup 22-fnm` brings them back. Skipped in profile `container`.
 
 ## Hosts
 

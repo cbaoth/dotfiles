@@ -1,0 +1,12 @@
+# Global npm packages, installed into fnm's default Node.
+# One package per line (an npm spec, e.g. @scope/name or name@1.2).
+# Blank lines and # comments ignored.
+# Installed by: setup/modules/22-fnm.sh (not in profile container)
+# Docs:         docs/setup/fnm.md
+#
+# Globals live inside one Node version: after `fnm install` + `fnm default` of
+# a new one, re-run `system-setup 22-fnm` to put them back.
+
+# Dev Containers CLI: build/start/exec devcontainers without VS Code
+# (docs/setup/devcontainer.md; shortcuts dcup/dcre/dcsh in home/.aliases)
+@devcontainers/cli

@@ -1341,7 +1341,8 @@ fi
 # Bootstrap/update fnm itself, then install the newest Node LTS and make it the
 # default (old Node versions are kept: `fnm list`, `fnm uninstall <ver>`).
 # NOTE: global npm packages are per Node version and do not carry over to a new
-# LTS major. Defined outside any
+# LTS major; `system-setup 22-fnm` reinstalls the ones in
+# setup/packages/npm-global.list. Defined outside any
 # `command -v fnm` guard on purpose: this is what you run when fnm is missing.
 # --skip-shell: shell integration lives in .common_env / .common_rc; without it
 # the installer appends to .zshrc/.bashrc (symlinks into this repo).

@@ -30,8 +30,8 @@
 #
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
-MODULE_DESC="fnm NodeJS version manager + Node LTS (upstream installer, ~/.local/share/fnm)"
-MODULE_PROFILES=(desktop server wsl)
+MODULE_DESC="fnm NodeJS version manager + Node LTS + npm globals (upstream installer, ~/.local/share/fnm)"
+MODULE_PROFILES=(desktop server wsl container)
 MODULE_DOC="docs/setup/fnm.md"
 
 declare -r FNM_INSTALL_URL="https://fnm.vercel.app/install"
@@ -70,4 +70,40 @@ module_run() {
     st::run_sh "install Node LTS and set it as default" \
       "'${FNM_BIN}' install --lts && '${FNM_BIN}' default lts-latest"
   fi
+
+  _fnm_npm_globals
+}
+
+# Global npm packages from setup/packages/npm-global.list, into fnm's default
+# Node. Globals live inside one Node version, so installing a new version
+# silently drops them all; this is what puts them back (re-run the module
+# after `fnm default <new>`). Not in containers: the list holds host tools
+# (the devcontainer CLI), and a container would only carry them as dead weight.
+_fnm_npm_globals() {
+  if [[ "$(st::profile)" == "container" ]]; then
+    st::noop "npm globals skipped in profile container"
+    return 0
+  fi
+  if (( ST_DRY_RUN )) && ! "${FNM_BIN}" list 2>/dev/null | st::grep_q -E 'v[0-9]'; then
+    st::msg "would then install the npm globals from npm-global.list"
+    return 0
+  fi
+
+  local -a pkgs=() missing=()
+  st::read_list npm-global pkgs || return 1
+  local pkg
+  for pkg in "${pkgs[@]}"; do
+    if "${FNM_BIN}" exec --using=default -- npm ls -g --depth=0 "${pkg}" >/dev/null 2>&1; then
+      (( ST_SKIPPED++ ))
+    else
+      missing+=("${pkg}")
+    fi
+  done
+
+  if (( ${#missing[@]} == 0 )); then
+    st::skip "all ${#pkgs[@]} npm global(s) already installed"
+    return 0
+  fi
+  st::run "install ${#missing[@]} npm global(s): ${missing[*]}" -- \
+    "${FNM_BIN}" exec --using=default -- npm install -g "${missing[@]}"
 }
