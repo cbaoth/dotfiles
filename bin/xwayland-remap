@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+# -*- mode: python; indent-tabs-mode: nil; tab-width: 4 -*-
+# vim: ft=python:et:ts=4:sts=4:sw=4
+#
+# xwayland-remap: show XWayland windows that sway never picked up (unmap + map).
+#
+# Why: with sway 1.12 / wlroots 0.20 / Xwayland 24.1, a window can end up mapped
+# and viewable in X11 (`xwininfo`: IsViewable, the XWM even set WM_STATE) while
+# sway never creates a container for it: invisible, unfocusable, absent from
+# `swaymsg -t get_tree`. Seen with Double Commander's Options dialog on every
+# first open (upstream: https://github.com/swaywm/sway/issues/9316). Mapping the
+# same window a second time works. Full story:
+# docs/troubleshooting/xwayland-window-mapped-but-not-shown.md
+#
+# What counts as orphaned: a top-level X11 window that is viewable, not
+# override-redirect (menus, tooltips and the XWM's own helpers are never sway
+# containers), carries WM_STATE (it went through the XWM's MapRequest), and
+# whose id is not the `window` of any node in sway's tree.
+#
+#   xwayland-remap           remap the orphans that exist now, then exit
+#   xwayland-remap --watch   daemon: check every new map after DELAY and remap
+#                            it once if sway still has no container for it
+#
+# The watcher runs as the systemd user unit xwayland-remap.service (Restart=
+# covers an Xwayland restart: the X connection drops and the process exits).
+#
+# System Python on purpose (not uv): python3-xlib comes from apt, see --help.
+
+from __future__ import annotations
+
+import argparse
+import json
+import select
+import subprocess
+import sys
+import time
+
+from Xlib import X, display, error
+
+DELAY = 0.5  # s after a map before sway's tree is checked for the window
+REMAP_GAP = 0.2  # s between unmap and map
+MAX_REMAPS = 2  # per map of a window; a window still orphaned after that is left
+
+verbose = False
+dry_run = False
+
+
+def log(msg: str) -> None:
+    print(msg, file=sys.stderr, flush=True)
+
+
+def debug(msg: str) -> None:
+    if verbose:
+        log(msg)
+
+
+def sway_windows() -> set[int]:
+    """X11 ids of every XWayland view sway has a node for."""
+    tree = json.loads(subprocess.run(["swaymsg", "-t", "get_tree"], capture_output=True, check=True).stdout)
+    ids: set[int] = set()
+    stack = [tree]
+    while stack:
+        node = stack.pop()
+        if node.get("window"):
+            ids.add(node["window"])
+        stack.extend(node.get("nodes", []))
+        stack.extend(node.get("floating_nodes", []))
+    return ids
+
+
+def describe(win) -> str:
+    try:
+        name = win.get_wm_name()
+        cls = win.get_wm_class()
+    except error.XError:
+        return f"{win.id:#x}"
+    return f"{win.id:#x} {cls[1] if cls else '?'} {name!r}"
+
+
+def is_orphan(d: display.Display, win, known: set[int]) -> bool:
+    if win.id in known:
+        return False
+    try:
+        attrs = win.get_attributes()
+        if attrs.map_state != X.IsViewable or attrs.override_redirect:
+            return False
+        return win.get_full_property(d.intern_atom("WM_STATE"), X.AnyPropertyType) is not None
+    except error.XError:
+        return False  # destroyed meanwhile
+
+
+def remap(d: display.Display, win) -> None:
+    if dry_run:
+        log(f"orphaned (dry run, left): {describe(win)}")
+        return
+    log(f"orphaned, remapping: {describe(win)}")
+    catch = error.CatchError(error.BadWindow)
+    win.unmap(onerror=catch)
+    d.sync()
+    time.sleep(REMAP_GAP)
+    win.map(onerror=catch)
+    d.sync()
+
+
+def scan(d: display.Display) -> int:
+    """Remap every orphan that exists now; return how many were found."""
+    known = sway_windows()
+    orphans = [w for w in d.screen().root.query_tree().children if is_orphan(d, w, known)]
+    for win in orphans:
+        remap(d, win)
+    return len(orphans)
+
+
+def watch(d: display.Display) -> None:
+    root = d.screen().root
+    root.change_attributes(event_mask=X.SubstructureNotifyMask)
+    d.flush()
+    log("watching XWayland maps")
+    if n := scan(d):
+        log(f"startup scan: {n} orphaned window(s)")
+
+    due: dict[int, float] = {}  # window id -> time to check it
+    remaps: dict[int, int] = {}  # window id -> remaps since the client last mapped it
+    ours: set[int] = set()  # unmaps we caused, so they don't reset remaps
+
+    while True:
+        timeout = max(0.0, min(due.values()) - time.monotonic()) if due else None
+        if not d.pending_events():
+            select.select([d.fileno()], [], [], timeout)
+        while d.pending_events():
+            ev = d.next_event()  # raises on a lost connection -> exit, systemd restarts
+            wid = ev.window.id if hasattr(ev, "window") else None
+            if ev.type == X.MapNotify and not ev.override:
+                due[wid] = time.monotonic() + DELAY
+            elif ev.type == X.UnmapNotify:
+                if wid in ours:
+                    ours.discard(wid)
+                else:
+                    remaps.pop(wid, None)  # hidden by its client: the next show starts fresh
+                due.pop(wid, None)
+            elif ev.type == X.DestroyNotify:
+                for state in (due, remaps):
+                    state.pop(wid, None)
+                ours.discard(wid)
+
+        now = time.monotonic()
+        ready = [wid for wid, t in due.items() if t <= now]
+        if not ready:
+            continue
+        known = sway_windows()
+        for wid in ready:
+            del due[wid]
+            win = d.create_resource_object("window", wid)
+            if not is_orphan(d, win, known):
+                continue
+            if remaps.get(wid, 0) >= MAX_REMAPS:
+                debug(f"still orphaned after {MAX_REMAPS} remaps, giving up: {describe(win)}")
+                continue
+            remaps[wid] = remaps.get(wid, 0) + 1
+            if not dry_run:
+                ours.add(wid)
+            remap(d, win)
+
+
+def main() -> int:
+    global verbose, dry_run
+    parser = argparse.ArgumentParser(
+        description="Unmap and map again XWayland windows that are viewable in X11 but missing from sway's tree.",
+        epilog="Requirements (apt): python3-xlib; sway (swaymsg).",
+    )
+    parser.add_argument("-w", "--watch", action="store_true", help="keep running and fix every new map")
+    parser.add_argument("-n", "--dry-run", action="store_true", help="only report orphaned windows")
+    parser.add_argument("-v", "--verbose", action="store_true", help="also log windows given up on")
+    args = parser.parse_args()
+    verbose, dry_run = args.verbose, args.dry_run
+
+    try:
+        d = display.Display()
+    except error.DisplayError as e:
+        log(f"cannot open X display: {e}")
+        return 1
+    if args.watch:
+        watch(d)
+        return 0
+    if not scan(d):
+        log("no orphaned XWayland windows")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

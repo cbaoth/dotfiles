@@ -1,0 +1,19 @@
+[Unit]
+Description=Remap XWayland windows that sway never picked up (mapped in X11, missing from the tree)
+Documentation=file:///home/cbaoth/dotfiles/docs/troubleshooting/xwayland-window-mapped-but-not-shown.md
+# Started explicitly from the sway config:
+#   exec systemctl --user start xwayland-remap.service
+# That runs after `dbus-update-activation-environment --systemd`, so DISPLAY and
+# SWAYSOCK are in the unit's environment. No `enable` needed.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/bin/xwayland-remap --watch
+# Also after an Xwayland restart: the X connection drops and the watcher exits.
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
