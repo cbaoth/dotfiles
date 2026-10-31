@@ -921,3 +921,20 @@ full open-items list: [docs/setup/emacs.md](setup/emacs.md).
 - [ ] [S] Install on desktop (`emacs-pgtk`), try daemon + `emacsclient -c`, TRAMP
 - [ ] [M] VS Code settings/keybindings/extensions review for common ground (on the desktop)
 - [ ] [S] Decide `$EDITOR` (nvim vs `emacsclient -t -a ''`)
+
+## yt-dlp standalone install + curl_cffi (started 2026-10-30)
+
+New `setup/modules/24-yt-dlp.sh` (standalone binary into `~/.local/bin`, skips
+the vserver). Details, the apt/curl_cffi/PEP 668 reasoning, and the
+web-tools-container drift note: [docs/setup/yt-dlp.md](setup/yt-dlp.md).
+
+- [ ] [S] Run `system-setup 24-yt-dlp` for real on motoko (dry-run only so
+      far — the `--break-system-packages` curl_cffi step was blocked by the
+      agent session's permission classifier)
+- [ ] [S] Run it on saito too
+- [ ] [S] Puppet was offline during this pass — run there once back online
+- [ ] [S] `sudo apt remove yt-dlp` on motoko (and saito, if also present) once
+      confirmed nothing else needs it
+- [~] [M] `~/git/web-tools-container`'s yt-dlp comes from conda-forge (stale,
+      no self-update, no curl_cffi) — only worth fixing if that container
+      becomes actual day-to-day use rather than a vserver fallback
