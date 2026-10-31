@@ -6,10 +6,13 @@
 # Commander (the doublecmd-gtk build); its own panel colours are theme-default,
 # so theming the widgetset darkens both the chrome and the file panels.
 #
-# Values mirror the GTK3/system theme (gsettings org.gnome.desktop.interface)
-# so GTK2 apps match the rest of the desktop. A host without the Yaru themes
-# falls back to the GTK2 default with no error.
+# Adwaita-dark, not the GTK3 Yaru-magenta-dark: yaru-theme-gtk 26.10 dropped
+# its gtk-2.0/ variants, and a theme name without one falls back to the light
+# GTK2 default with no error. Adwaita-dark's GTK2 theme comes from
+# gnome-themes-extra-data (pulled in by libgtk2.0). There is no Adwaita-dark
+# icon theme; the Yaru icon themes are still shipped, so icons keep matching
+# the rest of the desktop. See docs/setup/dark-theme.md.
 
-gtk-theme-name="Yaru-magenta-dark"
+gtk-theme-name="Adwaita-dark"
 gtk-icon-theme-name="Yaru-magenta-dark"
 gtk-font-name="Ubuntu Sans 11"

@@ -3,7 +3,7 @@ title: Dark theme across toolkits (Qt6 / Qt5 / GTK3 / GTK2)
 hosts: [motoko]
 status: resolved
 tags: [theme, dark-mode, qt, gtk, gtk2, sway, desktop, kvantum]
-updated: 2026-09-19
+updated: 2026-10-31
 ---
 
 # Dark theme across toolkits
@@ -55,14 +55,24 @@ light regardless of the rest of the desktop. Fix: name a dark GTK2 theme in
 `~/.gtkrc-2.0` (tracked as [`home/.gtkrc-2.0`](../../home/.gtkrc-2.0)):
 
 ```
-gtk-theme-name="Yaru-magenta-dark"
+gtk-theme-name="Adwaita-dark"
 gtk-icon-theme-name="Yaru-magenta-dark"
 gtk-font-name="Ubuntu Sans 11"
 ```
 
-`Yaru-magenta-dark` (matching the GTK3 theme) already ships a `gtk-2.0/` variant
-from `yaru-theme-gtk` (part of `ubuntu-desktop`, so present on any desktop box; a
-host without it falls back to the GTK2 default silently). doublecmd's own
+The theme must ship a `gtk-2.0/` directory; a name without one falls back to
+the light GTK2 default **silently**. List the candidates with
+`for d in /usr/share/themes/*/; do [[ -d $d/gtk-2.0 ]] && echo "$d"; done`.
+
+- **Theme: `Adwaita-dark`** from `gnome-themes-extra-data` (pulled in by
+  `libgtk2.0`, so present wherever doublecmd-gtk is).
+- **Not `Yaru-magenta-dark`** any more: it matched the GTK3 theme until
+  `yaru-theme-gtk` 26.10 (upgraded 2026-10-26) dropped all `gtk-2.0/` variants,
+  and doublecmd turned light with no error anywhere.
+- **Icons stay `Yaru-magenta-dark`**: the Yaru icon themes are still shipped,
+  and there is no `Adwaita-dark` icon theme.
+
+doublecmd's own
 `<Colors>` in `doublecmd.xml` are theme-default, so this darkens **both** the
 chrome and the file panels — no per-colour hex editing needed. Restart doublecmd
 to apply.
