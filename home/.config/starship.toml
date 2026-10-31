@@ -11,14 +11,17 @@
 # shows neither, not even over ssh or as root. The segment colour is the
 # palette colour `head`: blue-grey locally, amber in a remote session.
 #
-# Remote/root state comes from ~/.zshrc (PROMPT section), not from starship's
-# own ssh detection, which sudo/su defeat by stripping the SSH_* variables:
-#   CB_PROMPT_REMOTE  short hostname (uppercase), set only in a remote session
-#   CB_PROMPT_ROOT    set only when EUID is 0
-# For remote and/or root ~/.zshrc points STARSHIP_CONFIG at a generated copy
-# of this file (sed: swaps whatever `palette = "..."` says to `palette =
-# "remote"`; root drops the `$character"""` line, keep it on a line of its
-# own); edit only this file.
+# Remote/container/root state comes from ~/.zshrc (PROMPT section), not from
+# starship's own ssh detection, which sudo/su defeat by stripping the SSH_*
+# variables:
+#   CB_PROMPT_REMOTE     short hostname (uppercase), set only in a remote session
+#   CB_PROMPT_CONTAINER  container name (its hostname), set only in a container
+#   CB_PROMPT_USER       set only when the user is not one of mine
+#   CB_PROMPT_ROOT       set only when EUID is 0
+# For remote, container and/or root ~/.zshrc points STARSHIP_CONFIG at a
+# generated copy of this file (sed: swaps whatever `palette = "..."` says to
+# `palette = "remote"` or "container"; root drops the `$character"""` line,
+# keep it on a line of its own); edit only this file.
 #
 # local: colour theme — every colour below is a named role (head/accent/
 # tier3/tier4/tier5/text_dark/muted/error/bright) resolved through whichever
@@ -26,7 +29,8 @@
 # Options: "local" (current, tokyo-night-derived), "eldritch_cthulhu",
 # "eldritch_abyss" — best-effort colour ports of
 # https://github.com/eldritch-theme/starship, fine-tune the palette tables
-# below if needed. "remote" is reserved for the ssh/root variant above.
+# below if needed. "remote" and "container" are reserved for the variants
+# above.
 palette = "eldritch_cthulhu"
 
 # local: directory scan budget for module detection (default 30 ms). Hit in
@@ -39,6 +43,7 @@ format = """
 $os\
 $username\
 ${env_var.CB_PROMPT_REMOTE}\
+${env_var.CB_PROMPT_CONTAINER}\
 [](bg:accent fg:head)\
 $directory\
 [](fg:accent bg:tier3)\
@@ -113,11 +118,12 @@ style = "bg:head fg:text_dark"
 format = "[ $symbol ]($style)"
 disabled = false
 
-# local: username shown only when relevant — root, another user, or a remote
-# session (also when sudo stripped the SSH_* variables, via CB_PROMPT_REMOTE).
+# local: username shown only when relevant — root, another user, a user that
+# is not mine (CB_PROMPT_USER), a container, or a remote session (also when
+# sudo stripped the SSH_* variables, via CB_PROMPT_REMOTE).
 # Root: red bold text only, the red block on the input line is the eye-catcher.
 [username]
-detect_env_vars = ["CB_PROMPT_REMOTE"]
+detect_env_vars = ["CB_PROMPT_REMOTE", "CB_PROMPT_USER", "CB_PROMPT_CONTAINER"]
 style_user = "bg:head fg:text_dark"
 style_root = "bg:head fg:error bold"
 format = "[$user ]($style)"
@@ -126,6 +132,12 @@ format = "[$user ]($style)"
 [env_var.CB_PROMPT_REMOTE]
 style = "bg:head fg:text_dark bold"
 format = "[☍ $env_value ]($style)"  # same ssh marker as the old p9k prompt
+
+# local: container name (devcontainer hostname) after a docker whale. Not the
+# built-in container module: for docker it only knows the name "Docker".
+[env_var.CB_PROMPT_CONTAINER]
+style = "bg:head fg:text_dark bold"
+format = "[ $env_value ]($style)"
 
 # local: root marker in front of the input line, old p9k style
 [env_var.CB_PROMPT_ROOT]
@@ -187,6 +199,19 @@ bright = "#ffffff"
 # regardless of which theme is active above (see ~/.zshrc sed).
 [palettes.remote]
 head = "#e0af68"  # tokyo night yellow
+accent = "#769ff0"
+tier3 = "#394260"
+tier4 = "#212736"
+tier5 = "#1d2230"
+text_dark = "#0a0b0f"
+muted = "#a0a9cb"
+error = "#c54544"
+bright = "#ffffff"
+
+# Same as [palettes.remote], `head` in green — used inside containers (see
+# ~/.zshrc sed), so a container shell never passes for a host one.
+[palettes.container]
+head = "#9ece6a"  # tokyo night green
 accent = "#769ff0"
 tier3 = "#394260"
 tier4 = "#212736"

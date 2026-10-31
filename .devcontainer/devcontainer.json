@@ -21,6 +21,9 @@
       ]
     }
   },
+  // Short name as hostname: the prompt and tmux show it (docker's default
+  // is the container id). Keep it unique among your containers.
+  "runArgs": ["--hostname=dotfiles"],
   "mounts": [
     // Claude Code config + login, kept across rebuilds; separate from the
     // host's ~/.claude so the container stays a sandbox

@@ -455,9 +455,24 @@ else
 fi
 unset _cb_prompt_remote_hosts
 (( EUID == 0 )) && export CB_PROMPT_ROOT=1 || unset CB_PROMPT_ROOT
+# Container marker: the hostname, which devcontainer.json sets to a short
+# project name (runArgs --hostname); docker's default is the container id.
+if ${IS_DOCKER:-false}; then
+  export CB_PROMPT_CONTAINER="${HOST%%.*}"
+else
+  unset CB_PROMPT_CONTAINER
+fi
+# Username shown for any user that is not mine: cbaoth everywhere, except the
+# work WSL box, whose login differs. So `vscode` in a devcontainer shows.
+if [[ "${USERNAME}" != cbaoth ]] && ! ${IS_WSL:-false}; then
+  export CB_PROMPT_USER=1
+else
+  unset CB_PROMPT_USER
+fi
 
-# Remote/root variants: a generated copy of starship.toml per variant, rebuilt
-# when the source (or this file) is newer. Remote swaps the palette; root drops
+# Remote/container/root variants: a generated copy of starship.toml per
+# variant, rebuilt when the source (or this file) is newer. Remote and
+# container swap the palette (container wins when both apply); root drops
 # $character, since the root block on the input line already ends in a tip.
 # A STARSHIP_CONFIG set by someone else (starship-preset-test) wins.
 if $IS_STARSHIP; then
@@ -467,6 +482,10 @@ if $IS_STARSHIP; then
     if [[ -n "${CB_PROMPT_REMOTE:-}" ]]; then
       _cb_variant+=(remote)
       _cb_sed+=(-e 's/^palette = "[^"]*"$/palette = "remote"/')
+    fi
+    if [[ -n "${CB_PROMPT_CONTAINER:-}" ]]; then
+      _cb_variant+=(container)
+      _cb_sed+=(-e 's/^palette = "[^"]*"$/palette = "container"/')
     fi
     if [[ -n "${CB_PROMPT_ROOT:-}" ]]; then
       _cb_variant+=(root)
