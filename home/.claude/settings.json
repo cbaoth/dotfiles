@@ -466,7 +466,6 @@
       "Bash(. *)",
       "Read(//home/cbaoth/.config/systemd/user/**)",
       "Read(//home/cbaoth/notes/**)",
-      "Read(//home/cbaoth/.*)",
       "mcp__claude-in-chrome__tabs_context_mcp"
     ],
     "ask": [
@@ -522,7 +521,9 @@
       "Bash(sh -c *)",
       "Bash(zsh -c *)",
       "Bash(ssh *)",
-      "Bash(scp *)"
+      "Bash(scp *)",
+      "Read(/srv/saito/stash/**)",
+      "Read(/media/stash/**)"
     ],
     "defaultMode": "auto",
     "deny": [
