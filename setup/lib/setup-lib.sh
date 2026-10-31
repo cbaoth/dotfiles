@@ -555,6 +555,12 @@ st::is_wsl() {
   [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi microsoft /proc/version 2>/dev/null
 }
 
+# Are we inside a container (docker, podman)? Same test as IS_DOCKER in
+# home/.common_env.
+st::is_container() {
+  [[ -f /.dockerenv || -f /run/.containerenv ]]
+}
+
 # Is a graphical session running? Only a hint for --profile auto: it is false
 # on a desktop reached via TTY/SSH. Installed packages (gnome-shell used to be
 # checked) are worse: a server with leftover desktop packages looks like one.
@@ -576,6 +582,8 @@ st::guess_profile() {
   listed="$(st::host_profile)"
   if [[ -n "${listed}" ]]; then
     printf '%s' "${listed}"
+  elif st::is_container; then
+    printf 'container'
   elif st::is_wsl; then
     printf 'wsl'
   elif st::is_desktop; then

@@ -28,7 +28,7 @@ machine usable in the first place.
 ```bash
 system-setup --list                      # available modules
 system-setup --dry-run --profile desktop # print what would change; change nothing
-system-setup --profile auto              # detect desktop/server/wsl and apply
+system-setup --profile auto              # detect desktop/server/wsl/container and apply
 ```
 
 Modules are safe to re-run — a second run reports `0 changed`. Package sets live

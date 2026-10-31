@@ -13,6 +13,11 @@ system-setup --profile auto              # profile from setup/hosts.list, else g
 system-setup 20-flatpak 30-docker        # run specific modules
 ```
 
+Profiles: `desktop`, `server`, `wsl`, `container` (devcontainers, see
+[docs/setup/devcontainer.md](../docs/setup/devcontainer.md)). `auto` takes the
+host's entry in `hosts.list`, else detects container → WSL → graphical session
+(desktop) → server. Naming modules explicitly overrides the profile filter.
+
 ## The one rule
 
 **A module must be safe to re-run, and a re-run must report zero changes.**

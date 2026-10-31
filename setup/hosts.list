@@ -2,9 +2,9 @@
 # (st::host_profile in setup/lib/setup-lib.sh). One `HOSTNAME PROFILE` per
 # line, HOSTNAME as printed by `hostname -s`.
 #
-# Unlisted hosts fall back to a guess from the environment (WSL, else a
-# graphical session = desktop, else server), which is wrong for a desktop
-# reached via TTY, SSH or a tmux server started outside the session.
+# Unlisted hosts fall back to a guess from the environment (container, WSL,
+# else a graphical session = desktop, else server), which is wrong for a
+# desktop reached via TTY, SSH or a tmux server started outside the session.
 
 motoko    desktop
 puppet    desktop

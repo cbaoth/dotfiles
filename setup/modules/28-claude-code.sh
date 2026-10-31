@@ -29,7 +29,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="Claude Code CLI (native installer, ~/.local/bin/claude)"
-MODULE_PROFILES=(desktop server wsl)
+MODULE_PROFILES=(desktop server wsl container)
 MODULE_DOC="docs/setup/claude.md"
 
 # Release channel: latest | stable | an exact version (e.g. 2.1.89).

@@ -10,7 +10,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="Locales: en_US language, en_DK formats (ISO 8601 dates)"
-MODULE_PROFILES=(desktop server wsl)
+MODULE_PROFILES=(desktop server wsl container)
 MODULE_DOC="docs/setup/locale.md"
 
 # en_DK is the trick here: it is the only widely-available locale that gives

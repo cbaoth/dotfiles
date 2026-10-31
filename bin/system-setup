@@ -27,7 +27,7 @@ declare -r ST_SETUP_DIR="${ST_REPO_DIR}/setup"
 declare -r ST_MODULE_DIR="${ST_SETUP_DIR}/modules"
 export ST_SETUP_DIR ST_REPO_DIR
 
-declare -ra ST_PROFILES=(desktop server wsl)
+declare -ra ST_PROFILES=(desktop server wsl container)
 
 if [[ ! -d "${ST_MODULE_DIR}" ]]; then
   printf 'ERROR: module dir not found: %s\n' "${ST_MODULE_DIR}" >&2

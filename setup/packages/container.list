@@ -1,0 +1,9 @@
+# Container-only apt packages (devcontainers, `system-setup -p container`).
+# Installed by: setup/modules/00-apt-base.sh (profile: container)
+# Docs:         docs/setup/devcontainer.md
+#
+# Deliberately thin, like wsl.list: a container gets base.list plus these. No
+# services, no drivers, no GUI — the host owns all of that.
+
+# Editor: terminal-only Emacs build (see base.list, docs/setup/emacs.md)
+emacs-nox
