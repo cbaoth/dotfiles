@@ -2,8 +2,8 @@
 title: Claude Code CLI and Claude Desktop
 hosts: [motoko, saito, 11001001]
 status: resolved
-tags: [claude, anthropic, apt, gpg, cli, desktop, ai, sandbox, apparmor]
-updated: 2026-10-25
+tags: [claude, anthropic, apt, gpg, cli, desktop, ai, sandbox, apparmor, permissions, hooks]
+updated: 2026-10-31
 automated_by: setup/modules/28-claude-code.sh, setup/modules/29-claude-desktop.sh
 ---
 
@@ -196,6 +196,61 @@ Check with `cat /proc/<pid>/attr/current` on a flatpak's `xdg-dbus-proxy`.
 **Known noise, unrelated:** shell init inside the sandbox prints
 `fnm ... Can't create the symlink for multishells ... Read-only file system`,
 because `/run/user/<uid>` is read-only there. Commands still run; it's cosmetic.
+
+### Mounted storage: ask rules + `mount-guard` hook
+
+With the sandbox off, nothing stops `find / …` from crawling the NFS and NTFS
+mounts (`/srv/saito/*`, `/mnt/{c,d,e,f}`, `/media/*` on the server: tens of
+TB, much of it personal). That happened on 2026-10-31. Three layers, all in
+`home/`, so they deploy to every host with `dotfiles-link`:
+
+| Layer | Covers | File |
+| ----- | ------ | ---- |
+| `ask` rules `Read(//srv/**)`, `Edit(//mnt/**)`, … | built-in Read/Edit/Glob/Grep | `home/.claude/settings.json` |
+| `mount-guard` PreToolUse hook | Bash, Glob, Grep | `home/.claude/hooks/mount-guard` |
+| always-on agent rule | the agent's own choices | `.github/instructions/cb-data-care.instructions.md` |
+
+Gotchas found on the way:
+
+- **`/path` in a permission rule is relative to the settings file.** The
+  first attempt, `Read(/srv/saito/stash/**)`, really meant
+  `~/.claude/srv/saito/stash/**` and never matched. Absolute paths need
+  `//path`.
+- **Read/Edit rules never apply to Bash.** `cat`/`find` in Bash ignore them.
+  Only the OS sandbox enforces paths for Bash, which is why the hook exists.
+- **Rules can't carve exceptions.** Permission arrays are merged across all
+  settings files and checked deny → ask → allow. A project-level `allow`
+  never loosens a user-level `ask`. Exceptions therefore live in the hook's
+  config, not in settings.
+
+The hook asks (never blocks) when a Bash command crawls `/`, `~` or `/home`
+with a recursive tool (`find`, `du`, `rg`, `grep -r`, `tree`, …), uses
+`locate`, or names a path under a guarded root. The same goes for a Glob or
+Grep whose path is `/` or under a guarded root. The prompt shows the reason
+(`mount-guard: touches mounted storage under /srv: …`).
+
+It is **best effort**: it splits the command on whitespace instead of
+parsing it, so a variable, a `cd` or a symlink gets past it, and any mention
+of a guarded path (even in an `echo`) triggers a prompt. It guards against an
+over-eager agent, not an adversary. Internal errors fail open (no output, so
+the normal rules decide).
+
+Guarded roots and exceptions: `~/.claude/mount-guard.conf` (`/path` guards,
+`!/path` exempts), plus an optional per-project
+`<project>/.claude/mount-guard.local` in the same format. Keep the `ask` rules
+in `settings.json` in step with the roots there.
+
+Verified 2026-10-31 (Claude Code 2.1.314, new sessions):
+
+- **Auto mode respects both layers.** The hook's "ask" and the `Read(//srv/**)`
+  rule each still prompted.
+- **No "allow for this session" option.** These prompts offer only Yes/No.
+  For a lasting exception, add a `!/path` line to the config.
+- **The VS Code extension hides the reason.** Its dialog shows only the
+  command and Claude's description, not `mount-guard: …`. The CLI shows it as
+  `Hook PreToolUse:Bash requires confirmation for this command: …`. In VS Code,
+  a prompt on a harmless-looking command that names a mount path is most
+  likely the hook.
 
 ## Desktop: apt, because there is no other Linux channel
 

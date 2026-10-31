@@ -80,6 +80,10 @@ Claude Code and VS Code Copilot, `~/.copilot/.github/instructions/` (with
 - `cb-response-format.instructions.md` — reply shape for the human: conditions
   before steps, scannable lists, closing `Your next steps` checklist (always
   loaded)
+- `cb-data-care.instructions.md` — scoped searches (never crawl `/` or the
+  NFS/NTFS mounts), personal-data minimization, reviewable approval prompts
+  (always loaded). Backed by the `mount-guard` hook; see
+  `docs/setup/claude.md`.
 
 The extended human-readable shell guide is `docs/shell-style-guide.md` —
 reference documentation only; for agents the instruction files above are

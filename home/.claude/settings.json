@@ -5,6 +5,20 @@
   "autoUpdatesChannel": "latest",
   "editorMode": "vim",
   "enableWorkflows": true,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "\"$HOME\"/.claude/hooks/mount-guard",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash|Glob|Grep"
+      }
+    ]
+  },
   "inputNeededNotifEnabled": true,
   "permissions": {
     "additionalDirectories": [
@@ -522,8 +536,14 @@
       "Bash(zsh -c *)",
       "Bash(ssh *)",
       "Bash(scp *)",
-      "Read(/srv/saito/stash/**)",
-      "Read(/media/stash/**)"
+      "Read(//srv/**)",
+      "Read(//mnt/**)",
+      "Read(//media/**)",
+      "Read(//run/media/**)",
+      "Edit(//srv/**)",
+      "Edit(//mnt/**)",
+      "Edit(//media/**)",
+      "Edit(//run/media/**)"
     ],
     "defaultMode": "auto",
     "deny": [

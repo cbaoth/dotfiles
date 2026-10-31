@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Claude Code PreToolUse hook: ask before Bash/Glob/Grep touch mounted storage or crawl from /.
+#
+# Best effort, by design: the command string is split on whitespace and shell
+# punctuation, not parsed, so variables, `cd` and symlinks get past it. It
+# guards against an over-eager agent, not an adversary. Read/Edit are covered
+# by the native `Read(//srv/**)`-style ask rules in settings.json instead.
+#
+# Input: hook JSON on stdin. Output: an "ask" decision with a reason, or
+# nothing (no opinion; the normal permission rules decide). Never blocks: any
+# internal failure exits 0 without output.
+#
+# Config (one path per line, `#` comments; `!path` = exception):
+#   ~/.claude/mount-guard.conf            guarded roots + global exceptions
+#   <project>/.claude/mount-guard.local   extra per-project lines (optional)
+
+# No `set -e`: a hook that dies on an edge case must fail open (exit 0, no
+# output), never break every Bash call in every session.
+set -uo pipefail
+
+declare -r GLOBAL_CONF="${HOME}/.claude/mount-guard.conf"
+# Crawling one of these crosses every mount below it; `~` and `$HOME` are the
+# literal words an agent types, so they stay unexpanded
+# shellcheck disable=SC2088
+declare -ra CRAWL_ROOTS=("/" "/*" "~" "~/" "\$HOME" "\${HOME}" "/home" "/home/" "${HOME}" "${HOME}/")
+# Tools that recurse by default, or always reach mounted data (locate db)
+declare -ra RECURSIVE_TOOLS=(find du tree fd fdfind rg ag ncdu)
+declare -ra INDEX_TOOLS=(locate plocate mlocate)
+# Tools that recurse only with -R/--recursive (grep family: also -r; for ls -r
+# means reverse)
+declare -ra FLAG_TOOLS=(grep egrep fgrep ls chmod chown chgrp cp)
+declare -ra LOWER_R_TOOLS=(grep egrep fgrep cp)
+
+declare -a GUARDED=()
+declare -a EXCEPTIONS=()
+
+load_conf() {
+  local file line
+  for file in "$@"; do
+    [[ -r "${file}" ]] || continue
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      line="${line%%#*}"
+      line="${line//[[:space:]]/}"
+      [[ -z "${line}" ]] && continue
+      if [[ "${line}" == '!'* ]]; then
+        EXCEPTIONS+=("${line#!}")
+      else
+        GUARDED+=("${line%/}")
+      fi
+    done < "${file}"
+  done
+  # Fallback if the config is missing (fresh host, link not run yet)
+  (( ${#GUARDED[@]} )) || GUARDED=(/srv /media /mnt /run/media)
+}
+
+# 0 if $1 is at or below $2
+is_under() {
+  [[ "$1" == "$2" || "$1" == "$2"/* ]]
+}
+
+# Prints the guarded root $1 is at or below; 1 if none or excepted
+guarded_root() {
+  local path="${1%/}" root exc
+  [[ -z "${path}" ]] && return 1
+  for exc in "${EXCEPTIONS[@]}"; do
+    is_under "${path}" "${exc%/}" && return 1
+  done
+  for root in "${GUARDED[@]}"; do
+    if is_under "${path}" "${root}"; then
+      printf '%s' "${root}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+in_list() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do
+    [[ "${needle}" == "${item}" ]] && return 0
+  done
+  return 1
+}
+
+ask() {
+  jq -nc --arg reason "mount-guard: $1" '{hookSpecificOutput: {
+    hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $reason}}'
+  exit 0
+}
+
+check_bash() {
+  local -r cmd="$1"
+  local -a words=()
+  local w base sanitized recursive="" root
+  local flag_r="" flag_upper_r=""
+  # Shell punctuation and quotes become word breaks; `--opt=/path` -> `/path`
+  sanitized="${cmd//[;|&()<>\"\'\`=]/ }"
+  read -ra words <<< "${sanitized//$'\n'/ }"
+
+  for w in "${words[@]}"; do
+    base="${w##*/}"
+    if in_list "${base}" "${INDEX_TOOLS[@]}"; then
+      ask "${base} searches an index that includes mounted storage"
+    fi
+    in_list "${base}" "${RECURSIVE_TOOLS[@]}" && recursive="${base}"
+    [[ "${w}" =~ ^-[a-zA-Z]*R || "${w}" == "--recursive" ]] && flag_upper_r=1
+    [[ "${w}" =~ ^-[a-zA-Z]*r ]] && flag_r=1
+  done
+  if [[ -z "${recursive}" && -n "${flag_r}${flag_upper_r}" ]]; then
+    for w in "${words[@]}"; do
+      base="${w##*/}"
+      if [[ -n "${flag_upper_r}" ]] && in_list "${base}" "${FLAG_TOOLS[@]}" \
+        || in_list "${base}" "${LOWER_R_TOOLS[@]}"; then
+        recursive="${base} -R"
+      fi
+    done
+  fi
+
+  for w in "${words[@]}"; do
+    if [[ -n "${recursive}" ]] && in_list "${w}" "${CRAWL_ROOTS[@]}"; then
+      ask "${recursive} on '${w}' crosses every mount below it (NFS/NTFS, many TB)"
+    fi
+    [[ "${w}" == /* ]] || continue
+    if root="$(guarded_root "${w}")"; then
+      ask "touches mounted storage under ${root}: ${w}"
+    fi
+  done
+}
+
+check_search() {
+  local -r tool="$1" path="$2" cwd="$4"
+  local pattern="$3"
+  local target="${path:-${cwd}}" root
+  if in_list "${target}" "${CRAWL_ROOTS[@]}"; then
+    ask "${tool} on '${target}' crosses every mount below it (NFS/NTFS, many TB)"
+  fi
+  # A Grep pattern is a regex, not a path; only Glob patterns can be absolute
+  [[ "${tool}" == "Grep" ]] && pattern=""
+  for target in "${target}" "${pattern}"; do
+    [[ "${target}" == /* ]] || continue
+    if root="$(guarded_root "${target}")"; then
+      ask "${tool} in mounted storage under ${root}: ${target}"
+    fi
+  done
+}
+
+main() {
+  command -v jq > /dev/null 2>&1 || exit 0
+  local input tool cwd
+  input="$(cat)" || exit 0
+  tool="$(jq -r '.tool_name // empty' <<< "${input}" 2> /dev/null)" || exit 0
+  cwd="$(jq -r '.cwd // empty' <<< "${input}" 2> /dev/null)"
+  load_conf "${GLOBAL_CONF}" "${cwd:+${cwd}/.claude/mount-guard.local}"
+
+  case "${tool}" in
+    Bash)
+      check_bash "$(jq -r '.tool_input.command // empty' <<< "${input}")"
+      ;;
+    Glob|Grep)
+      check_search "${tool}" \
+        "$(jq -r '.tool_input.path // empty' <<< "${input}")" \
+        "$(jq -r '.tool_input.pattern // empty' <<< "${input}")" \
+        "${cwd}"
+      ;;
+  esac
+  exit 0
+}
+
+main "$@"
