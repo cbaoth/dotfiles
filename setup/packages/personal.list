@@ -1,0 +1,16 @@
+# Personal-use apt packages — desktop, server, wsl. NOT wsl-work.
+# Installed by: setup/modules/00-apt-base.sh (every profile except wsl-work)
+# Docs:         docs/setup/wsl-work.md
+#
+# Each entry is here because it only serves a personal tool or use case that
+# does not belong on a company machine. Add a line to base.list only if it
+# would pass review at the workplace; otherwise it belongs here.
+
+# Claude Code's sandboxed Bash tool needs both on Linux; without them the CLI
+# still runs but warns, and sandboxing is unavailable. The CLI itself is not an
+# apt package here: setup/modules/28-claude-code.sh (which warns if these are
+# missing, since it can run without 00-apt-base). socat is also a generic
+# relay/tunnel tool, another reason to keep it off a work box. bin/mpv-ipc and
+# bin/tts-speak use it too, desktop only.
+bubblewrap
+socat

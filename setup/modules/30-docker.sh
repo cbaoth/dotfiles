@@ -10,7 +10,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="Docker engine, buildx, and docker group membership"
-MODULE_PROFILES=(desktop server)
+MODULE_PROFILES=(desktop server wsl-work)
 MODULE_DOC="docs/setup/docker.md"
 
 module_run() {
@@ -19,13 +19,18 @@ module_run() {
   # rather than a missing package. Cost real time during the 2026-07 rebuild.
   st::apt_install docker.io docker-buildx docker-compose-v2
 
-  # Membership in 'docker' is effectively root on the host — deliberate, and
-  # the reason this module is not in the wsl profile (Docker Desktop owns that).
+  # Membership in 'docker' is effectively root on the host — deliberate.
+  # Docker Engine (Ubuntu's docker.io) is Apache-2.0; only Docker Desktop is
+  # paid for companies, and this module never installs it.
   if id -nG "${USER}" | st::grep_q -w docker; then
     st::noop "${USER} is already in the docker group"
   else
     st::run "add ${USER} to the docker group" -- \
       sudo usermod -aG docker "${USER}"
     st::war "log out and back in before the docker group takes effect"
+  fi
+
+  if st::is_wsl && [[ "$(ps -p 1 -o comm= 2>/dev/null)" != "systemd" ]]; then
+    st::war "WSL without systemd: dockerd will not start. Set [boot] systemd=true in /etc/wsl.conf, then run 'wsl --shutdown' from Windows"
   fi
 }

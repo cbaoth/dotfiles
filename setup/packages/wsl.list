@@ -1,5 +1,5 @@
 # WSL-only apt packages.
-# Installed by: setup/modules/00-apt-base.sh (profile: wsl)
+# Installed by: setup/modules/00-apt-base.sh (profiles: wsl, wsl-work)
 # Docs:         docs/setup/ubuntu-base.md
 #
 # Deliberately thin: WSL gets base.list plus these. No GUI packages, no

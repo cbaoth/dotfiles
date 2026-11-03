@@ -11,7 +11,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="Release-upgrade channel (Prompt=) by profile"
-MODULE_PROFILES=(desktop server wsl)
+MODULE_PROFILES=(desktop server wsl wsl-work)
 MODULE_DOC="docs/setup/release-upgrades.md"
 
 declare -r RELUP_FILE="/etc/update-manager/release-upgrades"
@@ -27,13 +27,13 @@ declare -r RELUP_FILE="/etc/update-manager/release-upgrades"
 # is the thing being avoided, and containers have removed the old reason to
 # chase runtime versions on a server.
 #
-# WSL is grouped with the servers on purpose: it is a work machine, where an
-# interim release's churn is the least welcome. Flip it to 'normal' if that
-# stops being true.
+# WSL (both profiles) is grouped with the servers on purpose: interim-release
+# churn is the least welcome there. Flip it to 'normal' if that stops being true.
 declare -rA RELUP_PROMPT_BY_PROFILE=(
   [desktop]="normal"
   [server]="lts"
   [wsl]="lts"
+  [wsl-work]="lts"
 )
 
 # The Prompt= value currently in effect, empty if the key is absent. Only a real

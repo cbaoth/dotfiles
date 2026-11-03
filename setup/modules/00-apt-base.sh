@@ -11,7 +11,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="Regional apt mirror, system upgrade, base packages"
-MODULE_PROFILES=(desktop server wsl container)
+MODULE_PROFILES=(desktop server wsl wsl-work container)
 MODULE_DOC="docs/setup/ubuntu-base.md"
 
 # German Ubuntu mirror — noticeably faster from here than the default.
@@ -76,11 +76,17 @@ module_run() {
   # {{{ - Packages ------------------------------------------------------------
   st::apt_install_list base
 
+  # wsl-work is a company machine: no personal.list (see docs/setup/wsl-work.md).
   case "$(st::profile)" in
-    desktop)   st::apt_install_list desktop ;;
-    server)    st::apt_install_list server ;;
-    wsl)       st::apt_install_list wsl ;;
-    container) st::apt_install_list container ;;
+    wsl-work) ;;
+    *)        st::apt_install_list personal ;;
+  esac
+
+  case "$(st::profile)" in
+    desktop)       st::apt_install_list desktop ;;
+    server)        st::apt_install_list server ;;
+    wsl|wsl-work)  st::apt_install_list wsl ;;
+    container)     st::apt_install_list container ;;
   esac
 
   # Packages only one machine needs (e.g. the OneDrive replica on saito).

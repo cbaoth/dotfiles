@@ -1,4 +1,8 @@
-# Base apt packages — every machine (desktop, server, wsl).
+# Base apt packages — every machine (desktop, server, wsl, wsl-work).
+# Everything here must be acceptable on a company machine: no personal-use
+# tooling. Entries with a licence or policy caveat carry it as a comment so the
+# decision stays traceable (docs/setup/wsl-work.md). Anything that is not
+# acceptable goes in personal.list.
 # One package per line. Blank lines and # comments ignored.
 # Installed by: setup/modules/00-apt-base.sh
 # Docs:         docs/setup/ubuntu-base.md
@@ -17,6 +21,10 @@ htop
 btop
 
 # Network
+# iftop, ngrep: packet capture. Kept on wsl-work on purpose (pen testing /
+# debugging, no endpoint-protection agent on WSL as of 2026-10). Use only on
+# traffic and targets you are authorised for. Both free licences (GPL / BSD-style).
+# In WSL2 they only see the virtual NIC, not the Windows host's traffic.
 iftop
 ngrep
 lsof
@@ -29,8 +37,14 @@ gh
 # Transfer & backup
 wget
 curl
+# aria2: chunked/concurrent downloads of large files (e.g. ISOs). GPL-2.0, free
+# for business use. It can also speak BitTorrent: never use that for anything
+# but legitimate distribution (e.g. an official ISO torrent). bin/aria2c-d wraps it.
 aria2
 rsync
+# restic: BSD-2, free for business use. At work it must only ever talk to
+# work-owned repositories and credentials; no personal backup targets, no
+# personal repo passwords, nothing from this repo's personal backup setup.
 restic
 # Previously only a gnome-shell dependency (auto); see desktop.list.
 sshfs
@@ -74,12 +88,6 @@ python-is-python3
 
 # Development tools
 shellcheck
-# Claude Code's sandboxed Bash tool needs both on Linux; without them the CLI
-# still runs but warns, and sandboxing is unavailable. The CLI itself is not an
-# apt package here: setup/modules/28-claude-code.sh (which warns if these are
-# missing, since it can run without 00-apt-base).
-bubblewrap
-socat
 
 # Cron & scheduling
 # cronic wraps a cron job so output is mailed only on failure. Crontabs
@@ -98,4 +106,9 @@ gdu
 
 # Other
 rename
+# ghostscript: PDF processing (hard on Windows without proprietary tools).
+# AGPL-3.0 (Artifex). Running it as a local CLI tool imposes no obligations;
+# do NOT embed it in a product or expose it as a network service without
+# checking the AGPL / Artifex commercial licence. Some company licence policies
+# blocklist AGPL — confirm once with legal/IT if in doubt.
 ghostscript

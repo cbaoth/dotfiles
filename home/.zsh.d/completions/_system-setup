@@ -24,7 +24,7 @@ _system-setup_modules() {
 _arguments -s \
   '(-l --list)'{-l,--list}'[List available modules and exit]' \
   '(-n --dry-run)'{-n,--dry-run}'[Print what would change; change nothing]' \
-  '(-p --profile)'{-p,--profile}'[Run all modules matching PROFILE]:profile:(desktop server wsl container auto)' \
+  '(-p --profile)'{-p,--profile}'[Run all modules matching PROFILE]:profile:(desktop server wsl wsl-work container auto)' \
   '(-y --yes)'{-y,--yes}'[Do not prompt before applying changes]' \
   '(-h --help)'{-h,--help}'[Show this help]' \
   '*:module:_system-setup_modules'

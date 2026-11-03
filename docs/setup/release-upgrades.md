@@ -19,7 +19,8 @@ that role should be on.
 | --------- | --------- | --------------------------------------- |
 | `desktop` | `normal`  | every release, interim ones included    |
 | `server`  | `lts`     | LTS only                                |
-| `wsl`     | `lts`     | LTS only (work machine — see below)     |
+| `wsl`     | `lts`     | LTS only                                |
+| `wsl-work`| `lts`     | LTS only                                |
 
 ## Why the split
 
@@ -32,8 +33,8 @@ thing being avoided, and the old reason to chase releases on a server — gettin
 current PHP/Python/runtime without backports or manual installs — is gone now
 that those live in containers, independent of the host release.
 
-`wsl` is grouped with the servers deliberately: it is a work machine, where an
-interim release's churn is least welcome. Flip it in the module if that changes.
+`wsl` and `wsl-work` are grouped with the servers deliberately: interim-release
+churn is least welcome there. Flip it in the module if that changes.
 
 ## What the interim half costs
 

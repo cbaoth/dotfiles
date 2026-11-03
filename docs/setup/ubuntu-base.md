@@ -23,10 +23,11 @@ Packages are data, not code — see [`setup/packages/`](../../setup/packages/):
 
 | List | Applies to |
 | ---- | ---------- |
-| `base.list` | every machine |
+| `base.list` | every machine; must be acceptable on a company machine |
+| `personal.list` | every profile except `wsl-work` (see [wsl-work.md](wsl-work.md)) |
 | `desktop.list` | GUI session (motoko, work laptop) |
 | `server.list` | headless (saito, vserver) |
-| `wsl.list` | WSL — deliberately thin; the Windows host owns GUI and drivers |
+| `wsl.list` | WSL, both `wsl` and `wsl-work` — deliberately thin; the Windows host owns GUI and drivers |
 | `obsolete-desktop.list` | desktop: packages to **remove** (replaced tools); applied after the installs |
 | `host-<hostname>.list` | one machine only, if the file exists (`hostname -s`); e.g. `host-saito.list` |
 
@@ -41,7 +42,7 @@ yet. So clone first, run the setup, *then* link the dotfiles:
 sudo apt-get update && sudo apt-get install -y git
 git clone https://github.com/cbaoth/dotfiles.git ~/dotfiles
 ~/dotfiles/bin/system-setup --profile auto   # installs zsh, git, etc.
-~/dotfiles/tools/link.sh                     # deploy into $HOME
+~/dotfiles/tools/link.sh                     # deploy into $HOME (asks for a link profile once)
 chsh -s /bin/zsh                             # default shell
 ```
 

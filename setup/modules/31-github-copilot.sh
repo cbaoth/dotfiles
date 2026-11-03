@@ -21,7 +21,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="GitHub Copilot CLI (official installer, ~/.local/bin/copilot)"
-MODULE_PROFILES=(desktop server wsl container)
+MODULE_PROFILES=(desktop server wsl wsl-work container)
 MODULE_DOC="docs/setup/github-copilot.md"
 
 declare -r COPILOT_CLI_INSTALL_URL="https://gh.io/copilot-install"

@@ -31,7 +31,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="fnm NodeJS version manager + Node LTS + npm globals (upstream installer, ~/.local/share/fnm)"
-MODULE_PROFILES=(desktop server wsl container)
+MODULE_PROFILES=(desktop server wsl wsl-work container)
 MODULE_DOC="docs/setup/fnm.md"
 
 declare -r FNM_INSTALL_URL="https://fnm.vercel.app/install"

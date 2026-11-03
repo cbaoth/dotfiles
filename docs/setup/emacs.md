@@ -37,7 +37,7 @@ binary each), so the build is chosen per profile, not in `base.list`:
 
 | Profile | Package | Why |
 | --- | --- | --- |
-| server, wsl | `emacs-nox` | terminal-only, no GTK/X dependencies |
+| server, wsl, wsl-work | `emacs-nox` | terminal-only, no GTK/X dependencies |
 | desktop | `emacs-pgtk` | pure-GTK build, native on Wayland (sway); also runs `emacs -nw` |
 
 Lists: `setup/packages/{server,wsl,desktop}.list`, installed by
