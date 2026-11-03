@@ -23,7 +23,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="uv Python package/project manager (upstream installer, ~/.local/bin/uv)"
-MODULE_PROFILES=(desktop server wsl container)
+MODULE_PROFILES=(desktop server wsl wsl-work container)
 MODULE_DOC="docs/setup/uv.md"
 
 declare -r UV_INSTALL_URL="https://astral.sh/uv/install.sh"
