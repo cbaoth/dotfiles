@@ -14,10 +14,25 @@ MODULE_PROFILES=(desktop server wsl-work)
 MODULE_DOC="docs/setup/docker.md"
 
 module_run() {
-  # docker-compose-v2 is listed explicitly: docker.io does NOT pull it in, so
-  # `docker compose` silently does not exist — which reads like a broken Docker
-  # rather than a missing package. Cost real time during the 2026-07 rebuild.
-  st::apt_install docker.io docker-buildx docker-compose-v2
+  # Docker's own apt repo (docker-ce) may already provide the engine. Ubuntu's
+  # docker.io conflicts with it (apt would remove docker-ce, containerd.io), and
+  # Ubuntu's docker-buildx / docker-compose-v2 overwrite files of Docker's
+  # *-plugin packages, which fails mid-dpkg and leaves docker.io half-installed.
+  # So an existing engine or plugin is left alone (work WSL, 2026-11).
+  local -a pkgs=()
+  if st::apt_installed docker-ce; then
+    st::noop "docker-ce (Docker's own repo) is installed, leaving the engine alone"
+  else
+    pkgs+=(docker.io)
+    # docker-compose-v2 is listed explicitly: docker.io does NOT pull it in, so
+    # `docker compose` silently does not exist, which reads like a broken Docker
+    # rather than a missing package. Cost real time during the 2026-07 rebuild.
+    st::apt_installed docker-buildx-plugin || pkgs+=(docker-buildx)
+    st::apt_installed docker-compose-plugin || pkgs+=(docker-compose-v2)
+  fi
+  if (( ${#pkgs[@]} > 0 )); then
+    st::apt_install "${pkgs[@]}"
+  fi
 
   # Membership in 'docker' is effectively root on the host — deliberate.
   # Docker Engine (Ubuntu's docker.io) is Apache-2.0; only Docker Desktop is

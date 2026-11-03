@@ -39,10 +39,35 @@ standardises on it.
 Group changes need a fresh login to take effect. `newgrp docker` works for the
 current shell if you cannot log out.
 
+## An engine from Docker's own repo already exists
+
+If `docker-ce` is installed (Docker's apt repo), the module leaves the engine
+alone, and skips Ubuntu's `docker-buildx` / `docker-compose-v2` when Docker's
+`docker-buildx-plugin` / `docker-compose-plugin` are present. Installing
+`docker.io` over them makes apt remove `docker-ce` and `containerd.io`, and the
+plugin packages then fail with "trying to overwrite ... docker-buildx" half-way
+through dpkg, leaving `docker.io` unpacked but unconfigured (seen on the work WSL,
+2026-11). Recovery from that state; images and volumes in `/var/lib/docker` are
+not touched by any of these steps.
+
+```bash
+sudo dpkg --configure -a     # finish docker.io, containerd, runc
+system-setup 30-docker       # now reports 0 changes
+```
+
+The leftover Docker plugins keep working but get no updates once their repo is
+gone. To move to Ubuntu's packages, first `sudo apt-get remove
+docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras`, then
+re-run the module.
+
 ## Not covered
 
 - Devcontainers and the docker shortcuts (`dps`, `dsh`, `dlog`, `dco`) —
   [devcontainer.md](devcontainer.md).
 - Rootless docker — not currently used.
-- Docker's own apt repo — Ubuntu's `docker.io` has been fine; if a newer engine
-  is ever needed, the repo follows the pattern in [browsers.md](browsers.md).
+- Docker's own apt repo. Ubuntu's `docker.io` is the choice on every profile,
+  personal and work alike: it needs no third-party repo, follows the release
+  (the repo is codename-pinned and is disabled by every release upgrade, which
+  is how the work WSL ended up with orphaned `*-plugin` packages), and lags
+  Docker's own builds by only a few minor versions. If a newer engine is ever
+  needed, the repo follows the pattern in [browsers.md](browsers.md).

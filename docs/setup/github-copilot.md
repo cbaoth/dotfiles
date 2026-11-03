@@ -1,6 +1,6 @@
 ---
 title: GitHub CLI and GitHub Copilot (CLI and desktop app)
-hosts: [motoko, puppet]
+hosts: [motoko, puppet, wsl-work]
 status: resolved
 tags: [github, copilot, gh, cli, appimage, electron, rofi]
 updated: 2026-10-13
@@ -32,6 +32,21 @@ VERSION=1.0.93 curl -fsSL https://gh.io/copilot-install | bash   # pin a version
 ```
 
 Sign-in is its own flow (`copilot`, then `/login`); it does not reuse `gh auth`.
+On `wsl-work` sign in with the work (enterprise) GitHub account.
+
+### WSL with Windows VS Code: `copilot` is already on PATH
+
+WSL appends the Windows `PATH`, so with VS Code installed on Windows `copilot`
+resolves to its shim, `/mnt/c/Program Files/Microsoft VS Code/bin/copilot-shim/copilot`.
+The module sees it, warns (`a 'copilot' is on PATH at ...`) and installs nothing:
+two `copilot` binaries would leave PATH order to pick the winner. That warning is
+expected on `wsl-work`, not an error.
+
+- **Use the shim:** nothing to do.
+- **Use the standalone binary instead:** run the installer once
+  (`curl -fsSL https://gh.io/copilot-install | bash`, never with `sudo`). It
+  lands in `~/.local/bin`, which comes before the appended Windows entries, so it
+  wins; from then on the module reports it as already installed.
 
 ## Desktop app
 
