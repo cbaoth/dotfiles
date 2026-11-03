@@ -114,6 +114,21 @@ sourced libs need explicit handling. `lib/functions.sh` already fixed
   `dotfiles-link` mentions). Deploy needs sudo outside `BSS_TAMPER_*`
   (17:00-05:00); run `dotfiles-link` only after the deploy, or the `~/bin` links
   vanish before the new copies exist.
+- [ ] `bin/translate` phase 2: closer integration with the TTS tools (phase 1,
+  the standalone tool: `docs/setup/tts.md`, *Translation*)
+  - [ ] [M] `tts-speak --translate LANG`: run `translate`, then set `-l LANG`.
+    Decide the order with `tts-clean`: translating first keeps context (markdown
+    and footnotes still in), cleaning first sends less noise to the model.
+  - [ ] [M] Streaming: `tts-speak` reads all of stdin (`text="$(cat)"`) before
+    it speaks, so `cat chapter | translate -t de | tts-speak -l de` waits for
+    the whole translation. Feed it chunk by chunk (`translate` already prints
+    each paragraph as soon as it is done).
+  - [ ] [S] sway / Solaar hotkey: translate the selection, then `wl-copy` +
+    notification, or translate + speak.
+  - [ ] [S] Detect the source language; pass text that is already in the
+    target language through unchanged (mixed input in `while-read` loops).
+  - IDEA: `--gpu` with the 12B model when no TTS model is loaded; an Opus-MT
+    (CTranslate2) CPU backend as a fast fallback.
 
 ## General Output
 

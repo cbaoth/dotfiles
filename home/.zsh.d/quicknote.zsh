@@ -21,10 +21,13 @@
 # before zsh parses it: `qn [opts] -- TEXT` becomes `qn [opts] --raw 'TEXT'`.
 # History stores the quoted form, which replays the same text (and is not
 # rewritten again, since it already contains --raw).
+# Other front-ends add their command names (translate.zsh: tlde, tlen); each
+# must accept `--raw TEXT`.
+typeset -ga _qn_raw_cmds=(qn qt)
 _qn_raw_line() {
   emulate -L zsh
   [[ ${CONTEXT:-} == start ]] || return 0          # not inside vared
-  [[ ${BUFFER} == (qn|qt)(|[[:space:]]*)[[:space:]]--(|[[:space:]]*) ]] || return 0
+  [[ ${BUFFER} == (${(j:|:)~_qn_raw_cmds})(|[[:space:]]*)[[:space:]]--(|[[:space:]]*) ]] || return 0
   # %%: longest match from the end = cut at the *first* standalone '--'
   local head="${BUFFER%%[[:space:]]--(|[[:space:]]*)}"
   [[ ${head} == *--raw* ]] && return 0

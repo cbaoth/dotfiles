@@ -1,0 +1,40 @@
+#compdef translate tlde tlen
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for translate (bin/translate in the dotfiles repo) and its zsh
+# front-ends tlde/tlen (.zsh.d/translate.zsh). Autoloaded by compinit via the
+# #compdef tag above.
+#
+# Keep in sync with bin/translate: options mirror parse_args(); language codes
+# are read live from its LANGUAGES table, models from `ollama list`.
+
+_translate_langs() {
+  local bin
+  bin=$(whence -p translate 2>/dev/null) || return
+  local -a langs
+  langs=(${(f)"$(sed -n 's/^ *"\([a-z][a-z]\)": "\(.*\)",$/\1:\2/p' "${bin:A}")"})
+  (( ${#langs} )) && _describe -t languages 'language' langs
+}
+
+_translate_models() {
+  (( $+commands[ollama] )) || return
+  local -a models
+  models=(${${(f)"$(ollama list 2>/dev/null)"}[2,-1]%%[[:space:]]*})
+  # compadd, not _values: model tags contain colons (hf.co/...:Q4_K_M)
+  (( ${#models} )) && compadd -- "${models[@]}"
+}
+
+local -a target
+# tlde/tlen fix the target language
+[[ $service == translate ]] && target=('(-t --target)'{-t,--target}'[target language]:language:_translate_langs')
+
+_arguments -s -S \
+  '(- *)'{-h,--help}'[show help]' \
+  "${target[@]}" \
+  '(-s --source)'{-s,--source}'[source language]:language:_translate_langs' \
+  '(-m --model)'{-m,--model}'[Ollama model]:model:_translate_models' \
+  '(--cpu)--gpu[let Ollama put the model on the GPU]' \
+  '(--gpu)--cpu[keep the model on the CPU (default)]' \
+  '--keep-alive[keep the model loaded this long]:duration (30m, 2h, -1 = forever):' \
+  '(*)--raw[the text as one literal argument]:text:' \
+  '*:text:'

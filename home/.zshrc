@@ -907,6 +907,8 @@ fpath=("$HOME/.zsh.d/functions" "${fpath[@]}")
 
 # quick notes front-end (qn, qne, qnee, qt, qte); after keybindings + plugins
 source_ifex $HOME/.zsh.d/quicknote.zsh
+# translate front-end (tlde, tlen); after quicknote.zsh (raw-line hook, prompt)
+source_ifex $HOME/.zsh.d/translate.zsh
 # alt-x widget picker and zle-keys cheat sheet; after keybindings + plugins
 source_ifex $HOME/.zsh.d/zle-mx.zsh
 

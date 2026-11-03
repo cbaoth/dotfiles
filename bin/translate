@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+# -*- mode: python; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=python:et:ts=2:sts=2:sw=2
+#
+# translate: translate text locally (English <-> German by default) with TranslateGemma via Ollama.
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from collections.abc import Sequence
+
+# The model runs in the Ollama service, not in this process: every call is one
+# HTTP request, and keep_alive keeps the model resident between calls (cheap in
+# while-read loops). On the CPU by default, so it never competes for VRAM with
+# the TTS models (cb-tts-server), which take ~50 s to reload.
+DEFAULT_MODEL = "hf.co/bullerwins/translategemma-4b-it-GGUF:Q4_K_M"
+DEFAULT_TARGET = "de"
+DEFAULT_KEEP_ALIVE = "30m"
+DEFAULT_OLLAMA_PORT = 11434
+REQUEST_TIMEOUT_S = 600  # a long paragraph on the CPU, plus a cold model load
+# TranslateGemma's input context is 2K tokens; ~1200 chars of text plus the
+# prompt and the translation stay well below it.
+NUM_CTX = 2048
+MAX_CHUNK_CHARS = 1200
+# Without -s, the source is the other language of this pair.
+PAIR = ("en", "de")
+
+# A subset of the language table in TranslateGemma's chat template (55 languages are supported).
+LANGUAGES = {
+  "ar": "Arabic",
+  "cs": "Czech",
+  "da": "Danish",
+  "de": "German",
+  "el": "Greek",
+  "en": "English",
+  "es": "Spanish",
+  "fi": "Finnish",
+  "fr": "French",
+  "hu": "Hungarian",
+  "it": "Italian",
+  "ja": "Japanese",
+  "ko": "Korean",
+  "nl": "Dutch",
+  "no": "Norwegian",
+  "pl": "Polish",
+  "pt": "Portuguese",
+  "ro": "Romanian",
+  "ru": "Russian",
+  "sv": "Swedish",
+  "tr": "Turkish",
+  "uk": "Ukrainian",
+  "zh": "Chinese",
+}
+
+# The user turn of TranslateGemma's chat template (tokenizer.chat_template in the GGUF), word for word.
+PROMPT = (
+  "<start_of_turn>user\n"
+  "You are a professional {src} ({src_code}) to {tgt} ({tgt_code}) translator. Your goal is to accurately convey "
+  "the meaning and nuances of the original {src} text while adhering to {tgt} grammar, vocabulary, and cultural "
+  "sensitivities.\n"
+  "Produce only the {tgt} translation, without any additional explanations or commentary. Please translate the "
+  "following {src} text into {tgt}:\n\n\n"
+  "{text}<end_of_turn>\n"
+  "<start_of_turn>model\n"
+)
+
+USAGE_EPILOG = f"""\
+TEXT comes from the arguments, else stdin if piped, else the primary selection
+(falls back to the clipboard). Paragraphs (blank-line separated) are translated
+one by one and printed as soon as they are done; one line in gives one line out.
+
+The model runs in Ollama (setup once: ollama pull {DEFAULT_MODEL}).
+
+environment:
+  TRANSLATE_TARGET      default target language (default: {DEFAULT_TARGET})
+  TRANSLATE_MODEL       Ollama model (default: {DEFAULT_MODEL})
+  TRANSLATE_DEVICE      cpu or gpu (default: cpu)
+  TRANSLATE_KEEP_ALIVE  how long Ollama keeps the model loaded (default: {DEFAULT_KEEP_ALIVE})
+  OLLAMA_HOST           Ollama host, host:port or URL (default: 127.0.0.1:{DEFAULT_OLLAMA_PORT})
+
+examples:
+  translate -t de "The quick brown fox jumps over the lazy dog."
+  cat chapter1.txt | translate -t de > chapter1.de.txt
+  while-read translate -t de "<<<{{}}" \\| tts-speak -l de
+  translate --gpu -t en < notes.txt
+"""
+
+
+class TranslateError(RuntimeError):
+  """Raised when the input is invalid or Ollama fails."""
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+  """Run the command line interface."""
+  args = parse_args(argv)
+  try:
+    target = normalize_code(args.target)
+    source = normalize_code(args.source) if args.source else default_source(target)
+    if base_code(source) == base_code(target):
+      raise TranslateError(f"source and target language are the same ({source})")
+    text = read_input(args)
+    if not text.strip():
+      raise TranslateError("no text (arguments, stdin or selection)")
+    url = ollama_url()
+    if args.gpu:
+      release_cpu_copy(url, args.model)
+    for piece in split_paragraphs(text.strip()):
+      if not piece.strip():
+        print(piece, end="", flush=True)  # the blank lines between paragraphs, as they were
+        continue
+      chunks = split_long(piece, MAX_CHUNK_CHARS)
+      translated = " ".join(translate(url, args, chunk, source, target) for chunk in chunks)
+      print(translated, end="", flush=True)
+    print(flush=True)
+  except TranslateError as err:
+    print(f"translate: ERROR: {err}", file=sys.stderr)
+    return 1
+  except KeyboardInterrupt:
+    return 130
+  return 0
+
+
+def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+  """Parse the command line; environment variables provide the defaults."""
+  parser = argparse.ArgumentParser(
+    prog="translate",
+    description="Translate text locally with TranslateGemma via Ollama.",
+    epilog=USAGE_EPILOG,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+  )
+  parser.add_argument(
+    "-t",
+    "--target",
+    default=os.environ.get("TRANSLATE_TARGET") or DEFAULT_TARGET,
+    metavar="LANG",
+    help="target language, ISO 639-1 code, optionally with region (de, en-GB) (default: %(default)s)",
+  )
+  parser.add_argument(
+    "-s",
+    "--source",
+    metavar="LANG",
+    help=f"source language (default: the other one of {'/'.join(PAIR)}; required for other targets)",
+  )
+  parser.add_argument(
+    "-m",
+    "--model",
+    default=os.environ.get("TRANSLATE_MODEL") or DEFAULT_MODEL,
+    help="Ollama model (default: %(default)s)",
+  )
+  device = parser.add_mutually_exclusive_group()
+  device.add_argument(
+    "--gpu", dest="gpu", action="store_true", help="let Ollama put the model on the GPU (if it fits)"
+  )
+  device.add_argument("--cpu", dest="gpu", action="store_false", help="keep the model on the CPU (default)")
+  parser.set_defaults(gpu=os.environ.get("TRANSLATE_DEVICE", "cpu").lower() == "gpu")
+  parser.add_argument(
+    "--keep-alive",
+    default=os.environ.get("TRANSLATE_KEEP_ALIVE") or DEFAULT_KEEP_ALIVE,
+    metavar="DUR",
+    help="keep the model loaded this long after a request, e.g. 30m, 2h, -1 = forever (default: %(default)s)",
+  )
+  parser.add_argument("--raw", metavar="TEXT", help="the text as one literal argument (used by the zsh front-end)")
+  parser.add_argument("words", nargs="*", metavar="TEXT", help="text to translate (joined with spaces)")
+  args = parser.parse_args(argv)
+  if args.raw is not None and args.words:
+    parser.error("--raw and TEXT arguments are mutually exclusive")
+  return args
+
+
+def normalize_code(code: str) -> str:
+  """Return the language code in TranslateGemma's form (de_DE -> de-DE); raise for unknown languages."""
+  code = code.strip().replace("_", "-")
+  if base_code(code) not in LANGUAGES:
+    known = ", ".join(sorted(LANGUAGES))
+    raise TranslateError(f"unsupported language {code!r} (known: {known})")
+  return code
+
+
+def base_code(code: str) -> str:
+  """Return the language part of a code (de-AT -> de)."""
+  return code.split("-", 1)[0].lower()
+
+
+def default_source(target: str) -> str:
+  """Return the other language of PAIR; raise if the target is not part of it."""
+  base = base_code(target)
+  if base not in PAIR:
+    raise TranslateError(f"-s/--source is required for target {target!r}")
+  return next(code for code in PAIR if code != base)
+
+
+def read_input(args: argparse.Namespace) -> str:
+  """Return the text: arguments, else stdin if piped, else the primary selection or the clipboard."""
+  if args.raw is not None:
+    return args.raw
+  if args.words:
+    return " ".join(args.words)
+  text = "" if sys.stdin.isatty() else sys.stdin.read()
+  # No text on stdin (a terminal, or an empty/closed stdin as under a hotkey): use the selection.
+  return text if text.strip() else read_selection()
+
+
+def read_selection() -> str:
+  """Return the Wayland primary selection, falling back to the clipboard (empty if neither has text)."""
+  if shutil.which("wl-paste") is None:
+    return ""
+  for extra in (["--primary"], []):
+    result = subprocess.run(["wl-paste", *extra, "--no-newline"], capture_output=True, text=True, check=False)
+    if result.returncode == 0 and result.stdout.strip():
+      return result.stdout
+  return ""
+
+
+def split_paragraphs(text: str) -> list[str]:
+  """Split text into paragraphs and the blank-line runs between them (both kept, in order)."""
+  return re.split(r"(\n[ \t]*\n\s*)", text)
+
+
+def split_long(paragraph: str, max_chars: int) -> list[str]:
+  """Split a paragraph longer than max_chars at sentence ends (a single sentence may still exceed it)."""
+  if len(paragraph) <= max_chars:
+    return [paragraph]
+  chunks: list[str] = []
+  current = ""
+  for sentence in re.split(r"(?<=[.!?…])\s+", paragraph):
+    if current and len(current) + 1 + len(sentence) > max_chars:
+      chunks.append(current)
+      current = sentence
+    else:
+      current = f"{current} {sentence}" if current else sentence
+  if current:
+    chunks.append(current)
+  return chunks
+
+
+def translate(url: str, args: argparse.Namespace, text: str, source: str, target: str) -> str:
+  """Translate one chunk via Ollama's /api/generate.
+
+  Raw mode with the prompt built here: the GGUF's chat template expects structured
+  content (source/target language codes), which Ollama's template conversion may not keep.
+  """
+  prompt = PROMPT.format(
+    src=LANGUAGES[base_code(source)],
+    src_code=source,
+    tgt=LANGUAGES[base_code(target)],
+    tgt_code=target,
+    text=text.strip(),
+  )
+  options: dict[str, object] = {"temperature": 0, "num_ctx": NUM_CTX, "stop": ["<end_of_turn>"]}
+  if not args.gpu:
+    options["num_gpu"] = 0  # no layers on the GPU
+  payload = {
+    "model": args.model,
+    "prompt": prompt,
+    "raw": True,
+    "stream": False,
+    "keep_alive": parse_keep_alive(args.keep_alive),
+    "options": options,
+  }
+  response = post_json(f"{url}/api/generate", payload, args.model)
+  return str(response.get("response", "")).strip()
+
+
+def parse_keep_alive(value: str) -> str | int:
+  """Return keep_alive for Ollama: plain numbers are seconds (-1 = forever), anything else a duration string."""
+  return int(value) if re.fullmatch(r"-?\d+", value) else value
+
+
+def release_cpu_copy(url: str, model: str) -> None:
+  """Unload the model if Ollama holds it on the CPU only, so the next request can place it on the GPU.
+
+  Without num_gpu, Ollama reuses whatever copy is loaded, e.g. the CPU copy of an earlier call.
+  """
+  loaded = post_json(f"{url}/api/ps", None, model).get("models") or []
+  if any(isinstance(m, dict) and m.get("name") == model and not m.get("size_vram") for m in loaded):
+    post_json(f"{url}/api/generate", {"model": model, "keep_alive": 0}, model)
+
+
+def post_json(url: str, payload: dict[str, object] | None, model: str) -> dict[str, object]:
+  """POST payload as JSON (GET without one) and return the decoded response; raise TranslateError on failure."""
+  data = None if payload is None else json.dumps(payload).encode()
+  request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+  try:
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
+      return json.loads(response.read())
+  except urllib.error.HTTPError as err:
+    detail = err.read().decode(errors="replace").strip()
+    if err.code == 404:
+      raise TranslateError(f"model not available in Ollama: {model} (get it: ollama pull {model})") from err
+    raise TranslateError(f"Ollama: HTTP {err.code}: {detail}") from err
+  except (urllib.error.URLError, ConnectionError, TimeoutError) as err:
+    reason = getattr(err, "reason", err)
+    raise TranslateError(f"Ollama not reachable at {url} ({reason}); check: systemctl status ollama") from err
+
+
+def ollama_url() -> str:
+  """Return the Ollama base URL from $OLLAMA_HOST (host, host:port or URL; default 127.0.0.1:11434)."""
+  host = os.environ.get("OLLAMA_HOST") or "127.0.0.1"
+  if "://" not in host:
+    host = f"http://{host}"
+  parts = urllib.parse.urlsplit(host)
+  netloc = parts.netloc if parts.port else f"{parts.hostname}:{DEFAULT_OLLAMA_PORT}"
+  return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", "")).rstrip("/")
+
+
+if __name__ == "__main__":
+  sys.exit(main())

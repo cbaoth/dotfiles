@@ -2,8 +2,8 @@
 title: Text-to-speech (read selection aloud)
 hosts: [motoko]
 status: resolved
-tags: [tts, piper, sway, accessibility, voxtral]
-updated: 2026-10-28
+tags: [tts, piper, sway, accessibility, voxtral, translation]
+updated: 2026-11-03
 ---
 
 # Text-to-speech: read the selection aloud
@@ -221,6 +221,75 @@ marks multi-speaker models. Sources: <https://huggingface.co/rhasspy/piper-voice
   (`1,500`) it is a cardinal.
 - Unnatural pauses in hard-wrapped text (Gutenberg) were a `tts-clean` bug,
   fixed: German nouns are capitalized, so case says nothing about a wrap.
+
+## Translation (`translate`, `tlde` / `tlen`)
+
+`bin/translate` translates locally with **TranslateGemma 4B** (Google, Gemma 3
+fine-tuned for translation, 55 languages) in the system **Ollama** service:
+English ↔ German by default, other pairs with `-s`/`-t`.
+
+**Setup (once, ~2.5 GB):**
+
+```sh
+ollama pull hf.co/bullerwins/translategemma-4b-it-GGUF:Q4_K_M
+```
+
+**Use:**
+
+```sh
+translate -t de "The quick brown fox jumps over the lazy dog."
+cat chapter1.txt | translate -t de > chapter1.de.txt
+while-read translate -t de "<<<{}" \| tts-speak -l de   # translate and read each line
+tlde This has * in it          # zsh front-end: noglob, * needs no escaping
+tlen -- it's `raw`, ... too    # like qn: everything after ' -- ' literal (no global aliases)
+tlde                           # multi-line prompt
+```
+
+Text comes from the arguments, stdin, or the selection (like `tts-speak`).
+Paragraphs are translated one at a time and printed as soon as they are done,
+so a pipe starts early; one line in gives one line out.
+
+**Why it does not fight the TTS models for VRAM:**
+
+- The model lives in Ollama, not in `translate`. Each call is one HTTP
+  request, and `keep_alive` (default 30 min) keeps the model loaded, so a
+  `while-read` loop pays no load per line.
+- It runs on the **CPU by default** (`num_gpu: 0`; plenty of RAM, Ryzen
+  9950X3D). The vLLM backends of `cb-tts-server` reserve their VRAM up front
+  and take ~50 s to reload; a translator on the GPU could push them out or
+  keep Voxtral from starting.
+  - `--gpu` / `TRANSLATE_DEVICE=gpu` lets Ollama put as many layers as fit on
+    the GPU. Only worth it when the GPU is free: next to a loaded TTS model the
+    model is split between CPU and GPU, slower than the CPU alone, and the GPU is
+    nearly full.
+- A cb-voice-lab tool with `--free-gpu all` unloads Ollama models too. That
+  only costs the translator a reload of a few seconds.
+
+Measured (2026-11-03, 4B Q4_K_M, `cb-tts-server` holding Qwen3-TTS):
+
+| Case | Time |
+| ---- | ---- |
+| one sentence, CPU, model loaded | 0.4–1.2 s |
+| one sentence, CPU, cold (load from disk cache) | ~2 s |
+| ~1900-char paragraph (2 chunks), CPU | ~23 s |
+| `while-read translate -t de "<<<{}" \| tts-speak -e http -l de -o out.wav`, 3 short lines | ~3 s in total; the server's model stayed loaded |
+| one sentence, `--gpu` (split 32 % CPU / 68 % GPU, 11.4 of 12 GB VRAM used) | 20 s cold, 8 s warm |
+
+Settings are environment variables (`translate -h`): `TRANSLATE_TARGET`,
+`TRANSLATE_MODEL` (e.g. the 12B for better quality, slower on the CPU),
+`TRANSLATE_DEVICE`, `TRANSLATE_KEEP_ALIVE`, `OLLAMA_HOST`.
+
+**Model choice:**
+
+- HY-MT1.5 (Tencent, 1.8B/7B) is good and smaller, but its license excludes
+  the EU.
+- Opus-MT / Argos (CTranslate2) are tiny and fast on the CPU, but weaker on
+  literary text.
+
+**cb-qwen3-tts** translates through its text filter, no extra code:
+`cb-qwen3-tts ... --text-filter 'translate -t de'`. Never add
+`--filter-ref-text` there: the reference transcript has to match the reference
+audio.
 
 ## Next
 
