@@ -534,12 +534,27 @@ zt; zinit light mfaerevaag/wd
 # 3. SSH_AUTH_SOCK is already set (e.g. KeePassXC, Gnome Keyring, Pageant etc.)
 #    Note that SSH_AUTH_SOCK may also be set in .common_env
 # zstyles must be set before the snippet loads (see keybindings/completion below)
+# WSL only: keep ~/.ssh/agent.sock pointing at the current agent socket, for processes without
+# SSH_AUTH_SOCK (VS Code git); used by the Match exec in the WSL-local ~/.ssh/config.
+if ${IS_WSL:-false}; then
+  _cb_link_agent_sock() {
+    local sock="${SSH_AUTH_SOCK:-}" link="${HOME}/.ssh/agent.sock"
+    [[ -S "${sock}" && "${sock}" != "${link}" ]] || return 0
+    [[ ! -e "${link}" || -L "${link}" ]] || return 0
+    [[ "${link:A}" == "${sock:A}" ]] || ln -sfn "${sock}" "${link}"
+  }
+fi
+
 if $MODE_IS_FULL && ! cl::is_ssh && [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
   zstyle :omz:plugins:ssh-agent agent-forwarding on
   #zstyle :omz:plugins:ssh-agent identities id_rsa ...
   #zstyle :omz:plugins:ssh-agent lifetime 4h
-  zt; zinit snippet OMZP::ssh-agent    # auto run ssh-agent
+  # turbo loads the plugin after the first prompt, so link once SSH_AUTH_SOCK is set
+  zt atload'(( ${+functions[_cb_link_agent_sock]} )) && _cb_link_agent_sock'
+  zinit snippet OMZP::ssh-agent    # auto run ssh-agent
 fi
+# SSH_AUTH_SOCK inherited from a parent shell (no plugin load needed)
+(( ${+functions[_cb_link_agent_sock]} )) && _cb_link_agent_sock
 
 if ${HAS_CONDA:-false}; then
   zt; zinit light esc/conda-zsh-completion
