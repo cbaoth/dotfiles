@@ -34,6 +34,11 @@ dotfiles-link -vv          # verbose/debug output
   symlink (`ls -l ~/bin/<script>`), then run `dotfiles-link`.
 - Never link or copy files manually; `dotfiles-link` is idempotent and also
   cleans up orphaned links.
+- Each clone has a link profile in the untracked `.link-profile.local` (`full`
+  or a `tools/profiles/NAME.list`). On a fresh clone `link.sh` asks for it, and
+  without a terminal it aborts: run it interactively once or
+  `echo full > .link-profile.local`. Known hosts (`setup/hosts.list`) get `full`
+  automatically. See *Profiles* in `docs/linking-system.md`.
 - Conflicting files are backed up automatically to
   `~/.local/state/dotfiles-link/backups/` (last 10 runs kept).
 - Configuration: `tools/link-config.conf`; excludes: `tools/.linkignore`.

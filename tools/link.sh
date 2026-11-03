@@ -65,8 +65,9 @@ usage() {
   echo "  -n, --dry-run       Print changes, change nothing" >&2
   echo "  -u, --unlink        Link nothing; remove every symlink that points into this repo" >&2
   echo "                      (incl. systemd enable links, i.e. disables those units)" >&2
-  echo "  -p, --profile NAME  Link only what tools/profiles/NAME.list allows" >&2
-  echo "                      (default: 'root' when run as root, else everything)" >&2
+  echo "  -p, --profile NAME  Link only what tools/profiles/NAME.list allows; 'full' = everything" >&2
+  echo "                      (default: 'root' as root, else the choice saved in" >&2
+  echo "                      .link-profile.local, asked for on the first run)" >&2
   echo "  -v                  Increase verbosity (info)" >&2
   echo "  -vv                 Increase verbosity more (debug)" >&2
   echo "  --verbose=N         Set verbosity level explicitly (0=quiet,1=info,2=debug)" >&2
@@ -153,9 +154,98 @@ done
 unset _sync_src
 
 # Profile: an allowlist of repo-relative globs (tools/profiles/NAME.list), one
-# per line, '#' comments. Matched with [[ == ]], so '*' also crosses '/'. Root
-# always gets a profile: default-deny, a new file reaches root only when listed.
-(( EUID == 0 )) && [[ -z "${PROFILE}" ]] && PROFILE=root
+# per line, '#' comments. Matched with [[ == ]], so '*' also crosses '/'.
+# Root always gets 'root' (default-deny). Everyone else must have chosen one per
+# clone, kept in an untracked file: 'full' (no allowlist) or a NAME.list.
+declare -r PROFILE_FILE="${REPO_ROOT}/.link-profile.local"
+declare -a NOTICES=()
+
+# Is this host listed in setup/hosts.list, i.e. one of the machines this repo
+# is made for?
+is_known_host() {
+  awk -v host="$(hostname -s)" \
+    '!/^[[:space:]]*(#|$)/ && $1 == host { found = 1 } END { exit !found }' \
+    "${REPO_ROOT}/setup/hosts.list" 2>/dev/null
+}
+
+valid_profile() {
+  [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+  [[ "$1" == full || -f "${PROFILES_DIR}/$1.list" ]]
+}
+
+# Ask which profile this clone uses; prints the answer on stdout.
+prompt_profile() {
+  local -a names=(full)
+  local list name desc choice
+  for list in "${PROFILES_DIR}"/*.list; do
+    name="$(basename "${list}" .list)"
+    [[ "${name}" == root ]] || names+=("${name}")
+  done
+  echo "No link profile set for this clone (${PROFILE_FILE##*/}, untracked). Choose:" >&2
+  for name in "${names[@]}"; do
+    if [[ "${name}" == full ]]; then
+      desc="everything (own machines)"
+    else
+      desc="$(sed -n "1s/^#[[:space:]]*Profile '[^']*':[[:space:]]*//p" "${PROFILES_DIR}/${name}.list")"
+    fi
+    printf '  %-6s %s\n' "${name}" "${desc}" >&2
+  done
+  while read -r -p "Profile: " choice; do
+    if valid_profile "${choice}"; then
+      echo "${choice}"
+      return 0
+    fi
+    echo "Not a valid choice: '${choice}'" >&2
+  done
+  return 1
+}
+
+# Remember the choice for this clone. A dry run saves nothing.
+persist_profile() {
+  local -r why="$1"
+  if $DRY_RUN; then
+    NOTICES+=("Dry run: link profile '${PROFILE}' (${why}) was NOT saved to ${PROFILE_FILE##*/}")
+    return 0
+  fi
+  printf '%s\n' "${PROFILE}" > "${PROFILE_FILE}" \
+    || { echo "error: cannot write ${PROFILE_FILE}" >&2; exit 1; }
+  NOTICES+=("Link profile '${PROFILE}' (${why}) saved to ${PROFILE_FILE##*/}."
+            "Change: edit that file and re-run; links outside the new profile are removed.")
+}
+
+resolve_profile() {
+  if (( EUID == 0 )); then
+    PROFILE="${PROFILE:-root}"
+    return 0
+  fi
+  # --unlink removes every repo link, whatever the profile
+  $UNLINK && return 0
+
+  if [[ -z "${PROFILE}" && -f "${PROFILE_FILE}" ]]; then
+    read -r PROFILE < "${PROFILE_FILE}" || true
+    valid_profile "${PROFILE}" || {
+      echo "error: invalid profile '${PROFILE}' in ${PROFILE_FILE}" >&2
+      echo "       valid: full, or a name from ${PROFILES_DIR}/*.list" >&2
+      exit 1
+    }
+  elif [[ -z "${PROFILE}" ]]; then
+    if is_known_host; then
+      PROFILE=full
+      persist_profile "set automatically, known host $(hostname -s)"
+    elif [[ -t 0 ]]; then
+      PROFILE="$(prompt_profile)" || { echo "error: no profile chosen" >&2; exit 1; }
+      persist_profile "chosen interactively"
+    else
+      echo "error: no link profile set for this clone and no terminal to ask on." >&2
+      echo "       Run interactively once, or: echo full > ${PROFILE_FILE}" >&2
+      echo "       (or pass --profile NAME; 'full' links everything)" >&2
+      exit 1
+    fi
+  fi
+  info "Link profile: ${PROFILE}"
+}
+resolve_profile
+[[ "${PROFILE}" == full ]] && PROFILE=""
 typeset -a PROFILE_GLOBS=()
 typeset -A PROFILE_HITS=()
 if [[ -n "${PROFILE}" ]]; then
@@ -363,6 +453,17 @@ unlink_repo_links() {
   echo -e "\e[33mWARNING: ${msg}\e[0m" >&2
 }
 
+# Notices (e.g. a profile chosen for this clone) come last so they are not lost
+# in verbose output.
+print_notices() {
+  (( ${#NOTICES[@]} > 0 )) || return 0
+  local n
+  echo -e "\e[36m=== NOTICE ===\e[0m"
+  for n in "${NOTICES[@]}"; do
+    echo -e "- \e[36m${n}\e[0m"
+  done
+}
+
 # Report warnings/errors, drop an empty backup dir, rotate old backups, exit.
 # Arguments: $1=verb for the summary ("Linking" | "Unlinking")
 report_and_exit() {
@@ -385,6 +486,7 @@ report_and_exit() {
     echo -e "\e[31m${verb} completed with errors!\e[0m" >&2
     echo -e "\e[31mPlease check the messages above. You may find backed up files in: $BAKDIR\e[0m" >&2
     echo -e "\e[31mExiting...\e[0m" >&2
+    print_notices
     exit 1
   else
     if $DRY_RUN; then
@@ -419,6 +521,7 @@ report_and_exit() {
     info "Cleanup: Done."
   fi
 
+  print_notices
   exit 0
 }
 

@@ -28,7 +28,7 @@ home/.zsh.d/aliases-linux.zsh
 # }}} - Shell core -----------------------------------------------------------
 
 # {{{ - OS/host specific (each is only sourced on its own os/host) -----------
-# Not linux_wsl: it runs `loginctl enable-linger 1000` and a $HOME pageant.
+# Not linux_wsl: it runs `loginctl enable-linger 1000` (hardcoded UID).
 home/.zsh.d/zshrc-saito.zsh
 home/.zsh.d/zshrc-motoko.zsh
 home/.zsh.d/zshrc-puppet.zsh

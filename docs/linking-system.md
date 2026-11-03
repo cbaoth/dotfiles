@@ -287,20 +287,33 @@ Example: If you want to exclude a specific file pattern from the nested `home/` 
 
 Patterns only affect the nested `home/` scanning. The flat `bin/` and `lib/` syncing is not filtered by `.linkignore`.
 
-### Profiles (root)
+### Profiles (root, work)
 
 A profile is an **allowlist**: `tools/profiles/NAME.list`, one glob per line,
 relative to the repo root (`home/.zshrc`, `bin/rsynclt`, `lib/aliases-*.sh`),
-`#` comments. Matching uses bash `[[ == ]]`, so `*` also matches `/`.
+`#` comments. Matching uses bash `[[ == ]]`, so `*` also matches `/`. The first
+comment line is shown as the description in the selection prompt.
 
 ```bash
 ./tools/link.sh --profile root --dry-run -v
 ```
 
-- **No profile** (default for regular users): everything is linked, as before.
-- **Root always gets one**: run as root, `link.sh` defaults to `root`. It is
+- **Every clone has one**, kept in the untracked `.link-profile.local` in the
+  repo root (already covered by `*.local` in `.gitignore`). `full` means no
+  allowlist: everything is linked.
+- **First run, no file yet:** a host listed in `setup/hosts.list` gets `full`
+  automatically; any other host is asked interactively (`full`, `work`, ...).
+  Without a terminal the run aborts with instructions. Either way the choice is
+  saved, and a notice at the very end of the run says so (also in a dry run,
+  where nothing is saved).
+- **Override once** with `--profile NAME` (`full` is accepted); that is not saved.
+  To change the profile for good, edit `.link-profile.local` and re-run.
+- **Root always gets `root`**: run as root, `link.sh` ignores the file. It is
   default-deny, so a new desktop or personal file never reaches root by
   accident. It reaches root only once it is added to `root.list`.
+- **`work`** is for a company WSL box: shell core, git, Copilot instructions and
+  a few generic tools; no desktop, backup, notes or Claude Code config. See
+  [`docs/setup/wsl-work.md`](setup/wsl-work.md).
 - `LINK_DIRS` and `HOME_LINKS` entries apply only when their directory is
   listed itself (`home/.config/vicinae`; for `HOME_LINKS` the target, e.g.
   `home/.config/emacs`).
@@ -308,6 +321,8 @@ relative to the repo root (`home/.zshrc`, `bin/rsynclt`, `lib/aliases-*.sh`),
   Out-of-profile links (`bin/`, `lib/` and the `home/` tree) are removed by
   the stale-link cleanup, so switching an existing `$HOME` to a profile
   leaves only the profile's links.
+- A glob that matches no file is reported as a warning (renamed or deleted).
+- `--unlink` needs no profile.
 - A glob that matches no file is reported as a warning (renamed or deleted).
 
 **Root guards.** As root, `link.sh` refuses to run (before it sources any

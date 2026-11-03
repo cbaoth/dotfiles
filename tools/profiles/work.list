@@ -1,0 +1,75 @@
+# Profile 'work': company WSL, no personal tooling, backups, notes or desktop.
+#
+# One glob per line, relative to the repo root; '*' also matches '/'.
+# Default-deny: a new file reaches a work clone only when listed here.
+# Keep company names, hosts and addresses out of this public repo.
+# See docs/linking-system.md (Profiles) and docs/setup/wsl-work.md.
+
+# {{{ - Shell core -----------------------------------------------------------
+home/.zshenv
+home/.zshrc
+home/.zlogout
+home/.common_env
+home/.common_rc
+home/.aliases
+home/.bashrc
+home/.bash_profile
+home/.bash_logout
+home/.vimrc
+home/.lessfilter
+home/.tmux.conf
+home/.tmux/plain.conf
+home/.config/starship.toml
+home/.config/htop/htoprc
+home/.config/shellcheckrc
+home/.zsh.d/auto-rehash.zsh
+home/.zsh.d/aliases.zsh
+home/.zsh.d/aliases-linux.zsh
+home/.zsh.d/zshrc-linux_wsl.zsh
+home/.zsh.d/completions/_check_script
+home/.zsh.d/completions/_system-setup
+# }}} - Shell core -----------------------------------------------------------
+
+# {{{ - Git & editor ---------------------------------------------------------
+# Identity: ~/.gitconfig.local (untracked) overrides it, see
+# home/.gitconfig.local.example for the per-directory work identity.
+home/.gitconfig
+home/.config/git/ignore
+# HOME_LINKS (.emacs.d -> .config/emacs) needs the target itself listed
+home/.config/emacs
+home/.config/emacs/*
+# }}} - Git & editor ---------------------------------------------------------
+
+# {{{ - Tools ----------------------------------------------------------------
+home/.config/aria2/aria2.conf
+# }}} - Tools ----------------------------------------------------------------
+
+# {{{ - Copilot instructions -------------------------------------------------
+# Enterprise Copilot reads these. ~/.claude/rules is where VS Code Copilot
+# looks; Claude Code's own settings and skills (home/.claude/settings.json,
+# home/.claude/skills) are deliberately not listed.
+home/.claude/rules/*
+home/.copilot/.github/instructions/*
+# }}} - Copilot instructions -------------------------------------------------
+
+# {{{ - Libraries ------------------------------------------------------------
+lib/commons.sh
+lib/functions.sh
+lib/aliases-linux.sh
+lib/aliases-linux_wsl.sh
+# }}} - Libraries ------------------------------------------------------------
+
+# {{{ - Tools in bin/ --------------------------------------------------------
+bin/system-setup
+bin/apt-update
+bin/check-release-updates
+bin/net-info
+bin/mv-merge
+bin/diff-ini
+bin/colorize-text
+bin/date-range
+bin/aria2c-d
+bin/wget-p
+bin/git-fix-chmod
+bin/git-push-token
+# }}} - Tools in bin/ --------------------------------------------------------
