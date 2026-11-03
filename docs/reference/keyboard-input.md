@@ -3,7 +3,8 @@ title: Keyboard input debugging (evtest, wev) and special keys
 hosts: [all]
 status: resolved
 tags: [keyboard, evtest, wev, evdev, sway, logitech, solaar, scancode]
-updated: 2026-10-15
+updated: 2026-11-03
+automated_by: setup/modules/38-solaar.sh
 ---
 
 # Keyboard input debugging
@@ -54,18 +55,51 @@ shortcuts:
 
 | Key | Icon / Solaar name | Sends | In sway today |
 | --- | ------------------ | ----- | ------------- |
-| Fn+F4 / Fn+F5 | Backlight Down / Up | nothing (firmware) | — |
-| Fn+F6 | Dictation | Super+H | `$mod+h` = `layout splith` |
+| Fn+F4 / Fn+F5 | Backlight Down / Up | nothing (firmware) | diverted: voice-note toggle / hold-to-talk (below) |
+| Fn+F6 | Dictation | Super+H | diverted: read aloud, `tts-speak toggle` (below) |
 | Fn+F7 | Emoji | Super+Ctrl+Alt+Shift+Space | unbound |
 | Fn+F8 | Screen Capture | Super+Shift+S | `$mod+Shift+s` = `layout stacking` |
-| Fn+F9 | Mute Microphone | nothing on any device | — |
+| Fn+F9 | Mute Microphone | nothing on any device | diverted: mic mute toggle (below) |
 | Fn+F10 | Search | `KEY_SEARCH` (scan `c0221`, Consumer Control) | unbound |
 | Fn+F11… | Play/Pause, Mute, Volume | media keys on Consumer Control, e.g. `KEY_PLAYPAUSE` (scan `c00cd`) | `XF86Audio*` bindings |
 
 - The keys that send nothing (Backlight, Mute Microphone) are handled in the
   keyboard firmware / over HID++.
 - Backlight, Dictation, Emoji, Screen Capture, Mute Microphone and Search are
-  *divertable* in Solaar: diverted, the key goes to Solaar instead, and a
-  Solaar rule can act on it, e.g. type an unused key through Solaar's own
-  virtual keyboard. Not tried. Solaar warns that its rules cannot see
-  modifier state on Wayland.
+  *divertable* in Solaar: diverted, the key goes to Solaar instead (nothing
+  reaches sway, so Fn+F6 no longer sends Super+H), and a Solaar rule can act
+  on it. Solaar warns that its rules cannot see modifier state on Wayland;
+  the rules below do not need it.
+
+### Solaar rules on motoko (since 2026-11-03)
+
+| Key | Action |
+| --- | ------ |
+| Fn+F9 | `mic-mute-toggle`: `wpctl` mute toggle of the default mic, plus an OSD |
+| Fn+F4 | `voice-note toggle` |
+| Fn+F5 | `voice-note start` on press, `voice-note stop` on release |
+| Fn+F6 | `tts-speak toggle` (read the selection aloud; was AltGr-F9) |
+
+- `swayosd-client --input-volume mute-toggle` (swayosd 0.3.0) changed nothing
+  for the default mic (bluetooth headset) while `wpctl set-mute` did, hence
+  the small `bin/mic-mute-toggle`.
+- Rules: `home/.config/solaar/rules.yaml`, linked by `dotfiles-link`. Solaar's
+  `Execute` takes an argv list, no shell, and `~/bin` is on its PATH.
+- Diversion: `setup/modules/38-solaar.sh` (`solaar config … divert-keys`).
+  It is a device setting kept in `~/.config/solaar/config.yaml`, which holds
+  the serial and is rewritten by Solaar, so it is not a repo file. The module
+  is motoko-only; without diversion the rules never fire.
+- Diversion is HID++ state held by Solaar on this host, not stored in the
+  keyboard, so the keyboard on another host (the Windows work laptop) still
+  gets its stock Fn behaviour. Not verified on Windows yet.
+- The two "Built-in rules" the GUI shows (Brightness Down/Up → XF86 keys) are
+  Solaar's own defaults, for other keys than Backlight; nothing of ours.
+- **Gotcha:** run the module with Solaar *quit* (`pkill solaar`, module,
+  `solaar -w hide`). A CLI call next to a running tray instance cut
+  `config.yaml` from 4160 to 354 bytes once (mouse settings and keyboard
+  backlight config lost; restored by hand). The module refuses while Solaar
+  runs. Cause (two writers) is unconfirmed.
+- Saving rules from the Solaar GUI rewrites the file and will drop its
+  comments (and may replace the symlink; untested). Edit the YAML directly.
+- Keys of puppet's notebook keyboard are unrelated; vocalinux is not set up
+  there.

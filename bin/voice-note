@@ -94,9 +94,10 @@ Environment:
   VOICE_NOTE_CPU=1        Force CPU decoding, leaving the GPU free for games
                           or generative AI (sets GGML_VK_VISIBLE_DEVICES=)
 
-Sway bindings (home/.config/sway/config.d/40-keybindings.conf):
-  \$altgr+F6            toggle
-  \$altgr+F5            hold to talk
+Keys on the Logitech MX Mechanical (motoko), via Solaar rules
+(home/.config/solaar/rules.yaml, diversion set by setup/modules/38-solaar.sh):
+  Fn+F4                 toggle
+  Fn+F5                 hold to talk
 EOF
 }
 

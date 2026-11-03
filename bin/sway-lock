@@ -47,7 +47,7 @@ main() {
   local -a args=("$@")
   (( ${#args[@]} > 0 )) || args=("${DEFAULT_ARGS[@]}")
 
-  # End a running voice-note (AltGr-F6 toggle) before the screen locks: at
+  # End a running voice-note (Fn+F4 toggle) before the screen locks: at
   # the lock it is either forgotten or cut short by the idle lock, and either
   # way it must not keep recording behind swaylock or into a suspend.
   # `stop` saves what was captured (transcribe, append, archive the WAV) and

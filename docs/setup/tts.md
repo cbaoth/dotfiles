@@ -13,7 +13,7 @@ updated: 2026-10-28
 `~/.cache/piper-tts/`. A module makes sense once the engine choice settles
 (see *Next* below).
 
-**Use:** select text anywhere, press **AltGr-F9** (sway). Press again to stop.
+**Use:** select text anywhere, press **Fn+F6** on the Logitech MX Mechanical (a Solaar rule, see [keyboard input](../reference/keyboard-input.md); other keyboards: bind `tts-speak toggle` in sway). Press again to stop.
 Selecting is enough (primary selection; clipboard is the fallback).
 
 ## Parts
@@ -23,7 +23,7 @@ Selecting is enough (primary selection; clipboard is the fallback).
 | `bin/tts-clean` | Engine-independent text cleaner: footnotes, URLs, markdown, dotted abbreviations (`S.M.A.R.T.` -> "Smart", `z.B.` -> "zum Beispiel"), numbers spelled out (de, en), line-wrap repair, sentence chunking, de/en detection |
 | `bin/tts-speak` | Selection/stdin/args -> clean -> engine -> `pw-play`. Playback starts while later chunks are still being synthesized. `toggle` / `stop` / `list`, `-o file` to save, `-k DIR` to keep sessions |
 | `~/.config/tts/tts-speak.conf` | Engine, speed, voice per language (shipped as `home/.config/tts/`) |
-| sway binding | `40-keybindings.conf`, `bindsym --no-repeat $altgr+F9 exec tts-speak toggle` |
+| key binding | Solaar rule in `home/.config/solaar/rules.yaml` (Fn+F6, motoko); no sway binding |
 
 ## Playback, pause, rewind
 

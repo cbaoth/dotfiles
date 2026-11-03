@@ -1,0 +1,39 @@
+%YAML 1.3
+---
+# Solaar rules for the Logitech MX Mechanical Mini on motoko.
+#
+# A rule only fires for a key that is *diverted* (Solaar then receives it over
+# HID++ instead of the keyboard sending it). The diversion itself is a device
+# setting, not part of this file: setup/modules/38-solaar.sh sets it. Without
+# it these rules are inert, so the file is harmless on hosts that never run
+# that module. Note: Solaar's "Execute" runs the argv list directly, no shell.
+# Keep SOLAAR_DIVERT in that module in step with the keys used here.
+#
+# Fn+F6 (Dictation) is diverted so it stops sending Super+H into sway.
+# Notes: docs/reference/keyboard-input.md.
+
+# Fn+F9 (mic icon): toggle the default microphone, with OSD.
+- Rule:
+  - Key: [Mute Microphone, pressed]
+  - Execute: [mic-mute-toggle]
+
+# Fn+F4 (Backlight Down): voice-note dictation, toggle.
+- Rule:
+  - Key: [Backlight Down, pressed]
+  - Execute: [voice-note, toggle]
+
+# Fn+F5 (Backlight Up): voice-note hold-to-talk. The diverted key has no
+# auto-repeat, so no guard is needed.
+- Rule:
+  - Key: [Backlight Up, pressed]
+  - Execute: [voice-note, start]
+- Rule:
+  - Key: [Backlight Up, released]
+  - Execute: [voice-note, stop]
+
+# Fn+F6 (Dictation, person speaking): read the selected text aloud, press
+# again to stop.
+- Rule:
+  - Key: [Dictation, pressed]
+  - Execute: [tts-speak, toggle]
+...
