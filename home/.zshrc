@@ -174,37 +174,8 @@ fi
 if ${IS_WSL:-false}; then
   if ! ${IS_WSL2:-false}; then
     cl::p_msg "WSL1 environment detected."
-    #cl::p_msg "WSL1 environment detected. Additional features are disabled (only available in WSL2)."
   else
     cl::p_msg "WSL2 environment detected."
-    #cl::p_msg "WSL2 environment detected. Enabling additional features ..."
-#    if [[ ! -f "${HOME}/home/wincrypt-wsl.sock" ]]; then
-#      cat <<EOL
-#WARNING: ${HOME}/home/wincrypt-wsl.sock not found, if you want to use pageant in wsl:
-#
-#  # See https://github.com/buptczq/WinCryptSSHAgent for details
-#  # Run this in in an elevated windows cmd.exe:
-#  > choco install wincrypt-sshagent
-#EOL
-#    else
-#      export SSH_AUTH_SOCK=${HOME}/home/wincrypt-wsl.sock
-#    fi
-# TODO check if this works, if so then check if it is already running (currently started repetedly resulting in error)
-#    if [[ -e "${HOME}/bin/wsl-ssh-pageant.exe" ]]; then
-#      export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
-#      if ! ss -a | grep -q "$SSH_AUTH_SOCK"; then
-#        rm -f "$SSH_AUTH_SOCK"
-#        echo "Starting 'wsl-ssh-pageant.exe -force -systray -wsl \"$SSH_AUTH_SOCK\"' ..."
-#        wsl-ssh-pageant.exe -force -systray -wsl "$SSH_AUTH_SOCK" &
-#      fi
-#    else
-#      cat <<EOL
-#WARNING: ${HOME}/bin/wsl-ssh-pageant-amd64-gui.exe not found, if you want to use pageant in wsl:
-#
-#wget -O ~/bin/wsl-ssh-pageant.exe "https://github.com/benpye/wsl-ssh-pageant/releases/latest/download/wsl-ssh-pageant-amd64-gui.exe"
-#chmod +x ~/bin/wsl-ssh-pageant.exe
-#EOL
-#    fi
   fi
 fi
 

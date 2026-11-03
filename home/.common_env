@@ -135,7 +135,7 @@ fi
 
 # Is Windows Subsystem Linux?
 export IS_WSL=false
-if [[ ! $IS_DOCKER && $(uname -r) = *icrosoft* ]]; then
+if [[ ${IS_DOCKER:-false} != true && $(uname -r) = *icrosoft* ]]; then
   IS_PC_NATIVE=false
   IS_WSL=true
   IS_WSL1=true
