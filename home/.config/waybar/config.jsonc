@@ -139,7 +139,8 @@
         "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
     },
 
-    // Default microphone (bin/audio-status in). Fn+F9 on the Logitech MX
+    // Default microphone (bin/audio-status in); scroll like the output.
+    // Fn+F9 on the Logitech MX
     // Mechanical toggles mute (Solaar rule -> bin/mic-mute-toggle).
     "custom/mic": {
         "exec": "audio-status in",
@@ -147,7 +148,9 @@
         "restart-interval": 2,
         "format": "{}",
         "tooltip": true,
-        "on-click": "pavucontrol -t 4"
+        "on-click": "pavucontrol -t 4",
+        "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%+",
+        "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-"
     },
 
     "tray": {
