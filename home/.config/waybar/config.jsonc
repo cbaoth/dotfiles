@@ -25,7 +25,8 @@
         "custom/power-warn",
         "power-profiles-daemon",
         "custom/sway-awake",
-        "pulseaudio",
+        "custom/volume",
+        "custom/mic",
         "tray",
         "clock",
         "group/notification"
@@ -121,23 +122,32 @@
         "tooltip-format": "{ifname}: {ipaddr}/{cidr}\nGateway: {gwaddr}"
     },
 
-    "pulseaudio": {
-        "format": "{icon} {volume}%",
-        "format-muted": "󰖁 muted",
-        "format-icons": {
-            "headphone": "\uf025",
-            "hands-free": "\uf025",
-            "headset": "\uf025",
-            "phone": "\uf095",
-            "portable": "\uf10b",
-            "car": "\uf1b9",
-            "default": ["\uf026", "\uf027", "\uf028"]
-        },
-        "on-click": "pavucontrol",
-        "scroll-step": 5,
-        // pulseaudio matches states "at or below" (unlike cpu/memory): each
-        // value is the upper bound, i.e. warning = 70-89%, critical = 90%+
-        "states": { "normal": 69, "warning": 89, "critical": 100 }
+    // Default output and input (bin/audio-status streams the JSON, event
+    // driven; the thresholds, which differ for headphones and other outputs,
+    // live in that script, the colours in style.css). Replaces waybar's
+    // pulseaudio module, whose states cannot tell headphones from speakers.
+    // Scroll: 5 % steps, capped at 100 %. pavucontrol tabs (1-based):
+    // 3 = Output Devices, 4 = Input Devices.
+    "custom/volume": {
+        "exec": "audio-status out",
+        "return-type": "json",
+        "restart-interval": 2,
+        "format": "{}",
+        "tooltip": true,
+        "on-click": "pavucontrol -t 3",
+        "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+",
+        "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+    },
+
+    // Default microphone (bin/audio-status in). Fn+F9 on the Logitech MX
+    // Mechanical toggles mute (Solaar rule -> bin/mic-mute-toggle).
+    "custom/mic": {
+        "exec": "audio-status in",
+        "return-type": "json",
+        "restart-interval": 2,
+        "format": "{}",
+        "tooltip": true,
+        "on-click": "pavucontrol -t 4"
     },
 
     "tray": {

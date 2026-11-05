@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Stream the default audio output or input (PipeWire) as waybar JSON for the
+# custom/volume and custom/mic modules: icon, volume, mute state, a severity
+# class and a tooltip. Prints once at start and again on every sink/source/
+# default change (`pactl subscribe`): no polling, no waybar signal. Empty text
+# (module hidden) while there is no default device.
+#
+#   audio-status out    default output
+#   audio-status in     default input (microphone)
+#
+# Why not waybar's pulseaudio module: its states only see the output volume,
+# and one set of thresholds cannot fit headphones and speakers alike. The
+# device type decides here (port type Headphones/Headset/Handsfree, or an icon
+# name / form factor naming a headset or headphone, counts as headphones).
+#
+# Severity classes (styled in home/.config/waybar/style.css):
+#   muted   muted or 0 %           red, inverted
+#   low     1-19 % (input only)    yellow text
+#   notice                         yellow text
+#   warn                           yellow, inverted
+#   hot                            orange, inverted
+#   crit                           red, inverted
+#
+#   volume                  muted  low    notice   warn     hot      crit
+#   output, headphones      0      -      70-89    90-100   101-114  115+
+#   output, other           0      -      100      101-114  115-124  125+
+#   input                   0      1-19   101-114  -        115-124  125+
+#
+# Above 100 % the volume is digital gain: it clips loud signals and, on an
+# input, lifts the noise floor. Used by home/.config/waybar/config.jsonc;
+# mute toggle for the input: mic-mute-toggle.
+
+set -uo pipefail
+export LC_ALL=C.UTF-8
+
+# Nerd Font Material Design glyphs for the input and the muted output, Font
+# Awesome for the rest, as in the previous pulseaudio module.
+declare -r ICON_MIC_ON=$'\U000F036C'   # microphone
+declare -r ICON_MIC_OFF=$'\U000F036D'  # microphone-off
+declare -r ICON_OUT_OFF=$'\U000F0581'  # volume-off
+declare -r ICON_HEADPHONE=$'\uf025'   # headphones
+declare -ra ICONS_SPEAKER=($'\uf026' $'\uf027' $'\uf028')  # low, mid, high
+
+declare mode="" node="" ev="" last=""
+
+# Escape for a JSON string that waybar also parses as pango markup.
+esc() {
+  local s="${1//&/&amp;}"
+  s="${s//</&lt;}"
+  s="${s//>/&gt;}"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  printf '%s' "${s//$'\n'/\\n}"
+}
+
+# severity KIND PCT -> class name. KIND: in | headphone | other.
+severity() {
+  local -r kind="$1"
+  local -ri pct="$2"
+  if (( pct == 0 )); then echo muted; return; fi
+  case "${kind}" in
+    in)
+      if   (( pct >= 125 )); then echo crit
+      elif (( pct >= 115 )); then echo hot
+      elif (( pct >  100 )); then echo notice
+      elif (( pct <   20 )); then echo low
+      fi ;;
+    headphone)
+      if   (( pct >= 115 )); then echo crit
+      elif (( pct >  100 )); then echo hot
+      elif (( pct >=  90 )); then echo warn
+      elif (( pct >=  70 )); then echo notice
+      fi ;;
+    *)
+      if   (( pct >= 125 )); then echo crit
+      elif (( pct >= 115 )); then echo hot
+      elif (( pct >  100 )); then echo warn
+      elif (( pct == 100 )); then echo notice
+      fi ;;
+  esac
+}
+
+# device_info -> three lines: description, port type, "icon name form factor".
+device_info() {
+  local list="sinks" name
+  [[ "${mode}" == in ]] && list="sources"
+  if [[ "${mode}" == in ]]; then name="$(pactl get-default-source)"; else name="$(pactl get-default-sink)"; fi
+  pactl -f json list "${list}" 2>/dev/null | jq -r --arg n "${name}" '
+    .[] | select(.name == $n) | .active_port as $ap
+    | (.description // ""),
+      ([.ports[]? | select(.name == $ap) | .type][0] // ""),
+      ((.properties["device.icon_name"] // "") + " " + (.properties["device.form-factor"] // ""))'
+}
+
+emit() {
+  local out line
+  if ! line="$(wpctl get-volume "${node}" 2>/dev/null)"; then
+    out='{"text":"","tooltip":false}'
+  else
+    local -i pct
+    pct="$(awk '{ printf "%d", $2 * 100 + 0.5 }' <<<"${line}")"
+    local -i muted=0
+    [[ "${line}" == *MUTED* ]] && muted=1
+
+    local -a info
+    mapfile -t info < <(device_info)
+    local -r desc="${info[0]:-unknown device}" ptype="${info[1]:-}" hint="${info[2]:-}"
+
+    local kind="in" icon text class what
+    if [[ "${mode}" == out ]]; then
+      case "${ptype}|${hint}" in
+        *Headphones*|*Headset*|*Handsfree*|*headphone*|*headset*|*hands-free*) kind="headphone" ;;
+        *) kind="other" ;;
+      esac
+      what="Output"
+      if [[ "${kind}" == headphone ]]; then
+        icon="${ICON_HEADPHONE}"
+      else
+        icon="${ICONS_SPEAKER[$(( pct > 66 ? 2 : pct > 33 ? 1 : 0 ))]}"
+      fi
+      (( muted )) && icon="${ICON_OUT_OFF}"
+    else
+      what="Microphone"
+      icon="${ICON_MIC_ON}"
+      (( muted )) && icon="${ICON_MIC_OFF}"
+    fi
+
+    if (( muted )); then
+      text="${icon} muted"
+      class="muted"
+    else
+      text="${icon} ${pct}%"
+      class="$(severity "${kind}" "${pct}")"
+    fi
+
+    local tip="${what} on"
+    (( muted )) && tip="${what} muted"
+    tip+=$'\n'"${desc}"$'\n'"Volume: ${pct}%"
+    [[ "${mode}" == out ]] && tip+=$'\n'"Type: ${kind}"
+    out="$(printf '{"text":"%s","class":"%s","tooltip":"%s"}' \
+      "$(esc "${text}")" "${class}" "$(esc "${tip}")")"
+  fi
+  # A volume drag fires many events; print only real changes.
+  if [[ "${out}" != "${last}" ]]; then
+    printf '%s\n' "${out}"
+    last="${out}"
+  fi
+}
+
+usage() {
+  printf 'Usage: audio-status out|in\n' >&2
+  exit 2
+}
+
+main() {
+  case "${1:-}" in
+    out) mode="out"; node='@DEFAULT_AUDIO_SINK@';   ev="sink" ;;
+    in)  mode="in";  node='@DEFAULT_AUDIO_SOURCE@'; ev="source" ;;
+    *) usage ;;
+  esac
+  emit
+  # Own process so it can be stopped when waybar stops or restarts this script.
+  coproc SUB { exec pactl subscribe; }
+  trap 'kill "${SUB_PID}" 2>/dev/null' EXIT
+  trap 'exit 0' TERM INT HUP
+  local line
+  while read -r line <&"${SUB[0]}"; do
+    case "${line}" in
+      *" on ${ev} #"*|*" on server") emit ;;
+    esac
+  done
+}
+
+main "$@"

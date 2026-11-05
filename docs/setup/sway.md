@@ -298,12 +298,31 @@ every module (the header of `style.css` is the reference):
 
 Escalation is two-step: first the **text** takes the colour (worth noticing,
 nothing to do — CPU at 80%), then the segment **inverts** (needs attention —
-RAM at 90%, volume at 90%, network down). Thresholds are waybar `"states"` in
+RAM at 90%, volume above 100%, network down). Thresholds are waybar `"states"` in
 `config.jsonc`, which add the state name as a CSS class.
 
-- **`pulseaudio` matches states "at or below"**, unlike `cpu`/`memory` ("at or
-  above"): it calls waybar's `getState(volume, true)`. Each value is therefore
-  the *upper* bound — `{"normal": 69, "warning": 89, "critical": 100}`.
+- **Volume and microphone are custom modules** (`custom/volume`, `custom/mic`,
+  both `bin/audio-status`, event driven via `pactl subscribe`), not waybar's
+  `pulseaudio` module. Why: its `"states"` match "at or below" and only
+  cover the output, so a value above the highest bound (pavucontrol allows
+  153%, +11 dB) matched no state and looked *safer* than 100%; and one set of
+  thresholds cannot fit headphones (port type Headphones/Headset/Handsfree or
+  a headset icon, which includes Bluetooth) and speakers alike. The script
+  picks a class, `style.css` colours it; the threshold table is in the
+  script's header:
+
+  | | muted | low | notice | warn | hot | crit |
+  | - | - | - | - | - | - | - |
+  | output, headphones | 0 | | 70-89 | 90-100 | 101-114 | 115+ |
+  | output, other | 0 | | 100 | 101-114 | 115-124 | 125+ |
+  | input | 0 | 1-19 | 101-114 | | 115-124 | 125+ |
+
+  Muted counts as 0% and is red inverted; notice/low = yellow text, warn =
+  yellow, hot = orange, crit = red (inverted). Above 100% is digital gain: it
+  clips loud signals and, on the input, lifts the noise floor. Clicks open
+  `pavucontrol -t 3` (Output Devices) / `-t 4` (Input Devices); scrolling the
+  volume changes 5%, capped at 100%. Mute toggle on the MX Mechanical: Fn+F9,
+  see [keyboard input](../reference/keyboard-input.md).
 - **Write Font Awesome glyphs as `\uXXXX` JSON escapes** in `config.jsonc`.
   The BMP private-use glyphs (U+F000–F8FF) had silently gone missing from the
   file (wifi, volume, scratchpad showed no icon). Nerd Font glyphs outside the

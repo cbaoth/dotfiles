@@ -87,7 +87,8 @@ button:hover {
 #custom-power-warn,
 #power-profiles-daemon,
 #custom-sway-awake,
-#pulseaudio,
+#custom-volume,
+#custom-mic,
 #tray,
 #clock,
 #notification {
@@ -106,7 +107,8 @@ button:hover {
 #custom-power-warn,
 #power-profiles-daemon,
 #custom-sway-awake,
-#pulseaudio,
+#custom-volume,
+#custom-mic,
 #tray,
 #clock {
     padding: 0 8px;
@@ -123,14 +125,15 @@ button:hover {
 /* clickable segments */
 #power-profiles-daemon:hover,
 #custom-sway-awake:hover,
-#pulseaudio:hover,
+#custom-volume:hover,
+#custom-mic:hover,
 #custom-power-warn:hover,
 #notification:hover {
     background-color: @seg_hover;
 }
 
 /* percentage values: fixed width, so 9% -> 10% does not shift the bar */
-#cpu, #memory, #custom-vram, #pulseaudio {
+#cpu, #memory, #custom-vram, #custom-volume, #custom-mic {
     min-width: 3.2em;
 }
 
@@ -239,19 +242,34 @@ button:hover {
     color: #ffffff;
 }
 
-/* Volume: >= 70% in text colour (fine on speakers, loud on headphones),
-   >= 90% inverted */
-#pulseaudio.warning {
+/* Output volume and microphone (bin/audio-status picks the class, thresholds
+   are in that script's header). Muted or 0% is red inverted on both: it is
+   what you debug for hours otherwise. low (input only, 1-19%) is a very quiet
+   recording. Above 100% is digital gain (clipping, input noise). */
+#custom-volume.notice,
+#custom-mic.notice,
+#custom-mic.low {
     color: @notice;
 }
 
-#pulseaudio.critical {
+#custom-volume.warn,
+#custom-mic.warn {
     background-color: @notice;
     color: @fg_inv;
 }
 
-#pulseaudio.muted {
-    color: @fg_dim;
+#custom-volume.hot,
+#custom-mic.hot {
+    background-color: @warn_bg;
+    color: #ffffff;
+}
+
+#custom-volume.crit,
+#custom-mic.crit,
+#custom-volume.muted,
+#custom-mic.muted {
+    background-color: @crit_bg;
+    color: @fg;
 }
 
 /* Power profile: balanced is the neutral default; both others change system

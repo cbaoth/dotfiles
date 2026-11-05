@@ -83,6 +83,7 @@ shortcuts:
 - `swayosd-client --input-volume mute-toggle` (swayosd 0.3.0) changed nothing
   for the default mic (bluetooth headset) while `wpctl set-mute` did, hence
   the small `bin/mic-mute-toggle`.
+- The state is shown by the waybar `custom/mic` widget (`bin/audio-status in`).
 - Rules: `home/.config/solaar/rules.yaml`, linked by `dotfiles-link`. Solaar's
   `Execute` takes an argv list, no shell, and `~/bin` is on its PATH.
 - Diversion: `setup/modules/38-solaar.sh` (`solaar config … divert-keys`).
