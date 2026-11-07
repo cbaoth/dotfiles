@@ -3,7 +3,7 @@ title: Devcontainers (dotfiles, cb-voice-lab, web-tools)
 hosts: [motoko, saito]
 status: open
 tags: [docker, devcontainer, vscode, system-setup, claude]
-updated: 2026-11-01
+updated: 2026-11-07
 automated_by: .devcontainer/Dockerfile
 ---
 
@@ -233,8 +233,25 @@ RUN git clone --depth 1 https://github.com/cbaoth/dotfiles "$HOME/dotfiles" \
     && sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/*
 ENV LANG=en_US.UTF-8
 
+# The host clone's link profile (full, wsl, ...), copied by initializeCommand
+COPY --chown=${USERNAME}:${USERNAME} link-profile /home/${USERNAME}/dotfiles/.link-profile.local
 RUN "$HOME/dotfiles/tools/link.sh" && ZINIT_TURBO=false zsh -ic true
 ```
+
+**The link profile is mandatory.** `link.sh` cannot ask for one during a
+build, and a fresh `git clone` has none. Do not hardcode `--profile full`:
+the container must link what its host links (`wsl` on the work machines). So
+`initializeCommand` copies the host clone's profile into the build context,
+the Dockerfile COPYs it in (the build fails early when it is missing), and
+`.devcontainer/link-profile` goes into the repo's `.gitignore`:
+
+```jsonc
+"initializeCommand": "cp \"$HOME/dotfiles/.link-profile.local\" .devcontainer/link-profile && mkdir -p \"$HOME/container/<name>\""
+```
+
+This assumes the host clone is at `~/dotfiles`. The failure is easy to miss on
+a host with an old cached image (the clone predates the mandatory profile,
+2026-11-03) and shows up on the first fresh build elsewhere.
 
 `devcontainer.json`: `"build": {"dockerfile": "Dockerfile", "args":
 {"CACHE_BUST": "${localEnv:CACHE_BUST}"}}`, `remoteUser: vscode`, workspace
