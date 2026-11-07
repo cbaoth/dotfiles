@@ -44,8 +44,12 @@ RUN /home/${USERNAME}/dotfiles/bin/system-setup --yes --profile container \
 # about a missing locale.
 ENV LANG=en_US.UTF-8
 
-# The whole working tree (minus .dockerignore), then all symlinks
+# The whole working tree (minus .dockerignore), then all symlinks. The link
+# profile (full, work, ...) comes from the host clone's .link-profile.local;
+# the build cannot ask for one, so fail early with the fix.
 COPY --chown=${USERNAME}:${USERNAME} . /home/${USERNAME}/dotfiles
+RUN test -s /home/${USERNAME}/dotfiles/.link-profile.local \
+    || { echo "error: no link profile in the host clone. On the host run ./tools/link.sh once (or: echo full > .link-profile.local), then rebuild." >&2; exit 1; }
 RUN /home/${USERNAME}/dotfiles/tools/link.sh
 
 # Start zsh one time to bootstrap the plugin manager (zinit) and install all

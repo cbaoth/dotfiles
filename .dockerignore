@@ -7,6 +7,9 @@ scratch/
 **/*.local
 **/*.local.*
 !**/*.local.example
+# The host clone's link profile (tools/link.sh) is handed down to the image;
+# it holds only a profile name. Dockerfile fails early when it is missing.
+!/.link-profile.local
 .env
 .env.*
 

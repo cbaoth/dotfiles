@@ -52,7 +52,11 @@ The dotfiles image (`.devcontainer/Dockerfile`):
 
 The image is built from the **working tree**, so uncommitted changes can be
 tested before pushing. `.dockerignore` keeps `_local/`, `*.local*`, `.env*`
-out of the image.
+out of the image, except `.link-profile.local`: the container uses the **same
+link profile as the host clone** (`full`, `work`, ...), because `link.sh`
+cannot ask for one during a build. If the host clone has none, the build stops
+with a message; run `./tools/link.sh` on the host once (or
+`echo full > .link-profile.local`) and rebuild.
 
 `postCreateCommand` re-runs `link.sh` (see the Claude volume below) and then
 `system-setup --dry-run --profile container`. A healthy image reports
