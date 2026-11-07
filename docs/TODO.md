@@ -361,6 +361,13 @@ Current implementation documented in `docs/linking-system.md`. Low priority; rev
 
 ## Host-Specific Configuration
 
+- [ ] [S] `unmount-all` (and probably `mount-all`) are dangerous in a root shell
+      (2026-11-07: running it as root on puppet unmounted vital filesystems and
+      forced a reboot). Find where they are defined, then make them refuse to run
+      as root, or only touch the user's own `/srv/*` mounts (fstab entries with
+      `user`). Check that the root profile (`tools/profiles/root.list`) does not
+      pull them in.
+
 - [ ] [M] Implement a clean host-specific override mechanism (replaces ad-hoc `_overrides/`):
   - Option A: Conditional loading in `.zshrc`/`.bashrc`: `[[ -f ~/.zshrc.local.$(hostname) ]] && source ...`
   - Option B: Extend `link-config.conf` to define host-specific sync directories per hostname
@@ -872,6 +879,16 @@ over ssh.
       and time the prompt (`starship timings`). If slow, either disable
       `git_status` there or set `windows_starship` (needs a Windows-native
       starship.exe); then record the result in `docs/setup/wsl-work.md`.
+- [ ] [M] Battery indicator, **only on devices with a battery** (puppet), in both
+      places. Found missing 2026-11-07, when puppet's battery had swollen
+      unnoticed (the old p10k prompt had one; the starship setup does not).
+  - starship: a custom/`battery` segment with charge, a charging / on-AC mark
+    and low/critical colors. Decide "has a battery" once at shell startup
+    (`/sys/class/power_supply/BAT*` exists), not per prompt.
+  - waybar: `battery` module in `config.jsonc` (charge, charging state, tooltip
+    with health = `energy_full / energy_full_design`), added only on hosts with
+    a battery (per-host config or a small wrapper script).
+  - Idea: warn when health drops below ~80% or the battery is not charging on AC.
 - [ ] [S] Maybe: foot `prompt-prev`/`prompt-next` (`Ctrl+Shift+z/x`, jump
       between prompts in scrollback) need OSC 133 prompt marks — check whether
       starship emits them or a small precmd hook is needed.
