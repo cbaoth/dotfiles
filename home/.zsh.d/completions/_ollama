@@ -1,0 +1,60 @@
+#compdef ollama
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for ollama. The CLI ships no `completion` subcommand, so this is
+# hand-maintained: subcommands mirror `ollama --help`. Model names are
+# discovered live from `ollama list` (and `ollama ps` for `stop`).
+# Autoloaded by compinit via the #compdef tag above.
+
+_ollama_models() {
+  local -a models
+  models=( ${(f)"$(_call_program models ollama list 2>/dev/null)"} )
+  models=( ${${models[2,-1]}%%[[:space:]]*} )
+  _describe -t models 'model' models
+}
+
+_ollama_running() {
+  local -a models
+  models=( ${(f)"$(_call_program running ollama ps 2>/dev/null)"} )
+  models=( ${${models[2,-1]}%%[[:space:]]*} )
+  _describe -t models 'running model' models
+}
+
+_ollama() {
+  local -a cmds=(
+    'serve:Start Ollama'
+    'create:Create a model'
+    'show:Show information for a model'
+    'run:Run a model'
+    'stop:Stop a running model'
+    'pull:Pull a model from a registry'
+    'push:Push a model to a registry'
+    'signin:Sign in to ollama.com'
+    'signout:Sign out from ollama.com'
+    'list:List models'
+    'ps:List running models'
+    'cp:Copy a model'
+    'rm:Remove a model'
+    'launch:Launch the Ollama menu or an integration'
+    'help:Help about any command'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe -t commands 'ollama command' cmds
+    compadd -- --help --version --verbose --nowordwrap
+    return
+  fi
+
+  case ${words[2]} in
+    run)        (( CURRENT == 3 )) && _ollama_models ;;
+    show|push|pull)
+                (( CURRENT == 3 )) && _ollama_models ;;
+    rm)         _ollama_models ;;
+    cp)         (( CURRENT == 3 )) && _ollama_models ;;
+    stop)       _ollama_running ;;
+    create)     _arguments '(-f --file)'{-f,--file}'[Modelfile]:file:_files' '(-q --quantize)'{-q,--quantize}'[quantization]:level:' '*:model:_ollama_models' ;;
+    help)       (( CURRENT == 3 )) && _describe -t commands 'ollama command' cmds ;;
+  esac
+}
+
+_ollama "$@"
