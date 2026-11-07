@@ -361,12 +361,15 @@ Current implementation documented in `docs/linking-system.md`. Low priority; rev
 
 ## Host-Specific Configuration
 
-- [ ] [S] `unmount-all` (and probably `mount-all`) are dangerous in a root shell
-      (2026-11-07: running it as root on puppet unmounted vital filesystems and
-      forced a reboot). Find where they are defined, then make them refuse to run
-      as root, or only touch the user's own `/srv/*` mounts (fstab entries with
-      `user`). Check that the root profile (`tools/profiles/root.list`) does not
-      pull them in.
+- [ ] [M] Commands that must never run as root: `mount-all`, `unmount-all` and
+      similar. The `/srv/*` mounts are user-level on purpose (user can read/write,
+      ownership and modes stay intact); root interaction can mix those up.
+      2026-11-07: `unmount-all` as root on puppet unmounted vital filesystems and
+      forced a reboot. Find where they are defined, then pick per command:
+  - guard inside the code (`(( EUID == 0 )) && exit/return 1` with a message), or
+  - do not define/expose it at all in root's shell (precondition at load time).
+  Then audit for other candidates (anything that mounts, chowns or chmods
+  user-level trees) and check `tools/profiles/root.list` does not pull them in.
 
 - [ ] [M] Implement a clean host-specific override mechanism (replaces ad-hoc `_overrides/`):
   - Option A: Conditional loading in `.zshrc`/`.bashrc`: `[[ -f ~/.zshrc.local.$(hostname) ]] && source ...`
