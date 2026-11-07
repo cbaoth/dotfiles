@@ -866,6 +866,12 @@ over ssh.
       root using this repo (see §6 *Quick Notes* — root setup / linking).
 - [ ] [S] Drop leftover p10k state once settled (every host):
       `zinit delete romkatv/powerlevel10k` and `rm -f ~/.cache/p10k-*`.
+- [ ] [S] WSL / NTFS: starship's `git_status` is very slow under `/mnt/c/...`
+      (docs tip). Unverified whether it hurts at work or on motoko's Windows
+      side. When on the work PC or Windows: `cd` into a git repo on `/mnt/c`
+      and time the prompt (`starship timings`). If slow, either disable
+      `git_status` there or set `windows_starship` (needs a Windows-native
+      starship.exe); then record the result in `docs/setup/wsl-work.md`.
 - [ ] [S] Maybe: foot `prompt-prev`/`prompt-next` (`Ctrl+Shift+z/x`, jump
       between prompts in scrollback) need OSC 133 prompt marks — check whether
       starship emits them or a small precmd hook is needed.

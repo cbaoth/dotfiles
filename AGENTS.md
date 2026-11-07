@@ -309,6 +309,17 @@ trailing-slash semantics also produced nested `_local/_local/` and
   System notes in the three buckets are Markdown (they are also read in Obsidian
   and by agents).
 
+## Work hosts (WSL, VM, maybe native Linux later)
+
+At work only **GitHub Copilot** (enterprise account) is used; Claude Code and
+the personal accounts are not allowed there. `~/notes` is **not cloned** on work
+hosts, so anything an agent there needs must live in this repo (`AGENTS.md`,
+`.github/instructions/`, `docs/`), never only in the private notes. Work is not
+always WSL: a VirtualBox/VMware Ubuntu VM is in use and a native Linux notebook
+may follow, so don't assume WSL from "work". Clones there use the `work` link
+profile (`tools/profiles/work.list`) and `system-setup --profile wsl-work`
+(`docs/setup/wsl-work.md`); work hostnames stay out of this public repo.
+
 ## Environment (interactive shell)
 
 Agents run in zsh with `setopt EXTENDED_GLOB` and `setopt INTERACTIVECOMMENTS`
