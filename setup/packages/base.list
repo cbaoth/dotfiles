@@ -19,6 +19,9 @@ neovim
 tmux
 htop
 btop
+# smartmontools: smartctl for disk health. Little use inside WSL2 or a VM
+# (virtual disks), harmless there.
+smartmontools
 
 # Network
 # iftop, ngrep: packet capture. Kept on wsl-work on purpose (pen testing /
