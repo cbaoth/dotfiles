@@ -290,9 +290,10 @@ Node comes from `22-fnm` (LTS at build time), so every container has it.
   eval "$(fnm env)" && fnm use && fnm default "$(cat .nvmrc)" && npm ci'`.
   A major pin still gets the newest patch on every container recreate.
   Review the major once a year (Oct/Nov, when the next LTS starts).
-- **Commit `package-lock.json`** and use `npm ci`; add
-  `.github/dependabot.yml` (weekly) and enable Dependabot security updates
-  on GitHub. Dependency CVEs are the other half of the risk.
+- **Commit `package-lock.json`** and use `npm ci`; add a dependency update
+  bot: Dependabot on GitHub, Renovate for repos on the Forgejo instance
+  (Forgejo has no Dependabot). Dependency CVEs are the other half of the
+  risk.
 - **Do not `npm update` during a build**: builds would stop being
   reproducible. Updates go through reviewed PRs.
 - Do not update npm separately from Node; it ships with Node.
