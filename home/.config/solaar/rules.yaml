@@ -36,4 +36,10 @@
 - Rule:
   - Key: [Dictation, pressed]
   - Execute: [tts-speak, toggle]
+
+# Fn+F7 (Emoji): the same, but the clipboard comes first ("copy as markdown"
+# browser extension, "Copy" buttons in AI chats).
+- Rule:
+  - Key: [Emoji, pressed]
+  - Execute: [tts-speak, toggle, --clipboard]
 ...

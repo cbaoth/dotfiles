@@ -56,6 +56,7 @@ _tts-speak_fixes() {
 }
 
 _arguments -s \
+  '(-c --clipboard)'{-c,--clipboard}'[Read the clipboard first, then the primary selection]' \
   '(-e --engine)'{-e,--engine}'[Engine to use]:engine:_tts-speak_engines' \
   '(-l --lang)'{-l,--lang}'[Text language]:language:(de en auto)' \
   '(-v --voice)'{-v,--voice}'[Voice/model (engine-specific)]:voice:_tts-speak_voices' \

@@ -75,8 +75,9 @@ Usage: tts-speak [OPTIONS] [--] [TEXT...]
        tts-speak toggle | stop | pause | prev | next | list
 
 Read TEXT aloud. Without TEXT: stdin if piped, else the primary selection
-(falls back to the clipboard). Text is cleaned first (tts-clean): footnote
-markers, URLs, markdown and dotted abbreviations are not read out.
+(falls back to the clipboard; -c: the other way round). Text is cleaned first
+(tts-clean): markdown is rendered for the ear, footnotes and reference sections
+are dropped, URLs, paths and code are shortened or announced.
 
 Commands:
   toggle           stop if currently speaking, else read the selection (hotkey)
@@ -87,8 +88,10 @@ Commands:
   list             list engines and voices
 
 Options:
+  -c, --clipboard  no TEXT or stdin: read the clipboard first, then the primary
+                   selection (for "copy as markdown" and chat "Copy" buttons)
   -e, --engine E   piper | http                (default: ${TTS_ENGINE})
-  -l, --lang L     de | en | auto              (default: auto-detect per text)
+  -l, --lang L    de | en | auto              (default: auto-detect per text)
   -v, --voice V    engine-specific voice/model (default: per language, see conf);
                    piper multi-speaker models: MODEL:SPEAKER (name or id)
   -s, --speed X    speaking speed, 1.0 = normal (default: ${TTS_SPEED})
@@ -146,10 +149,13 @@ notify() {
   notify-send -a tts-speak -t 2500 "tts-speak" "$*" 2> /dev/null || true
 }
 
+# Usage: get_selection primary|clipboard: that one first, the other as fallback.
 get_selection() {
+  local -a first=(--primary) second=()
+  [[ "$1" == clipboard ]] && first=() second=(--primary)
   local text
-  text="$(wl-paste --primary --no-newline 2> /dev/null)"
-  [[ -n "${text//[[:space:]]/}" ]] || text="$(wl-paste --no-newline 2> /dev/null)"
+  text="$(wl-paste "${first[@]}" --no-newline 2> /dev/null)"
+  [[ -n "${text//[[:space:]]/}" ]] || text="$(wl-paste "${second[@]}" --no-newline 2> /dev/null)"
   printf '%s' "${text}"
 }
 
@@ -696,7 +702,7 @@ main() {
     worker "$@"
     return
   fi
-  local engine lang=auto voice="" speed out_file="" do_clean=1 cmd=speak ui keep_dir piper_opts fixes=""
+  local engine lang=auto voice="" speed out_file="" do_clean=1 cmd=speak ui keep_dir piper_opts fixes="" source=primary
   local -a words=()
 
   # shellcheck disable=SC1090
@@ -707,6 +713,7 @@ main() {
   while (( $# > 0 )); do
     case "$1" in
       toggle|stop|pause|prev|next|list) cmd="$1" ;;
+      -c|--clipboard) source=clipboard ;;
       -e|--engine) engine="$2"; shift ;;
       -l|--lang)   lang="$2"; shift ;;
       -v|--voice)  voice="$2"; shift ;;
@@ -748,7 +755,7 @@ main() {
   else
     [[ -t 0 ]] || text="$(cat)"
     # No text on stdin (a terminal, or an empty/closed stdin as under a hotkey): use the selection.
-    [[ -n "${text//[[:space:]]/}" ]] || text="$(get_selection)"
+    [[ -n "${text//[[:space:]]/}" ]] || text="$(get_selection "${source}")"
   fi
   if [[ -z "${text//[[:space:]]/}" ]]; then notify "nothing selected"; return 1; fi
 

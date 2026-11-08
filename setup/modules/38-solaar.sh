@@ -28,7 +28,7 @@ MODULE_DOC="docs/reference/keyboard-input.md"
 
 declare -r SOLAAR_DEVICE="MX Mechanical Mini"
 # Keys named in home/.config/solaar/rules.yaml.
-declare -ra SOLAAR_DIVERT=("Mute Microphone" "Dictation" "Backlight Down" "Backlight Up")
+declare -ra SOLAAR_DIVERT=("Mute Microphone" "Dictation" "Emoji" "Backlight Down" "Backlight Up")
 
 module_run() {
   if [[ "$(hostname -s)" != "motoko" ]]; then

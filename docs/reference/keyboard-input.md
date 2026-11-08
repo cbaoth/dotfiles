@@ -57,7 +57,7 @@ shortcuts:
 | --- | ------------------ | ----- | ------------- |
 | Fn+F4 / Fn+F5 | Backlight Down / Up | nothing (firmware) | diverted: voice-note toggle / hold-to-talk (below) |
 | Fn+F6 | Dictation | Super+H | diverted: read aloud, `tts-speak toggle` (below) |
-| Fn+F7 | Emoji | Super+Ctrl+Alt+Shift+Space | unbound |
+| Fn+F7 | Emoji | Super+Ctrl+Alt+Shift+Space | diverted: read aloud, clipboard first (below) |
 | Fn+F8 | Screen Capture | Super+Shift+S | `$mod+Shift+s` = `layout stacking` |
 | Fn+F9 | Mute Microphone | nothing on any device | diverted: mic mute toggle (below) |
 | Fn+F10 | Search | `KEY_SEARCH` (scan `c0221`, Consumer Control) | unbound |
@@ -79,6 +79,7 @@ shortcuts:
 | Fn+F4 | `voice-note toggle` |
 | Fn+F5 | `voice-note start` on press, `voice-note stop` on release |
 | Fn+F6 | `tts-speak toggle` (read the selection aloud; was AltGr-F9) |
+| Fn+F7 | `tts-speak toggle --clipboard` (the same, clipboard first: "copy as markdown", chat "Copy" buttons) |
 
 - `swayosd-client --input-volume mute-toggle` (swayosd 0.3.0) changed nothing
   for the default mic (bluetooth headset) while `wpctl set-mute` did, hence
