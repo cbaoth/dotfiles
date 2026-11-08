@@ -11,8 +11,9 @@ automated_by: .devcontainer/Dockerfile
 
 **Automated:** `.devcontainer/` in each repo; the environment itself is
 `system-setup --profile container`. web-tools-container is ported
-(2026-11-01, motoko; saito not yet); cb-voice-lab is not, hence
-`status: open`.
+(2026-11-01, motoko; saito not yet); med-plan-assistant is ported
+(2026-11-07, motoko; Node 24 pinned via `.nvmrc`, `npm install` in
+`postCreateCommand`); cb-voice-lab is not, hence `status: open`.
 
 Quick start (any repo with a `.devcontainer/`):
 
