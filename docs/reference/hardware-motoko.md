@@ -1,84 +1,30 @@
 ---
-title: Hardware inventory — motoko (desktop)
+title: Hardware constraints — motoko (desktop)
 hosts: [motoko]
 status: resolved
-tags: [hardware, inventory, pcie, psu]
-updated: 2026-07-12
+tags: [hardware, pcie, psu, nvme]
+updated: 2026-11-07
 ---
 
-# motoko — hardware
+# motoko — hardware constraints
 
-Desktop workstation. Main rebuild **2025-10**; the GPU and PSU were carried over
-from the previous build (see [PSU](#psu-the-weak-link) — this matters).
+Desktop workstation, Ryzen 9 9950X3D on an MSI MPG X870E Carbon WiFi with an RTX
+4070 Ti. Main rebuild **2025-10**; the GPU and PSU were carried over from the
+previous build.
 
-Kept as a doc because most of this is awkward to retrieve at runtime (needs
-`sudo dmidecode`, or opening the case) and hardware changes rarely.
+This note holds only the reasoning that outlives the parts list. The inventory
+(models, serials, firmware, purchase dates) is private and lives in
+`~/notes/systems/motoko/hardware.md`.
 
-## Core
+## Storage roles
 
-| Part | Model |
-| ---- | ----- |
-| **CPU** | AMD Ryzen 9 9950X3D — 16C/32T, AM5, dual-CCD with 3D V-Cache |
-| **Cooler** | Noctua NH-D15 G2 (dual tower) |
-| **RAM** | Corsair Vengeance DDR5 96 GB (2×48 GB) 6000 MT/s CL30-36-36-76 @1.40 V — `CMK96GX5M2B6000Z30`, EXPO |
-| **GPU** | Gigabyte GeForce RTX 4070 Ti GAMING OC 12 GB *(carried over)* |
-| **Board** | MSI MPG X870E Carbon WiFi (AM5, ATX) |
-| **Case** | Fractal Design Define 7 Black Solid, Midi Tower |
-| **PSU** | **be quiet! Straight Power 11, 750 W** — 80+ Gold, fully modular, **ATX 2.x** *(carried over; bought ~2019 as a replacement, fitted by a local shop)* |
-| **Monitor** | LG 38GN950 (37.5" ultrawide, 3840×1600, 144 Hz) |
+> The **Crucial P3 Plus is deliberately not a boot drive.** It is DRAM-less, which
+> caused severe system lag: booting and restoring Windows from hibernate took
+> forever as apps and services auto-started. Two Samsung 990 PROs replaced it in
+> that role. Do not "reclaim" it as a system drive.
 
-RAM runs at its rated 6000 MT/s with EXPO enabled (confirmed via
-`dmidecode -t memory`). 2×48 GB @ 6000 CL30 is stable out of the box on AM5;
-enable EXPO and leave everything else on Auto.
-
-## Storage
-
-**NVMe (M.2):**
-
-| Drive | Model | Use |
-| ----- | ----- | --- |
-| 4 TB Samsung 990 PRO | `MZ-V9P4T0BW` | Windows 11 |
-| 4 TB Samsung 990 PRO | `MZ-V9P4T0BW` | **Ubuntu (primary OS)** |
-| 4 TB Crucial P3 Plus | `CT4000P3PSSD8` | `D:` — games/data (NTFS) |
-
-> The **P3 Plus is deliberately not a boot drive.** It has no (or inadequate)
-> DRAM cache, which caused severe system lag — booting and restoring Windows from
-> hibernate took forever as apps and services auto-started. Replaced in that role
-> by the two 990 PROs. Do not "reclaim" it as a system drive.
-
-**SATA:** Crucial MX500 2 TB (`CT2000MX500SSD1`), Samsung 850 EVO 500 GB.
-
-Live device map (`hwinfo --short`): `nvme0n1` + `nvme1n1` = the two Samsung 990 PROs,
-`nvme2n1` = the Crucial P3 Plus, `sda` = MX500, `sdb` = 850 EVO.
-
-## Network & peripherals
-
-| Interface | Device | Use |
-| --------- | ------ | --- |
-| `enp6s0` | Realtek RTL8125 **2.5 GbE** | direct link to [saito](hardware-saito.md) |
-| `enp7s0` | Realtek Gigabit | — |
-| `wlp14s0` | Qualcomm | WiFi |
-| `qtun` | — | NordVPN (NordLynx) |
-
-Peripherals worth recording (they show up in `hwinfo` and occasionally in bug
-hunts): Logitech Unifying receiver (keyboard + mouse), Logitech C922 Pro webcam,
-3Dconnexion SpaceMouse Wireless, **Feitian U2F** security key (see
-[../setup/security.md](../setup/security.md)), Sony WH-1000XM4 (Bluetooth),
-MSI Mystic Light (RGB).
-
-## Refreshing this doc
-
-Most of the above comes straight from:
-
-```bash
-hwinfo --short
-```
-
-That is also how the second WD Elements on saito was spotted — a hand-maintained
-inventory drifts. Re-run it after any hardware change and reconcile.
-
-What `hwinfo` will *not* tell you: the **PSU** (no electrical bus to report on), RAM
-part numbers (`sudo dmidecode -t memory`), and the exact board revision.
+Identify drives by model or serial: the kernel's `nvmeXn1` numbering is not
+stable across boots.
 
 ## PCIe lane sharing (X870E Carbon)
 
