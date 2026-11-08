@@ -12,7 +12,7 @@ automated_by: .devcontainer/Dockerfile
 **Automated:** `.devcontainer/` in each repo; the environment itself is
 `system-setup --profile container`. web-tools-container is ported
 (2026-11-01, motoko; saito not yet); med-plan-assistant is ported
-(2026-11-07, motoko; Node 24 pinned via `.nvmrc`, `npm install` in
+(2026-11-07, motoko; Node 26 pinned via `.nvmrc`, `npm ci` in
 `postCreateCommand`); cb-voice-lab is not, hence `status: open`.
 
 Quick start (any repo with a `.devcontainer/`):
@@ -273,6 +273,32 @@ Learned porting web-tools-container:
   one layer later, so the dotfiles PATH (fnm, `~/.local/bin`) is not active
   yet. Check at runtime instead: `yt-dlp -v --simulate` lists `JS runtimes:
   node-…` and `curl_cffi` once the container is up.
+
+## Node.js in containers
+
+Node comes from `22-fnm` (LTS at build time), so every container has it.
+
+- **Non-Node projects** (voice-lab, web-tools, dotfiles): no pin. They get
+  the LTS of the day, whenever the `system-setup` layer is built. That layer
+  is cached, so it goes stale: rebuild with `CACHE_BUST=$(date +%s) dcre .`
+  after a Node security release. (Oct 2026 releases: fixed in 22.23.4,
+  24.22.1, 26.12.1; the zlib/Brotli, TLS and DNS issues are in the runtime
+  itself, not in npm packages.)
+- **Node projects** (med-plan-assistant): pin a major (an even-numbered LTS)
+  in `.nvmrc` plus `engines` in `package.json`; install in
+  `postCreateCommand` with `zsh -lc '… && cd /workspace && fnm install &&
+  eval "$(fnm env)" && fnm use && fnm default "$(cat .nvmrc)" && npm ci'`.
+  A major pin still gets the newest patch on every container recreate.
+  Review the major once a year (Oct/Nov, when the next LTS starts).
+- **Commit `package-lock.json`** and use `npm ci`; add
+  `.github/dependabot.yml` (weekly) and enable Dependabot security updates
+  on GitHub. Dependency CVEs are the other half of the risk.
+- **Do not `npm update` during a build**: builds would stop being
+  reproducible. Updates go through reviewed PRs.
+- Do not update npm separately from Node; it ships with Node.
+- Warnings in `npm ci` output: "install-scripts … not covered by
+  allowScripts" is the npm 11 safety feature (review with `npm
+  install-scripts ls`); "new major version of npm" can be ignored.
 
 ## Later
 
