@@ -14,6 +14,7 @@ configs, deployed into `$HOME` via symlinks.
 | `system-scripts/`   | Scripts/units deployed outside `$HOME` (see section below)          |
 | `setup/`            | Idempotent system setup modules (`bin/system-setup`; see below)     |
 | `tools/`            | Repo tooling, notably the linking system (`tools/link.sh`)          |
+| `tests/`            | Tests for `bin/` tools; each file runs by itself (PEP 723, `uv`)    |
 | `docs/`             | Human documentation and system notes (see below)                    |
 
 ## Critical Workflow: Dotfiles Linking

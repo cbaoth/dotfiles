@@ -3,7 +3,7 @@ title: Text-to-speech (read selection aloud)
 hosts: [motoko]
 status: resolved
 tags: [tts, piper, sway, accessibility, voxtral, translation]
-updated: 2026-11-03
+updated: 2026-11-08
 ---
 
 # Text-to-speech: read the selection aloud
@@ -15,15 +15,61 @@ updated: 2026-11-03
 
 **Use:** select text anywhere, press **Fn+F6** on the Logitech MX Mechanical (a Solaar rule, see [keyboard input](../reference/keyboard-input.md); other keyboards: bind `tts-speak toggle` in sway). Press again to stop.
 Selecting is enough (primary selection; clipboard is the fallback).
+**Fn+F7** (`tts-speak toggle --clipboard`) is the same with the clipboard first:
+for the "copy as markdown" browser extension and the "Copy" buttons of AI chats,
+which is how to get real Markdown out of a page. Browsers offer only plain text
+on the primary selection, no `text/html` (checked 2026-11-08, Vivaldi and Firefox).
 
 ## Parts
 
 | Piece | Role |
 | ----- | ---- |
-| `bin/tts-clean` | Engine-independent text cleaner: footnotes, URLs, markdown, dotted abbreviations (`S.M.A.R.T.` -> "Smart", `z.B.` -> "zum Beispiel"), numbers spelled out (de, en), line-wrap repair, sentence chunking, de/en detection |
+| `bin/tts-clean` | Engine-independent text cleaner, see *What the cleaner says* below: markdown, footnotes, reference sections, URLs, paths and other entities, dotted abbreviations (`S.M.A.R.T.` -> "Smart", `z.B.` -> "zum Beispiel"), numbers spelled out (de, en), line-wrap repair, sentence chunking, de/en detection. Golden tests: `tests/test_tts_clean.py` |
 | `bin/tts-speak` | Selection/stdin/args -> clean -> engine -> `pw-play`. Playback starts while later chunks are still being synthesized. `toggle` / `stop` / `list`, `-o file` to save, `-k DIR` to keep sessions |
 | `~/.config/tts/tts-speak.conf` | Engine, speed, voice per language (shipped as `home/.config/tts/`) |
-| key binding | Solaar rule in `home/.config/solaar/rules.yaml` (Fn+F6, motoko); no sway binding |
+| key binding | Solaar rules in `home/.config/solaar/rules.yaml` (Fn+F6, Fn+F7, motoko); no sway binding |
+
+## What the cleaner says
+
+Input is always parsed as Markdown (`markdown-it-py`, indented code off so plain
+text with a margin survives). Everything else is rule-based; no LLM.
+
+| Written | Spoken (en / de) |
+| ------- | ---------------- |
+| `https://www.example.org/a?b=1` | "web address example dot org" / "Web Adresse example Punkt org" |
+| `ssh://git@host.example:22/x`, `ftp://…` | "SSH address host dot example", "FTP address …" |
+| `[text](url)` | "text" |
+| `example.org/docs` (no scheme) | as a URL, only for a short TLD list: `README.md`, `file.py` end in real TLDs |
+| `jane.doe@example.org` | "jane dot doe at example dot org" |
+| `/home/u/.config/app/config.ini` | "file config dot ini" / "Datei config Punkt ini" |
+| `bin/tts-clean:42` | "file tts clean, line forty-two" |
+| Code block | "Code block, Bash, three lines, skipped." / "Codeblock, S Q L, drei Zeilen, ausgelassen." |
+| Inline code | read cleaned up; over 60 characters: "code skipped" |
+| Table up to 6 rows, 4 columns | row by row: "Name foo, Value 1." |
+| Larger table | "Table, 12 rows, skipped." |
+| `[1]`, `[^1]`, `Plato¹`, `this.12 Then`, `[edit]`, note bodies | nothing |
+| Trailing "References", "See also", "Einzelnachweise", "Weblinks", … | nothing (`tts-clean --keep-references` keeps them) |
+| `+49 170 1234567` | digit by digit, in the written groups |
+| `v1.2.3`, `Python 3.12`, `192.168.1.1` | "one dot two dot three", … |
+| `2bd15e9`, UUID | "Hash", "UUID" |
+| `MAX_RETRY_COUNT` | "max retry count" |
+| `5 km`, `20 °C`, `3.5 GB/s` | full unit words |
+| `x^2`, `mc²` | "x to the power of two" / "x hoch zwei" |
+| `🚀 Launch`, `:rocket: Launch` | "rocket emoji, Launch" / "Rakete Emoji, Launch": a leading emoji acts as a bullet; a run is named once; names from the `emoji` package (CLDR) |
+
+- **Spoken forms are held back** on private-use characters until abbreviation
+  and number passes are done, so they cannot rewrite them (`Speaker`, `Held`).
+- **Code block languages** are a table (`CODE_LANGUAGES`): aliases, spoken form,
+  optional German one (SQL is "sequel" / "S Q L"). Unknown ones are read as written;
+  add a row when one sounds wrong.
+- **Reference sections** are only cut as a trailing run: walking back from the
+  end, the first ordinary heading stops it, so "Notes" mid-text survives. Plain
+  text has no headings, so a one-line paragraph counts only for unmistakable
+  titles ("Einzelnachweise", not "Quellen").
+- **Not handled (by choice, for now):** math (`$…$` is read as written), site
+  specific URL rules ("the German Wikipedia article …"), any LLM step.
+- `tts-clean` now has dependencies (PEP 723, `uv` provisions them on first run;
+  about 0.08 s per call afterwards).
 
 ## Playback, pause, rewind
 

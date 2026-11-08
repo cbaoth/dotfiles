@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = []
+# dependencies = ["emoji", "markdown-it-py", "mdit-py-plugins", "phonenumbers"]
 # ///
 """Clean text for speech synthesis: drop what is meant for the eye, not the ear.
 
@@ -9,10 +9,14 @@ Reads stdin, writes the cleaned text to stdout. Engine-independent on purpose:
 TTS models cannot be relied on to skip footnote markers or URLs, so every
 engine behind tts-speak gets the same pre-processed text.
 
-Removes or rewrites:
-  * ANSI escapes, box-drawing characters, markdown syntax, code fences
-  * footnote/citation markers (``[1]``, ``[citation needed]``, ``^3``, superscripts)
-  * URLs (and the parentheses around them)
+Input is always parsed as markdown; plain text passes through unharmed. Removes or rewrites:
+  * ANSI escapes, box-drawing and agent UI characters, markdown syntax, HTML
+  * emoji and ``:shortcodes:`` (named: ``rocket emoji``, ``Rakete Emoji``)
+  * code blocks (announced with their language and length), small tables (row by row; large ones announced)
+  * footnotes and citation markers (``[1]``, ``[^1]``, ``[citation needed]``, superscripts), trailing
+    "References" / "Einzelnachweise" / "Siehe auch" sections
+  * URLs (``https://www.example.org/a?b=1`` -> ``web address example dot org``), emails, file paths (basename only),
+    phone numbers, IP addresses, versions, commit hashes, identifiers, units
   * dotted abbreviations (``S.M.A.R.T.`` -> ``Smart``, ``z.B.`` -> ``zum Beispiel``)
   * hard line wraps inside a paragraph (terminal selections are full of them)
   * numbers, German and English (``$156`` -> ``one hundred fifty-six dollars``; ``--no-numbers`` keeps digits)
@@ -21,37 +25,107 @@ Removes or rewrites:
 from __future__ import annotations
 
 import argparse
+import html
 import re
 import sys
+from dataclasses import dataclass, field
 from itertools import pairwise
+from urllib.parse import urlsplit
+
+import emoji
+import phonenumbers
+from markdown_it import MarkdownIt
+from markdown_it.token import Token
+from mdit_py_plugins.footnote import footnote_plugin
+
+# Indented code is off: in plain text, a four-space indent is a paragraph or a terminal margin, not code.
+MARKDOWN = (
+    MarkdownIt("commonmark", {"html": True}).enable(["table", "strikethrough"]).disable("code").use(footnote_plugin)
+)
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07")
 BOX_RE = re.compile(r"[─-╿▀-▟]+")
-FENCE_RE = re.compile(r"^\s*(```|~~~).*?^\s*\1[^\n]*$", re.DOTALL | re.MULTILINE)
-IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
-LINK_RE = re.compile(r"\[([^\]]+)\]\((?:[^)\s]+)(?:\s+\"[^\"]*\")?\)")
-URL_RE = re.compile(r"(?:https?://|ftp://|www\.)[^\s<>\"')\]]+", re.IGNORECASE)
-# "(see )" is what is left of "(see https://...)" once the URL is gone
+# Agent UI marks (Claude Code: tool bullets, result corners).
+UI_MARKS_RE = re.compile(r"[⏺⎿⎯❯●]")
+# What is left once emoji are named: unnamed decoration, stray joiners. Arrows are left to SYMBOLS.
+DECOR_RE = re.compile(r"[\U0001F000-\U0001FAFF☀-➿⬀-⯿⏩-⏺\ufe0f\u200d\u20e3]")
+# Listed as emoji, but used as plain symbols or bullets.
+EMOJI_TEXT_SYMBOLS = frozenset("©®™‼⁉↔↕↖↗↘↙↩↪▪▫▶◀◻◼◽◾Ⓜ")
+# :rocket:, not 12:30:45, [:a:] or a::b.
+EMOJI_SHORTCODE_RE = re.compile(r"(?<![\w:/.\[]):[a-z0-9_+-]+:(?![\w/\]])")
+SKIN_TONE_RE = re.compile(r"[\U0001F3FB-\U0001F3FF]")
+EMOJI_NAME_JUNK_RE = re.compile(r"(?:_|[^\w'’-])+")
+# Control characters, and the code points held spoken forms are parked on (see Held).
+INPUT_JUNK_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\U000F0000-\U0010FFFD]")
+# "(see )" is what is left of "(see [1])" once the marker is gone
 EMPTY_PARENS_RE = re.compile(
     r"\(\s*(?:(?:see|siehe|vgl\.?|cf\.?|source|quelle)\s*:?\s*)?\)|\[\s*\]|<\s*>", re.IGNORECASE
 )
-# [1] [12] [a] [1,2] [1-3] [note 4] [citation needed] [edit] [update]
+# [1] [12] [a] [^1] [1,2] [1-3] [note 4] [citation needed] [edit] [Bearbeiten | Quelltext bearbeiten] [update]
 FOOTNOTE_RE = re.compile(
-    r"\[(?:\d{1,3}(?:\s*[,–-]\s*\d{1,3})*|[a-z]|(?:note|nb|fn)\s*\d+"
-    r"|citation needed|edit|update[sd]?|clarification needed|when\?|who\?|according to whom\?)\]",
+    r"\[(?:\d{1,3}(?:\s*[,–-]\s*\d{1,3})*|[a-z]|\^[\w-]+|(?:note|nb|fn)\s*\d+"
+    r"|citation needed|edit|bearbeiten(?:\s*\|\s*quelltext bearbeiten)?|quelltext bearbeiten"
+    r"|update[sd]?|clarification needed|when\?|who\?|according to whom\?)\]",
     re.IGNORECASE,
 )
-CARET_RE = re.compile(r"\^\d{1,3}\b")
+# A marker has no base right before it; "x^2" and "mc²" are powers (POWER_RE).
+CARET_RE = re.compile(r"(?<!\w)\^\d{1,3}\b")
 SUPERSCRIPT_RE = re.compile(r"[¹²³⁰-⁹]+")
+POWER_RE = re.compile(r"(?<![\w^])(\w{1,3})(?:\^(\d{1,3})\b|([¹²³⁰-⁹]+))")
+SUPERSCRIPT_DIGITS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
+# "this.12 Then": a footnote that lost its superscript when copied. The four letters keep "Nr.12" and "Abb.3" out.
+BARE_FOOTNOTE_RE = re.compile(r"(?<=[a-zäöüß]{4}[.!?\"”)])\d{1,3}(?=\s+[A-ZÄÖÜ\"„“]|\s*$)", re.MULTILINE)
 # S.M.A.R.T.  U.S.A.  (two or more single letters, each followed by a dot)
 DOTTED_ACRONYM_RE = re.compile(r"\b(?:[A-Za-z]\.){2,}(?=\W|$)")
-HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+", re.MULTILINE)
-BULLET_RE = re.compile(r"^\s*(?:[-*+•]|\d{1,3}[.)])\s+", re.MULTILINE)
-EMPHASIS_RE = re.compile(r"(\*\*|__|\*|_|~~)(?=\S)(.+?)(?<=\S)\1")
-INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
+# Bullets markdown does not know, e.g. from a rendered web page.
+BULLET_RE = re.compile(r"^\s*[•‣◦▪]\s+", re.MULTILINE)
 TABLE_RULE_RE = re.compile(r"^\s*\|?[\s:|-]{3,}\|?\s*$", re.MULTILINE)
-# Marks the start of a list item between strip_markup() and reflow().
+
+_URL_CHARS = r"(?:[^\s<>\"'`()\[\]]|\([^\s()]*\))+"
+URL_RE = re.compile(rf"\b[A-Za-z][A-Za-z0-9+.-]{{1,15}}://{_URL_CHARS}|\bwww\.{_URL_CHARS}")
+SCP_RE = re.compile(r"(?<![\w.-])[\w.-]+@([\w-]+(?:\.[\w-]+)+):[\w./~-]+")
+EMAIL_RE = re.compile(r"(?<![\w.+-])(?:mailto:)?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)\b")
+# Scheme-less domains only for these: README.md, file.py, tool.sh and node.js all end in real TLDs.
+_BARE_TLDS = "com|org|net|de|at|ch|eu|io|dev|app|ai|edu|gov|info|uk"
+BARE_DOMAIN_RE = re.compile(
+    rf"(?<![\w@./-])((?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?:{_BARE_TLDS}))(?![\w(-]|\.\w)(?:/{_URL_CHARS})?"
+)
+IP_RE = re.compile(r"(?<![\w.])((?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3})(?::\d+)?(?!\w|\.\w)")
+UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\b")
+_PATH_CHARS = r"[\w.+@%=,-]"
+WINDOWS_PATH_RE = re.compile(r"(?<![\w\\])(?:[A-Za-z]:\\|\\\\)[^\s\"'<>|:*?]+")
+# Anchored: "~/x", "./x", "../x", or "/a/b". Unanchored "and/or", "km/h", "A/B" never match.
+UNIX_PATH_RE = re.compile(
+    rf"(?<![\w/.:~\\-])(?:(?:~|\.{{1,2}})/(?:{_PATH_CHARS}+/?)+|/{_PATH_CHARS}+(?:/{_PATH_CHARS}+)+/?)"
+    r"(?::(\d+))?(?::\d+)?"
+)
+RELATIVE_PATH_RE = re.compile(r"(?<![\w/.:~-])(?:[\w.-]+/)+[\w.-]+(?::(\d+))?(?::\d+)?")
+PATH_EXTENSION_RE = re.compile(r"[^.]\.[a-z][a-z0-9]{1,4}$")
+BARE_RELATIVE_PATH_RE = re.compile(r"[\w.+-]+(?:/[\w.+-]+)+/?")
+VERSION_RE = re.compile(r"(?<![\w.])(v?)(\d+(?:\.\d+)+)(?:[-+][\w.]*\w)?(?!\w|\.\w)")
+# Two-part numbers are versions only after a product name; "Price 3.50" is a decimal.
+PRODUCT_VERSION_RE = re.compile(
+    r"\b(Python|Node|Ubuntu|Debian|Fedora|Linux|Kernel|Java|PHP|Ruby|Rust|Perl|Lua|Firefox|Chrome|Vivaldi|Sway"
+    r"|Claude|Opus|Sonnet|Haiku|GPT|Gemini|Llama|Qwen)(\s+)(\d+\.\d+)(?!\w|\.\w)"
+)
+HASH_RE = re.compile(r"\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b")
+POSTCODE_RE = re.compile(r"(?<=, )\d{5}(?=\s+[A-ZÄÖÜ][a-zäöüß-]+)|^\d{5}(?=\s+[A-ZÄÖÜ][a-zäöüß-]+\s*$)", re.MULTILINE)
+IDENTIFIER_RE = re.compile(r"(?<![\w/.-])[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+(?![\w/-])")
+CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+CLI_FLAG_RE = re.compile(r"(?<!\S)--?(?=[A-Za-z])")
+NAME_SEPARATOR_RE = re.compile(r"[_-]+")
+# Inline code longer than this is a command or snippet, not a word in a sentence.
+MAX_SPOKEN_CODE = 60
+# Above either limit a table is announced instead of read row by row.
+MAX_TABLE_ROWS, MAX_TABLE_COLUMNS = 6, 4
+
+# Marks the start of a list item between render_blocks() and reflow().
 ITEM_MARK = "\x01"
+# Marks a named emoji until scrub() sees the whole line (a leading one acts as a bullet); the slot is one not yet named.
+EMOJI_MARK, EMOJI_SLOT = "\x02", "\x03"
+EMOJI_RUN_RE = re.compile(rf"(\w?)({EMOJI_SLOT}(?:[ \t]*{EMOJI_SLOT})*)(\w?)")
+LINE_EMOJI_RE = re.compile(rf"^[ \t]*{EMOJI_MARK}(.)[ \t]*(?=\S)", re.MULTILINE)
+HELD_RE = re.compile(r"[\U000F0000-\U0010FFFD]")
 # A line at least this fraction of the widest line is taken as hard-wrapped, not as a heading/item.
 WRAP_RATIO = 0.6
 SENTENCE_END = tuple(".!?:;…。\"')]”»")
@@ -80,6 +154,9 @@ ABBREVIATIONS = {
         r"\bMrd\.": "Milliarden",
         r"\bNr\.": "Nummer",
         r"\bSt\.": "Sankt",
+        r"\bS\.\s?(?=\d)": "Seite ",
+        r"\bpp?\.\s?(?=\d)": "Seite ",
+        r"\bet al\.": "und andere",
     },
     "en": {
         r"\be\.g\.": "for example",
@@ -91,7 +168,155 @@ ABBREVIATIONS = {
         r"\bincl\.": "including",
         r"\bfig\.": "figure",
         r"\bNo\.(?=\s?\d)": "number",
+        r"\bpp\.\s?(?=\d)": "pages ",
+        r"\bp\.\s?(?=\d)": "page ",
+        r"\bet al\.": "and others",
     },
+}
+
+WORDS = {
+    "en": {"dot": "dot", "address": "address", "web": "web", "file": "file", "folder": "folder", "path": "path",
+           "line": "line", "code_block": "Code block", "table": "Table", "skipped": "skipped", "emoji": "emoji",
+           "code_skipped": "code skipped", "times": "times", "power": "to the power of", "about": "about"},
+    "de": {"dot": "Punkt", "address": "Adresse", "web": "Web", "file": "Datei", "folder": "Ordner", "path": "Pfad",
+           "line": "Zeile", "code_block": "Codeblock", "table": "Tabelle", "skipped": "ausgelassen", "emoji": "Emoji",
+           "code_skipped": "Code ausgelassen", "times": "mal", "power": "hoch", "about": "circa"},
+}
+# (exactly one, more than one), both with the article German needs and English does not
+COUNTS = {
+    "en": {"line": ("one line", "lines"), "row": ("one row", "rows")},
+    "de": {"line": ("eine Zeile", "Zeilen"), "row": ("eine Zeile", "Zeilen")},
+}
+
+# Schemes whose name is spelled out; any other is read as written.
+SPELLED_SCHEMES = {"ftp", "ftps", "sftp", "scp", "ssh", "nfs", "smb", "rtsp", "rtmp", "imap", "imaps", "tcp", "udp"}
+WEB_SCHEMES = {"", "http", "https", "ws", "wss"}
+
+# Code block language: (info strings, spoken in English, spoken in German if different). Anything else is read as is.
+CODE_LANGUAGES = [
+    (("bash",), "Bash"),
+    (("sh", "shell"), "Shell"),
+    (("zsh",), "Z Shell"),
+    (("fish",), "Fish"),
+    (("powershell", "pwsh", "ps1"), "Power Shell"),
+    (("console", "terminal", "shell-session", "shellsession"), "Terminal"),
+    (("python", "py", "python3"), "Python"),
+    (("javascript", "js", "jsx", "mjs", "cjs", "node"), "Java Script"),
+    (("typescript", "ts", "tsx"), "Type Script"),
+    (("json", "jsonc", "json5"), "Jason"),
+    (("yaml", "yml"), "Yammel"),
+    (("toml",), "Tommel"),
+    (("xml",), "X M L"),
+    (("html", "htm"), "H T M L"),
+    (("css",), "C S S"),
+    (("scss",), "S C S S"),
+    (("sql",), "sequel", "S Q L"),
+    (("c",), "C"),
+    (("cpp", "c++", "cc", "cxx", "hpp"), "C plus plus"),
+    (("csharp", "cs", "c#"), "C sharp"),
+    (("java",), "Java"),
+    (("kotlin", "kt"), "Kotlin"),
+    (("go", "golang"), "Go"),
+    (("rust", "rs"), "Rust"),
+    (("ruby", "rb"), "Ruby"),
+    (("php",), "P H P"),
+    (("perl", "pl"), "Perl"),
+    (("lua",), "Lua"),
+    (("swift",), "Swift"),
+    (("dockerfile", "docker"), "Docker"),
+    (("makefile", "make"), "Make"),
+    (("nix",), "Nix"),
+    (("diff", "patch"), "Diff"),
+    (("markdown", "md", "mkd"), "Mark Down"),
+    (("asciidoc", "adoc"), "Ascii Doc"),
+    (("ini", "conf", "cfg"), "Ini"),
+    (("latex", "tex"), "Latech"),
+    (("vim", "viml"), "Vim"),
+    (("awk",), "Awk"),
+    (("sed",), "Sed"),
+    (("regex", "regexp"), "Regex"),
+    (("graphql", "gql"), "Graph Q L"),
+    (("mermaid",), "Mermaid"),
+    (("http",), "H T T P"),
+    (("nginx",), "Engine X"),
+    (("csv",), "C S V"),
+]
+CODE_LANGUAGE_INDEX = {alias: entry for entry in CODE_LANGUAGES for alias in entry[0]}
+CODE_NO_LANGUAGE = {"text", "txt", "plain", "plaintext", "none", "nohighlight", "output"}
+
+# Unit: (English singular, English plural, German with "1", German otherwise)
+UNITS = {
+    "km": ("kilometer", "kilometers", "ein Kilometer", "Kilometer"),
+    "m": ("meter", "meters", "ein Meter", "Meter"),
+    "cm": ("centimeter", "centimeters", "ein Zentimeter", "Zentimeter"),
+    "mm": ("millimeter", "millimeters", "ein Millimeter", "Millimeter"),
+    "km/h": ("kilometer per hour", "kilometers per hour", "ein Kilometer pro Stunde", "Kilometer pro Stunde"),
+    "m/s": ("meter per second", "meters per second", "ein Meter pro Sekunde", "Meter pro Sekunde"),
+    "m²": ("square meter", "square meters", "ein Quadratmeter", "Quadratmeter"),
+    "km²": ("square kilometer", "square kilometers", "ein Quadratkilometer", "Quadratkilometer"),
+    "m³": ("cubic meter", "cubic meters", "ein Kubikmeter", "Kubikmeter"),
+    "kg": ("kilogram", "kilograms", "ein Kilogramm", "Kilogramm"),
+    "g": ("gram", "grams", "ein Gramm", "Gramm"),
+    "mg": ("milligram", "milligrams", "ein Milligramm", "Milligramm"),
+    "ml": ("milliliter", "milliliters", "ein Milliliter", "Milliliter"),
+    "h": ("hour", "hours", "eine Stunde", "Stunden"),
+    "min": ("minute", "minutes", "eine Minute", "Minuten"),
+    "s": ("second", "seconds", "eine Sekunde", "Sekunden"),
+    "ms": ("millisecond", "milliseconds", "eine Millisekunde", "Millisekunden"),
+    "µs": ("microsecond", "microseconds", "eine Mikrosekunde", "Mikrosekunden"),
+    "ns": ("nanosecond", "nanoseconds", "eine Nanosekunde", "Nanosekunden"),
+    "°C": ("degree Celsius", "degrees Celsius", "ein Grad Celsius", "Grad Celsius"),
+    "°F": ("degree Fahrenheit", "degrees Fahrenheit", "ein Grad Fahrenheit", "Grad Fahrenheit"),
+    "KB": ("kilobyte", "kilobytes", "ein Kilobyte", "Kilobyte"),
+    "kB": ("kilobyte", "kilobytes", "ein Kilobyte", "Kilobyte"),
+    "MB": ("megabyte", "megabytes", "ein Megabyte", "Megabyte"),
+    "GB": ("gigabyte", "gigabytes", "ein Gigabyte", "Gigabyte"),
+    "TB": ("terabyte", "terabytes", "ein Terabyte", "Terabyte"),
+    "KiB": ("kibibyte", "kibibytes", "ein Kibibyte", "Kibibyte"),
+    "MiB": ("mebibyte", "mebibytes", "ein Mebibyte", "Mebibyte"),
+    "GiB": ("gibibyte", "gibibytes", "ein Gibibyte", "Gibibyte"),
+    "TiB": ("tebibyte", "tebibytes", "ein Tebibyte", "Tebibyte"),
+    "MB/s": ("megabyte per second", "megabytes per second", "ein Megabyte pro Sekunde", "Megabyte pro Sekunde"),
+    "GB/s": ("gigabyte per second", "gigabytes per second", "ein Gigabyte pro Sekunde", "Gigabyte pro Sekunde"),
+    "Mbit/s": ("megabit per second", "megabits per second", "ein Megabit pro Sekunde", "Megabit pro Sekunde"),
+    "Gbit/s": ("gigabit per second", "gigabits per second", "ein Gigabit pro Sekunde", "Gigabit pro Sekunde"),
+    "Hz": ("hertz", "hertz", "ein Hertz", "Hertz"),
+    "kHz": ("kilohertz", "kilohertz", "ein Kilohertz", "Kilohertz"),
+    "MHz": ("megahertz", "megahertz", "ein Megahertz", "Megahertz"),
+    "GHz": ("gigahertz", "gigahertz", "ein Gigahertz", "Gigahertz"),
+    "kW": ("kilowatt", "kilowatts", "ein Kilowatt", "Kilowatt"),
+    "kWh": ("kilowatt hour", "kilowatt hours", "eine Kilowattstunde", "Kilowattstunden"),
+}
+UNIT_RE = re.compile(
+    r"(?<![\w.,$€£])(\d(?:[\d.,]*\d)?)\s?(" + "|".join(re.escape(u) for u in sorted(UNITS, key=len, reverse=True))
+    + r")(?![\w/²³])"
+)
+
+# Spoken symbols. The ASCII ones need the spaces: "a->b" is code, "foo&bar" a name.
+SYMBOLS = {
+    "en": {"→": " to ", "⇒": " so ", "≥": " greater than or equal to ", "≤": " less than or equal to ", "≠": " not equal to ",
+           "≈": " about ", "×": " times ", "±": " plus or minus ", " -> ": " to ", " => ": " so ",
+           " >= ": " greater than or equal to ", " <= ": " less than or equal to ", " != ": " not equal to ", " & ": " and "},
+    "de": {"→": " zu ", "⇒": " also ", "≥": " größer gleich ", "≤": " kleiner gleich ", "≠": " ungleich ",
+           "≈": " ungefähr ", "×": " mal ", "±": " plus minus ", " -> ": " zu ", " => ": " also ",
+           " >= ": " größer gleich ", " <= ": " kleiner gleich ", " != ": " ungleich ", " & ": " und "},
+}
+SYMBOL_RE = {
+    lang: re.compile("|".join(re.escape(s) for s in sorted(table, key=len, reverse=True)))
+    for lang, table in SYMBOLS.items()
+}
+APPROX_RE = re.compile(r"(?<![\w~/])~(?=\d)")
+DIGIT_STAR_RE = re.compile(r"(?<=\d)\s?\*\s?(?=\d)")
+
+# Section titles that end the readable part of a text, when only such sections follow. Plain text has no heading
+# marks, so a one-line paragraph only counts for the unmistakable titles; "Notes" or "Quellen" need a real heading.
+REFERENCE_TITLES_PLAIN = {
+    "references", "see also", "external links", "further reading", "bibliography", "footnotes",
+    "einzelnachweise", "weblinks", "siehe auch", "literaturverzeichnis", "fußnoten",
+}
+REFERENCE_TITLES = REFERENCE_TITLES_PLAIN | {
+    "notes", "sources", "citations", "works cited",
+    "anmerkungen", "quellen", "quellenangaben", "belege", "literatur", "referenzen",
 }
 
 STOPWORDS = {
@@ -127,25 +352,414 @@ def expand_abbreviations(text: str, lang: str) -> str:
     return DOTTED_ACRONYM_RE.sub(_acronym, text)
 
 
-def strip_markup(text: str) -> str:
-    """Remove terminal/markdown/citation noise that has no spoken equivalent."""
+def strip_terminal(text: str) -> str:
+    """Remove terminal escapes, UI decoration and control characters."""
     text = ANSI_RE.sub("", text)
+    text = INPUT_JUNK_RE.sub("", text)
     text = BOX_RE.sub(" ", text)
-    text = FENCE_RE.sub(" ", text)
-    text = IMAGE_RE.sub("", text)
-    text = LINK_RE.sub(r"\1", text)
+    return UI_MARKS_RE.sub("", text)
+
+
+def scrub(text: str) -> str:
+    """Remove citation markers and leftovers from a rendered run of inline text."""
     text = FOOTNOTE_RE.sub("", text)
     text = CARET_RE.sub("", text)
     text = SUPERSCRIPT_RE.sub("", text)
-    text = URL_RE.sub("", text)
+    text = BARE_FOOTNOTE_RE.sub("", text)
     text = EMPTY_PARENS_RE.sub("", text)
     text = TABLE_RULE_RE.sub("", text)
     text = text.replace("|", " ")
-    text = HEADING_RE.sub("", text)
-    text = BULLET_RE.sub(ITEM_MARK, text)
-    text = INLINE_CODE_RE.sub(r"\1", text)
-    text = EMPHASIS_RE.sub(r"\2", text)
-    return text
+    text = LINE_EMOJI_RE.sub(rf"{ITEM_MARK}\1, ", text).replace(EMOJI_MARK, "")
+    return BULLET_RE.sub(ITEM_MARK, text)
+
+
+# {{{ Entities
+
+
+def split_tail(raw: str) -> tuple[str, str]:
+    """Split trailing sentence punctuation off a matched URL or path."""
+    core = raw.rstrip(".,;:!?")
+    return core, raw[len(core):]
+
+
+@dataclass
+class Held:
+    """Spoken forms parked on single private-use characters until the text passes are done.
+
+    Abbreviation expansion and number spelling would otherwise rewrite what was already put into words, and the
+    phone number search would see digits in a placeholder made of them.
+    """
+
+    slots: list[str] = field(default_factory=list)
+    base: int = 0xF0000
+
+    def hold(self, spoken: str) -> str:
+        """Store ``spoken``, return its placeholder."""
+        self.slots.append(spoken)
+        return chr(self.base + len(self.slots) - 1)
+
+    def restore(self, text: str) -> str:
+        """Put every held spoken form back."""
+        return HELD_RE.sub(lambda m: self.slots[ord(m.group(0)) - self.base], text)
+
+
+@dataclass
+class Speaker:
+    """Turns the things written for the eye into words, in one language."""
+
+    lang: str
+    held: Held = field(default_factory=Held)
+
+    def text(self, text: str) -> str:
+        """Rewrite every entity found in a run of plain text."""
+        text = DECOR_RE.sub("", self._emoji(text))
+        text = URL_RE.sub(self._on_url, text)
+        text = SCP_RE.sub(lambda m: self.held.hold(f"SSH {self._word('address')} {self._host(m.group(1))}"), text)
+        text = EMAIL_RE.sub(lambda m: self.held.hold(self._email(m.group(1))), text)
+        text = BARE_DOMAIN_RE.sub(self._on_bare_domain, text)
+        text = IP_RE.sub(lambda m: self.held.hold(self._dotted(m.group(1))), text)
+        text = UUID_RE.sub(lambda _: self.held.hold("UUID"), text)
+        text = WINDOWS_PATH_RE.sub(self._on_path, text)
+        text = UNIX_PATH_RE.sub(self._on_path, text)
+        text = RELATIVE_PATH_RE.sub(self._on_relative_path, text)
+        text = VERSION_RE.sub(self._on_version, text)
+        text = PRODUCT_VERSION_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}{self.held.hold(self._dotted(m.group(3)))}", text)
+        text = HASH_RE.sub(lambda _: self.held.hold("Hash"), text)
+        text = self._phones(text)
+        if self.lang == "de":
+            text = POSTCODE_RE.sub(lambda m: self.held.hold(self._digits(m.group(0))), text)
+        text = IDENTIFIER_RE.sub(self._on_identifier, text)
+        text = UNIT_RE.sub(self._on_unit, text)
+        text = POWER_RE.sub(self._on_power, text)
+        text = SYMBOL_RE[self.lang].sub(lambda m: SYMBOLS[self.lang][m.group(0)], text)
+        text = APPROX_RE.sub(f"{self._word('about')} ", text)
+        return DIGIT_STAR_RE.sub(f" {self._word('times')} ", text)
+
+    def code(self, code: str) -> str:
+        """Speak inline code: an entity as such, a word or short command cleaned up, anything longer announced."""
+        code = code.strip()
+        spoken = self.text(code)
+        if len(spoken) == 1 and spoken >= chr(self.held.base):
+            return spoken
+        if BARE_RELATIVE_PATH_RE.fullmatch(code):
+            return self.held.hold(self._path(code, None))
+        if len(code) > MAX_SPOKEN_CODE:
+            return self.held.hold(self._word("code_skipped"))
+        return CLI_FLAG_RE.sub("", CAMEL_RE.sub(" ", spoken))
+
+    def code_block(self, info: str, body: str) -> str:
+        """Announce a code block that is not read aloud."""
+        parts = [self._word("code_block")]
+        language = self._code_language(info)
+        if language:
+            parts.append(language)
+        parts += [self.count(max(body.count("\n"), 1), "line"), self._word("skipped")]
+        return ", ".join(parts) + "."
+
+    def skipped_table(self, rows: int) -> str:
+        """Announce a table too large to read."""
+        return f"{self._word('table')}, {self.count(rows, 'row')}, {self._word('skipped')}."
+
+    def count(self, n: int, unit: str) -> str:
+        """Spell "three lines"."""
+        one, many = COUNTS[self.lang][unit]
+        return one if n == 1 else f"{self._number(n)} {many}"
+
+    def times(self) -> str:
+        """Spoken multiplication sign."""
+        return f" {self._word('times')} "
+
+    def _word(self, key: str) -> str:
+        return WORDS[self.lang][key]
+
+    def _emoji(self, text: str) -> str:
+        """Name the emoji in ``text``, marked for scrub(); a run is one mention: "rocket, sparkles emoji"."""
+        names: list[str] = []
+
+        def note(chars: str, _: dict[str, object]) -> str:
+            if chars[0] in EMOJI_TEXT_SYMBOLS:
+                return chars
+            if chars[0].isdigit():  # 1️⃣ numbers a list item, it is not a picture
+                return EMOJI_MARK + chars[0]
+            names.append(self._emoji_name(chars))
+            return EMOJI_SLOT
+
+        found = iter(names)
+
+        def run(m: re.Match[str]) -> str:
+            spoken = ", ".join(dict.fromkeys(next(found) for _ in range(m.group(2).count(EMOJI_SLOT))))
+            mention = EMOJI_MARK + self.held.hold(f"{spoken} {self._word('emoji')}")
+            return " ".join(filter(None, [m.group(1), mention, m.group(3)]))
+
+        text = EMOJI_SHORTCODE_RE.sub(lambda m: emoji.emojize(m.group(0), language="alias"), text)
+        return EMOJI_RUN_RE.sub(run, emoji.replace_emoji(text, note))
+
+    def _emoji_name(self, chars: str) -> str:
+        """Speak an emoji's name; skin tones say nothing about what it means."""
+        name = emoji.demojize(SKIN_TONE_RE.sub("", chars), language=self.lang, delimiters=("", ""))
+        return EMOJI_NAME_JUNK_RE.sub(" ", name).strip()
+
+    def _number(self, n: int) -> str:
+        return de_cardinal(n) if self.lang == "de" else en_cardinal(n)
+
+    def _digits(self, digits: str) -> str:
+        ones = _DE_ONES if self.lang == "de" else _EN_ONES
+        return " ".join(ones[int(d)] for d in digits)
+
+    def _dotted(self, dotted: str) -> str:
+        """Spell the parts of an IP address or version: "one dot two dot three"."""
+        return f" {self._word('dot')} ".join(self._number(int(p)) for p in dotted.split("."))
+
+    def _host(self, host: str) -> str:
+        """Speak a host name; www. is dropped, "web address" already says it."""
+        host = host.lower().removeprefix("www.")
+        if IP_RE.fullmatch(host):
+            return self._dotted(host)
+        return f" {self._word('dot')} ".join(host.split("."))
+
+    def _email(self, address: str) -> str:
+        user, _, domain = address.partition("@")
+        return f" {self._word('dot')} ".join(user.split(".")) + f" at {self._host(domain)}"
+
+    def _on_url(self, m: re.Match[str]) -> str:
+        core, tail = split_tail(m.group(0))
+        return self.held.hold(self._url(core)) + tail
+
+    def _on_bare_domain(self, m: re.Match[str]) -> str:
+        _, tail = split_tail(m.group(0))
+        return self.held.hold(self._url(m.group(1))) + tail
+
+    def _url(self, url: str) -> str:
+        """Speak a URL as its type and host; path, query and port are of no use by ear."""
+        try:
+            parts = urlsplit(url if "://" in url else f"//{url}")
+            host = parts.hostname
+        except ValueError:
+            parts, host = None, None
+        scheme = parts.scheme.lower() if parts else ""
+        if scheme == "file" and parts:
+            return self._path(parts.path, None)
+        if scheme in WEB_SCHEMES:
+            kind = self._word("web")
+        else:
+            kind = scheme.upper() if scheme in SPELLED_SCHEMES else scheme
+        return f"{kind} {self._word('address')}" + (f" {self._host(host)}" if host else "")
+
+    def _on_path(self, m: re.Match[str]) -> str:
+        line = m.group(1) if m.re.groups else None
+        if line:
+            return self.held.hold(self._path(m.group(0).split(":", 1)[0], line))
+        core, tail = split_tail(m.group(0))
+        return self.held.hold(self._path(core, None)) + tail
+
+    def _on_relative_path(self, m: re.Match[str]) -> str:
+        """Unanchored paths only with a line number or file extension: "km/h" and "A/B" stay as they are."""
+        if m.group(1):
+            return self._on_path(m)
+        core, _ = split_tail(m.group(0))
+        return self._on_path(m) if PATH_EXTENSION_RE.search(core) else m.group(0)
+
+    def _path(self, path: str, line: str | None) -> str:
+        """Speak a path as its last component: "file config dot ini", "file tts clean, line forty-two"."""
+        name = re.split(r"[/\\]", path.rstrip("/\\"))[-1]
+        if path.endswith(("/", "\\")):
+            kind = "folder"
+        else:
+            kind = "file" if line or "." in name else "path"
+        spoken = f"{self._word(kind)} {self._name(name)}"
+        return f"{spoken}, {self._word('line')} {self._number(int(line))}" if line else spoken
+
+    def _name(self, name: str) -> str:
+        """Speak a file name: separators become spaces, dots are named."""
+        spaced = NAME_SEPARATOR_RE.sub(" ", name).strip()
+        return re.sub(r"\s*\.\s*", f" {self._word('dot')} ", spaced).strip()
+
+    def _on_version(self, m: re.Match[str]) -> str:
+        """Speak ``v1.2`` and ``1.2.3``; dates, thousands and plain decimals are left to the number passes."""
+        prefix, dotted = m.group(1), m.group(2)
+        parts = dotted.split(".")
+        if not prefix and (len(parts) < 3 or re.fullmatch(r"\d{1,2}\.\d{1,2}\.(?:\d{2}|\d{4})", dotted)
+                           or all(len(p) == 3 for p in parts[1:])):
+            return m.group(0)
+        return self.held.hold(self._dotted(dotted))
+
+    def _on_identifier(self, m: re.Match[str]) -> str:
+        """``MAX_RETRY_COUNT`` -> "max retry count"; all capitals would be spelled letter by letter."""
+        name = m.group(0)
+        return (name.lower() if name.isupper() else name).replace("_", " ")
+
+    def _on_unit(self, m: re.Match[str]) -> str:
+        number, unit = m.group(1), m.group(2)
+        en_one, en_many, de_one, de_many = UNITS[unit]
+        if self.lang == "de":
+            return de_one if number == "1" else f"{number} {de_many}"
+        return f"{number} {en_one if number == '1' else en_many}"
+
+    def _on_power(self, m: re.Match[str]) -> str:
+        """Speak ``x^2`` and ``mc²``; only short bases, since a word with a raised digit is a footnote."""
+        exponent = m.group(2) or m.group(3).translate(SUPERSCRIPT_DIGITS)
+        return f"{m.group(1)} {self._word('power')} {exponent}"
+
+    def _phones(self, text: str) -> str:
+        """Read valid phone numbers digit by digit, in the groups they were written in."""
+        if sum(c.isdigit() for c in text) < 7:
+            return text
+        region = "DE" if self.lang == "de" else "US"
+        for match in reversed(list(phonenumbers.PhoneNumberMatcher(text, region))):
+            groups = re.findall(r"\+|\d+", match.raw_string)
+            spoken = ", ".join("plus" if g == "+" else self._digits(g) for g in groups).replace("plus, ", "plus ")
+            text = text[:match.start] + self.held.hold(spoken) + text[match.end:]
+        return text
+
+    def _code_language(self, info: str) -> str:
+        """Speak a code block's language: known ones from the table, anything else as written."""
+        words = info.split()
+        name = words[0].strip("{}.").lower() if words else ""
+        if not name or name in CODE_NO_LANGUAGE:
+            return ""
+        entry = CODE_LANGUAGE_INDEX.get(name)
+        if entry is None:
+            return re.sub(r"[/_]", " ", name)
+        return entry[2] if self.lang == "de" and len(entry) > 2 else entry[1]
+
+
+# }}} Entities
+
+
+# {{{ Markdown
+
+
+@dataclass
+class Block:
+    """One rendered block: a paragraph, heading, list item or table row."""
+
+    text: str
+    sep: str = "\n\n"
+    heading: bool = False
+
+
+def render_inline(token: Token, speaker: Speaker) -> str:
+    """Render one block's inline content; links keep their text, images and footnote references vanish."""
+    children = token.children or []
+    out: list[str] = []
+    i = 0
+    while i < len(children):
+        child = children[i]
+        if child.type == "text":
+            out.append(speaker.text(child.content))
+        elif child.type == "code_inline":
+            out.append(speaker.code(child.content))
+        elif child.type in ("softbreak", "hardbreak"):
+            out.append("\n")
+        elif child.type == "link_open":
+            # [1](url) and a [1] that a reference definition turned into a link: a citation, not words
+            if i + 2 < len(children) and children[i + 2].type == "link_close" and children[i + 1].content.isdigit():
+                i += 2
+        elif child.type == "html_inline" and child.content.lower().startswith("<sup"):
+            while i + 1 < len(children) and children[i].content.lower() != "</sup>":
+                i += 1
+        elif child.type in ("em_open", "em_close") and child.markup == "*" and _between_digits(children, i):
+            out.append(speaker.times())  # 2*3*4 is no emphasis
+        i += 1
+    return scrub("".join(out))
+
+
+def _between_digits(children: list[Token], i: int) -> bool:
+    """Whether the delimiter at ``i`` has a digit directly on both sides."""
+    if i == 0 or i + 1 >= len(children):
+        return False
+    before, after = children[i - 1].content, children[i + 1].content
+    return before[-1:].isdigit() and after[:1].isdigit()
+
+
+def render_table(tokens: list[Token], start: int, speaker: Speaker) -> tuple[int, list[Block]]:
+    """Render the table at ``start`` row by row, or announce it; returns the index of its last token and the blocks."""
+    rows: list[list[str]] = []
+    i = start
+    while tokens[i].type != "table_close":
+        if tokens[i].type == "tr_open":
+            rows.append([])
+        elif tokens[i].type == "inline":
+            rows[-1].append(render_inline(tokens[i], speaker).strip())
+        i += 1
+    if not rows:
+        return i, []
+    header, body = rows[0], rows[1:]
+    if len(body) > MAX_TABLE_ROWS or len(header) > MAX_TABLE_COLUMNS:
+        return i, [Block(speaker.skipped_table(len(body)))]
+    blocks = [Block(ITEM_MARK + ", ".join(f"{h} {c}".strip() for h, c in zip(header, row) if c), "\n") for row in body]
+    if blocks:
+        blocks[-1].sep = "\n\n"
+    return i, blocks
+
+
+def render_blocks(tokens: list[Token], speaker: Speaker) -> list[Block]:
+    """Walk the parsed document and render what is worth saying, in order."""
+    blocks: list[Block] = []
+    depth = 0
+    item_start = False
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if token.type == "footnote_block_open":
+            while tokens[i].type != "footnote_block_close":
+                i += 1
+        elif token.type == "fence":
+            blocks.append(Block(speaker.code_block(token.info, token.content)))
+        elif token.type == "table_open":
+            i, rows = render_table(tokens, i, speaker)
+            blocks += rows
+        elif token.type == "html_block":
+            bare = re.sub(r"(?is)<(script|style)\b.*?</\1>|<!--.*?-->|<[^>]+>", " ", token.content)
+            if bare.strip():
+                blocks.append(Block(scrub(speaker.text(html.unescape(bare)))))
+        elif token.type in ("bullet_list_open", "ordered_list_open"):
+            depth += 1
+        elif token.type in ("bullet_list_close", "ordered_list_close"):
+            depth -= 1
+            if not depth and blocks:
+                blocks[-1].sep = "\n\n"
+        elif token.type == "list_item_open":
+            item_start = True
+        elif token.type == "heading_open":
+            i += 1
+            blocks.append(Block(render_inline(tokens[i], speaker), heading=True))
+        elif token.type == "inline":
+            mark = ITEM_MARK if item_start else ""
+            item_start = False
+            blocks.append(Block(mark + render_inline(token, speaker).lstrip(), "\n" if depth else "\n\n"))
+        i += 1
+    return blocks
+
+
+def drop_reference_sections(blocks: list[Block]) -> list[Block]:
+    """Cut the trailing run of "References", "Siehe auch" and the like.
+
+    Walks back from the end and stops at the first ordinary heading, so a "Notes" section in the middle of a
+    text survives. A selection that is nothing but such a section is read: selecting it was deliberate.
+    """
+    cut = None
+    for index in range(len(blocks) - 1, -1, -1):
+        block = blocks[index]
+        title = HELD_RE.sub("", block.text).strip(f" \n.:,{ITEM_MARK}").lower()  # "📚 References" is still one
+        if block.heading:
+            if title not in REFERENCE_TITLES:
+                break
+            cut = index
+        elif title in REFERENCE_TITLES_PLAIN:
+            cut = index
+    return blocks[:cut] if cut else blocks
+
+
+def to_speech_text(text: str, speaker: Speaker, keep_references: bool = False) -> str:
+    """Parse ``text`` as markdown and render it for reflow(), with blocks separated as it expects."""
+    blocks = render_blocks(MARKDOWN.parse(text), speaker)
+    if not keep_references:
+        blocks = drop_reference_sections(blocks)
+    return "".join(b.text + b.sep for b in blocks if b.text.strip(f" \n{ITEM_MARK}"))
+
+
+# }}} Markdown
 
 
 def reflow(text: str) -> str:
@@ -439,15 +1053,22 @@ def spell_numbers_en(text: str) -> str:
 # }}} English numbers
 
 
-def clean(text: str, lang: str = "auto", spell_numbers: bool = True) -> str:
+def detect_language(text: str) -> str:
+    """Guess the language from the words that will be read, so code blocks and URLs cannot tip it."""
+    return detect_lang(to_speech_text(strip_terminal(text), Speaker("en")))
+
+
+def clean(text: str, lang: str = "auto", spell_numbers: bool = True, keep_references: bool = False) -> str:
     """Run the full cleaning pipeline; ``lang`` is ``de``, ``en`` or ``auto``."""
     if lang == "auto":
-        lang = detect_lang(text)
-    text = strip_markup(text)
+        lang = detect_language(text)
+    speaker = Speaker(lang)
+    text = to_speech_text(strip_terminal(text), speaker, keep_references)
     text = expand_abbreviations(text, lang)
     text = reflow(text)
     if spell_numbers:
         text = spell_numbers_de(text) if lang == "de" else spell_numbers_en(text)
+    text = speaker.held.restore(text)
     text = re.sub(r"\s+([,.;:!?])", r"\1", text)  # gaps left behind by removed markers
     text = re.sub(r"([.!?])\s*\.(?!\.)", r"\1", text)
     return text.strip()
@@ -510,14 +1131,16 @@ def main() -> int:
                         help="with --chunk: split sentences longer than N chars at clause breaks "
                              "(; : – then commas), one piece per line (default: the chunk size)")
     parser.add_argument("--no-numbers", action="store_true", help="keep digits (numbers are spelled out by default)")
+    parser.add_argument("--keep-references", action="store_true",
+                        help='keep trailing sections such as "References", "See also", "Einzelnachweise"')
     parser.add_argument("--detect", action="store_true", help="print the detected language (de/en) and exit")
     args = parser.parse_args()
 
     text = sys.stdin.read()
     if args.detect:
-        print(detect_lang(strip_markup(text)))
+        print(detect_language(text))
         return 0
-    cleaned = clean(text, args.lang, spell_numbers=not args.no_numbers)
+    cleaned = clean(text, args.lang, spell_numbers=not args.no_numbers, keep_references=args.keep_references)
     if args.chunk:
         print("\n".join(chunk(cleaned, args.chunk, args.sentence)))
     else:

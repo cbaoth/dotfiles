@@ -114,6 +114,10 @@ sourced libs need explicit handling. `lib/functions.sh` already fixed
   `dotfiles-link` mentions). Deploy needs sudo outside `BSS_TAMPER_*`
   (17:00-05:00); run `dotfiles-link` only after the deploy, or the `~/bin` links
   vanish before the new copies exist.
+- [ ] `bin/tts-clean` optional extras, only if listening shows a need
+  (`docs/setup/tts.md`, *What the cleaner says*)
+  - [ ] [S] Site rules for URLs ("the German Wikipedia article Projekt Gutenberg")
+  - [ ] [M] Math: at least "formula" for `$…$`, maybe `latex-to-speech`
 - [ ] `bin/translate` phase 2: closer integration with the TTS tools (phase 1,
   the standalone tool: `docs/setup/tts.md`, *Translation*)
   - [ ] [M] `tts-speak --translate LANG`: run `translate`, then set `-l LANG`.
