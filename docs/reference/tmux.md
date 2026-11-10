@@ -134,9 +134,33 @@ enabled on 2026-10-01 and reverted the same day once the man page was actually
 read: it addresses neither of the two cases that occur in practice here, since
 both SSH logins attached to the *same* session (`main`, back when `attach` was the only mode).
 
+## Host layouts (one window, several ssh panes)
+
+`bin/tmux-hosts` builds a window with one pane per host (`ssh HOST`) or local
+shell (`-`). A pane falls back to a local shell when ssh exits or fails, so the
+layout never collapses.
+
+| Keys / command | Does |
+| -------------- | ---- |
+| `prefix F1` / `prefix F2` | presets `fleet` (2x2: local, puppet, saito, vserver) / `srv` (3 stacked: local, saito, vserver) |
+| `prefix H` | menu of all presets + "custom hosts..." prompt |
+| `tmux-hosts fleet` | same from a shell; outside tmux it creates/attaches a session |
+| `tmux-hosts - saito 11001001.org` | ad hoc: any hosts, `-` = local shell |
+| `tmux-hosts -l tiled - a b c` | pick a tmux layout (default: stacked up to 3 hosts, else tiled) |
+
+Inside tmux the result is a new window in the current session (`-s` for a new
+session instead). Outside tmux it is a session named after the preset or hosts;
+calling it again attaches to the existing one.
+
+**Add a preset:** one line in `PRESETS` and `PRESET_ORDER` at the top of
+`bin/tmux-hosts`, e.g. `[web]="tiled - web1 web2 db"`. Menu, `--list` and zsh
+completion follow automatically. The `F1`/`F2` bindings in `home/.tmux.conf`
+are hardcoded to the first two; add more there if wanted.
+
 ## Related
 
 - `home/.common_rc` — the hook, with the mode rationale inline.
+- `bin/tmux-hosts` — host layouts, presets.
 - `home/.tmux.conf` — prefix, `detach-on-destroy`, `aggressive-resize`.
 - `~/.claude/skills/mobile-mode/SKILL.md` — phone sessions use a detached
   window (`tmux new-window -d`) to give an interactive step a real tty.

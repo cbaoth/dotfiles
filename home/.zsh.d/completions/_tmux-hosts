@@ -1,0 +1,29 @@
+#compdef tmux-hosts
+# vim: ft=zsh:et:ts=2:sts=2:sw=2
+#
+# Completion for tmux-hosts (bin/tmux-hosts in the dotfiles repo).
+# Autoloaded by compinit via the #compdef tag above.
+#
+# Keep in sync with bin/tmux-hosts: options mirror usage() and the layout list
+# mirrors LAYOUTS. Preset names are discovered live (tmux-hosts --list).
+
+_tmux-hosts_targets() {
+  local -a presets
+  presets=( ${(f)"$(tmux-hosts --list 2>/dev/null)"} )
+  _describe -t presets 'preset' presets
+  _hosts
+}
+
+_tmux-hosts() {
+  _arguments -s \
+    '(-l --layout)'{-l,--layout}'[tmux layout]:layout:(even-horizontal even-vertical main-horizontal main-vertical main-horizontal-mirrored main-vertical-mirrored tiled)' \
+    '(-n --name)'{-n,--name}'[window and session name]:name:' \
+    '(-s --session)'{-s,--session}'[inside tmux: new session instead of window]' \
+    '(-d --detach)'{-d,--detach}'[create only, do not attach or switch]' \
+    '(- *)--list[list presets]' \
+    '(- *)--menu[show the preset menu on a tmux client]:client:' \
+    '(- *)'{-h,--help}'[show help]' \
+    '*:preset or host:_tmux-hosts_targets'
+}
+
+_tmux-hosts "$@"

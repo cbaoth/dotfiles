@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# tmux-hosts: open a tiled tmux window with one pane per host (ssh) or a local shell.
+
+# Inside tmux the window is added to the current session; outside, a session
+# is created (or re-attached if it already exists). Every ssh pane falls back
+# to a local shell when ssh exits or fails to connect, so the layout never
+# collapses. Keys and docs: docs/reference/tmux.md (Host layouts).
+#
+# -e omitted intentionally: failures are handled by the cleanup trap, which
+# removes a half-built window/session instead of leaving it behind.
+set -o nounset
+set -o pipefail
+(( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# {{{ = PRESETS ==============================================================
+# Named host sets, run as `tmux-hosts NAME` (or from the menu: prefix H).
+# Format:  PRESETS[name]="LAYOUT HOST..."
+#   LAYOUT  a tmux layout (see LAYOUTS below) or `auto`
+#   HOST    anything ssh accepts, or `-` for a local shell
+# Panes are created in the order listed. With `tiled` the first four land at
+# top-left, top-right, bottom-left, bottom-right.
+# To add one: add a line here. Everything else (menu, --list, completion)
+# picks it up on its own.
+
+declare -A PRESETS=(
+  [fleet]="tiled - puppet saito 11001001.org"   # 2x2: local, puppet, saito, vserver
+  [srv]="even-vertical - saito 11001001.org"    # 3 stacked: local, saito, vserver
+)
+# Display order of presets in --list and the menu (associative arrays have none).
+declare -ra PRESET_ORDER=(fleet srv)
+
+# }}} = PRESETS ==============================================================
+
+# {{{ = CONSTANTS ============================================================
+
+declare -ra LAYOUTS=(
+  even-horizontal even-vertical main-horizontal main-vertical
+  main-horizontal-mirrored main-vertical-mirrored tiled
+)
+
+# }}} = CONSTANTS ============================================================
+
+# {{{ = STATE ================================================================
+
+declare layout="auto"
+declare name=""
+declare -i new_session=0
+declare -i detached=0
+declare -a hosts=()
+
+# Set as soon as something exists, so the trap knows what to remove.
+declare created_window=""
+declare created_session=""
+
+# }}} = STATE ================================================================
+
+# {{{ = FUNCTIONS ============================================================
+
+usage() {
+  cat <<'EOF'
+Usage: tmux-hosts [OPTIONS] PRESET
+       tmux-hosts [OPTIONS] HOST...
+
+One pane per HOST running `ssh HOST`; `-` is a local shell. A pane drops to a
+local shell when ssh exits or fails, so it stays open.
+
+Options:
+  -l, --layout LAYOUT  even-horizontal | even-vertical | main-horizontal |
+                       main-vertical | main-horizontal-mirrored |
+                       main-vertical-mirrored | tiled
+                       (default: even-vertical up to 3 hosts, else tiled)
+  -n, --name NAME      window (and session) name (default: preset or hosts)
+  -s, --session        inside tmux: create a new session instead of a window
+  -d, --detach         create only; do not attach or switch to it
+      --list           list presets (name:description), for completion
+      --menu CLIENT    show the preset menu on tmux client CLIENT
+  -h, --help           show this help
+
+Examples:
+  tmux-hosts fleet                      # preset, see PRESETS in the script
+  tmux-hosts - saito 11001001.org       # local + two hosts, stacked
+  tmux-hosts -l tiled - puppet saito vs # 2x2 grid
+EOF
+}
+
+die() { printf 'tmux-hosts: %s\n' "$*" >&2; exit 1; }
+
+is_layout() {
+  local l
+  for l in "${LAYOUTS[@]}"; do [[ "$1" == "${l}" ]] && return 0; done
+  return 1
+}
+
+# Description of a preset for --list and the menu: "tiled: local puppet ..."
+preset_desc() {
+  local -a words
+  read -r -a words <<< "${PRESETS[$1]}"
+  local -r l="${words[0]}"
+  local -a hs=("${words[@]:1}")
+  hs=("${hs[@]/#-/local}")
+  printf '%s: %s' "${l}" "${hs[*]}"
+}
+
+list_presets() {
+  local p
+  for p in "${PRESET_ORDER[@]}"; do
+    printf '%s:%s\n' "${p}" "$(preset_desc "${p}")"
+  done
+}
+
+# Menu of presets plus a free-form prompt. Shortcut keys are 1..n.
+show_menu() {
+  local -r client="$1"
+  local -a items=()
+  local -i i=1
+  local p
+  for p in "${PRESET_ORDER[@]}"; do
+    items+=("${p}  ($(preset_desc "${p}"))" "${i}" "run-shell 'tmux-hosts ${p}'")
+    (( i++ ))
+  done
+  items+=("" "custom hosts..." "c"
+          "command-prompt -p 'hosts (- = local shell):' \"run-shell 'tmux-hosts %%'\"")
+  tmux display-menu -c "${client}" -T "#[align=centre]Host layouts" "${items[@]}"
+}
+
+parse_args() {
+  local menu_client=""
+  while (( $# > 0 )); do
+    case "$1" in
+      -l|--layout) layout="${2:?--layout needs a value}"; shift 2 ;;
+      -n|--name) name="${2:?--name needs a value}"; shift 2 ;;
+      -s|--session) new_session=1; shift ;;
+      -d|--detach) detached=1; shift ;;
+      --list) list_presets; exit 0 ;;
+      --menu) menu_client="${2:?--menu needs a client}"; shift 2
+              show_menu "${menu_client}"; exit 0 ;;
+      -h|--help) usage; exit 0 ;;
+      --) shift; hosts+=("$@"); break ;;
+      -) hosts+=("$1"); shift ;;
+      -*) usage >&2; die "unknown option: $1" ;;
+      *) hosts+=("$1"); shift ;;
+    esac
+  done
+}
+
+resolve() {
+  (( ${#hosts[@]} > 0 )) || { usage >&2; exit 1; }
+
+  # A single word that names a preset expands to its layout + hosts.
+  if (( ${#hosts[@]} == 1 )) && [[ -n "${PRESETS[${hosts[0]}]+x}" ]]; then
+    local -r preset="${hosts[0]}"
+    local -a words
+    read -r -a words <<< "${PRESETS[${preset}]}"
+    [[ "${layout}" == auto ]] && layout="${words[0]}"
+    hosts=("${words[@]:1}")
+    [[ -n "${name}" ]] || name="${preset}"
+  fi
+
+  if [[ "${layout}" == auto ]]; then
+    if (( ${#hosts[@]} <= 3 )); then layout="even-vertical"; else layout="tiled"; fi
+  fi
+  is_layout "${layout}" || die "unknown layout: ${layout}"
+
+  # tmux session names cannot contain '.' or ':'; keep the name short.
+  if [[ -z "${name}" ]]; then
+    name="${hosts[*]/#-/local}"
+    name="${name// /+}"
+  fi
+  name="${name//[.:]/_}"
+  name="${name:0:40}"
+}
+
+# Command run in a pane for HOST; empty for a local shell.
+pane_cmd() {
+  [[ "$1" == "-" ]] && return 0
+  local q
+  printf -v q '%q' "$1"
+  # The trailing exec is what keeps the pane after ssh exits or fails; the
+  # ${SHELL} must expand in the pane, not here.
+  # shellcheck disable=SC2016
+  printf 'ssh -- %s; exec "${SHELL:-sh}"' "${q}"
+}
+
+cleanup() {
+  [[ -n "${created_window}" ]] && tmux kill-window -t "${created_window}" 2>/dev/null
+  [[ -n "${created_session}" ]] && tmux kill-session -t "${created_session}" 2>/dev/null
+  return 0
+}
+
+build() {
+  local cmd first_pane
+  cmd="$(pane_cmd "${hosts[0]}")"
+
+  if (( new_session )) || [[ -z "${TMUX:-}" ]]; then
+    if tmux has-session -t "=${name}" 2>/dev/null; then
+      printf 'tmux-hosts: session "%s" exists, attaching to it\n' "${name}" >&2
+      go_to "${name}"
+      return 0
+    fi
+    created_session="${name}"
+    first_pane="$(tmux new-session -d -s "${name}" -n "${name}" -P -F '#{pane_id}' ${cmd:+"${cmd}"})"
+    created_window="${first_pane}"
+  else
+    first_pane="$(tmux new-window -n "${name}" -P -F '#{pane_id}' ${cmd:+"${cmd}"})"
+    created_window="${first_pane}"
+  fi
+
+  # Split off the pane created last, so panes end up in the order listed.
+  local host last_pane="${first_pane}"
+  for host in "${hosts[@]:1}"; do
+    cmd="$(pane_cmd "${host}")"
+    # Re-layout after every split: repeated splits of one pane run out of
+    # space ("no space for new pane") long before the final layout would.
+    last_pane="$(tmux split-window -t "${last_pane}" -d -P -F '#{pane_id}' ${cmd:+"${cmd}"})"
+    tmux select-layout -t "${first_pane}" "${layout}" > /dev/null
+  done
+  tmux select-layout -t "${first_pane}" "${layout}" > /dev/null
+  tmux select-pane -t "${first_pane}"
+
+  # Done: nothing to roll back any more.
+  created_window=""; created_session=""
+  (( detached )) && return 0
+  if (( new_session )) || [[ -z "${TMUX:-}" ]]; then
+    go_to "${name}"
+  else
+    tmux select-window -t "${first_pane}"
+  fi
+}
+
+# Attach (outside tmux) or switch the client (inside).
+go_to() {
+  (( detached )) && return 0
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux switch-client -t "=$1"
+  else
+    exec tmux attach-session -t "=$1"
+  fi
+}
+
+# }}} = FUNCTIONS ============================================================
+
+main() {
+  command -v tmux > /dev/null 2>&1 || die "tmux not found"
+  parse_args "$@"
+  resolve
+  trap cleanup ERR
+  build
+}
+
+main "$@"
