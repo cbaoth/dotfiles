@@ -32,6 +32,7 @@ mechatroner.rainbow-csv	enabled	app
 ms-azuretools.vscode-containers	enabled	app
 ms-python.debugpy	enabled	own
 ms-python.python	enabled	own
+ms-python.vscode-pylance	enabled	app
 ms-vscode-remote.remote-containers	enabled	app
 ms-vscode-remote.remote-ssh	enabled	app
 ms-vscode-remote.remote-ssh-edit	enabled	app

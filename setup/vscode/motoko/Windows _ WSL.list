@@ -31,12 +31,12 @@ mark-wiemer.vscode-autohotkey-plus-plus	enabled	own
 mdickin.markdown-shortcuts	enabled	app
 mechatroner.rainbow-csv	enabled	app
 ms-azuretools.vscode-containers	enabled	app
+ms-python.vscode-pylance	enabled	app
 ms-vscode-remote.remote-containers	enabled	app
 ms-vscode-remote.remote-ssh	enabled	app
 ms-vscode-remote.remote-ssh-edit	enabled	app
 ms-vscode-remote.remote-wsl	enabled	own
 ms-vscode-remote.vscode-remote-extensionpack	enabled	app
-ms-vscode.cpptools	enabled	own
 ms-vscode.hexeditor	enabled	app
 ms-vscode.powershell	enabled	own
 ms-vscode.remote-explorer	enabled	app
@@ -45,7 +45,6 @@ nhoizey.gremlins	enabled	app
 oderwat.indent-rainbow	enabled	app
 onlyutkarsh.git-config-user-profiles	enabled	app
 pkief.material-icon-theme	enabled	app
-platformio.platformio-ide	enabled	own
 qcz.text-power-tools	enabled	app
 rebornix.toggle	enabled	app
 remcohaszing.schemastore	enabled	app

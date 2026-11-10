@@ -47,6 +47,7 @@ mdickin.markdown-shortcuts	enabled	app
 mechatroner.rainbow-csv	enabled	app
 motivesoft.vscode-tab-menu-extras	enabled	own
 ms-azuretools.vscode-containers	enabled	app
+ms-python.vscode-pylance	enabled	app
 ms-vscode-remote.remote-containers	enabled	app
 ms-vscode-remote.remote-ssh	enabled	app
 ms-vscode-remote.remote-ssh-edit	enabled	app

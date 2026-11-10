@@ -30,11 +30,11 @@ luisbrose.force-push-button	enabled	app
 mdickin.markdown-shortcuts	enabled	app
 mechatroner.rainbow-csv	enabled	app
 ms-azuretools.vscode-containers	enabled	app
+ms-python.vscode-pylance	enabled	app
 ms-vscode-remote.remote-containers	enabled	app
 ms-vscode-remote.remote-ssh	enabled	app
 ms-vscode-remote.remote-ssh-edit	enabled	app
 ms-vscode-remote.vscode-remote-extensionpack	enabled	app
-ms-vscode.cpptools	enabled	own
 ms-vscode.hexeditor	enabled	app
 ms-vscode.remote-explorer	enabled	app
 ms-vscode.remote-server	enabled	app
@@ -42,7 +42,6 @@ nhoizey.gremlins	enabled	app
 oderwat.indent-rainbow	enabled	app
 onlyutkarsh.git-config-user-profiles	enabled	app
 pkief.material-icon-theme	enabled	app
-platformio.platformio-ide	enabled	own
 qcz.text-power-tools	enabled	app
 rebornix.toggle	enabled	app
 redhat.java	enabled	own

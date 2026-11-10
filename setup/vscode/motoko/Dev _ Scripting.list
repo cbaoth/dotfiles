@@ -42,7 +42,7 @@ motivesoft.vscode-tab-menu-extras	enabled	own
 ms-azuretools.vscode-containers	enabled	app
 ms-python.debugpy	enabled	own
 ms-python.python	enabled	own
-ms-python.vscode-pylance	enabled	own
+ms-python.vscode-pylance	enabled	own+app
 ms-vscode-remote.remote-containers	enabled	app
 ms-vscode-remote.remote-ssh	enabled	app
 ms-vscode-remote.remote-ssh-edit	enabled	app
