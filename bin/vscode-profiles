@@ -1,0 +1,798 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+"""Maintain VS Code profile extensions: list, compare, park, purge, dedupe.
+
+How VS Code stores this (verified on 1.145; nothing here is public API):
+
+- Extension code lives once in the extensions dir; every profile has its own
+  manifest (extensions.json) naming what is installed *there*. Default's
+  manifest is the extensions dir's own extensions.json.
+- "Apply Extension to all Profiles" is the isApplicationScoped flag in
+  Default's manifest. A flagged extension shows up in every profile. Removing
+  it from Default removes it everywhere, even a profile's own copy.
+- Enabled/disabled state is per profile, in that profile's
+  globalStorage/state.vscdb (key extensionsIdentifiers/disabled). The flag
+  shares installation, never state.
+- A profile with useDefaultFlags.extensions (e.g. "Agents") uses Default's
+  extensions and is skipped here.
+
+Every command that changes something only prints its plan unless --apply is
+given. --apply refuses while VS Code runs (it keeps this state in memory and
+overwrites the files on exit), and backs up each file before writing it.
+Removing an extension only edits manifests; VS Code deletes folders no
+profile references any more on its next start.
+
+On WSL, the data of the Windows VS Code is used (%APPDATA%\\Code\\User and
+%USERPROFILE%\\.vscode\\extensions), not the WSL server's. VSCODE_USER_DIR and
+VSCODE_EXT_DIR override both locations.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import io
+import json
+import os
+import re
+import shutil
+import socket
+import sqlite3
+import subprocess
+import sys
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+DEFAULT = "Default"
+DISABLED_KEY = "extensionsIdentifiers/disabled"
+REPO_SNAPSHOTS = Path(__file__).resolve().parents[1] / "setup" / "vscode"
+BACKUP_ROOT = (
+    Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "vscode-profiles" / "backups"
+)
+BACKUPS_KEPT = 10
+LIST_SUFFIX = ".list"
+
+# {{{ = DATA MODEL ============================================================
+
+
+@dataclass(frozen=True)
+class Paths:
+    """Where the VS Code installation to work on keeps its data."""
+
+    user: Path
+    ext: Path
+    wsl: bool
+
+
+@dataclass
+class Profile:
+    """One profile: its installed extensions (own manifest) and disabled IDs."""
+
+    name: str
+    manifest: Path
+    db: Path
+    entries: dict[str, dict]  # lowercase id -> manifest entry
+    disabled: dict[str, dict]  # lowercase id -> {"id": ..., "uuid": ...}
+
+    @property
+    def is_default(self) -> bool:
+        return self.name == DEFAULT
+
+
+@dataclass
+class Setup:
+    """All profiles of one VS Code installation, Default first."""
+
+    paths: Paths
+    profiles: list[Profile]
+    _requires: dict[str, set[str]] = field(default_factory=dict)
+
+    @property
+    def default(self) -> Profile:
+        return self.profiles[0]
+
+    def profile(self, name: str) -> Profile:
+        for p in self.profiles:
+            if p.name.lower() == name.lower():
+                return p
+        raise SystemExit(f"ERROR: no profile named {name!r} (have: {', '.join(p.name for p in self.profiles)})")
+
+    def app_ids(self) -> set[str]:
+        """IDs flagged "Apply Extension to all Profiles" (they appear in every profile)."""
+        return {i for i, e in self.default.entries.items() if e.get("metadata", {}).get("isApplicationScoped")}
+
+    def installed(self, p: Profile) -> set[str]:
+        """IDs the profile sees: its own manifest plus every flagged extension."""
+        return set(p.entries) | (set() if p.is_default else self.app_ids())
+
+    def enabled(self, p: Profile) -> set[str]:
+        return self.installed(p) - set(p.disabled)
+
+    def entry(self, ext_id: str) -> dict | None:
+        """Any manifest entry for ext_id, Default's first."""
+        for p in self.profiles:
+            if ext_id in p.entries:
+                return p.entries[ext_id]
+        return None
+
+    def requires(self, ext_id: str) -> set[str]:
+        """Lowercase IDs ext_id depends on or bundles (extensionDependencies + extensionPack)."""
+        return self._deps(ext_id, "extensionDependencies") | self._deps(ext_id, "extensionPack")
+
+    def hard_deps(self, ext_id: str) -> set[str]:
+        """Lowercase IDs ext_id cannot run without (extensionDependencies only)."""
+        return self._deps(ext_id, "extensionDependencies")
+
+    def dep_closure(self, ids: set[str]) -> set[str]:
+        """ids plus every installed hard dependency, recursively."""
+        out, todo = set(ids), list(ids)
+        while todo:
+            for d in self.hard_deps(todo.pop()):
+                if d not in out and self.entry(d) is not None:
+                    out.add(d)
+                    todo.append(d)
+        return out
+
+    def _deps(self, ext_id: str, key: str) -> set[str]:
+        cache_key = f"{key}:{ext_id}"
+        if cache_key not in self._requires:
+            self._requires[cache_key] = set()
+            entry = self.entry(ext_id)
+            if entry and entry.get("relativeLocation"):
+                with contextlib.suppress(OSError, ValueError):
+                    pkg = json.loads((self.paths.ext / entry["relativeLocation"] / "package.json").read_text())
+                    self._requires[cache_key] = {d.lower() for d in pkg.get(key, [])}
+        return self._requires[cache_key]
+
+    def required_by(self, ext_id: str, among: Iterable[str]) -> set[str]:
+        return {o for o in among if o != ext_id and ext_id in self.requires(o)}
+
+
+# }}} = DATA MODEL ============================================================
+
+# {{{ = LOADING ===============================================================
+
+
+def detect_paths() -> Paths:
+    """Resolve the VS Code user and extensions dirs (Windows side on WSL)."""
+    wsl = _is_wsl()
+    user, ext = os.environ.get("VSCODE_USER_DIR"), os.environ.get("VSCODE_EXT_DIR")
+    if wsl and not (user and ext):
+        user = user or str(_win_dir("APPDATA") / "Code" / "User")
+        ext = ext or str(_win_dir("USERPROFILE") / ".vscode" / "extensions")
+    return Paths(
+        user=Path(user or Path.home() / ".config" / "Code" / "User"),
+        ext=Path(ext or Path.home() / ".vscode" / "extensions"),
+        wsl=wsl,
+    )
+
+
+def _is_wsl() -> bool:
+    try:
+        return "microsoft" in Path("/proc/sys/kernel/osrelease").read_text().lower()
+    except OSError:
+        return False
+
+
+def _win_dir(var: str) -> Path:
+    """A Windows environment directory (e.g. APPDATA) as a WSL path."""
+    try:
+        win = _run(["cmd.exe", "/d", "/c", f"echo %{var}%"], cwd="/mnt/c")
+        return Path(_run(["wslpath", "-u", win]))
+    except (OSError, subprocess.CalledProcessError) as err:
+        raise SystemExit(f"ERROR: cannot resolve %{var}% via cmd.exe; set VSCODE_USER_DIR/VSCODE_EXT_DIR") from err
+
+
+def _run(cmd: list[str], cwd: str | None = None) -> str:
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
+
+
+def load_setup(paths: Paths) -> Setup:
+    """Read Default and every profile that keeps its own extensions."""
+    if not paths.user.is_dir():
+        raise SystemExit(f"ERROR: VS Code user dir not found: {paths.user}")
+    profiles = [_load_profile(DEFAULT, paths.ext / "extensions.json", paths.user / "globalStorage" / "state.vscdb")]
+    storage = _read_json(paths.user / "globalStorage" / "storage.json", {})
+    for meta in storage.get("userDataProfiles", []):
+        if meta.get("useDefaultFlags", {}).get("extensions"):
+            continue  # shares Default's extensions
+        base = paths.user / "profiles" / meta["location"]
+        profiles.append(_load_profile(meta["name"], base / "extensions.json", base / "globalStorage" / "state.vscdb"))
+    return Setup(paths, profiles)
+
+
+def _load_profile(name: str, manifest: Path, db: Path) -> Profile:
+    entries = {e["identifier"]["id"].lower(): e for e in _read_json(manifest, []) if e.get("identifier", {}).get("id")}
+    return Profile(name, manifest, db, entries, {d["id"].lower(): d for d in _read_disabled(db)})
+
+
+def _read_json(path: Path, default: Any) -> Any:
+    try:
+        return json.loads(path.read_text())
+    except FileNotFoundError:
+        return default
+
+
+def _read_disabled(db: Path) -> list[dict]:
+    if not db.is_file():
+        return []
+    with contextlib.closing(sqlite3.connect(f"file:{db}?mode=ro", uri=True)) as con:
+        row = con.execute("SELECT value FROM ItemTable WHERE key = ?", (DISABLED_KEY,)).fetchone()
+    return json.loads(row[0]) if row else []
+
+
+# }}} = LOADING ===============================================================
+
+# {{{ = CHANGE PLAN ===========================================================
+
+
+@dataclass
+class Change:
+    """Pending edits to one profile."""
+
+    add: dict[str, dict] = field(default_factory=dict)  # id -> manifest entry to add
+    remove: set[str] = field(default_factory=set)  # ids to drop from the manifest
+    flag: dict[str, bool] = field(default_factory=dict)  # Default only: id -> isApplicationScoped
+    disable: set[str] = field(default_factory=set)
+    enable: set[str] = field(default_factory=set)
+
+    def __bool__(self) -> bool:
+        return bool(self.add or self.remove or self.flag or self.disable or self.enable)
+
+
+class Plan:
+    """Collected edits for all profiles, printed and optionally applied."""
+
+    def __init__(self, setup: Setup) -> None:
+        self.setup = setup
+        self.changes: dict[str, Change] = {p.name: Change() for p in setup.profiles}
+        self.notes: list[str] = []
+        self.blocked: list[str] = []
+
+    def __getitem__(self, profile: Profile) -> Change:
+        return self.changes[profile.name]
+
+    def print(self) -> None:
+        for p in self.setup.profiles:
+            c = self.changes[p.name]
+            if not c:
+                continue
+            print(f"== {p.name}")
+            for i in sorted(c.add):
+                print(f"  install   {i}")
+            for i in sorted(c.remove):
+                print(f"  uninstall {i}")
+            for i, on in sorted(c.flag.items()):
+                print(f"  {'flag' if on else 'unflag':<10}{i}")
+            for i in sorted(c.disable):
+                print(f"  disable   {i}")
+            for i in sorted(c.enable - c.remove):  # removed: only its stale disabled entry goes
+                print(f"  enable    {i}")
+        for n in self.notes:
+            print(f"note: {n}")
+        for b in self.blocked:
+            print(f"BLOCKED: {b}", file=sys.stderr)
+        if not any(self.changes.values()):
+            print("nothing to change")
+
+    def apply(self, ignore_running: bool) -> None:
+        if not any(self.changes.values()):
+            return
+        if not ignore_running and vscode_running(self.setup.paths):
+            raise SystemExit("ERROR: VS Code is running; close every window first (it would overwrite the changes)")
+        gone = set().union(*(set(p.entries) for p in self.setup.profiles)) - set().union(
+            *(
+                set(p.entries) - self.changes[p.name].remove | set(self.changes[p.name].add)
+                for p in self.setup.profiles
+            )
+        )
+        backup = make_backup(self.setup, gone)
+        for p in self.setup.profiles:
+            c = self.changes[p.name]
+            if c.add or c.remove or c.flag:
+                _write_manifest(p, c)
+            if c.disable or c.enable:
+                _write_disabled(p, c)
+        print(f"applied; backup: {backup}")
+
+
+def _write_manifest(p: Profile, c: Change) -> None:
+    data = [e for e in _read_json(p.manifest, []) if e["identifier"]["id"].lower() not in c.remove]
+    for e in data:
+        ext_id = e["identifier"]["id"].lower()
+        if ext_id in c.flag:
+            e.setdefault("metadata", {})["isApplicationScoped"] = c.flag[ext_id]
+    data.extend(c.add.values())
+    p.manifest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.manifest.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, separators=(",", ":")))
+    tmp.replace(p.manifest)
+
+
+def _write_disabled(p: Profile, c: Change) -> None:
+    current = {d["id"].lower(): d for d in _read_disabled(p.db)}
+    for i in c.enable:
+        current.pop(i, None)
+    for i in c.disable:
+        e = (p.entries.get(i) or {}).get("identifier", {})
+        current[i] = {k: v for k, v in (("id", e.get("id", i)), ("uuid", e.get("uuid"))) if v}
+    value = json.dumps(sorted(current.values(), key=lambda d: d["id"].lower()))
+    p.db.parent.mkdir(parents=True, exist_ok=True)
+    with contextlib.closing(sqlite3.connect(p.db)) as con, con:
+        con.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)")
+        if current:
+            con.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (DISABLED_KEY, value))
+        else:
+            con.execute("DELETE FROM ItemTable WHERE key = ?", (DISABLED_KEY,))
+
+
+def vscode_running(paths: Paths) -> bool:
+    """True if the VS Code whose data we edit has a process."""
+    try:
+        if paths.wsl:
+            return "code.exe" in _run(["tasklist.exe", "/fi", "imagename eq Code.exe", "/nh"]).lower()
+        return subprocess.run(["pgrep", "-x", "code"], capture_output=True, check=False).returncode == 0
+    except OSError:
+        return True  # cannot tell: assume the worst
+
+
+def make_backup(setup: Setup, gone: set[str]) -> Path:
+    """Back up every manifest and state DB, plus the storage dirs of extensions about to leave everywhere.
+
+    Extensions come back from the marketplace; their per-profile storage
+    (globalStorage/<id>/) would not. The last BACKUPS_KEPT runs are kept.
+    """
+    dest = BACKUP_ROOT / datetime.now().strftime("%Y%m%dT%H%M%S")
+    dest.mkdir(parents=True, exist_ok=True)
+    for p in setup.profiles:
+        for src in (p.manifest, p.db):
+            if src.is_file():
+                shutil.copy2(src, dest / f"{safe_name(p.name)}.{src.name}")
+        storage = p.db.parent
+        if gone and storage.is_dir():
+            for d in storage.iterdir():
+                if d.is_dir() and d.name.lower() in gone:
+                    shutil.copytree(d, dest / "storage" / safe_name(p.name) / d.name)
+    (dest / "SOURCES.tsv").write_text("".join(f"{safe_name(p.name)}\t{p.manifest}\t{p.db}\n" for p in setup.profiles))
+    for old in sorted(BACKUP_ROOT.iterdir())[:-BACKUPS_KEPT]:
+        shutil.rmtree(old)
+    return dest
+
+
+def check_dependents(plan: Plan, p: Profile, going: set[str], force: bool, verb: str) -> set[str]:
+    """Drop ids still needed by an extension that stays enabled in p; return the rest."""
+    stays = plan.setup.enabled(p) - going
+    ok = set()
+    for i in sorted(going):
+        users = plan.setup.required_by(i, stays)
+        if users and not force:
+            plan.blocked.append(
+                f"{p.name}: not {verb} {i}, required by {', '.join(sorted(users))} (--force overrides)"
+            )
+        else:
+            ok.add(i)
+    return ok
+
+
+# }}} = CHANGE PLAN ===========================================================
+
+# {{{ = COMMANDS ==============================================================
+
+
+def cmd_list(setup: Setup, args: argparse.Namespace) -> int:
+    """Matrix of every extension across profiles."""
+    profiles = [setup.profile(n) for n in args.profile] if args.profile else setup.profiles
+    app = setup.app_ids()
+    every = set().union(*(setup.installed(p) for p in setup.profiles))
+    rx = re.compile(args.pattern, re.I) if args.pattern else None
+    rows = []
+    for i in sorted(every):
+        if rx and not rx.search(i):
+            continue
+        parked = _is_parked(setup, i, app)
+        if args.parked and not parked:
+            continue
+        cells = "".join(_cell(setup, p, i, app) for p in profiles)
+        notes = []
+        if parked:
+            notes.append("parked")
+        if i in app and (dups := [p.name for p in setup.profiles[1:] if i in p.entries]):
+            notes.append(f"dup:{len(dups)}")
+        if users := setup.required_by(i, every):
+            notes.append(f"needed by {', '.join(sorted(users))}")
+        rows.append(f"{cells}  {i}{'  [' + '; '.join(notes) + ']' if notes else ''}")
+    for n, p in enumerate(profiles):
+        print(f"{'|' * n}{p.name}")
+    print("\n".join(rows))
+    print(
+        "\nlegend: F/f flagged (all profiles) enabled/disabled · +/- own copy enabled/disabled · "
+        "*/~ via flag only enabled/disabled · . absent · dup:N = flagged AND own copy in N profiles",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def _cell(setup: Setup, p: Profile, i: str, app: set[str]) -> str:
+    on = i not in p.disabled
+    if p.is_default and i in app:
+        return "F" if on else "f"
+    if i in p.entries:
+        return "+" if on else "-"
+    if i in app:
+        return "*" if on else "~"
+    return "."
+
+
+def _is_parked(setup: Setup, i: str, app: set[str]) -> bool:
+    d = setup.default
+    return i in d.entries and i in d.disabled and i not in app and all(i not in p.entries for p in setup.profiles[1:])
+
+
+def cmd_purge(setup: Setup, args: argparse.Namespace) -> int:
+    """Uninstall from Default and every profile."""
+    plan = Plan(setup)
+    ids = _known_ids(setup, args.ids)
+    for p in setup.profiles:
+        own = ids & set(p.entries)
+        ok = check_dependents(plan, p, ids & setup.installed(p), args.force, "purging")
+        if blocked := (ids & setup.installed(p)) - ok:
+            plan.blocked.append(f"{p.name}: aborting purge of {', '.join(sorted(blocked))} everywhere")
+            continue
+        plan[p].remove |= own
+        plan[p].enable |= ids & set(p.disabled)  # drop stale disabled entries
+    return _finish(plan, args)
+
+
+def cmd_park(setup: Setup, args: argparse.Namespace) -> int:
+    """Keep only in Default, unflagged and disabled; remove from all other profiles."""
+    plan = Plan(setup)
+    ids = _known_ids(setup, args.ids)
+    d = setup.default
+    app = setup.app_ids()
+    for p in setup.profiles:
+        check_dependents(plan, p, ids & setup.enabled(p), args.force, "parking")
+    if plan.blocked:
+        return _finish(plan, args)
+    for i in sorted(ids):
+        if i not in d.entries:
+            entry = json.loads(json.dumps(setup.entry(i)))
+            entry.setdefault("metadata", {})["isApplicationScoped"] = False
+            plan[d].add[i] = entry
+        elif i in app:
+            plan[d].flag[i] = False
+        if i not in d.disabled:
+            plan[d].disable.add(i)
+    for p in setup.profiles[1:]:
+        plan[p].remove |= ids & set(p.entries)
+        plan[p].enable |= ids & set(p.disabled)
+    return _finish(plan, args)
+
+
+def cmd_dedupe(setup: Setup, args: argparse.Namespace) -> int:
+    """Drop profiles' own copies of flagged extensions (the flag already provides them)."""
+    plan = Plan(setup)
+    app = setup.app_ids()
+    targets = [setup.profile(n) for n in args.profile] if args.profile else setup.profiles[1:]
+    for p in targets:
+        if p.is_default:
+            raise SystemExit("ERROR: dedupe works on profiles, not on Default")
+        plan[p].remove |= app & set(p.entries)
+    return _finish(plan, args)
+
+
+def cmd_flag(setup: Setup, args: argparse.Namespace) -> int:
+    """Flag exactly the extensions enabled in Default; keep unflagged ones where profiles use them."""
+    plan = Plan(setup)
+    d = setup.default
+    app = setup.app_ids()
+    want = setup.enabled(d)
+    for i in sorted(set(d.entries)):
+        if (i in want) == (i in app):
+            continue
+        plan[d].flag[i] = i in want
+        if i in want:
+            if new := [p.name for p in setup.profiles[1:] if i not in p.entries]:
+                plan.notes.append(f"{i}: newly appears (enabled) in {', '.join(new)}")
+            continue
+        for p in setup.profiles[1:]:
+            if i not in p.entries and i not in p.disabled:
+                entry = json.loads(json.dumps(d.entries[i]))
+                entry.setdefault("metadata", {})["isApplicationScoped"] = False
+                plan[p].add[i] = entry
+    if any(c.flag.get(i) for c in plan.changes.values() for i in c.flag):
+        plan.notes.append("run 'dedupe' afterwards to drop profiles' own copies of newly flagged extensions")
+    return _finish(plan, args)
+
+
+def cmd_rebuild_default(setup: Setup, args: argparse.Namespace) -> int:
+    """Rebuild Default from the other profiles and drop everything no profile enables.
+
+    keep   = union of what any non-Default profile enables (+ hard dependencies)
+    common = intersection of the same sets (+ hard dependencies)
+
+    Default ends up with common flagged and enabled, the rest of keep it
+    already has unflagged and disabled. Each profile keeps an own copy of its
+    enabled non-common extensions only, and no disabled entries. Anything
+    outside keep is uninstalled everywhere.
+    """
+    profs = setup.profiles[1:]
+    if not profs:
+        raise SystemExit("ERROR: no profiles besides Default to derive from")
+    plan = Plan(setup)
+    d = setup.default
+    app = setup.app_ids()
+    enabled = {p.name: setup.dep_closure(setup.enabled(p)) for p in profs}
+    keep = set().union(*enabled.values())
+    common = setup.dep_closure(set.intersection(*enabled.values()))
+    everything = set().union(*(setup.installed(p) for p in setup.profiles))
+
+    def copy_of(i: str, flag: bool) -> dict:
+        entry = json.loads(json.dumps(setup.entry(i)))
+        entry.setdefault("metadata", {})["isApplicationScoped"] = flag
+        return entry
+
+    plan[d].remove |= set(d.entries) - keep
+    plan[d].enable |= set(d.disabled) - keep  # stale entries of removed ones
+    for i in sorted(common):
+        if i not in d.entries:
+            plan[d].add[i] = copy_of(i, True)
+        elif i not in app:
+            plan[d].flag[i] = True
+        if i in d.disabled:
+            plan[d].enable.add(i)
+    for i in sorted((set(d.entries) & keep) - common):
+        if i in app:
+            plan[d].flag[i] = False
+        if i not in d.disabled:
+            plan[d].disable.add(i)
+    for p in profs:
+        own = enabled[p.name] - common
+        plan[p].remove |= set(p.entries) - own
+        for i in sorted(own - set(p.entries)):  # had it via the flag only
+            plan[p].add[i] = copy_of(i, False)
+        plan[p].enable |= set(p.disabled)  # all that stays is enabled
+    plan.notes.append(
+        f"keep {len(keep)} (common {len(common)}, situational {len(keep - common)}); "
+        f"uninstall {len(everything - keep)} of {len(everything)}"
+    )
+    return _finish(plan, args)
+
+
+def cmd_apply(setup: Setup, args: argparse.Namespace) -> int:
+    """Make DST's installed and enabled extensions match SRC's."""
+    src, dst = setup.profile(args.src), setup.profile(args.dst)
+    plan = Plan(setup)
+    app = setup.app_ids()
+    want, want_on = setup.installed(src), setup.enabled(src)
+    have = setup.installed(dst)
+    for i in sorted(want - have):
+        entry = json.loads(json.dumps(setup.entry(i)))
+        entry.setdefault("metadata", {})["isApplicationScoped"] = False
+        plan[dst].add[i] = entry
+    if not args.keep_extra:
+        extra = check_dependents(plan, dst, have - want, args.force, "removing")
+        for i in sorted(extra):
+            own = i in dst.entries
+            if own and not (dst.is_default and i in app):
+                plan[dst].remove.add(i)
+            if i in app:  # cannot leave one profile; disable it there
+                plan[dst].disable.add(i)
+                plan.notes.append(f"{i}: flagged (in every profile), disabled in {dst.name} instead of removed")
+            elif i in dst.disabled:
+                plan[dst].enable.add(i)  # drop the stale disabled entry
+    for i in sorted(want):
+        if i in want_on and i in dst.disabled:
+            plan[dst].enable.add(i)
+        elif i not in want_on and i not in dst.disabled:
+            plan[dst].disable.add(i)
+    for i in sorted(want_on):
+        if missing := setup.requires(i) - want_on:
+            plan.notes.append(f"{i} is enabled but needs {', '.join(sorted(missing))} (not enabled in {src.name})")
+    return _finish(plan, args)
+
+
+def cmd_export(setup: Setup, args: argparse.Namespace) -> int:
+    """Write one sorted .list per profile (no versions, so updates don't churn)."""
+    dest = Path(args.dir) if args.dir else REPO_SNAPSHOTS / host()
+    dest.mkdir(parents=True, exist_ok=True)
+    app = setup.app_ids()
+    written = set()
+    for p in setup.profiles:
+        out = dest / f"{safe_name(p.name)}{LIST_SUFFIX}"
+        lines = [f"# profile: {p.name}"]
+        for i in sorted(setup.installed(p)):
+            scope = "app" if i in app else "own"
+            if not p.is_default and i in app and i in p.entries:
+                scope = "own+app"
+            lines.append(f"{i}\t{'disabled' if i in p.disabled else 'enabled'}\t{scope}")
+        out.write_text("\n".join(lines) + "\n")
+        written.add(out.name)
+    for stale in dest.glob(f"*{LIST_SUFFIX}"):
+        if stale.name not in written:
+            stale.unlink()
+            print(f"removed {stale} (profile gone)")
+    print(f"exported {len(written)} profiles to {dest}")
+    return 0
+
+
+def cmd_diff(setup: Setup | None, args: argparse.Namespace) -> int:
+    """Compare two sides (live or export dirs) per profile and across all profiles."""
+    a_name, b_name = args.a, args.b or str(REPO_SNAPSHOTS / host())
+    a, b = _side(a_name, setup), _side(b_name, setup)
+    differs = False
+    for name in sorted(a.keys() | b.keys(), key=lambda n: (n != DEFAULT, n.lower())):
+        if name not in a or name not in b:
+            print(f"== {name}: only in {a_name if name in a else b_name}")
+            differs = True
+            continue
+        lines = []
+        for i in sorted(a[name].keys() | b[name].keys()):
+            sa, sb = a[name].get(i), b[name].get(i)
+            if sa == sb:
+                continue
+            if sb is None:
+                lines.append(f"  < {i} ({sa})")
+            elif sa is None:
+                lines.append(f"  > {i} ({sb})")
+            else:
+                lines.append(f"  ~ {i} ({sa} -> {sb})")
+        if lines:
+            differs = True
+            print(f"== {name}")
+            print("\n".join(lines))
+    on_a = {i for prof in a.values() for i, s in prof.items() if s == "enabled"}
+    on_b = {i for prof in b.values() for i, s in prof.items() if s == "enabled"}
+    any_a = {i for prof in a.values() for i in prof}
+    any_b = {i for prof in b.values() for i in prof}
+    for label, ids in (
+        (f"enabled in {a_name}, absent everywhere in {b_name}", on_a - any_b),
+        (f"enabled in {b_name}, absent everywhere in {a_name}", on_b - any_a),
+    ):
+        if ids:
+            differs = True
+            print(f"== any profile: {label}")
+            print("\n".join(f"  {i}" for i in sorted(ids)))
+    if not differs:
+        print("no differences")
+    print(f"\n< = only in {a_name}, > = only in {b_name}, ~ = state differs", file=sys.stderr)
+    return 1 if differs else 0
+
+
+def _side(spec: str, setup: Setup | None) -> dict[str, dict[str, str]]:
+    """Profile name -> id -> enabled|disabled, from 'live' or an export dir."""
+    if spec == "live":
+        if setup is None:
+            raise SystemExit("ERROR: no live VS Code data")
+        return {
+            p.name: {i: ("disabled" if i in p.disabled else "enabled") for i in setup.installed(p)}
+            for p in setup.profiles
+        }
+    d = Path(spec)
+    if not d.is_dir():
+        raise SystemExit(f"ERROR: not a directory: {d} (export one first, or pass 'live')")
+    side = {}
+    for f in sorted(d.glob(f"*{LIST_SUFFIX}")):
+        lines = f.read_text().splitlines()
+        name = lines[0].removeprefix("# profile: ") if lines and lines[0].startswith("# profile: ") else f.stem
+        side[name] = dict(ln.split("\t")[:2] for ln in lines if ln and not ln.startswith("#"))
+    return side
+
+
+def cmd_paths(setup: Setup, _args: argparse.Namespace) -> int:
+    print(f"user\t{setup.paths.user}\next\t{setup.paths.ext}\nwsl\t{setup.paths.wsl}")
+    for p in setup.profiles:
+        print(f"profile\t{p.name}\t{p.manifest}\t{p.db}")
+    return 0
+
+
+def _known_ids(setup: Setup, ids: list[str]) -> set[str]:
+    known = set().union(*(setup.installed(p) for p in setup.profiles))
+    wanted = {i.lower() for i in ids}
+    if unknown := wanted - known:
+        print(f"warning: not installed anywhere: {', '.join(sorted(unknown))}", file=sys.stderr)
+    return wanted & known
+
+
+def _finish(plan: Plan, args: argparse.Namespace) -> int:
+    plan.print()
+    if plan.blocked and not args.force:
+        print("nothing applied: resolve the BLOCKED items first", file=sys.stderr)
+        return 1
+    if args.apply:
+        plan.apply(args.ignore_running)
+    elif any(plan.changes.values()):
+        print("\ndry run: nothing written; add --apply (with VS Code closed) to write", file=sys.stderr)
+    return 0
+
+
+def host() -> str:
+    return socket.gethostname().split(".")[0]
+
+
+def safe_name(name: str) -> str:
+    """A profile name usable as a file name (matches vscode-config-snapshot)."""
+    return re.sub(r"[^A-Za-z0-9._ -]", "_", name).rstrip("_")
+
+
+# }}} = COMMANDS ==============================================================
+
+# {{{ = MAIN ==================================================================
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(
+        prog="vscode-profiles",
+        description=(__doc__ or "").split("\n")[0],
+        epilog="Run '<command> -h' for details. Details on storage: see the script header.",
+    )
+    sub = ap.add_subparsers(dest="cmd", required=True, metavar="COMMAND")
+
+    def changing(sp: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        sp.add_argument("--apply", action="store_true", help="write the changes (default: dry run)")
+        sp.add_argument("--force", action="store_true", help="ignore dependency checks")
+        sp.add_argument("--ignore-running", action="store_true", help=argparse.SUPPRESS)
+        return sp
+
+    sp = sub.add_parser("list", help="matrix of all extensions across profiles")
+    sp.add_argument("pattern", nargs="?", help="only IDs matching this regex")
+    sp.add_argument("-p", "--profile", action="append", help="only this profile column (repeatable)")
+    sp.add_argument("--parked", action="store_true", help="only parked extensions")
+    sp.set_defaults(func=cmd_list)
+
+    sp = changing(sub.add_parser("purge", help="uninstall from Default and every profile"))
+    sp.add_argument("ids", nargs="+", metavar="ID")
+    sp.set_defaults(func=cmd_purge)
+
+    sp = changing(sub.add_parser("park", help="keep only in Default, unflagged and disabled"))
+    sp.add_argument("ids", nargs="+", metavar="ID")
+    sp.set_defaults(func=cmd_park)
+
+    sp = changing(sub.add_parser("dedupe", help="drop profiles' own copies of flagged extensions"))
+    sp.add_argument("profile", nargs="*", help="default: every profile")
+    sp.set_defaults(func=cmd_dedupe)
+
+    sp = changing(sub.add_parser("rebuild-default", help="rebuild Default from the profiles; drop the unused"))
+    sp.set_defaults(func=cmd_rebuild_default)
+
+    sp = changing(sub.add_parser("flag-from-default", help="flag exactly what is enabled in Default"))
+    sp.set_defaults(func=cmd_flag)
+
+    sp = changing(sub.add_parser("apply", help="make DST's extensions match SRC's"))
+    sp.add_argument("src", metavar="SRC")
+    sp.add_argument("dst", metavar="DST")
+    sp.add_argument("--keep-extra", action="store_true", help="do not remove what SRC lacks")
+    sp.set_defaults(func=cmd_apply)
+
+    sp = sub.add_parser("export", help="write per-profile .list files")
+    sp.add_argument("dir", nargs="?", help=f"default: {REPO_SNAPSHOTS}/<host>")
+    sp.set_defaults(func=cmd_export)
+
+    sp = sub.add_parser("diff", help="compare live state and/or export dirs")
+    sp.add_argument("a", nargs="?", default="live", metavar="A", help="'live' (default) or an export dir")
+    sp.add_argument("b", nargs="?", metavar="B", help=f"'live' or an export dir (default: {REPO_SNAPSHOTS}/<host>)")
+    sp.set_defaults(func=cmd_diff)
+
+    sp = sub.add_parser("paths", help="show which VS Code data is used")
+    sp.set_defaults(func=cmd_paths)
+    return ap.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(line_buffering=True)  # keep stdout/stderr in order when piped
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    needs_live = not (args.cmd == "diff" and "live" not in (args.a, args.b or ""))
+    setup = load_setup(detect_paths()) if needs_live else None
+    return args.func(setup, args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+# }}} = MAIN ==================================================================
