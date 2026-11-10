@@ -126,6 +126,13 @@ sound-theme-freedesktop
 # installed here and the PPA is live — do not "clean up" that sources file.
 cryptomator
 
+# Nextcloud sync client (GUI; tray + autostart) — needs PPA nextcloud-devs/client.
+# Skipped with a warning if the PPA is not configured. Use the PPA build, not
+# Ubuntu's older one. The PPA publishes per release: after a release upgrade it
+# can lag, and apt then drops the package (happened 2026-10-26, resolute ->
+# stonking: the old build needed Qt 6.10.2). A system-setup run reinstalls it.
+nextcloud-desktop
+
 # Filesystem / network mounts
 cifs-utils
 
