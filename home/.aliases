@@ -1516,6 +1516,8 @@ if command -v devcontainer >/dev/null 2>&1; then
   dcup() { devcontainer up --workspace-folder "${1:-.}" "${@:2}"; }
   # rebuild: replace the existing container (named volumes are kept)
   dcre() { devcontainer up --workspace-folder "${1:-.}" --remove-existing-container "${@:2}"; }
+  # rebuild with a fresh dotfiles clone + system-setup run (new CACHE_BUST)
+  dcrebust() { CACHE_BUST="$(date +%s)" dcre "$@"; }
   # login shell in the running devcontainer of DIR (CB_TMUX_SKIP: see
   # _cb_tmux_skip_env). SHLVL=0: the CLI injects the env of its own probe
   # shell (SHLVL=1), which would make this shell look nested.
