@@ -7,4 +7,4 @@ Documentation=file:%h/dotfiles/bin/vscode-config-snapshot
 Type=oneshot
 ExecStart=%h/bin/ntfy-send --priority default --tags floppy_disk,warning --throttle 86400 \
   "vscode-config-snapshot FAILED" \
-  "Likely a credential in the VS Code config (file not copied). Inspect: journalctl --user -u vscode-config-snapshot -n 20"
+  "A credential in the VS Code config (file not copied), or a bulk extension enable/disable change (Settings Sync?). Inspect: journalctl --user -u vscode-config-snapshot -n 20"

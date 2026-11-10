@@ -16,16 +16,34 @@
 # files (by profile *name*, not VS Code's hash id), plus extension IDs as
 # sorted text: installed, disabled and enabled per profile. Leaves out caches,
 # state and history (globalStorage, workspaceStorage, History, sync).
+# A profile's "installed" includes the extensions flagged "Apply Extension to
+# all Profiles" (listed in extensions-app.txt), since it sees those too.
+#
+# On WSL it snapshots the Windows VS Code (%APPDATA%\Code\User), not the WSL
+# server, which only holds the extensions installed for remote sessions.
 #
 # Secret guard: the target repo must never hold credentials. A file whose JSON
 # has a key-like name (apiKey, token, secret, password) with a literal value,
 # or a known token prefix, is NOT copied; the previous snapshot stays and the
 # run exits 1, so a systemd timer shows up as failed.
+#
+# Bulk guard: Settings Sync has re-enabled two dozen extensions at once
+# (2026-10-26). When one run changes the enabled set of a profile by
+# BULK_MIN or more, the snapshot is still written (that is the evidence) but
+# the run exits 1, for the same alert. Expect it after your own big cleanups.
 
 set -o errexit
 set -o pipefail
 set -o nounset
 (( ${DEBUG_LVL:-0} >= 2 )) && set -o xtrace
+
+# On WSL, default to the Windows VS Code's dirs (overridable like elsewhere).
+if grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
+  win_dir() { wslpath -u "$(cd /mnt/c && cmd.exe /d /c "echo %${1}%" 2>/dev/null | tr -d '\r')"; }
+  : "${VSCODE_USER_DIR:=$(win_dir APPDATA)/Code/User}"
+  : "${VSCODE_EXT_DIR:=$(win_dir USERPROFILE)/.vscode/extensions}"
+  unset -f win_dir
+fi
 
 # {{{ = CONSTANTS =============================================================
 
@@ -37,6 +55,9 @@ declare -r DEFAULT_TARGET="${HOME}/notes/systems/${HOSTNAME%%.*}/vscode"
 # Top-level files and dirs worth keeping; the same set is taken per profile.
 declare -ra FILES=(settings.json keybindings.json tasks.json mcp.json)
 declare -ra DIRS=(snippets prompts)
+
+# Enabled-set changes per profile and run that count as a bulk change.
+declare -ri BULK_MIN="${VSCODE_SNAPSHOT_BULK_MIN:-10}"
 
 # Files in the target the snapshot does not own (hand-written docs).
 declare -ra KEEP=(README.md)
@@ -98,6 +119,30 @@ print("\n".join(sorted(i for i in ids if i)))
 PY
 }
 
+# Extensions flagged "Apply Extension to all Profiles" (Default's manifest).
+app_ids() {
+  local -r manifest="$1"
+  [[ -f "${manifest}" ]] || return 0
+  python3 - "${manifest}" <<'PY'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    sys.exit(0)
+ids = {e.get("identifier", {}).get("id", "").lower() for e in data
+       if e.get("metadata", {}).get("isApplicationScoped")}
+print("\n".join(sorted(i for i in ids if i)))
+PY
+}
+
+# Lines in one file but not the other (0 if the old file does not exist).
+changed_count() {
+  local -r new="$1" old="$2"
+  [[ -f "${old}" ]] || { printf '0\n'; return 0; }
+  local LC_ALL=C
+  comm -3 <(sort "${new}") <(sort "${old}") | wc -l
+}
+
 # Disabled extension IDs of one profile, sorted. VS Code keeps them in the
 # profile's state DB, not in extensions.json: on this setup every profile has
 # nearly all extensions installed and differs only in what it disables.
@@ -123,7 +168,8 @@ enabled_ids() {
   comm -23 <(sort "$1") <(sort "$2")
 }
 
-# "<name>\t<location>" for every non-default profile.
+# "<name>\t<location>\t<shared>" for every non-default profile; shared=1 if
+# the profile uses Default's extensions (useDefaultFlags.extensions, "Agents").
 profiles() {
   python3 - "${SRC}/globalStorage/storage.json" <<'PY'
 import json, sys
@@ -133,7 +179,8 @@ except (OSError, ValueError):
     sys.exit(0)
 for p in data.get("userDataProfiles", []):
     if p.get("name") and p.get("location"):
-        print(f"{p['name']}\t{p['location']}")
+        shared = int(bool(p.get("useDefaultFlags", {}).get("extensions")))
+        print(f"{p['name']}\t{p['location']}\t{shared}")
 PY
 }
 
@@ -170,25 +217,28 @@ main() {
   # {{{ - Stage -----------------------------------------------------------------
   stage_profile "${SRC}" "${stage}"
   extension_ids "${EXT_DIR}/extensions.json" > "${stage}/extensions.txt"
+  app_ids "${EXT_DIR}/extensions.json" > "${stage}/extensions-app.txt"
   disabled_ids "${SRC}" > "${stage}/extensions-disabled.txt"
   enabled_ids "${stage}/extensions.txt" "${stage}/extensions-disabled.txt" \
     > "${stage}/extensions-enabled.txt"
 
-  local name location safe
+  local name location shared safe
   local -a listing=()
-  while IFS=$'\t' read -r name location; do
+  while IFS=$'\t' read -r name location shared; do
     [[ -d "${SRC}/profiles/${location}" ]] || continue
     # Profile names become dir names: keep them readable, drop path-hostile chars.
     safe="$(tr -c 'A-Za-z0-9._ -' '_' <<<"${name}" | sed 's/_$//')"
     stage_profile "${SRC}/profiles/${location}" "${stage}/profiles/${safe}"
-    extension_ids "${SRC}/profiles/${location}/extensions.json" \
-      > "${stage}/profiles/${safe}/extensions.txt"
+    listing+=("${safe}	${location}")
+    (( shared )) && continue  # same extensions as Default: nothing of its own
+    # own manifest + flagged ones: everything the profile actually sees
+    LC_ALL=C sort -u <(extension_ids "${SRC}/profiles/${location}/extensions.json") \
+      "${stage}/extensions-app.txt" > "${stage}/profiles/${safe}/extensions.txt"
     disabled_ids "${SRC}/profiles/${location}" \
       > "${stage}/profiles/${safe}/extensions-disabled.txt"
     enabled_ids "${stage}/profiles/${safe}/extensions.txt" \
       "${stage}/profiles/${safe}/extensions-disabled.txt" \
       > "${stage}/profiles/${safe}/extensions-enabled.txt"
-    listing+=("${safe}	${location}")
   done < <(profiles)
   if (( ${#listing[@]} > 0 )); then
     printf '%s\n' "# profile dir<TAB>VS Code profile id" "${listing[@]}" \
@@ -211,6 +261,18 @@ main() {
   done < <(find "${stage}" -type f -print0)
   # }}} - Secret guard ----------------------------------------------------------
 
+  # {{{ - Bulk guard ------------------------------------------------------------
+  local -i bulk=0 n
+  while IFS= read -r -d '' f; do
+    rel="${f#"${stage}"/}"
+    n="$(changed_count "${f}" "${target}/${rel}")"
+    if (( n >= BULK_MIN )); then
+      p_war "bulk change: ${n} extensions changed enabled state in ${rel} (Settings Sync?); snapshot written"
+      bulk=1
+    fi
+  done < <(find "${stage}" -type f -name extensions-enabled.txt -print0)
+  # }}} - Bulk guard ------------------------------------------------------------
+
   # {{{ - Sync ------------------------------------------------------------------
   local -a rsync_opts=(-rlp --checksum --delete --itemize-changes)
   local k
@@ -227,7 +289,7 @@ main() {
   fi
   # }}} - Sync ------------------------------------------------------------------
 
-  (( blocked == 0 )) || return 1
+  (( blocked == 0 && bulk == 0 )) || return 1
 }
 
 main "$@"
