@@ -13,31 +13,46 @@ MODULE_DESC="Nerd Fonts (FiraCode, FiraMono) + default monospace font"
 MODULE_PROFILES=(desktop)
 MODULE_DOC="docs/setup/fonts.md"
 
-declare -r NERD_FONTS_REPO="https://github.com/ryanoasis/nerd-fonts.git"
-declare -r NERD_FONTS_DIR="${HOME}/git/nerd-fonts"
-declare -ra NERD_FONTS=(FiraCode FiraMono)
+# One release archive per family (~3 MB each), pinned and checksummed, instead of
+# cloning the whole nerd-fonts repo (~8 GB). Same version as 41-console.
+# Bumping: new tag + each archive's line from the release's SHA-256.txt.
+declare -r NF_VERSION="v3.5.1"
+declare -rA NF_SHA256=(
+  [FiraCode]="68e3bd6164864b8b514605bc34e3a87ac401c8c48682fcce6478c70263340207"
+  [FiraMono]="e3112075b65d9a900ef6ca562c30f1b5eb1d1a928e97de7469962ac8c45e93d6"
+)
+declare -r NF_URL_BASE="https://github.com/ryanoasis/nerd-fonts/releases/download/${NF_VERSION}"
+declare -r NF_DIR="${HOME}/.local/share/fonts/NerdFonts"
 
 declare -r MONOSPACE_FONT="FiraMono Nerd Font 10"
 
 module_run() {
   # {{{ - Install fonts -------------------------------------------------------
   # fc-list is the source of truth: the fonts may have been installed by any
-  # means (apt, manual, a previous run), and we only care that they are there.
-  if fc-list 2>/dev/null | st::grep_q -i 'FiraMono Nerd Font'; then
-    st::noop "Nerd Fonts already installed (${NERD_FONTS[*]})"
-  else
-    if [[ -d "${NERD_FONTS_DIR}/.git" ]]; then
-      st::noop "nerd-fonts already cloned to ${NERD_FONTS_DIR}"
+  # means (a previous run, manual), and we only care that they are there.
+  # The pattern is the plain family: 41-console's system-wide "... Nerd Font
+  # Mono" must not make this look installed.
+  local family
+  for family in FiraCode FiraMono; do
+    if fc-list : family 2>/dev/null | st::grep_q -E "^${family} Nerd Font(,|\$)"; then
+      st::noop "${family} Nerd Font already installed"
+    elif ! st::have_cmd curl; then
+      st::war "curl not found — skipping ${family} (run '00-apt-base' first)"
     else
-      st::run "shallow-clone nerd-fonts to ${NERD_FONTS_DIR}" -- \
-        git clone --depth 1 "${NERD_FONTS_REPO}" "${NERD_FONTS_DIR}"
+      # Skip *Propo* (proportional icons, useless as a monospace font).
+      # pipefail + -e: a failed download or checksum must not install anything.
+      st::run_sh "install ${family} Nerd Font ${NF_VERSION} to ${NF_DIR}/${family}" "
+        set -euo pipefail
+        tmp=\"\$(mktemp -d)\"
+        trap 'rm -rf \"\${tmp}\"' EXIT
+        curl -fsSL -o \"\${tmp}/${family}.tar.xz\" '${NF_URL_BASE}/${family}.tar.xz'
+        printf '%s  %s\n' '${NF_SHA256[${family}]}' \"\${tmp}/${family}.tar.xz\" | sha256sum -c --quiet -
+        mkdir -p '${NF_DIR}/${family}'
+        tar -xJf \"\${tmp}/${family}.tar.xz\" -C '${NF_DIR}/${family}' \\
+          --exclude='*Propo*' --wildcards '*.[ot]tf' LICENSE
+        fc-cache -f '${NF_DIR}/${family}'"
     fi
-
-    # The repo is ~8 GB at full depth; --depth 1 plus a targeted install keeps
-    # this tolerable. install.sh is idempotent on its own.
-    st::run "install Nerd Fonts: ${NERD_FONTS[*]}" -- \
-      bash -c "cd '${NERD_FONTS_DIR}' && ./install.sh ${NERD_FONTS[*]}"
-  fi
+  done
   # }}} - Install fonts -------------------------------------------------------
 
   # {{{ - System monospace default --------------------------------------------
