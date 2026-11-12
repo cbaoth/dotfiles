@@ -22,6 +22,71 @@ alias ....='cd ../../..'
 alias cp='cp -i'
 alias mv='mv -i'
 
+unfold() {
+  local columns=0
+  local delimiter='\t'
+  local input_file=''
+  local -a paste_args
+
+  while (($#)); do
+    case "$1" in
+      -c|--columns)
+        if (($# < 2)) || [[ ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+          printf 'Usage: unfold -c COLUMNS [-d DELIMITER] [FILE]\n' >&2
+          return 2
+        fi
+        columns="$2"
+        shift 2
+        ;;
+      -d|--delimiter)
+        if (($# < 2)) || [[ -z "$2" ]]; then
+          printf 'Usage: unfold -c COLUMNS [-d DELIMITER] [FILE]\n' >&2
+          return 2
+        fi
+        delimiter="$2"
+        shift 2
+        ;;
+      --)
+        shift
+        if (($# > 1)); then
+          printf 'Usage: unfold -c COLUMNS [-d DELIMITER] [FILE]\n' >&2
+          return 2
+        fi
+        input_file="${1-}"
+        break
+        ;;
+      -*)
+        printf 'Usage: unfold -c COLUMNS [-d DELIMITER] [FILE]\n' >&2
+        return 2
+        ;;
+      *)
+        if [[ -n "$input_file" ]] || (($# > 1)); then
+          printf 'Usage: unfold -c COLUMNS [-d DELIMITER] [FILE]\n' >&2
+          return 2
+        fi
+        input_file="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if ((columns == 0)); then
+    printf 'Usage: unfold -c COLUMNS [-d DELIMITER] [FILE]\n' >&2
+    return 2
+  fi
+
+  local index
+  for ((index = 0; index < columns; index++)); do
+    paste_args+=( - )
+  done
+
+  if [[ -n "$input_file" ]]; then
+    paste -d "$delimiter" "${paste_args[@]}" < "$input_file"
+  else
+    paste -d "$delimiter" "${paste_args[@]}"
+  fi
+}
+
 # command-default overrides → regular aliases (command position only)
 alias uniq='LC_ALL=C uniq'
 alias sort='LC_ALL=C sort'
