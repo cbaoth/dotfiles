@@ -35,6 +35,9 @@ libpcsclite1
 # Firewall UI (ufw itself ships by default)
 gufw
 
+# GNOME settings the stock panel hides (default fonts, e.g. "Monospace Text")
+gnome-tweaks
+
 # Image/media CLI
 # terminal image viewers; chafa renders true sixel images in foot, catimg is
 # block-only but tiny. (Replaced the broken OMZP::catimg zinit snippet.)

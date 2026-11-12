@@ -231,15 +231,43 @@ if [[ -n "$(command -v apt-mark 2>/dev/null)" ]]; then
   alias amlh="apt-mark showhold"
 fi
 
-# apt-file
+# apt-file: "which package ships this file?". Paths in its index are absolute,
+# so "/NAME$" matches a file name only, never a directory component.
+# Searches refresh the index first (weekly), since a stale or empty index makes
+# a missing file look like it exists in no package.
 if [[ -n "$(command -v apt-file 2>/dev/null)" ]]; then
   alias af="apt-file"
 
-  # search
-  alias afs="apt-file search -i"
-  afsg() { apt-file search -i "$@" | grep -iE --color "$@"; }
-  alias afsr='apt-file search -i --regexp'
-  afsn() { apt-file search -i --regexp "/$1\$"; }
+  # update (afu! forces; afu skips if the last update is < 1 week old)
+  _af_update() {
+    sudo apt-file update || return
+    mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}"
+    date +%s > "${XDG_CACHE_HOME:-$HOME/.cache}/last_apt_file_update"
+  }
+  alias afu!='_af_update'
+  afu() {
+    local stamp="${XDG_CACHE_HOME:-$HOME/.cache}/last_apt_file_update"
+    if (( $(date +%s) - $(cat "${stamp}" 2>/dev/null || echo 0) > 604800 )); then
+      echo "> apt-file index older than a week (or never updated), updating ..." >&2
+      _af_update || echo "> apt-file update failed, searching a stale index" >&2
+    fi
+  }
+
+  # escape regex metacharacters of a literal string
+  _af_re_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
+
+  # search: path contains TEXT
+  afs() { afu && apt-file search -i "$@"; }
+  afsg() { afu && apt-file search -i "$1" | grep -iE --color "$1"; }
+  # search: regex on the path
+  afsr() { afu && apt-file search -i --regexp "$@"; }
+  # search: file name is exactly NAME (afsn libfoo.so.1)
+  afsn() { afu && apt-file search -i --regexp "/$(_af_re_escape "$1")\$"; }
+  # search: file name contains TEXT (afsc fira)
+  afsc() { afu && apt-file search -i --regexp "/[^/]*$(_af_re_escape "$1")[^/]*\$"; }
+
+  # list: files in a package
+  alias afl="apt-file list"
 fi
 
 # aptitude
