@@ -975,6 +975,8 @@ if (( SHLVL == 1 )); then
     printf "%s\n" "$(cl::fx b)$(cl::fx white)Welcome to $(cl::fx green)$(hostname) $(cl::fx white)running $(cl::fx green)$(uname -srm)$(cl::fx reset)"
   fi
   printf "%s\n" "$(cl::fx b)$(cl::fx white)Time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), Uptime: $(cl::fx green)$(uptime -p)$(cl::fx white) since $(cl::fx green)$(uptime -s)$(cl::fx white)$(cl::fx reset)"
+  # defined in ~/.zsh.d/zshrc-linux_wsl.zsh (WSL only)
+  (( $+functions[cb_wsl_update_check] )) && cb_wsl_update_check
 fi
 # }}} - MOTD -----------------------------------------------------------------
 
