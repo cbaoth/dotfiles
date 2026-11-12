@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Start sway nested in WSLg: one Windows window, tiled Wayland session inside.
+
+# Fail fast: every step is a precondition for the next one.
+set -euo pipefail
+
+p_msg() { printf '%s\n' "$*"; }
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+# {{{ = CONSTANTS ============================================================
+
+declare -r CONFIG="${XDG_CONFIG_HOME:-${HOME}/.config}/sway/wslg/config"
+declare -r LOG_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/sway-wslg"
+declare -r LOG_FILE="${LOG_DIR}/sway.log"
+declare -ri SOCKET_WAIT=10  # s
+
+# }}} = CONSTANTS ============================================================
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-s WxH] [-f] [-h]
+
+Start sway as a window inside WSLg, with ${CONFIG/#"${HOME}"/\~}.
+Detaches by default; the log goes to ${LOG_FILE/#"${HOME}"/\~}.
+
+Options:
+  -s, --size WxH    Initial window size, e.g. 2560x1400 (default: config)
+  -f, --foreground  Run sway in the foreground, log to the terminal; e.g. from a
+                    Windows shortcut: wsl.exe -e zsh -lc 'sway-wslg -f'
+  -h, --help        Show this help and exit
+
+Resize later:  swaymsg -- output WL-1 mode --custom WxH
+Packages:      sway foot wl-clipboard xwayland (apt)
+EOF
+}
+
+die() { p_err "$*"; exit 1; }
+
+# Print the IPC socket of sway PID once it exists; fail if sway died first.
+wait_socket() {
+  local -ri pid="$1"
+  local -r sock="${XDG_RUNTIME_DIR%/}/sway-ipc.${UID}.${pid}.sock"
+  local -i i
+  for (( i = 0; i < SOCKET_WAIT * 10; i++ )); do
+    [[ -S "${sock}" ]] && { printf '%s\n' "${sock}"; return 0; }
+    kill -0 "${pid}" 2> /dev/null || return 1
+    sleep 0.1
+  done
+  return 1
+}
+
+main() {
+  local size="" foreground=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--size)
+        [[ $# -ge 2 ]] || die "$1 needs a value (WxH)"
+        size="$2"
+        shift 2
+        ;;
+      -f|--foreground) foreground=true; shift ;;
+      -h|--help) usage; exit 0 ;;
+      --) shift; break ;;
+      *) usage >&2; exit 2 ;;
+    esac
+  done
+  [[ -z "${size}" || "${size}" =~ ^[0-9]+x[0-9]+$ ]] || die "invalid size '${size}', expected WxH"
+
+  [[ -n "${WSL_DISTRO_NAME:-}" ]] || die "not running in WSL"
+  local -r outer="${WAYLAND_DISPLAY:-wayland-0}"
+  [[ -S "${XDG_RUNTIME_DIR%/}/${outer}" ]] || die "no WSLg Wayland socket ${outer} (WSLg disabled?)"
+  [[ -f "${CONFIG}" ]] || die "config not found: ${CONFIG} (run dotfiles-link)"
+  command -v sway > /dev/null || die "sway not installed: sudo apt install sway foot wl-clipboard xwayland"
+  if pgrep -u "${UID}" -x sway > /dev/null; then
+    die "sway is already running (stop it: swaymsg exit)"
+  fi
+  if [[ ! -k /tmp/.X11-unix ]]; then
+    p_err "WARNING: /tmp/.X11-unix has no sticky bit (WSLg mount): no Xwayland, see docs/setup/sway-wslg.md"
+  fi
+
+  # Read by sway-wslg-clipboard, started from the config.
+  export SWAY_WSLG_OUTER_X11="${DISPLAY:-:0}"
+  # Pointer is invisible in nested wlroots without this.
+  export WLR_NO_HARDWARE_CURSORS=1
+  export XDG_CURRENT_DESKTOP=sway
+
+  if [[ "${foreground}" == true ]]; then
+    if [[ -n "${size}" ]]; then
+      # exec keeps this PID, so the socket name is known in advance.
+      ( sock="$(wait_socket "$$")" \
+          && swaymsg -s "${sock}" -- output WL-1 mode --custom "${size}" > /dev/null ) &
+    fi
+    exec sway -c "${CONFIG}"
+  fi
+
+  mkdir -p "${LOG_DIR}"
+  setsid sway -c "${CONFIG}" > "${LOG_FILE}" 2>&1 < /dev/null &
+  local -ri sway_pid=$!
+  local sock
+  if ! sock="$(wait_socket "${sway_pid}")"; then
+    p_err "sway did not start, last log lines:"
+    tail -n 20 "${LOG_FILE}" >&2
+    exit 1
+  fi
+  [[ -z "${size}" ]] || swaymsg -s "${sock}" -- output WL-1 mode --custom "${size}" > /dev/null
+  p_msg "sway started (pid ${sway_pid}), log: ${LOG_FILE}"
+  p_msg "IPC from this shell: export SWAYSOCK=${sock}"
+}
+
+main "$@"

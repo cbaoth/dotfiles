@@ -44,6 +44,16 @@ home/.config/emacs/*
 home/.config/aria2/aria2.conf
 # }}} - Tools ----------------------------------------------------------------
 
+# {{{ - sway in WSLg ---------------------------------------------------------
+# Only the standalone WSLg config, not the desktop sway setup.
+# See docs/setup/sway-wslg.md.
+home/.config/sway/wslg/config
+home/.config/xkb/symbols/custom
+home/.config/xkb/symbols/extend
+bin/sway-wslg
+bin/sway-wslg-clipboard
+# }}} - sway in WSLg ---------------------------------------------------------
+
 # {{{ - Copilot instructions -------------------------------------------------
 # Enterprise Copilot reads these. ~/.claude/rules is where VS Code Copilot
 # looks; Claude Code's own settings and skills (home/.claude/settings.json,

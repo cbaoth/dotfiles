@@ -81,7 +81,8 @@ It is saved in the untracked `.link-profile.local` (details: *Profiles* in
 
 - **Left out:** all desktop config (sway, waybar, mpv, ...), the systemd user
   units (notes, OneDrive, VS Code snapshot), host-specific zsh files, personal
-  `bin/` scripts, and Claude Code's `settings.json` and skills.
+  `bin/` scripts, and Claude Code's `settings.json` and skills. Exception: the
+  standalone sway-in-WSLg setup, see [sway-wslg.md](sway-wslg.md).
 - **Kept:** `~/.claude/rules` and `~/.copilot/.github/instructions`. They are the
   coding-style instruction files that VS Code and Copilot CLI read; nothing
   Claude-specific runs from them.

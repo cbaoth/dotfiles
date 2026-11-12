@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Sync the text clipboard between a sway nested in WSLg and WSLg (= Windows).
+#
+# Why: nested wlroots does not pass its clipboard to the parent compositor.
+# WSLg itself syncs with Windows, so bridging sway <-> WSLg is enough.
+# WSLg's side is reached via its X11 display (:0), not Wayland (wayland-0):
+# WSLg's weston lacks data-control, so every wl-paste/wl-copy there grabs
+# keyboard focus for a moment (microsoft/wslg#1512) -- polling it made the
+# WSLg windows steal focus back from Windows and doubled key presses.
+# How:
+#   sway -> WSLg: `wl-paste --watch` on sway (has data-control) calls this
+#                 script with --to-outer, which hands the text to xclip on :0.
+#   WSLg -> sway: no change events without data-control or XFixes: poll :0
+#                 every SWAY_WSLG_CLIP_INTERVAL seconds (no focus needed).
+# A shared checksum file stops the echo between both directions. When the
+# Windows side is cleared (password managers do), a copy that came from
+# Windows is cleared in sway too. Text only, no PRIMARY; content never logged.
+#
+# Started by ~/.config/sway/wslg/config (exec), with WAYLAND_DISPLAY = sway.
+
+# No `set -e`: a failed paste or copy must not end the long-running loop.
+set -uo pipefail
+
+p_err() { printf '\033[31mERROR\033[0m: %s\n' "$*" >&2; }
+
+# {{{ = CONSTANTS ============================================================
+
+declare -r OUTER_X="${SWAY_WSLG_OUTER_X11:-:0}"
+declare -r INNER="${WAYLAND_DISPLAY:-}"
+declare -r INTERVAL="${SWAY_WSLG_CLIP_INTERVAL:-0.5}"
+declare -r RUNTIME_DIR="${XDG_RUNTIME_DIR%/}"
+declare -r STATE="${RUNTIME_DIR}/sway-wslg-clipboard.${INNER}.state"
+# Explicit type: without it wl-copy runs xdg-mime, which can hang (seen in WSL).
+declare -r MIME="text/plain;charset=utf-8"
+
+# }}} = CONSTANTS ============================================================
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-h]
+
+Sync the text clipboard between nested sway (\$WAYLAND_DISPLAY) and WSLg
+(X11 \$SWAY_WSLG_OUTER_X11, default :0). Run from inside sway.
+
+Environment:
+  SWAY_WSLG_OUTER_X11       WSLg X11 display (set by sway-wslg)
+  SWAY_WSLG_CLIP_INTERVAL   poll interval for Windows -> sway, s (default 0.5)
+EOF
+}
+
+checksum() { sha256sum | cut -d' ' -f1; }
+
+# State line: "<checksum> <source>", source = inner | outer | none.
+read_state() { cat "${STATE}" 2> /dev/null || printf -- '- none'; }
+
+write_state() {
+  # Per-process tmp name: the watch handler and the poll loop write concurrently.
+  printf '%s %s\n' "$1" "$2" > "${STATE}.$$" && mv -f "${STATE}.$$" "${STATE}"
+}
+
+# Handler for `wl-paste --watch`: the new sway clipboard is on stdin.
+to_outer() {
+  local data sum state
+  data="$(cat; printf x)"
+  data="${data%x}"
+  [[ -n "${data}" ]] || return 0
+  sum="$(printf '%s' "${data}" | checksum)"
+  state="$(read_state)"
+  [[ "${sum}" == "${state%% *}" ]] && return 0
+  write_state "${sum}" inner
+  printf '%s' "${data}" | DISPLAY="${OUTER_X}" xclip -in -selection clipboard -target UTF8_STRING
+}
+
+poll_outer() {
+  local out sum state
+  local -i rc
+  while [[ -S "${RUNTIME_DIR}/${INNER}" ]]; do
+    out="$(DISPLAY="${OUTER_X}" timeout 2 xclip -out -selection clipboard -target UTF8_STRING 2> /dev/null
+      r=$?; printf x; exit "${r}")"
+    rc=$?
+    out="${out%x}"
+    state="$(read_state)"
+    # A cleared Windows clipboard reads as empty, not as an error.
+    if (( rc == 0 )) && [[ -n "${out}" ]]; then
+      sum="$(printf '%s' "${out}" | checksum)"
+      if [[ "${sum}" != "${state%% *}" ]]; then
+        write_state "${sum}" outer
+        printf '%s' "${out}" | WAYLAND_DISPLAY="${INNER}" wl-copy --type "${MIME}"
+      fi
+    elif [[ "${state#* }" == outer ]]; then
+      write_state - none
+      WAYLAND_DISPLAY="${INNER}" wl-copy --clear
+    fi
+    sleep "${INTERVAL}"
+  done
+}
+
+main() {
+  case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+    --to-outer) to_outer; exit ;;
+    "") ;;
+    *) usage >&2; exit 2 ;;
+  esac
+
+  local cmd
+  for cmd in wl-copy wl-paste xclip sha256sum; do
+    command -v "${cmd}" > /dev/null || { p_err "missing ${cmd} (apt: wl-clipboard, xclip, coreutils)"; exit 1; }
+  done
+  if [[ -z "${INNER}" ]]; then
+    p_err "run inside the nested sway (WAYLAND_DISPLAY is not set)"
+    exit 1
+  fi
+
+  wl-paste --type text --watch "${BASH_SOURCE[0]}" --to-outer &
+  declare -gri WATCH_PID=$!  # global: the EXIT trap runs outside main
+  trap 'kill "${WATCH_PID}" 2> /dev/null; rm -f "${STATE}" "${STATE}".*' EXIT
+  trap 'exit 0' INT TERM
+  poll_outer
+}
+
+main "$@"
