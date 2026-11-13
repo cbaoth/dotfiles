@@ -12,7 +12,7 @@ paths:
 
 Instructions for writing clean, modern, maintainable Python. Based on PEP 8 and current community best practices
 (uv, Ruff, pyright, pytest). Applies to full projects and standalone `.py` scripts alike. Project-specific
-configuration (`pyproject.toml`, `CLAUDE.md`, etc.) always takes precedence where it differs.
+configuration (`pyproject.toml`, `AGENTS.md` / `CLAUDE.md`, etc.) always takes precedence where it differs.
 
 ## Environment & Package Management
 
@@ -69,11 +69,14 @@ Single-file scripts use PEP 723 inline metadata so `uv run script.py` provisions
 - Modern syntax (3.10+): `X | None` instead of `Optional[X]`; builtin generics (`list[str]`, `dict[str, int]`)
   instead of `typing.List` & co.
 - Explicit `None` checks for optionals; narrow types before use
-- Type check with pyright: `uv run pyright`
+- Type check with pyright: add it as a dev dependency (`uv add --dev pyright`), then `uv run pyright`
+  (a project that deliberately disables type checking in `pyproject.toml` takes precedence)
 
 ## Docstrings
 
-- Required for all public APIs (modules, classes, functions)
+- Required for the public API of libraries and installable packages (modules, classes, functions)
+- CLI tools and standalone scripts: a module docstring (purpose and usage) plus docstrings for functions whose
+  behavior is not obvious from name and signature
 - First line: concise imperative summary ending with a period
 - Use **Google style** sections (`Args:`, `Returns:`, `Raises:`) to document non-obvious parameters,
   return values, and raised exceptions; omit sections that add nothing
@@ -83,6 +86,8 @@ Single-file scripts use PEP 723 inline metadata so `uv run script.py` provisions
 - Ruff is the only linter and formatter (replaces black, isort, flake8):
   - Format: `uv run ruff format .`
   - Check: `uv run ruff check .` (autofix: `--fix`)
+- Ruff's default rule set does not sort imports or flag outdated syntax: enable more rules in `pyproject.toml`,
+  at least `extend-select = ["I", "UP", "B"]` (import sorting, pyupgrade, bugbear), plus `"PTH"` (pathlib)
 - Run format and check before every commit
 - CI failure fix order: formatting → type errors → linting
 
@@ -108,6 +113,5 @@ Single-file scripts use PEP 723 inline metadata so `uv run script.py` provisions
 - DRY: every piece of knowledge has a single, authoritative representation
 - Prefer functional, immutable style where it doesn't hurt clarity;
   keep core logic pure and push I/O and side effects to the edges
-- Define composing (higher-level) functions before their components
 - Build iteratively: minimal working functionality first, verify, then extend
 - Minimal changes: only touch code related to the task at hand; follow existing project patterns
