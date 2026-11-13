@@ -133,6 +133,10 @@ sourced libs need explicit handling. `lib/functions.sh` already fixed
     target language through unchanged (mixed input in `while-read` loops).
   - IDEA: `--gpu` with the 12B model when no TTS model is loaded; an Opus-MT
     (CTranslate2) CPU backend as a fast fallback.
+  - IDEA: pick `-F` per text automatically (e.g. a profanity word list), or a
+    config default per use (`tts-speak --translate` for fiction).
+  - CONSIDER: add the two `ollama pull`s (TranslateGemma, Qwen3.6-35B-A3B for
+    `-F`) to `39-ollama`, so a fresh motoko setup has them.
 
 ## General Output
 
