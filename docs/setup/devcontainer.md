@@ -172,6 +172,7 @@ There is no standard for a user-facing exchange dir. The common split is:
 | Tool state that must survive rebuilds | named volume | `claude-config-${devcontainerId}` → `~/.claude` |
 | Caches worth sharing with the host | bind mount of the host cache | e.g. `~/.cache/huggingface` (cb-voice-lab) |
 | Data you want on the host | bind mount | `~/container/<name>` → `/home/vscode/share` |
+| Host timezone (all containers) | read-only bind mount | `/etc/localtime` → `/etc/localtime` (`source=/etc/localtime,target=/etc/localtime,type=bind,readonly`; hosts have no `/etc/timezone`) |
 
 - **Claude Code** in a container: the named volume plus
   `containerEnv.CLAUDE_CONFIG_DIR=/home/vscode/.claude` keeps the login and
@@ -221,8 +222,8 @@ Reasons, in short:
 - **Why gluetun, not the official client:** it picks the server from a country
   filter (`WEBTOOLS_VPN_COUNTRIES`, default Luxembourg) and reconnects by
   itself. It does not pick the *fastest* server; the official client would.
-- **Credentials:** `~/.config/web-tools/nordvpn.env` (`OPENVPN_USER`,
-  `OPENVPN_PASSWORD`), mode 600, outside both repos.
+- **Credentials:** `~/.config/web-tools/openvpn_user` and `openvpn_password`
+  (docker secrets: `docker compose config` must not print them), mode 600, outside both repos.
 - **Hostname:** `network_mode` forbids `hostname:` on `webtools`; the shared
   name `web-tools` is set on the gluetun service.
 - **Names:** compose project `cb-web-tools`, containers `cb-web-tools` and
@@ -231,6 +232,15 @@ Reasons, in short:
 - **JDownloader** runs headless in the container (`tools/jd`) and is controlled
   through my.jdownloader.org; the host's `~/jd2` is bind-mounted (per-host
   `.env`), so the install, its settings and the download root carry over.
+- **Gotcha, stale server list (2026-11-13):** gluetun ships a baked-in server
+  list that goes stale within months. Nord's Luxembourg servers moved, and
+  every connect attempt timed out (`TLS key negotiation failed`, UDP and TCP
+  alike) while credentials were fine (`User: [set]`). Not a firewall. The list
+  is now persisted in `~/.cache/web-tools-gluetun` and refreshed daily
+  (`UPDATER_PERIOD`). Seed or refresh it by hand:
+  `docker run --rm -v ~/.cache/web-tools-gluetun:/gluetun qmcgaw/gluetun:v3 update -enduser -providers nordvpn`.
+  Dead ends on the way: `OPENVPN_PROTOCOL=tcp` (same timeout), and probing a
+  server from motoko (invalid, its own Nord tunnel carried the probe).
 - `tools/run.sh` (plain docker) has no VPN.
 
 ## Porting another repo
