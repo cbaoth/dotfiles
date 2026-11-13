@@ -2,7 +2,8 @@
 # -*- mode: python; indent-tabs-mode: nil; tab-width: 2 -*-
 # vim: ft=python:et:ts=2:sts=2:sw=2
 #
-# translate: translate text locally (English <-> German by default) with TranslateGemma via Ollama.
+# translate: translate text locally (English <-> German by default) via Ollama: TranslateGemma, or with -F a
+# general model told to translate faithfully (keeps profanity that TranslateGemma tones down).
 
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ from collections.abc import Sequence
 # while-read loops). On the CPU by default, so it never competes for VRAM with
 # the TTS models (cb-tts-server), which take ~50 s to reload.
 DEFAULT_MODEL = "hf.co/bullerwins/translategemma-4b-it-GGUF:Q4_K_M"
+# -F: a mixture-of-experts model (~3B of 35B parameters active per token), ~20 tok/s on the CPU, ~21 GB RAM.
+DEFAULT_FAITHFUL_MODEL = "hf.co/bartowski/Qwen_Qwen3.6-35B-A3B-GGUF:Q4_K_M"
 DEFAULT_TARGET = "de"
 DEFAULT_KEEP_ALIVE = "30m"
 DEFAULT_OLLAMA_PORT = 11434
@@ -30,11 +33,13 @@ REQUEST_TIMEOUT_S = 600  # a long paragraph on the CPU, plus a cold model load
 # TranslateGemma's input context is 2K tokens; ~1200 chars of text plus the
 # prompt and the translation stay well below it.
 NUM_CTX = 2048
+FAITHFUL_NUM_CTX = 4096
 MAX_CHUNK_CHARS = 1200
 # Without -s, the source is the other language of this pair.
 PAIR = ("en", "de")
 
-# A subset of the language table in TranslateGemma's chat template (55 languages are supported).
+# A subset of the language table in TranslateGemma's chat template (55 languages are supported); the -F model
+# knows them all, too.
 LANGUAGES = {
   "ar": "Arabic",
   "cs": "Czech",
@@ -73,23 +78,48 @@ PROMPT = (
   "<start_of_turn>model\n"
 )
 
+# -F: TranslateGemma tones down profanity and insults ("you sick fuck" -> "ihr widerlichen Menschen"); a general
+# instruct model keeps them when told to. The stock model is enough, no abliterated build needed.
+FAITHFUL_SYSTEM = (
+  "You are a professional literary translator. Translate the user's text from {src} ({src_code}) to {tgt} "
+  "({tgt_code}). Be faithful: keep meaning, tone, register, profanity, insults and violence at exactly the same "
+  "strength; never soften, censor, euphemize, add or omit anything. Keep the line breaks. "
+  "Output only the translation."
+)
+# ChatML as Qwen3.6's chat template (tokenizer.chat_template in the GGUF) renders it with enable_thinking=false.
+# Built here because Ollama does not convert that template (it falls back to the bare prompt).
+FAITHFUL_PROMPT = (
+  "<|im_start|>system\n{system}<|im_end|>\n"
+  "<|im_start|>user\n{text}<|im_end|>\n"
+  "<|im_start|>assistant\n<think>\n\n</think>\n\n"
+)
+
 USAGE_EPILOG = f"""\
 TEXT comes from the arguments, else stdin if piped, else the primary selection
 (falls back to the clipboard). Paragraphs (blank-line separated) are translated
 one by one and printed as soon as they are done; one line in gives one line out.
 
-The model runs in Ollama (setup once: ollama pull {DEFAULT_MODEL}).
+The model runs in Ollama. Setup once:
+  ollama pull {DEFAULT_MODEL}
+  ollama pull {DEFAULT_FAITHFUL_MODEL}   # -F only, ~23 GB
+
+-F/--faithful keeps profanity and insults at full strength, which the default
+model tones down. It is slower (~20 tokens/s on the CPU) and holds ~21 GB RAM
+while loaded. -m must match the mode: a TranslateGemma model by default, a
+ChatML model (Qwen) with -F.
 
 environment:
-  TRANSLATE_TARGET      default target language (default: {DEFAULT_TARGET})
-  TRANSLATE_MODEL       Ollama model (default: {DEFAULT_MODEL})
-  TRANSLATE_DEVICE      cpu or gpu (default: cpu)
-  TRANSLATE_KEEP_ALIVE  how long Ollama keeps the model loaded (default: {DEFAULT_KEEP_ALIVE})
-  OLLAMA_HOST           Ollama host, host:port or URL (default: 127.0.0.1:{DEFAULT_OLLAMA_PORT})
+  TRANSLATE_TARGET          default target language (default: {DEFAULT_TARGET})
+  TRANSLATE_MODEL           Ollama model (default: {DEFAULT_MODEL})
+  TRANSLATE_FAITHFUL_MODEL  Ollama model for -F (default: {DEFAULT_FAITHFUL_MODEL})
+  TRANSLATE_DEVICE          cpu or gpu (default: cpu)
+  TRANSLATE_KEEP_ALIVE      how long Ollama keeps the model loaded (default: {DEFAULT_KEEP_ALIVE})
+  OLLAMA_HOST               Ollama host, host:port or URL (default: 127.0.0.1:{DEFAULT_OLLAMA_PORT})
 
 examples:
   translate -t de "The quick brown fox jumps over the lazy dog."
   cat chapter1.txt | translate -t de > chapter1.de.txt
+  translate -F -t de < story.txt   # faithful: keep the swearing
   while-read translate -t de "<<<{{}}" \\| tts-speak -l de
   translate --gpu -t en < notes.txt
 """
@@ -133,7 +163,7 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
   """Parse the command line; environment variables provide the defaults."""
   parser = argparse.ArgumentParser(
     prog="translate",
-    description="Translate text locally with TranslateGemma via Ollama.",
+    description="Translate text locally via Ollama (TranslateGemma; -F: a faithful general model).",
     epilog=USAGE_EPILOG,
     formatter_class=argparse.RawDescriptionHelpFormatter,
   )
@@ -151,10 +181,15 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     help=f"source language (default: the other one of {'/'.join(PAIR)}; required for other targets)",
   )
   parser.add_argument(
+    "-F",
+    "--faithful",
+    action="store_true",
+    help="translate faithfully with a general model: keep profanity and insults (slower, ~21 GB RAM)",
+  )
+  parser.add_argument(
     "-m",
     "--model",
-    default=os.environ.get("TRANSLATE_MODEL") or DEFAULT_MODEL,
-    help="Ollama model (default: %(default)s)",
+    help=f"Ollama model (default: {DEFAULT_MODEL}; with -F: {DEFAULT_FAITHFUL_MODEL})",
   )
   device = parser.add_mutually_exclusive_group()
   device.add_argument(
@@ -173,6 +208,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
   args = parser.parse_args(argv)
   if args.raw is not None and args.words:
     parser.error("--raw and TEXT arguments are mutually exclusive")
+  if not args.model:
+    if args.faithful:
+      args.model = os.environ.get("TRANSLATE_FAITHFUL_MODEL") or DEFAULT_FAITHFUL_MODEL
+    else:
+      args.model = os.environ.get("TRANSLATE_MODEL") or DEFAULT_MODEL
   return args
 
 
@@ -245,17 +285,23 @@ def split_long(paragraph: str, max_chars: int) -> list[str]:
 def translate(url: str, args: argparse.Namespace, text: str, source: str, target: str) -> str:
   """Translate one chunk via Ollama's /api/generate.
 
-  Raw mode with the prompt built here: the GGUF's chat template expects structured
-  content (source/target language codes), which Ollama's template conversion may not keep.
+  Raw mode with the prompt built here, in both modes: TranslateGemma's chat template expects
+  structured content (source/target language codes), which Ollama's template conversion may
+  not keep, and Ollama does not convert Qwen3.6's template at all.
   """
-  prompt = PROMPT.format(
-    src=LANGUAGES[base_code(source)],
-    src_code=source,
-    tgt=LANGUAGES[base_code(target)],
-    tgt_code=target,
-    text=text.strip(),
-  )
-  options: dict[str, object] = {"temperature": 0, "num_ctx": NUM_CTX, "stop": ["<end_of_turn>"]}
+  names = {
+    "src": LANGUAGES[base_code(source)],
+    "src_code": source,
+    "tgt": LANGUAGES[base_code(target)],
+    "tgt_code": target,
+  }
+  options: dict[str, object] = {"temperature": 0}
+  if args.faithful:
+    prompt = FAITHFUL_PROMPT.format(system=FAITHFUL_SYSTEM.format(**names), text=text.strip())
+    options |= {"num_ctx": FAITHFUL_NUM_CTX, "stop": ["<|im_end|>", "<|endoftext|>"]}
+  else:
+    prompt = PROMPT.format(**names, text=text.strip())
+    options |= {"num_ctx": NUM_CTX, "stop": ["<end_of_turn>"]}
   if not args.gpu:
     options["num_gpu"] = 0  # no layers on the GPU
   payload = {
@@ -267,7 +313,8 @@ def translate(url: str, args: argparse.Namespace, text: str, source: str, target
     "options": options,
   }
   response = post_json(f"{url}/api/generate", payload, args.model)
-  return str(response.get("response", "")).strip()
+  # The prompt closes the think block; drop one anyway if the model opens another.
+  return re.sub(r"^<think>.*?</think>", "", str(response.get("response", "")).strip(), flags=re.DOTALL).strip()
 
 
 def parse_keep_alive(value: str) -> str | int:

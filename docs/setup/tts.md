@@ -3,7 +3,7 @@ title: Text-to-speech (read selection aloud)
 hosts: [motoko]
 status: resolved
 tags: [tts, piper, sway, accessibility, voxtral, translation]
-updated: 2026-11-08
+updated: 2026-11-13
 ---
 
 # Text-to-speech: read the selection aloud
@@ -268,16 +268,20 @@ marks multi-speaker models. Sources: <https://huggingface.co/rhasspy/piper-voice
 - Unnatural pauses in hard-wrapped text (Gutenberg) were a `tts-clean` bug,
   fixed: German nouns are capitalized, so case says nothing about a wrap.
 
-## Translation (`translate`, `tlde` / `tlen`)
+## Translation (`translate`, `tlde` / `tlen`, `tldeF` / `tlenF`)
 
 `bin/translate` translates locally with **TranslateGemma 4B** (Google, Gemma 3
 fine-tuned for translation, 55 languages) in the system **Ollama** service:
-English ↔ German by default, other pairs with `-s`/`-t`.
+English ↔ German by default, other pairs with `-s`/`-t`. With `-F` it
+translates **faithfully** with a general model instead (Qwen3.6-35B-A3B), which
+keeps profanity and insults that TranslateGemma tones down; see
+[Faithful mode](#faithful-mode--f).
 
-**Setup (once, ~2.5 GB):**
+**Setup (once):** Ollama itself comes from [`39-ollama`](ollama.md).
 
 ```sh
-ollama pull hf.co/bullerwins/translategemma-4b-it-GGUF:Q4_K_M
+ollama pull hf.co/bullerwins/translategemma-4b-it-GGUF:Q4_K_M    # ~2.5 GB
+ollama pull hf.co/bartowski/Qwen_Qwen3.6-35B-A3B-GGUF:Q4_K_M     # -F only, ~23 GB
 ```
 
 **Use:**
@@ -289,6 +293,8 @@ while-read translate -t de "<<<{}" \| tts-speak -l de   # translate and read eac
 tlde This has * in it          # zsh front-end: noglob, * needs no escaping
 tlen -- it's `raw`, ... too    # like qn: everything after ' -- ' literal (no global aliases)
 tlde                           # multi-line prompt
+translate -F -t de < story.txt # faithful: keep the swearing
+tldeF -- Shut the fuck up.     # tldeF / tlenF = tlde / tlen with -F
 ```
 
 Text comes from the arguments, stdin, or the selection (like `tts-speak`).
@@ -323,17 +329,59 @@ Measured (2026-11-03, 4B Q4_K_M, `cb-tts-server` holding Qwen3-TTS):
 
 Settings are environment variables (`translate -h`): `TRANSLATE_TARGET`,
 `TRANSLATE_MODEL` (e.g. the 12B for better quality, slower on the CPU),
-`TRANSLATE_DEVICE`, `TRANSLATE_KEEP_ALIVE`, `OLLAMA_HOST`.
+`TRANSLATE_FAITHFUL_MODEL`, `TRANSLATE_DEVICE`, `TRANSLATE_KEEP_ALIVE`,
+`OLLAMA_HOST`.
+
+### Faithful mode (`-F`)
+
+TranslateGemma is the safer default: it rarely adds crude words, but it also
+softens the ones that are there. Violence passes; profanity and insults do not.
+Synthetic test lines (2026-11-13):
+
+| Source | TranslateGemma 4B | `-F` (Qwen3.6-35B-A3B) |
+| ------ | ----------------- | ---------------------- |
+| Get your fucking hands off me, you sick fuck. | Hör auf, dich an mir zu kratzen, du widerlicher Mensch. | Nimm deine verdammten Hände von mir, du krankes Arschloch. |
+| … slit the bastard's throat … | … schnitt dem Mann den Hals auf … | … schlitzte dem Bastard die Kehle auf … |
+| Scheiße, der verdammte Wichser … | Damn, that bastard … | Fuck, that fucking asshole … |
+
+- `-F` sends a ChatML prompt with a strict system instruction ("keep
+  profanity, insults and violence at the same strength; never soften"), with
+  thinking switched off. Ollama does not convert this GGUF's chat template, so
+  `translate` builds the prompt itself, as for TranslateGemma.
+- Also clearly better on literary prose: TranslateGemma 4B produced typos and
+  wrong words ("auf ihren Beschlägen" for *on its hinges*) and added meaning
+  ("fast mütterlich" for *almost kind*).
+- The stock model is enough; abliterated/uncensored builds are not needed (the
+  one tried, a Qwen3.5 9B, never stopped generating).
+- Needs Ollama with the `qwen35moe` architecture: 0.20.7 could not load it,
+  0.40.16 works.
+
+Measured (2026-11-13, Q4_K_M, CPU):
+
+| Case | Time |
+| ---- | ---- |
+| first load from disk | ~27 s |
+| one sentence, model loaded | ~1.3 s |
+| 3 short lines / 2 prose paragraphs (~650 chars) | 2.4 s / 8 s |
+| generation speed | ~20 tokens/s (TranslateGemma 4B is faster) |
+| RAM while loaded | ~21 GB (both models fit side by side) |
 
 **Model choice:**
 
+- Qwen3.6-35B-A3B for `-F`: a mixture-of-experts model with ~3B of 35B
+  parameters active per token, so it is fast on the CPU; Apache 2.0.
+  - Dense models of that size (Gemma 3 27B) are too slow on the CPU; the
+    stock Qwen3.5 9B dense ran at ~8 tokens/s, with clumsier German.
+  - Not tried: Ministral 3 14B (lightly aligned, dense, slower), Gemma 4
+    26B-A4B (fast, but Gemma models may soften like TranslateGemma).
 - HY-MT1.5 (Tencent, 1.8B/7B) is good and smaller, but its license excludes
   the EU.
-- Opus-MT / Argos (CTranslate2) are tiny and fast on the CPU, but weaker on
-  literary text.
+- Opus-MT / Argos (CTranslate2) are tiny and fast on the CPU and do not
+  soften, but they translate sentence by sentence and are weaker on literary
+  text.
 
 **cb-qwen3-tts** translates through its text filter, no extra code:
-`cb-qwen3-tts ... --text-filter 'translate -t de'`. Never add
+`cb-qwen3-tts ... --text-filter 'translate -t de'` (or `'translate -F -t de'`). Never add
 `--filter-ref-text` there: the reference transcript has to match the reference
 audio.
 

@@ -1,8 +1,8 @@
-#compdef translate tlde tlen
+#compdef translate tlde tlen tldeF tlenF
 # vim: ft=zsh:et:ts=2:sts=2:sw=2
 #
 # Completion for translate (bin/translate in the dotfiles repo) and its zsh
-# front-ends tlde/tlen (.zsh.d/translate.zsh). Autoloaded by compinit via the
+# front-ends tlde/tlen/tldeF/tlenF (.zsh.d/translate.zsh). Autoloaded by compinit via the
 # #compdef tag above.
 #
 # Keep in sync with bin/translate: options mirror parse_args(); language codes
@@ -25,12 +25,15 @@ _translate_models() {
 }
 
 local -a target
-# tlde/tlen fix the target language
+local -a faithful
+# tlde/tlen/... fix the target language; tldeF/tlenF are already faithful
 [[ $service == translate ]] && target=('(-t --target)'{-t,--target}'[target language]:language:_translate_langs')
+[[ $service == (translate|tlde|tlen) ]] && faithful=('(-F --faithful)'{-F,--faithful}'[keep profanity and insults (general model, slower)]')
 
 _arguments -s -S \
   '(- *)'{-h,--help}'[show help]' \
   "${target[@]}" \
+  "${faithful[@]}" \
   '(-s --source)'{-s,--source}'[source language]:language:_translate_langs' \
   '(-m --model)'{-m,--model}'[Ollama model]:model:_translate_models' \
   '(--cpu)--gpu[let Ollama put the model on the GPU]' \
