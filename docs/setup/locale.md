@@ -55,3 +55,13 @@ locale                # what is actually in effect
 date                  # should print an ISO-8601-ish date
 locale -a | grep -i dk
 ```
+
+## Containers: LC_* come from `.common_env`, not from PAM
+
+`10-locale` also runs in the `container` profile and writes `/etc/default/locale`
+(LANG plus the `en_DK` LC_* formats). On a host that file is read by `pam_env`
+at login; a container has no login session, so only `LANG` (the Dockerfile's
+`ENV`) reached the environment and `date` printed US-style formats
+(2026-11-13: found in web-tools). `home/.common_env` now imports the `LC_*`
+lines from `/etc/default/locale` when `IS_DOCKER=true`. It reaches an image only
+with a fresh dotfiles clone: rebuild with `dcrebust` (`CACHE_BUST`).

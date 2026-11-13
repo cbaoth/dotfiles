@@ -159,6 +159,20 @@ export IS_DOCKER=${IS_DOCKER:-false}
 export IS_WSL1=${IS_WSL1:-false}
 export IS_WSL2=${IS_WSL2:-false}
 
+# Containers: no PAM login session reads /etc/default/locale, so the LC_*
+# formats set by setup/modules/10-locale (en_DK: ISO dates) would never reach
+# the environment (only LANG from the Dockerfile does). Import them here, the
+# way pam_env does on a host. LC_ALL is deliberately not imported.
+if [[ ${IS_DOCKER} == true && -r /etc/default/locale ]]; then
+  while IFS='=' read -r _lc_key _lc_val; do
+    case "${_lc_key}" in
+      LC_ALL) ;;
+      LC_*) export "${_lc_key}=${_lc_val//\"/}" ;;
+    esac
+  done < /etc/default/locale
+  unset _lc_key _lc_val
+fi
+
 # Is conda (anaconda/miniconda) available?
 HAS_CONDA=false
 if [[ -f "$HOME/anaconda3/bin/conda" || -f "$HOME/miniconda3/bin/conda" ]]; then
