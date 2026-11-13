@@ -85,12 +85,19 @@ a human, so nothing is at risk. Scripts that do machine-read package state use
 ## FFmpeg
 
 Not in any package list, on purpose. The apt build is older and less complete
-(no `rubberband`, among others). Use the static GPL builds instead, via
+(no `rubberband`, among others). The static GPL builds are installed per user
+by [`setup/modules/19-ffmpeg.sh`](../../setup/modules/19-ffmpeg.sh) (profiles
+`desktop`, `server`; containers name it explicitly), which wraps
 [`bin/ffmpeg-install`](../../bin/ffmpeg-install):
 
 ```bash
-ffmpeg-install
+system-setup 19-ffmpeg                 # install if missing
+FFMPEG_UPDATE=1 system-setup 19-ffmpeg # update (same as: ffmpeg-install update)
 ```
+
+The links in `~/.local/bin` win on PATH over the apt `ffmpeg`, which stays
+where other packages depend on it (mpv). A project that needs the pip/apt
+libraries (PyAV and the like) adds them on top, it does not replace this.
 
 ## Not automated
 
