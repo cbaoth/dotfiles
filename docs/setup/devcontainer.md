@@ -205,6 +205,34 @@ a sleep), so it survives the SSH session. Alternatives:
   web-tools-container ships one: `docker compose up -d --build`, then
   `dsh web-tools`.
 
+## web-tools: VPN sidecar and JDownloader (2026-11-13, untested)
+
+web-tools-container is **compose-based**: `devcontainer.json` points at
+`docker-compose.yml` (`dockerComposeFile` + `service`), which is the single
+source of truth for build, mounts and a `gluetun` sidecar. `webtools` uses
+`network_mode: service:gluetun`, so all its traffic leaves through NordVPN
+(OpenVPN, service credentials) and a dropped tunnel means no connectivity.
+Reasons, in short:
+
+- **Why not the host VPN on saito:** system-wide NordVPN breaks inbound
+  forwarding (asymmetric routing) and the tailnet routes, see
+  [vserver-migration.md](vserver-migration.md) and [tailscale.md](tailscale.md).
+  Scoping it to a container leaves the host untouched.
+- **Why gluetun, not the official client:** it picks the server from a country
+  filter (`WEBTOOLS_VPN_COUNTRIES`, default Luxembourg) and reconnects by
+  itself. It does not pick the *fastest* server; the official client would.
+- **Credentials:** `~/.config/web-tools/nordvpn.env` (`OPENVPN_USER`,
+  `OPENVPN_PASSWORD`), mode 600, outside both repos.
+- **Hostname:** `network_mode` forbids `hostname:` on `webtools`; the shared
+  name `web-tools` is set on the gluetun service.
+- **Names:** compose project `cb-web-tools`, containers `cb-web-tools` and
+  `cb-web-tools-vpn`. The repo directory keeps its name: the Claude login
+  volume and `devcontainerId` derive from the path.
+- **JDownloader** runs headless in the container (`tools/jd`) and is controlled
+  through my.jdownloader.org; the host's `~/jd2` is bind-mounted (per-host
+  `.env`), so the install, its settings and the download root carry over.
+- `tools/run.sh` (plain docker) has no VPN.
+
 ## Porting another repo
 
 Other repos cannot COPY the dotfiles, so they clone them. Reference
