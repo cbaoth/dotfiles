@@ -23,3 +23,6 @@ vscode-profiles export                                # refresh after a cleanup
 The full config history (settings, keybindings, snippets, extension lists
 every hour) lives in the private notes repo, written by
 `vscode-config-snapshot`; this directory is the shareable subset.
+
+Why this exists, and how the "Apply Extension to all Profiles" flag really
+behaves: `docs/troubleshooting/vscode-extensions-resurrected.md`.
