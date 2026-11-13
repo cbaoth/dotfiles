@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Run a GUI app on a remote host in a persistent xpra session and attach to it.
+
+# Strict mode: every step depends on the previous one (ssh, start, attach).
+set -euo pipefail
+
+# {{{ = CONSTANTS ============================================================
+# Named apps: host, display number, start command. One line each to add more.
+declare -rA APP_HOST=(
+  [jd]="saito"
+)
+declare -rA APP_DISPLAY=(
+  [jd]="100"
+)
+declare -rA APP_CMD=(
+  [jd]="java -Xmx512m -jar /home/cbaoth/jd2/JDownloader.jar"
+)
+declare -ri READY_TRIES=30      # x READY_DELAY seconds to wait for the session
+declare -r READY_DELAY="0.5"
+# }}} = CONSTANTS ============================================================
+
+# {{{ = FUNCTIONS ============================================================
+p_err() { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; }
+p_msg() { printf '\033[1;34m>\033[0m %s\n' "$*" >&2; }
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [OPTIONS] APP [XPRA_ATTACH_ARGS...]
+       $(basename "$0") [OPTIONS] --host HOST --display N --cmd CMD
+
+Start APP on its host in an xpra session (only if none is running), then
+attach to it. The session survives disconnects: detach with Ctrl-C or the
+tray's Disconnect, NOT by closing the app window (that quits the app, and
+the session ends with it).
+
+Apps: ${!APP_HOST[*]}
+
+Options:
+  -H, --host HOST     remote host (ssh alias), overrides the app's default
+  -D, --display N     xpra display number, overrides the app's default
+  -c, --cmd CMD       start command (needs --host and --display without APP)
+  -s, --status        list xpra sessions on the host and exit
+  -k, --stop          stop the session (quits the app) and exit
+  -h, --help          show this help
+
+Extra arguments after APP go to 'xpra attach', e.g. '-d tray' for debug.
+xpra always runs over OpenSSH (--ssh=ssh): its built-in paramiko client
+ignores ~/.ssh/config and can write a wildcard '*' host key.
+EOF
+}
+
+# True if the session on host $1, display $2 is live.
+is_live() {
+  ssh -o BatchMode=yes "$1" xpra list 2>/dev/null | grep -q "LIVE session at :$2\$"
+}
+
+# Start the session on host $1, display $2 with command $3.
+# Started via plain ssh: 'xpra start ssh://...' fails to connect on the first
+# start (its remote _proxy_start never reaches the new server).
+start_session() {
+  local -r host="$1" disp="$2" cmd="$3"
+  local -ra remote=(xpra start ":${disp}" --exit-with-children=yes "--start-child=${cmd}")
+  local -i i
+  p_msg "starting '${cmd}' on ${host}:${disp}"
+  # shellcheck disable=SC2029 # expand locally on purpose, quoted with %q
+  ssh "${host}" "$(printf '%q ' "${remote[@]}")"
+  for ((i = 0; i < READY_TRIES; i++)); do
+    is_live "${host}" "${disp}" && return 0
+    sleep "${READY_DELAY}"
+  done
+  p_err "session ${host}:${disp} not live after starting, see ${host}:/run/user/$(id -u)/xpra/${disp}/server.log"
+  return 1
+}
+
+main() {
+  local host="" disp="" cmd="" action="attach" app=""
+  while (($#)); do
+    case "$1" in
+      -H|--host) host="${2:?--host needs a value}"; shift 2 ;;
+      -D|--display) disp="${2:?--display needs a value}"; shift 2 ;;
+      -c|--cmd) cmd="${2:?--cmd needs a value}"; shift 2 ;;
+      -s|--status) action="status"; shift ;;
+      -k|--stop) action="stop"; shift ;;
+      -h|--help) usage; return 0 ;;
+      --) shift; break ;;
+      -*) p_err "unknown option: $1"; usage >&2; return 2 ;;
+      *) break ;;
+    esac
+  done
+
+  if [[ -z "${cmd}" || $# -gt 0 ]]; then
+    app="${1:-}"
+    if [[ -z "${app}" ]]; then
+      if [[ -z "${host}" || "${action}" == "attach" ]]; then
+        p_err "no APP given"; usage >&2; return 2
+      fi
+    elif [[ -z "${APP_HOST[${app}]:-}" ]]; then
+      p_err "unknown app '${app}' (known: ${!APP_HOST[*]})"; return 2
+    else
+      shift
+      host="${host:-${APP_HOST[${app}]}}"
+      disp="${disp:-${APP_DISPLAY[${app}]}}"
+      cmd="${cmd:-${APP_CMD[${app}]}}"
+    fi
+  fi
+
+  if [[ "${action}" == "status" ]]; then
+    ssh "${host}" xpra list
+    return
+  fi
+  [[ -n "${host}" && -n "${disp}" ]] || { p_err "need --host and --display (or an APP)"; return 2; }
+
+  case "${action}" in
+    stop)
+      xpra stop "ssh://${host}/${disp}" --ssh=ssh
+      ;;
+    attach)
+      if is_live "${host}" "${disp}"; then
+        p_msg "session ${host}:${disp} is running, attaching"
+      else
+        [[ -n "${cmd}" ]] || { p_err "no session on ${host}:${disp} and no command to start"; return 2; }
+        start_session "${host}" "${disp}" "${cmd}"
+      fi
+      exec xpra attach "ssh://${host}/${disp}" --ssh=ssh "$@"
+      ;;
+  esac
+}
+# }}} = FUNCTIONS ============================================================
+
+main "$@"
