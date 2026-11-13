@@ -172,7 +172,7 @@ There is no standard for a user-facing exchange dir. The common split is:
 | Tool state that must survive rebuilds | named volume | `claude-config-${devcontainerId}` → `~/.claude` |
 | Caches worth sharing with the host | bind mount of the host cache | e.g. `~/.cache/huggingface` (cb-voice-lab) |
 | Data you want on the host | bind mount | `~/container/<name>` → `/home/vscode/share` |
-| Host timezone (all containers) | read-only bind mount | `/etc/localtime` → `/etc/localtime` (`source=/etc/localtime,target=/etc/localtime,type=bind,readonly`; hosts have no `/etc/timezone`) |
+| Host timezone (all containers) | env var `TZ` | `containerEnv` `"TZ": "${localEnv:TZ}"` (compose: `TZ: ${TZ:-UTC}`); `dcup`/`dcre` export it from `timedatectl`. **Not** a `/etc/localtime` bind mount: docker follows the image's symlink and overwrites `/usr/share/zoneinfo/Etc/UTC` (glibc then looks right, Java still says UTC) |
 
 - **Claude Code** in a container: the named volume plus
   `containerEnv.CLAUDE_CONFIG_DIR=/home/vscode/.claude` keeps the login and

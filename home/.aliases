@@ -1512,10 +1512,14 @@ fi
 # Container", which replaces the current (host) window. DIR defaults to '.';
 # further arguments go to `devcontainer up`.
 if command -v devcontainer >/dev/null 2>&1; then
+  # TZ: the host's timezone name for the container (devcontainer.json
+  # containerEnv ${localEnv:TZ}, compose ${TZ}). A bind mount of /etc/localtime
+  # does not work: docker follows the image's symlink and overwrites
+  # /usr/share/zoneinfo/Etc/UTC, so Java still sees UTC.
   # build if needed, then start the devcontainer of DIR
-  dcup() { devcontainer up --workspace-folder "${1:-.}" "${@:2}"; }
+  dcup() { TZ="${TZ:-$(timedatectl show -p Timezone --value 2>/dev/null)}" devcontainer up --workspace-folder "${1:-.}" "${@:2}"; }
   # rebuild: replace the existing container (named volumes are kept)
-  dcre() { devcontainer up --workspace-folder "${1:-.}" --remove-existing-container "${@:2}"; }
+  dcre() { TZ="${TZ:-$(timedatectl show -p Timezone --value 2>/dev/null)}" devcontainer up --workspace-folder "${1:-.}" --remove-existing-container "${@:2}"; }
   # rebuild with a fresh dotfiles clone + system-setup run (new CACHE_BUST)
   dcrebust() { CACHE_BUST="$(date +%s)" dcre "$@"; }
   # login shell in the running devcontainer of DIR (CB_TMUX_SKIP: see
