@@ -62,10 +62,9 @@ Startup was 8.5 s and plugins were skipped on Android. Profiled 2026-11
 `system-setup --profile auto` guesses `proot` here. It selects only modules
 that need neither systemd nor real kernel access: apt base + locale, XDG dirs,
 fonts, browser repos, and the per-user tool installers (ffmpeg, fnm, yt-dlp,
-uv, Claude Code, Copilot CLI). Not included: snap, nix, docker, tailscale, sysctl, power,
-console, release upgrades, vicinae (systemd user service), and flatpak apps
-(see below). `25-browsers` is included (see Browsers). Termux is refused
-outright: own repos, no sudo.
+uv, Claude Code, Copilot CLI). Not included: snap, nix, docker, tailscale,
+sysctl, power, console, release upgrades, vicinae (systemd user service), and
+flatpak apps (see Browsers). Termux is refused outright: own repos, no sudo.
 
 ## Linking: the `proot` profile
 
@@ -96,6 +95,8 @@ originals were backed up by the first `full` link run under
   does not and is skipped. The Mozilla repo and its pin come from DroidDeck,
   so the module leaves them alone. `bin/browser-wrapper` adds `--no-sandbox`
   under PRoot (no user namespaces, no real root for the setuid helper).
+  Only `BR_PROOT_INSTALL` (vivaldi-snapshot) is installed here; the other
+  browsers get their repo only, `sudo apt install` them when needed.
   GPU use of native Chromium here is untested.
 
 ## Input

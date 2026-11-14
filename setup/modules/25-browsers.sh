@@ -104,6 +104,9 @@ declare -ra BROWSERS=(
 declare -r BR_ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 # Browsers (BROWSERS names) whose repo has no build but amd64.
 declare -ra BR_AMD64_ONLY=(edge)
+# Under PRoot (tablet: disk, and every browser runs without its sandbox) only
+# these packages are installed; every other "yes" entry gets its repo only.
+declare -ra BR_PROOT_INSTALL=(vivaldi-snapshot)
 
 # {{{ = Helpers =============================================================
 
@@ -406,6 +409,11 @@ module_run() {
     # Registry names may contain hyphens (e.g. brave-beta); function names use
     # underscores (setup_brave_beta).
     "setup_${name//-/_}"
+    if [[ "${install}" == "yes" ]] && st::is_proot \
+         && [[ " ${BR_PROOT_INSTALL[*]} " != *" ${pkg} "* ]]; then
+      st::noop "${pkg}: repo only under PRoot (BR_PROOT_INSTALL)"
+      continue
+    fi
     [[ "${install}" == "yes" ]] && st::apt_install "${pkg}" || true
   done
 
