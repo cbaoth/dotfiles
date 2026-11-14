@@ -115,13 +115,18 @@ if [[ $ARCH = *x86* ]]; then
 else # No PC (x68 architecture)
   IS_PC=false
   IS_PC_NATIVE=false
-  # Is Android Termux?
+  # Android: Termux, or a distro rootfs (PRoot: DroidDeck, proot-distro)?
   IS_ANDROID=false
   IS_TERMUX=false
+  IS_PROOT=false
   if [[ $(uname -r) = *android* ]]; then
-    IS_PC_NATIVE=false
     IS_ANDROID=true
-    if [[ -d "/data/data/com.termux/files/usr/bin" ]]; then
+    # A distro rootfs has /etc/os-release (and apt, glibc, /usr); Termux has
+    # none of these, its userland lives under $PREFIX. Checked first: the
+    # Termux dir is also visible from inside proot-distro.
+    if [[ -f /etc/os-release ]]; then
+      IS_PROOT=true
+    elif [[ -d "/data/data/com.termux/files/usr/bin" ]]; then
       IS_TERMUX=true
       export PATH+=":/data/data/com.termux/files/usr/bin"
     fi
@@ -156,6 +161,7 @@ export IS_PC=${IS_PC:-true}
 export IS_PC_NATIVE=${IS_PC_NATIVE:-true}
 export IS_ANDROID=${IS_ANDROID:-false}
 export IS_TERMUX=${IS_TERMUX:-false}
+export IS_PROOT=${IS_PROOT:-false}
 export IS_DOCKER=${IS_DOCKER:-false}
 export IS_WSL1=${IS_WSL1:-false}
 export IS_WSL2=${IS_WSL2:-false}

@@ -164,9 +164,11 @@ else
   cl::p_msg "Non-PC architecture detected ($ARCH != x68)."
   if ${IS_ANDROID:-false}; then
     if ${IS_TERMUX:-false}; then
-      cl::p_msg "Android (TERMUX) envrionment detected."
+      cl::p_msg "Android (TERMUX) environment detected."
+    elif ${IS_PROOT:-false}; then
+      cl::p_msg "Android (PRoot distro rootfs) environment detected."
     else
-      cl::p_msg "Android envrionment detected."
+      cl::p_msg "Android environment detected."
     fi
   fi
 fi
@@ -285,11 +287,17 @@ _PLUGIN_MODE_DEFAULT="full"
 # optionally deviate per environment
 _PLUGIN_MODE_WSL="full"       # load all plugins in WSL
 _PLUGIN_MODE_DOCKER="mini"    # load fewer plugins inside Docker containers
-_PLUGIN_MODE_ANDROID="skip"   # skip plugins on Android (too slow / unstable)
+# Android was "skip" (zplug + powerlevel10k era). Profiled 2026-11 on a Tab S9+
+# under DroidDeck/PRoot: full vs skip is within noise (~1.15s either way, after
+# removing per-call forks in commons.sh); exec costs ~10ms there, so keep the
+# startup path fork-free rather than dropping plugins.
+_PLUGIN_MODE_ANDROID="full"   # Android distro rootfs (PRoot: DroidDeck, ...)
+_PLUGIN_MODE_TERMUX="full"    # Termux (not profiled yet, flip if slow)
 
 if [[ -z "${PLUGIN_MODE:-}" ]]; then
   PLUGIN_MODE=$_PLUGIN_MODE_DEFAULT
   ${IS_ANDROID:-false} && PLUGIN_MODE=${_PLUGIN_MODE_ANDROID:-$_PLUGIN_MODE_DEFAULT}
+  ${IS_TERMUX:-false}  && PLUGIN_MODE=${_PLUGIN_MODE_TERMUX:-$_PLUGIN_MODE_DEFAULT}
   ${IS_WSL:-false}     && PLUGIN_MODE=${_PLUGIN_MODE_WSL:-$_PLUGIN_MODE_DEFAULT}
   ${IS_DOCKER:-false}  && PLUGIN_MODE=${_PLUGIN_MODE_DOCKER:-$_PLUGIN_MODE_DEFAULT}
 fi
