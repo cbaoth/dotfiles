@@ -62,9 +62,15 @@ Startup was 8.5 s and plugins were skipped on Android. Profiled 2026-11
 `system-setup --profile auto` guesses `proot` here. It selects only modules
 that need neither systemd nor real kernel access: apt base + locale, XDG dirs,
 fonts, browser repos, and the per-user tool installers (ffmpeg, fnm, yt-dlp,
-uv, Claude Code, Copilot CLI). Not included: snap, nix, docker, tailscale,
+uv, Claude Code, Copilot CLI). Not included: nix, docker, tailscale,
 sysctl, power, console, release upgrades, vicinae (systemd user service), and
 flatpak apps (see Browsers). Termux is refused outright: own repos, no sudo.
+
+`21-snap` is included, but does the opposite here: the image ships `snapd`,
+KDE's updater upgrades it, and its postinst fails under PRoot (`Invalid file
+'setcap'`). Left half-configured, it makes every later `apt install` exit 100.
+The module removes it and pins it out (`/etc/apt/preferences.d/no-snapd`).
+Snaps need systemd anyway.
 
 ## Linking: the `proot` profile
 
