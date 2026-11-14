@@ -378,16 +378,33 @@ backup_existing() {
 # and of the systemd user *.wants/*.requires dirs, plus $HOME down to
 # PRUNE_SCAN_DEPTH for directories no longer in the repo. The repo itself and
 # the backups are skipped.
+# Lexically normalize absolute path $1 (like `realpath -ms`: no symlinks are
+# resolved, `.`/`..`/`//` are) into REPLY. Pure bash: every fork costs
+# ~10 ms under PRoot, and this runs once per symlink candidate.
+norm_path() {
+  local part
+  local -a parts=() out=()
+  IFS=/ read -ra parts <<< "$1"
+  for part in "${parts[@]}"; do
+    case "$part" in
+      ''|.) ;;
+      ..) (( ${#out[@]} )) && unset 'out[${#out[@]}-1]' ;;
+      *) out+=("$part") ;;
+    esac
+  done
+  REPLY="/$(IFS=/; printf '%s' "${out[*]}")"
+}
+
 typeset -A REPO_LINKS=()
 collect_repo_links() {
   local -A candidates=()
   local -a dirs=()
   local dir rel link link_target
 
-  while IFS= read -r -d '' dir; do
-    rel="$(realpath -s --relative-to "$HOME_SRC" "$dir")"
-    if [[ "$rel" == "." ]]; then dirs+=("$HOME"); else dirs+=("${HOME}/${rel}"); fi
-  done < <(find "$HOME_SRC" -type d "${LINK_DIRS_EXCLUDE[@]}" -print0)
+  # %P: path relative to HOME_SRC, empty for HOME_SRC itself
+  while IFS= read -r -d '' rel; do
+    if [[ -z "$rel" ]]; then dirs+=("$HOME"); else dirs+=("${HOME}/${rel}"); fi
+  done < <(find "$HOME_SRC" -type d "${LINK_DIRS_EXCLUDE[@]}" -printf '%P\0')
   dirs+=("${SYNC_DIRS[@]}")
   for dir in "${HOME}/.config/systemd/user/"*.wants "${HOME}/.config/systemd/user/"*.requires; do
     dirs+=("$dir")
@@ -395,22 +412,24 @@ collect_repo_links() {
 
   for dir in "${dirs[@]}"; do
     [[ -d "$dir" && ! -L "$dir" ]] || continue
-    while IFS= read -r -d '' link; do
-      candidates["$link"]=1
-    done < <(find "$dir" -mindepth 1 -maxdepth 1 -type l -print0)
+    # %l: the link's target (readlink), so no fork per link
+    while IFS= read -r -d '' link && IFS= read -r -d '' link_target; do
+      candidates["$link"]="$link_target"
+    done < <(find "$dir" -mindepth 1 -maxdepth 1 -type l -printf '%p\0%l\0')
   done
-  while IFS= read -r -d '' link; do
-    candidates["$link"]=1
+  while IFS= read -r -d '' link && IFS= read -r -d '' link_target; do
+    candidates["$link"]="$link_target"
   done < <(find "$HOME" -xdev -maxdepth "${PRUNE_SCAN_DEPTH:-3}" \
              \( -path "$REPO_ROOT" -o -path "$BACKUP_BASE_DIR" \) -prune \
-             -o -type l -print0)
+             -o -type l -printf '%p\0%l\0')
 
   REPO_LINKS=()
   for link in "${!candidates[@]}"; do
-    link_target="$(readlink -- "$link")" || continue
-    [[ "$link_target" == /* ]] || link_target="$(dirname -- "$link")/${link_target}"
-    link_target="$(realpath -ms -- "$link_target")"
-    [[ "$link_target" == "${REPO_ROOT}/"* ]] && REPO_LINKS["$link"]="$link_target"
+    link_target="${candidates[$link]}"
+    [[ -n "$link_target" ]] || continue
+    [[ "$link_target" == /* ]] || link_target="${link%/*}/${link_target}"
+    norm_path "$link_target"
+    [[ "$REPLY" == "${REPO_ROOT}/"* ]] && REPO_LINKS["$link"]="$REPLY"
   done
 }
 
@@ -421,9 +440,9 @@ collect_repo_links() {
 is_unit_enable_link() {
   local link="$1" link_target="$2" parent
   [[ "$link" == "${HOME}/.config/systemd/"* ]] || return 1
-  parent="$(dirname -- "$link")"
+  parent="${link%/*}"
   [[ "$parent" == *.wants || "$parent" == *.requires ]] && return 0
-  [[ "$(basename -- "$link")" != "$(basename -- "$link_target")" ]]
+  [[ "${link##*/}" != "${link_target##*/}" ]]
 }
 
 # Remove a symlink, announcing it (also in a dry run).
@@ -446,7 +465,7 @@ unlink_repo_links() {
 
   collect_repo_links
   for link in "${!REPO_LINKS[@]}"; do
-    is_unit_enable_link "$link" "${REPO_LINKS[$link]}" && units["$(basename -- "$link")"]=1
+    is_unit_enable_link "$link" "${REPO_LINKS[$link]}" && units["${link##*/}"]=1
     remove_link "$link" "repo symlink"
   done
   for relpath in "${!HOME_LINKS[@]}"; do
@@ -546,9 +565,9 @@ typeset -A EXPECTED_LINKS=()
 
 # Use the pattern in the find command; avoid subshell so arrays persist
 while IFS= read -r -d '' f; do
-  # get relative target/source file location (-s: don't resolve symlinks, a
-  # symlinked source must be linked at its logical location, not its target's)
-  relpath=$(realpath -s --relative-to "$HOME_SRC" "$f")
+  # relative source location, logical (a symlinked source is linked at its
+  # own location, not its target's); find prints paths below HOME_SRC
+  if [[ "$f" == "$HOME_SRC" ]]; then relpath="."; else relpath="${f#"${HOME_SRC}/"}"; fi
   target=$HOME/$relpath
   # profile: files only; their parent dirs are created on demand below
   if [[ -n "${PROFILE}" ]]; then
@@ -582,7 +601,7 @@ while IFS= read -r -d '' f; do
   else
     if [ -e "$target" ]; then # target exists?
       # is a link pointing to the desired target?
-        if [[ -L "$target" && "$(readlink "$target")" -ef "$f" ]]; then
+        if [[ -L "$target" && "$target" -ef "$f" ]]; then
         info "\e[32mOK: Correct symlink already exists (nothing to do), skipping ..\e[0m"
         continue
       fi
@@ -592,7 +611,7 @@ while IFS= read -r -d '' f; do
           backup_existing "$target" "$relpath" " file" " but is a regular file instead of symlink" || continue
       fi
     fi
-    [[ -d "$(dirname -- "$target")" ]] || run_and_report mkdir -p -- "$(dirname -- "$target")"
+    [[ -d "${target%/*}" ]] || run_and_report mkdir -p -- "${target%/*}"
     info "Creating new SymLink: '$f' -> '$target'"
       run_and_report ln -sf -- "$f" "$target"
   fi
@@ -607,7 +626,7 @@ for relpath in "${LINK_DIRS_ACTIVE[@]}"; do
   EXPECTED_LINKS["$target"]=1
   info ""
   info "Processing directory link: $relpath -> $target ..."
-  if [[ -L "$target" && "$(readlink "$target")" -ef "$src" ]]; then
+  if [[ -L "$target" && "$target" -ef "$src" ]]; then
     info "\e[32mOK: Correct directory symlink already exists (nothing to do), skipping ..\e[0m"
     continue
   fi
@@ -630,7 +649,7 @@ for relpath in "${!HOME_LINKS[@]}"; do
   dest="${HOME}/${HOME_LINKS[$relpath]}"
   info ""
   info "Processing home link: $target -> $dest ..."
-  if [[ -L "$target" && "$(readlink "$target")" -ef "$dest" ]]; then
+  if [[ -L "$target" && "$target" -ef "$dest" ]]; then
     info "\e[32mOK: Correct home symlink already exists (nothing to do), skipping ..\e[0m"
     continue
   fi
@@ -648,7 +667,7 @@ sync_dir() {
   local repo_dir="$1"
   local home_dir="$2"
   local label
-  label="$(basename "$repo_dir")"
+  label="${repo_dir##*/}"
 
   info ""
   info "Syncing repo ${label}/: ${repo_dir} -> ${home_dir} ..."
@@ -662,13 +681,12 @@ sync_dir() {
       debug "Not in profile '${PROFILE}', skipping: ${src_file#"${REPO_ROOT}/"}"
       continue
     fi
-    local base_name
-    base_name="$(basename "$src_file")"
+    local base_name="${src_file##*/}"
     seen_names["$base_name"]=1
 
     local target_link="${home_dir}/${base_name}"
     if [[ -e "$target_link" || -L "$target_link" ]]; then
-      if [[ -L "$target_link" && "$(readlink "$target_link")" -ef "$src_file" ]]; then
+      if [[ -L "$target_link" && "$target_link" -ef "$src_file" ]]; then
         debug "${label} sync: correct symlink already exists: $target_link"
         continue
       fi
@@ -681,9 +699,8 @@ sync_dir() {
   done < <(find "$repo_dir" -mindepth 1 -maxdepth 1 -type f -print0)
 
   # remove stale links pointing into repo_dir that no longer exist there
-  while IFS= read -r -d '' existing_link; do
-    local link_target
-    link_target="$(readlink "$existing_link" 2>/dev/null || true)"
+  local link_target
+  while IFS= read -r -d '' existing_link && IFS= read -r -d '' link_target; do
     [[ -n "$link_target" ]] || continue
 
     if [[ "$link_target" != "${repo_dir}/"* ]]; then
@@ -691,13 +708,12 @@ sync_dir() {
       continue
     fi
 
-    local base_name
-    base_name="$(basename "$existing_link")"
+    local base_name="${existing_link##*/}"
     if [[ -z "${seen_names[$base_name]:-}" ]]; then
       info "Removing stale repo ${label} symlink: $existing_link"
       run_and_report rm -f -- "$existing_link"
     fi
-  done < <(find "$home_dir" -mindepth 1 -maxdepth 1 -type l -print0)
+  done < <(find "$home_dir" -mindepth 1 -maxdepth 1 -type l -printf '%p\0%l\0')
 }
 
 for repo_dir in "${!SYNC_DIRS[@]}"; do
@@ -725,7 +741,7 @@ prune_tree_links() {
     if [[ ! -e "$link" ]]; then
       if is_unit_enable_link "$link" "$link_target"; then
         stale_unit_links+=("$link")
-        stale_units["$(basename -- "$link")"]=1
+        stale_units["${link##*/}"]=1
         continue
       fi
       reason="dangling"
