@@ -60,9 +60,8 @@ case ":${XDG_CURRENT_DESKTOP:-}:" in
 esac
 
 declare -a flags=(--disable-features=Vulkan)
-osrelease=""
-read -r osrelease < /proc/sys/kernel/osrelease 2>/dev/null || true
-[[ "${osrelease}" == *android* && -f /etc/os-release ]] && flags+=(--no-sandbox)
+# Not /proc/sys/kernel/osrelease: Android denies it.
+[[ "$(uname -r)" == *android* && -f /etc/os-release ]] && flags+=(--no-sandbox)
 for f in "${FLAG_DIR}/all.flags" "${FLAG_DIR}/${NAME}.flags"; do
   [[ -f "${f}" ]] || continue
   while IFS= read -r line; do
