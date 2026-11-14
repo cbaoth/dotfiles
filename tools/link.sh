@@ -267,7 +267,17 @@ fi
 in_profile() {
   local path="$1" glob
   [[ -z "${PROFILE}" ]] && return 0
+  # '!GLOB' lines exclude, wherever they appear in the list (checked first)
   for glob in "${PROFILE_GLOBS[@]}"; do
+    [[ "${glob}" == '!'* ]] || continue
+    # shellcheck disable=SC2053  # unquoted on purpose: glob match
+    if [[ "${path}" == ${glob#!} ]]; then
+      PROFILE_HITS["${glob}"]=1
+      return 1
+    fi
+  done
+  for glob in "${PROFILE_GLOBS[@]}"; do
+    [[ "${glob}" == '!'* ]] && continue
     # shellcheck disable=SC2053  # unquoted on purpose: glob match
     if [[ "${path}" == ${glob} ]]; then
       PROFILE_HITS["${glob}"]=1

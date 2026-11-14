@@ -287,12 +287,14 @@ Example: If you want to exclude a specific file pattern from the nested `home/` 
 
 Patterns only affect the nested `home/` scanning. The flat `bin/` and `lib/` syncing is not filtered by `.linkignore`.
 
-### Profiles (root, work)
+### Profiles (root, work, proot)
 
 A profile is an **allowlist**: `tools/profiles/NAME.list`, one glob per line,
 relative to the repo root (`home/.zshrc`, `bin/rsynclt`, `lib/aliases-*.sh`),
 `#` comments. Matching uses bash `[[ == ]]`, so `*` also matches `/`. The first
-comment line is shown as the description in the selection prompt.
+comment line is shown as the description in the selection prompt. A line
+`!GLOB` **excludes**, wherever it appears in the list (excludes are checked
+first), so `*` plus a few `!` lines is "everything but".
 
 ```bash
 ./tools/link.sh --profile root --dry-run -v
@@ -314,6 +316,11 @@ comment line is shown as the description in the selection prompt.
 - **`work`** is for a company WSL box: shell core, git, Copilot instructions and
   a few generic tools; no desktop, backup, notes or Claude Code config. See
   [`docs/setup/wsl-work.md`](setup/wsl-work.md).
+- **`proot`** is for an Android distro rootfs (DroidDeck, proot-distro):
+  everything except the desktop integration the vendor session owns
+  (`mimeapps.list`, GTK settings, `portals.conf`). See
+  [`docs/setup/droiddeck.md`](setup/droiddeck.md). Termux itself needs no
+  profile of its own: `full` is harmless there, `system-setup` refuses to run.
 - `LINK_DIRS` and `HOME_LINKS` entries apply only when their directory is
   listed itself (`home/.config/vicinae`; for `HOME_LINKS` the target, e.g.
   `home/.config/emacs`).

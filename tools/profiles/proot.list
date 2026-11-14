@@ -1,0 +1,20 @@
+# Profile 'proot': Android distro rootfs (DroidDeck, proot-distro), all but desktop integration.
+#
+# One glob per line, relative to the repo root; '*' also matches '/'.
+# Unlike root/work this is "everything, minus": '!GLOB' lines exclude, so new
+# files in the repo reach a PRoot clone without editing this list.
+# The desktop there is the vendor's (DroidDeck: patched KDE/kwin), which owns
+# its GTK theme, MIME defaults and portals; ours would fight it, and KDE
+# writes through the symlinks into the repo. systemd user units stay linked:
+# without systemd they are inert files.
+# See docs/linking-system.md (Profiles) and docs/setup/droiddeck.md.
+
+*
+
+# {{{ - Desktop integration owned by the vendor session ------------------------
+!home/.config/mimeapps.list
+!home/.gtkrc-2.0
+!home/.config/gtk-3.0/settings.ini
+!home/.config/gtk-4.0/settings.ini
+!home/.config/xdg-desktop-portal/portals.conf
+# }}} - Desktop integration owned by the vendor session ------------------------
