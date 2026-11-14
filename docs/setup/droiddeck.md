@@ -2,7 +2,7 @@
 title: DroidDeck — Ubuntu in a PRoot on Android
 hosts: [droiddeck]
 status: workaround
-tags: [android, proot, droiddeck, zsh, performance, flatpak, browser]
+tags: [android, proot, droiddeck, zsh, performance, flatpak, browser, arm64]
 updated: 2026-11-14
 automated_by: setup/modules/00-apt-base.sh
 ---
@@ -61,10 +61,11 @@ Startup was 8.5 s and plugins were skipped on Android. Profiled 2026-11
 
 `system-setup --profile auto` guesses `proot` here. It selects only modules
 that need neither systemd nor real kernel access: apt base + locale, XDG dirs,
-fonts, and the per-user tool installers (ffmpeg, fnm, yt-dlp, uv, Claude Code,
-Copilot CLI). Not included: snap, nix, docker, tailscale, sysctl, power,
+fonts, browser repos, and the per-user tool installers (ffmpeg, fnm, yt-dlp,
+uv, Claude Code, Copilot CLI). Not included: snap, nix, docker, tailscale, sysctl, power,
 console, release upgrades, vicinae (systemd user service), and flatpak apps
-(see below). Termux is refused outright: own repos, no sudo.
+(see below). `25-browsers` is included (see Browsers). Termux is refused
+outright: own repos, no sudo.
 
 ## Linking: the `proot` profile
 
@@ -90,6 +91,12 @@ originals were backed up by the first `full` link run under
   `~/.local/share/applications/` with those flags fixes the launcher.
 - Native arm64 debs use the host's patched Mesa; prefer them over flatpaks for
   anything GPU-heavy.
+- **`25-browsers` runs in the `proot` profile.** Vivaldi, Chrome and Brave
+  publish arm64 debs in the same repos as on the PC (checked 2026-11); Edge
+  does not and is skipped. The Mozilla repo and its pin come from DroidDeck,
+  so the module leaves them alone. `bin/browser-wrapper` adds `--no-sandbox`
+  under PRoot (no user namespaces, no real root for the setuid helper).
+  GPU use of native Chromium here is untested.
 
 ## Input
 

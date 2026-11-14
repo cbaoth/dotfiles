@@ -24,12 +24,19 @@
 # from a launcher or via xdg-open. Generated, not committed: they follow
 # whatever is installed on the host and upstream .desktop changes.
 #
+# Architecture: the repos are written for this host's dpkg architecture. All
+# but Edge publish arm64 builds too (checked 2026-11: Mozilla, Vivaldi, Chrome,
+# Brave); amd64-only browsers are listed in BR_AMD64_ONLY and skipped
+# elsewhere. Under PRoot (DroidDeck) the vendor already ships the Mozilla repo
+# and pin, so Firefox is left to it; bin/browser-wrapper adds --no-sandbox
+# there. See docs/setup/droiddeck.md.
+#
 # SC2034: MODULE_* is read by bin/system-setup, which sources this file.
 #
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="Browser apt repos (Firefox Nightly, Vivaldi, Chrome, Brave, Edge) + wrapper launchers"
-MODULE_PROFILES=(desktop)
+MODULE_PROFILES=(desktop proot)
 MODULE_DOC="docs/setup/browsers.md"
 
 # Browser registry: "name:package:install"
@@ -90,6 +97,14 @@ declare -ra BROWSERS=(
   #"edge:microsoft-edge-canary:repo"                        # https://explore.microsoft.com/edge/download/insider
 )
 
+# dpkg architecture the repo entries are written for (amd64, arm64).
+# One statement: this file is sourced inside a function, where a separate
+# `declare -r BR_ARCH` would create a new, empty local.
+# shellcheck disable=SC2155  # the fallback covers a failing dpkg
+declare -r BR_ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+# Browsers (BROWSERS names) whose repo has no build but amd64.
+declare -ra BR_AMD64_ONLY=(edge)
+
 # {{{ = Helpers =============================================================
 
 # Install a signing key from a URL. Handles both ASCII-armored keys (kept
@@ -137,17 +152,24 @@ install_sources() {
 # {{{ = Firefox =============================================================
 
 setup_firefox() {
+  # DroidDeck ships its own mozilla.sources + pin (firefox*), which a vendor
+  # update would restore anyway; writing ours would only flip-flop with it.
+  if st::is_proot && [[ -f /etc/apt/sources.list.d/mozilla.sources ]]; then
+    st::noop "Mozilla repo provided by the PRoot vendor (mozilla.sources)"
+    return 0
+  fi
+
   local -r key_url="https://packages.mozilla.org/apt/repo-signing-key.gpg"
   local -r key_file="/etc/apt/keyrings/packages.mozilla.org.asc"
   local -r expected_fp="35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3"
 
   local sources_content pin_content
-  read -r -d '' sources_content <<'EOF' || true
+  read -r -d '' sources_content <<EOF || true
 Types: deb
 URIs: https://packages.mozilla.org/apt
 Suites: mozilla
 Components: main
-Architectures: amd64
+Architectures: ${BR_ARCH}
 Signed-By: /etc/apt/keyrings/packages.mozilla.org.asc
 EOF
 
@@ -181,12 +203,12 @@ EOF
 
 setup_vivaldi() {
   local sources_content
-  read -r -d '' sources_content <<'EOF' || true
+  read -r -d '' sources_content <<EOF || true
 Types: deb
 URIs: https://repo.vivaldi.com/archive/deb/
 Suites: stable
 Components: main
-Architectures: amd64
+Architectures: ${BR_ARCH}
 Signed-By: /usr/share/keyrings/vivaldi-keyring.gpg
 EOF
 
@@ -202,12 +224,12 @@ EOF
 
 setup_chrome() {
   local sources_content
-  read -r -d '' sources_content <<'EOF' || true
+  read -r -d '' sources_content <<EOF || true
 Types: deb
 URIs: https://dl.google.com/linux/chrome/deb/
 Suites: stable
 Components: main
-Architectures: amd64
+Architectures: ${BR_ARCH}
 Signed-By: /usr/share/keyrings/google-chrome.gpg
 EOF
 
@@ -241,7 +263,7 @@ Types: deb
 URIs: ${base_url}/
 Suites: stable
 Components: main
-Architectures: amd64
+Architectures: ${BR_ARCH}
 Signed-By: ${keyring}
 EOF
 
@@ -260,12 +282,12 @@ setup_brave_nightly() { _setup_brave nightly; }
 
 setup_edge() {
   local sources_content
-  read -r -d '' sources_content <<'EOF' || true
+  read -r -d '' sources_content <<EOF || true
 Types: deb
 URIs: https://packages.microsoft.com/repos/edge/
 Suites: stable
 Components: main
-Architectures: amd64
+Architectures: ${BR_ARCH}
 Signed-By: /usr/share/keyrings/microsoft-edge.gpg
 EOF
 
@@ -377,6 +399,10 @@ module_run() {
   for entry in "${BROWSERS[@]}"; do
     IFS=: read -r name pkg install <<< "${entry}"
     st::hdr "${name} (${install})"
+    if [[ "${BR_ARCH}" != "amd64" && " ${BR_AMD64_ONLY[*]} " == *" ${name} "* ]]; then
+      st::noop "${name}: no ${BR_ARCH} build in its repo, skipped"
+      continue
+    fi
     # Registry names may contain hyphens (e.g. brave-beta); function names use
     # underscores (setup_brave_beta).
     "setup_${name//-/_}"

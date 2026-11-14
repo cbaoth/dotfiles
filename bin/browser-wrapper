@@ -18,6 +18,12 @@
 #                         stays first and portals.conf still picks wlr for
 #                         file pickers. Same fix as bin/code and
 #                         bin/claude-desktop.
+#   --no-sandbox          Only under PRoot (Android kernel + distro rootfs,
+#                         e.g. DroidDeck): no user namespaces and no real
+#                         root for the setuid helper, so the sandbox cannot
+#                         start and the browser dies. Same check as IS_PROOT
+#                         in home/.common_env, done here because launchers
+#                         may not carry the shell environment.
 #   --disable-features=Vulkan
 #                         Was added for Nvidia proprietary + native Wayland.
 #                         Verified to NOT silence the "--ozone-platform=wayland
@@ -54,6 +60,9 @@ case ":${XDG_CURRENT_DESKTOP:-}:" in
 esac
 
 declare -a flags=(--disable-features=Vulkan)
+osrelease=""
+read -r osrelease < /proc/sys/kernel/osrelease 2>/dev/null || true
+[[ "${osrelease}" == *android* && -f /etc/os-release ]] && flags+=(--no-sandbox)
 for f in "${FLAG_DIR}/all.flags" "${FLAG_DIR}/${NAME}.flags"; do
   [[ -f "${f}" ]] || continue
   while IFS= read -r line; do
