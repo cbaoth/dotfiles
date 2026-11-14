@@ -39,13 +39,22 @@ dotfiles detect it as `IS_ANDROID=true IS_PROOT=true` (`home/.common_env`).
   well; that lives in `$HOME`.
 - Prefer per-user installs (`~/.local/bin`, zinit, fnm, uv): they do not
   depend on the restore step.
-- **Switching to another Android app full-screen pauses the session and
-  kills its processes** (observed 2026-11-14): the screen greys out with a
-  play button, and every terminal is back at a fresh shell (running
-  commands and Claude Code sessions are gone; files are kept). tmux does
-  not help, it runs in the same PRoot. Shrinking DroidDeck to its
-  picture-in-picture window first kept everything running (once; may not
-  hold under memory pressure). Resume Claude Code with `claude --continue`.
+- **Switching to another Android app full-screen pauses the session**
+  (observed 2026-11-14): the screen greys out with a play button. Afterwards
+  every terminal that ran `zsh` from Konsole's default `bash` is back at the
+  bash prompt, with zsh reported as stopped. Likely cause (consistent with
+  everything seen, not verified): the pause stops all processes and resume
+  continues them; bash, as zsh's job-control parent, sees the stop and takes
+  the terminal back, so zsh and its children carry on as a background job
+  and stop again at their next terminal read. A `git push` waiting on the
+  KDE askpass dialog (no terminal needed) completed after resume.
+  - Try `fg` (or `jobs`) first: the zsh session, Claude Code included, may
+    still be there. Otherwise `claude --continue` resumes the conversation.
+  - Set zsh as the Konsole profile's command (`/usr/bin/zsh`) so no bash
+    sits in between.
+  - Picture-in-picture instead of a full-screen switch kept everything
+    running (once; may not hold under memory pressure). tmux does not help,
+    it runs in the same PRoot.
 
 ## Shell startup: forks are expensive
 
