@@ -27,16 +27,11 @@
 MODULE_DESC="static FFmpeg (BtbN GPL build, ~/.local/bin) via bin/ffmpeg-install"
 MODULE_PROFILES=(desktop server proot)
 MODULE_DOC="docs/setup/ubuntu-base.md"
+MODULE_SKIP_HOSTS=(11001001)   # the vserver, see above
 
 declare -r FFMPEG_LINK="${HOME}/.local/bin/ffmpeg"
-declare -r FFMPEG_SKIP_HOST="11001001"
 
 module_run() {
-  if [[ "$(hostname -s)" == "${FFMPEG_SKIP_HOST}" ]]; then
-    st::noop "skipping ffmpeg on ${FFMPEG_SKIP_HOST} (internet-facing; see module header)"
-    return 0
-  fi
-
   local installer="${ST_SETUP_DIR}/../bin/ffmpeg-install"
   if [[ ! -x "${installer}" ]]; then
     st::war "bin/ffmpeg-install not found or not executable: ${installer}"

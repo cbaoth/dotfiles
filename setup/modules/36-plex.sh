@@ -12,6 +12,7 @@
 MODULE_DESC="Plex Media Server apt repo + signing key (saito only)"
 MODULE_PROFILES=(server)
 MODULE_DOC="docs/setup/plex.md"
+MODULE_HOSTS=(saito)   # the only media host; the vserver has no Plex
 
 declare -r PLEX_KEY_URL="https://downloads.plex.tv/plex-keys/PlexSign.v2.key"
 declare -r PLEX_KEYRING="/usr/share/keyrings/plexmediaserver.v2.gpg"
@@ -19,12 +20,6 @@ declare -r PLEX_LIST="/etc/apt/sources.list.d/plex.list"
 declare -r PLEX_LIST_CONTENT="deb [signed-by=${PLEX_KEYRING}] https://repo.plex.tv/deb/ public main"
 
 module_run() {
-  # vserver has no Plex instance — saito is the only media host.
-  if [[ "$(hostname -s)" != "saito" ]]; then
-    st::noop "plex apt repo is saito-only"
-    return 0
-  fi
-
   if [[ -f "${PLEX_LIST}" ]] \
        && [[ "$(cat "${PLEX_LIST}" 2>/dev/null)" == "${PLEX_LIST_CONTENT}" ]] \
        && [[ -s "${PLEX_KEYRING}" ]]; then

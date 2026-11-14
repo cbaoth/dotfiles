@@ -29,20 +29,12 @@
 MODULE_DESC="yt-dlp (official standalone binary, ~/.local/bin/yt-dlp)"
 MODULE_PROFILES=(desktop server proot)
 MODULE_DOC="docs/setup/yt-dlp.md"
+MODULE_SKIP_HOSTS=(11001001)   # the vserver, see above
 
 declare -r YTDLP_BIN="${HOME}/.local/bin/yt-dlp"
 declare -r YTDLP_URL="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
 
-# The one internet-facing host; see the module header. hostname -s as
-# written by setup/hosts.list.
-declare -r YTDLP_SKIP_HOST="11001001"
-
 module_run() {
-  if [[ "$(hostname -s)" == "${YTDLP_SKIP_HOST}" ]]; then
-    st::noop "skipping yt-dlp on ${YTDLP_SKIP_HOST} (internet-facing; see module header)"
-    return 0
-  fi
-
   if ! st::have_cmd curl; then
     st::war "curl not found — skipping (run '00-apt-base' first, or install curl)"
     return 0

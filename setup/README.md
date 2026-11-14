@@ -58,6 +58,8 @@ Create `modules/NN-name.sh`. No shebang (it is sourced, not executed):
 MODULE_DESC="One line, shown by --list"
 MODULE_PROFILES=(desktop server wsl)   # omit for 'all profiles'
 MODULE_DOC="docs/setup/name.md"        # the note this automates
+MODULE_HOSTS=(motoko)                  # optional: only these hosts
+MODULE_SKIP_HOSTS=()                   # optional: never on these hosts
 
 module_run() {
   st::apt_install foo bar
@@ -69,6 +71,11 @@ module_run() {
   fi
 }
 ```
+
+Host limits (`hostname -s`) are metadata, not a check in `module_run()`:
+`--list` shows them, and `system-setup` skips the module before running it.
+Unlike profiles they also apply to modules named explicitly, because they
+describe the machine (hardware, exposure), not a selection.
 
 Each module is sourced in its own subshell, so `MODULE_*` metadata and any
 helper functions you define cannot leak into the next module.

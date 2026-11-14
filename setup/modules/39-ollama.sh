@@ -22,16 +22,11 @@
 MODULE_DESC="Ollama local LLM runtime (motoko only; updates to latest release)"
 MODULE_PROFILES=(desktop)
 MODULE_DOC="docs/setup/ollama.md"
+MODULE_HOSTS=(motoko)   # the only host with the GPU for it
 
-declare -r OLLAMA_HOST_ONLY="motoko"
 declare -r OLLAMA_LATEST_URL="https://github.com/ollama/ollama/releases/latest"
 
 module_run() {
-  if [[ "$(hostname -s)" != "${OLLAMA_HOST_ONLY}" ]]; then
-    st::noop "skipping ollama (only installed on ${OLLAMA_HOST_ONLY})"
-    return 0
-  fi
-
   if ! st::have_cmd curl; then
     st::war "curl not found — skipping (run '00-apt-base' first, or install curl)"
     return 0

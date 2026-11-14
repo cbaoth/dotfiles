@@ -34,6 +34,6 @@ offline it warns and keeps what is there.
 - Models live in `/usr/share/ollama/.ollama` (service user), not in `$HOME`.
 - The installer overwrites `ollama.service`. Local tweaks belong in a drop-in
   (`sudo systemctl edit ollama`), which survives updates.
-- Profile `desktop` plus a hostname check for motoko; add a host by changing
-  `OLLAMA_HOST_ONLY` in the module.
+- Profile `desktop`, limited to motoko by `MODULE_HOSTS` in the module; add a
+  host there.
 - First update done 2026-11-13: 0.20.7 → latest.

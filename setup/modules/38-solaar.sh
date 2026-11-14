@@ -25,16 +25,13 @@
 MODULE_DESC="Solaar: divert MX Mechanical Mini Fn keys used by rules.yaml (motoko only)"
 MODULE_PROFILES=(desktop)
 MODULE_DOC="docs/reference/keyboard-input.md"
+MODULE_HOSTS=(motoko)
 
 declare -r SOLAAR_DEVICE="MX Mechanical Mini"
 # Keys named in home/.config/solaar/rules.yaml.
 declare -ra SOLAAR_DIVERT=("Mute Microphone" "Dictation" "Emoji" "Backlight Down" "Backlight Up")
 
 module_run() {
-  if [[ "$(hostname -s)" != "motoko" ]]; then
-    st::noop "solaar key diversion is motoko-only"
-    return 0
-  fi
   if ! st::have_cmd solaar; then
     st::war "solaar not installed (setup/packages/desktop.list), skipping"
     return 0

@@ -25,6 +25,8 @@ declare -r ST_BIN_PATH
 declare -r ST_REPO_DIR="${ST_BIN_PATH%/bin}"
 declare -r ST_SETUP_DIR="${ST_REPO_DIR}/setup"
 declare -r ST_MODULE_DIR="${ST_SETUP_DIR}/modules"
+# Short hostname for MODULE_HOSTS / MODULE_SKIP_HOSTS (env override for tests).
+declare -r ST_HOST="${ST_HOST:-$(hostname -s)}"
 export ST_SETUP_DIR ST_REPO_DIR
 
 declare -ra ST_PROFILES=(desktop server wsl wsl-work container proot)
@@ -83,30 +85,57 @@ Docs: docs/setup/
 EOF
 }
 
-# Print "name<TAB>desc<TAB>profiles" for every module, sourcing each in a
-# subshell so module metadata can never leak between modules.
+# Print "name<TAB>desc<TAB>profiles<TAB>hosts<TAB>skip_hosts<TAB>doc" for a
+# module, sourcing it in a subshell so module metadata can never leak between
+# modules. Empty host lists print as "-": read with IFS=tab collapses empty
+# fields.
 module_meta() {
   local -r module_file="$1"
   (
     MODULE_DESC="" MODULE_PROFILES=() MODULE_DOC=""
+    MODULE_HOSTS=() MODULE_SKIP_HOSTS=()
     # shellcheck disable=SC1090  # module path is discovered at runtime
     source "${module_file}" >/dev/null 2>&1 || true
-    printf '%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$(basename "${module_file}" .sh)" \
       "${MODULE_DESC:-(no description)}" \
       "${MODULE_PROFILES[*]:-all}" \
+      "${MODULE_HOSTS[*]:--}" \
+      "${MODULE_SKIP_HOSTS[*]:--}" \
       "${MODULE_DOC:-}"
   )
 }
 
+# Is this host allowed by the module's MODULE_HOSTS / MODULE_SKIP_HOSTS?
+# Prints the reason when not. Unlike profiles, host limits also apply to
+# modules named explicitly: they are facts about the machine (hardware,
+# exposure), not a selection.
+# Usage: host_allowed HOSTS SKIP_HOSTS  (space-separated, "-" = none)
+host_allowed() {
+  local -r hosts="$1" skip="$2"
+  if [[ "${skip}" != "-" && " ${skip} " == *" ${ST_HOST} "* ]]; then
+    printf 'skipped on %s' "${ST_HOST}"
+    return 1
+  fi
+  if [[ "${hosts}" != "-" && " ${hosts} " != *" ${ST_HOST} "* ]]; then
+    printf 'only on %s' "${hosts// /, }"
+    return 1
+  fi
+  return 0
+}
+
 list_modules() {
-  local module_file name desc profiles doc
+  local module_file name desc profiles hosts skip doc
   printf '%sAvailable modules%s (setup/modules/)\n\n' "${ST_C_BOLD}" "${ST_C_RESET}"
   for module_file in "${ST_MODULE_DIR}"/*.sh; do
     [[ -f "${module_file}" ]] || continue
-    IFS=$'\t' read -r name desc profiles doc < <(module_meta "${module_file}")
+    IFS=$'\t' read -r name desc profiles hosts skip doc < <(module_meta "${module_file}")
     printf '  %s%-20s%s %s\n' "${ST_C_GREEN}" "${name}" "${ST_C_RESET}" "${desc}"
     printf '  %-20s %sprofiles: %s%s\n' "" "${ST_C_DIM}" "${profiles}" "${ST_C_RESET}"
+    [[ "${hosts}" != "-" ]] \
+      && printf '  %-20s %shosts: %s%s\n' "" "${ST_C_DIM}" "${hosts}" "${ST_C_RESET}"
+    [[ "${skip}" != "-" ]] \
+      && printf '  %-20s %sskip hosts: %s%s\n' "" "${ST_C_DIM}" "${skip}" "${ST_C_RESET}"
     [[ -n "${doc}" ]] \
       && printf '  %-20s %sdocs: %s%s\n' "" "${ST_C_DIM}" "${doc}" "${ST_C_RESET}"
   done
@@ -118,9 +147,9 @@ list_modules() {
 module_matches_profile() {
   local -r module_file="$1"
   local -r want="$2"
-  local name desc profiles doc
+  local name desc profiles hosts skip doc
 
-  IFS=$'\t' read -r name desc profiles doc < <(module_meta "${module_file}")
+  IFS=$'\t' read -r name desc profiles hosts skip doc < <(module_meta "${module_file}")
   [[ "${profiles}" == "all" ]] && return 0
   [[ " ${profiles} " == *" ${want} "* ]]
 }
@@ -248,8 +277,22 @@ main() {
     exit 1
   fi
 
+  # Host limits (MODULE_HOSTS / MODULE_SKIP_HOSTS), for profiles and explicit
+  # names alike.
+  local -a host_ok=()
+  local desc profiles hosts skip doc why
+  for module_file in "${to_run[@]}"; do
+    IFS=$'\t' read -r name desc profiles hosts skip doc < <(module_meta "${module_file}")
+    if why="$(host_allowed "${hosts}" "${skip}")"; then
+      host_ok+=("${module_file}")
+    else
+      st::msg "skip ${name} (${why})"
+    fi
+  done
+  to_run=("${host_ok[@]}")
+
   if (( ${#to_run[@]} == 0 )); then
-    st::war "no modules match profile: ${profile}"
+    st::war "no modules to run on ${ST_HOST}${profile:+ for profile: ${profile}}"
     exit 0
   fi
 
