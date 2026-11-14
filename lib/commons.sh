@@ -336,34 +336,30 @@ CL_LOG_LEVEL_NAMES=(INFO DEBUG TRACE)
 declare -r CL_LOG_LEVEL_NAMES
 
 # convert debug level names to their numeric representation (0-3)
+# Fork-free (case globs instead of printf|tr): cl::p_dbg runs ~100x per shell
+# start, and every fork is expensive under PRoot (Android) or on slow hosts.
+# The name patterns must match CL_LOG_LEVEL_NAMES (1-based: INFO=1).
 cl::_convert_debug_level() {
   if [[ -z "${1:-}" ]]; then
     return 1
   fi
 
-  # normalize input: strip spaces and lowercase
-  local lvl
-  lvl="$(printf "%s" "$1" | tr '[:upper:]' '[:lower:]')"
-  lvl="${lvl//[[:space:]]/}"
+  # normalize input: strip spaces (case is handled by the patterns below)
+  local lvl="${1//[[:space:]]/}"
 
   # numeric input that matches our known range
-  if [[ "$lvl" =~ ^[0-9]+$ ]] && (( lvl >= 0 && lvl <= ${#CL_LOG_LEVEL_NAMES[@]} )); then
-    printf "%s" "$lvl"
+  if [[ "$lvl" =~ ^[0-9]+$ ]] && (( 10#$lvl <= ${#CL_LOG_LEVEL_NAMES[@]} )); then
+    printf "%s" "$(( 10#$lvl ))"
     return 0
   fi
 
   # name input (case-insensitive)
-  local idx=0 name_lower
-  while (( idx <= ${#CL_LOG_LEVEL_NAMES[@]} )); do
-    name_lower="$(printf "%s" "${CL_LOG_LEVEL_NAMES[$idx]}" | tr '[:upper:]' '[:lower:]')"
-    if [[ "$lvl" == "$name_lower" ]]; then
-      printf "%s" "$idx"
-      return 0
-    fi
-    (( idx++ ))
-  done
-
-  return 1
+  case "$lvl" in
+    [Ii][Nn][Ff][Oo])     printf "1" ;;
+    [Dd][Ee][Bb][Uu][Gg]) printf "2" ;;
+    [Tt][Rr][Aa][Cc][Ee]) printf "3" ;;
+    *) return 1 ;;
+  esac
 }
 
 # convert numeric debug level to its uppercase name
@@ -371,12 +367,13 @@ cl::_debug_level_name() {
   if [[ -z "${1:-}" ]]; then
     return 1
   fi
-  local lvl="$1"
-  if [[ "$lvl" =~ ^[0-9]+$ ]] && (( lvl >= 0 && lvl <= ${#CL_LOG_LEVEL_NAMES[@]} )); then
-    printf "%s" "${CL_LOG_LEVEL_NAMES[$lvl]}"
-    return 0
-  fi
-  return 1
+  # explicit cases: array indices are 0-based in bash but 1-based in zsh
+  case "$1" in
+    1) printf "INFO" ;;
+    2) printf "DEBUG" ;;
+    3) printf "TRACE" ;;
+    *) return 1 ;;
+  esac
 }
 
 # convert numeric debug level to its uppercase NAME(lvl) formatted for terminal output
@@ -424,13 +421,12 @@ cl::_get_all_log_level_args() {
 # env DEBUG_LVL supercedes [dbg_lvl] (first arg.) if DEBUG_LVL > dbg_lvl
 # set dbg_lvl custom debug level or to 0 if DEBUG_LVL should be used exclusively
 cl::p_dbg() {
-  local timestamp
-  # timestamp option set?
+  local with_timestamp=false
+  # timestamp option set? (date is forked only once we know we print)
   if [[ -n "${1:-}" && "$1" =~ (-t|--timestamp) ]]; then
-    timestamp=${CL_TIMESTAMP_FORMAT:+"$(date +"${CL_TIMESTAMP_FORMAT}")"}
+    with_timestamp=true
     shift
   fi
-  declare -r timestamp
   # sufficient arguments?
   if [[ -z "$3" ]]; then
     cat <<EOF
@@ -458,15 +454,20 @@ EOF
     return 1
   fi
   # parse arguments - convert debug level names to numbers
+  # plain digits (the common case) skip the converter's subshell
   local dbg_lvl="$1"
-  if ! dbg_lvl=$(cl::_convert_debug_level "$dbg_lvl"); then
+  if [[ "$dbg_lvl" == [0-3] ]]; then
+    :
+  elif ! dbg_lvl=$(cl::_convert_debug_level "$dbg_lvl"); then
     cl::p_err "Invalid DBG_LVL: $1 (valid values: 0, $(cl::_get_all_log_level_args))"
     return 1
   fi
   shift
 
   local show_at_lvl="$1"
-  if ! show_at_lvl=$(cl::_convert_debug_level "$show_at_lvl") \
+  if [[ "$show_at_lvl" == [1-3] ]]; then
+    :
+  elif ! show_at_lvl=$(cl::_convert_debug_level "$show_at_lvl") \
       || [[ $show_at_lvl -eq 0 ]]; then
     cl::p_err "Invalid SHOW_AT_LVL: $1 (valid values: $(cl::_get_all_log_level_args))"
     return 1
@@ -477,6 +478,11 @@ EOF
   dbg_lvl=$(( ${DEBUG_LVL:-$dbg_lvl} > dbg_lvl ? ${DEBUG_LVL:-$dbg_lvl} : dbg_lvl ))
   (( dbg_lvl < show_at_lvl )) \
     && return 0
+
+  local timestamp=""
+  if $with_timestamp && [[ -n "${CL_TIMESTAMP_FORMAT:-}" ]]; then
+    timestamp="$(date +"${CL_TIMESTAMP_FORMAT}")"
+  fi
 
   local show_at_lvl_name
   show_at_lvl_name=$(cl::_debug_level_name_for_term "$show_at_lvl") || show_at_lvl_name="$show_at_lvl"
@@ -611,20 +617,22 @@ cl::is_remote() {
   [[ -r "/proc/$$/stat" ]] || return 1
   local -i pid=$$
   local comm stat
+  local -a environs=()
   while (( pid > 1 )); do
     # zsh reports a failed `< file` even with 2>/dev/null before it, so
     # group the read; parent pids can be hidden (hidepid, PRoot/Android)
-    { read -r comm < "/proc/${pid}/comm"; } 2> /dev/null || return 1
+    { read -r comm < "/proc/${pid}/comm"; } 2> /dev/null || break
     [[ "$comm" == sshd* ]] && return 0
-    grep -qaz '^SSH_CONNECTION=' "/proc/${pid}/environ" 2> /dev/null \
-      && return 0
+    environs+=("/proc/${pid}/environ")
     # ppid is the 2nd field after "(comm)"; comm itself may contain spaces
-    { read -r stat < "/proc/${pid}/stat"; } 2> /dev/null || return 1
+    { read -r stat < "/proc/${pid}/stat"; } 2> /dev/null || break
     stat="${stat##*) }"
     stat="${stat#* }"
     pid="${stat%% *}"
   done
-  return 1
+  # one grep for all ancestors, not one exec per level (~10ms each in PRoot)
+  (( ${#environs[@]} > 0 )) || return 1
+  grep -qaz '^SSH_CONNECTION=' "${environs[@]}" 2> /dev/null
 }
 
 # predicate: is this a login shell session we are in?

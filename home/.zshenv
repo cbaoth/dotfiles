@@ -28,6 +28,11 @@ else
   echo "Warning: ~/.common_env not found, some potentially crucial environment settings or functionality may be missing!" >&2
 fi
 
+# Ubuntu's /etc/zsh/zshrc runs its own compinit unless this is set. Ours in
+# ~/.zshrc runs later with a longer fpath, so the two disagree on the file
+# count and rewrite ~/.zcompdump on every start (2x compinit + a dump).
+skip_global_compinit=1
+
 # Deduplicate path variables (zsh-specific, safe if variables are unset)
 typeset -U PATH path
 typeset -U LD_LIBRARY_PATH

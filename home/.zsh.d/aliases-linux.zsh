@@ -16,6 +16,7 @@ __add_flatpak_app_functions() {
   if ! command -v flatpak >/dev/null 2>&1; then
     return 0
   fi
+  setopt local_options extended_glob  # for ## in the name mangling below
   local name application alias_name function_name
   local -A alias_map
 
@@ -25,9 +26,9 @@ __add_flatpak_app_functions() {
   )
 
   while IFS=$'\t' read -r name application; do
-    alias_name="$(printf '%s' "${name}" \
-      | tr -cs '[:alnum:]_-' '-' \
-      | tr '[:upper:]' '[:lower:]')"
+    # runs of other chars -> one '-', lowercase; parameter expansion instead
+    # of printf|tr|tr, which cost two execs per app (slow under PRoot)
+    alias_name="${(L)name//[^[:alnum:]_-]##/-}"
     alias_name="${alias_name##-}"
     alias_name="${alias_name%%-}"
     [[ -z "${alias_name}" ]] && continue
