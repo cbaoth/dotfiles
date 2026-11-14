@@ -403,14 +403,14 @@ cl::_debug_level_name_for_term() {
 
 # get all supported log level arguments (names and numbers)
 cl::_get_all_log_level_args() {
-  local all_log_level_args=()
-  local is_first=true
-  for i in $(seq 1 "${#CL_LOG_LEVEL_NAMES[@]}"); do
-    ! $is_first && all_log_level_args+=(",") && is_first=false
-    all_log_level_args+=("$i, ${CL_LOG_LEVEL_NAMES[i]}")
-
+  # Iterate values, not indices: bash arrays are 0-based, zsh 1-based.
+  local name out=""
+  local -i i=0
+  for name in "${CL_LOG_LEVEL_NAMES[@]}"; do
+    (( ++i ))
+    out+="${out:+, }${i}, ${name}"
   done
-  printf "%s" "${all_log_level_args[*]}"
+  printf "%s" "${out}"
 }
 
 # TODO consider option (vs. mandatory arg) to set local debug level (e.g. -l|--local-lvl or -0, -1, -2, -3)
