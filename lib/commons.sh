@@ -612,12 +612,14 @@ cl::is_remote() {
   local -i pid=$$
   local comm stat
   while (( pid > 1 )); do
-    read -r comm 2> /dev/null < "/proc/${pid}/comm" || return 1
+    # zsh reports a failed `< file` even with 2>/dev/null before it, so
+    # group the read; parent pids can be hidden (hidepid, PRoot/Android)
+    { read -r comm < "/proc/${pid}/comm"; } 2> /dev/null || return 1
     [[ "$comm" == sshd* ]] && return 0
     grep -qaz '^SSH_CONNECTION=' "/proc/${pid}/environ" 2> /dev/null \
       && return 0
     # ppid is the 2nd field after "(comm)"; comm itself may contain spaces
-    read -r stat 2> /dev/null < "/proc/${pid}/stat" || return 1
+    { read -r stat < "/proc/${pid}/stat"; } 2> /dev/null || return 1
     stat="${stat##*) }"
     stat="${stat#* }"
     pid="${stat%% *}"
