@@ -113,6 +113,7 @@ export IS_X=${IS_X:-false}
 if [[ $ARCH = *x86* ]]; then
   IS_PC=true
 else # No PC (x68 architecture)
+  IS_PC=false
   IS_PC_NATIVE=false
   # Is Android Termux?
   IS_ANDROID=false
