@@ -230,8 +230,18 @@ Grep whose path is `/` or under a guarded root. The prompt shows the reason
 (`mount-guard: touches mounted storage under /srv: …`).
 
 It is **best effort**: it splits the command on whitespace instead of
-parsing it, so a variable, a `cd` or a symlink gets past it, and any mention
-of a guarded path (even in an `echo`) triggers a prompt. It guards against an
+parsing it, so a variable gets past it, and any mention of a guarded path
+(even in an `echo`) triggers a prompt. Two things it does follow: the
+crawl test runs per command segment (`;`, `&&`, `|`, …) and tracks a
+literal `cd`, so `cd ~ && find dotfiles` passes while `cd ~ && find .`
+asks; and an existing path is resolved once (`readlink -f`), so a symlink
+into a guarded root (`~/Downloads` in a PRoot) asks too.
+
+**In a PRoot** (DroidDeck) the Android shared storage is guarded instead
+(`/storage`, `~/Storage`, which `~/Downloads` and `~/Documents` link into),
+so `~` stays a crawl root there as well. Guarded roots that are absent or
+empty are ignored in a PRoot only (`/srv` and `/mnt` are empty there, and a
+PRoot cannot mount); elsewhere an autofs root looks empty until accessed. It guards against an
 over-eager agent, not an adversary. Internal errors fail open (no output, so
 the normal rules decide).
 

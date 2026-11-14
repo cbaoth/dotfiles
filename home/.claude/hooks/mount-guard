@@ -56,6 +56,33 @@ load_conf() {
   done
   # Fallback if the config is missing (fresh host, link not run yet)
   (( ${#GUARDED[@]} )) || GUARDED=(/srv /media /mnt /run/media)
+  is_proot && drop_empty_roots
+}
+
+# Android kernel + distro rootfs = PRoot (DroidDeck, proot-distro); same test
+# as IS_PROOT in home/.common_env, whose export saves the fork. Android denies
+# /proc/sys/kernel/osrelease and PRoot fakes /proc/version, so uname it is.
+is_proot() {
+  case "${IS_PROOT:-}" in
+    true) return 0 ;;
+    false) return 1 ;;
+  esac
+  [[ "$(uname -r 2>/dev/null)" == *android* && -f /etc/os-release ]]
+}
+
+# PRoot only: a guarded root that is absent or empty holds nothing, and a
+# PRoot cannot mount anything there later (no autofs). Not done elsewhere: an
+# autofs root looks empty until it is accessed. Hidden-only entries count as
+# empty (/media holds KDE's .directory/.hidden links in DroidDeck).
+drop_empty_roots() {
+  local root
+  local -a kept=() entries=()
+  for root in "${GUARDED[@]}"; do
+    [[ -d "${root}" ]] || continue
+    entries=("${root}"/*)
+    [[ -e "${entries[0]}" || -L "${entries[0]}" ]] && kept+=("${root}")
+  done
+  GUARDED=("${kept[@]}")
 }
 
 # 0 if $1 is at or below $2
@@ -94,41 +121,107 @@ ask() {
   exit 0
 }
 
+# Is $1 a crawl root, literally or after expansion of ~ / $HOME?
+is_crawl_root() {
+  in_list "$1" "${CRAWL_ROOTS[@]}" || in_list "${1%/}" "${CRAWL_ROOTS[@]}"
+}
+
+# Word -> absolute path against DIR (best effort; ~ and $HOME expanded).
+abs_path() {
+  local -r w="$1" dir="$2"
+  case "${w}" in
+    /*) printf '%s' "${w}" ;;
+    '~'|'~/'*) printf '%s' "${HOME}${w#\~}" ;;
+    '$HOME'*) printf '%s' "${HOME}${w#\$HOME}" ;;
+    '${HOME}'*) printf '%s' "${HOME}${w#\$\{HOME\}}" ;;
+    *) printf '%s' "${dir%/}/${w}" ;;
+  esac
+}
+
+# Name of the recursive tool in WORDS, or nothing.
+recursive_tool() {
+  local w base flag_r="" flag_upper_r="" found=""
+  for w in "$@"; do
+    base="${w##*/}"
+    in_list "${base}" "${RECURSIVE_TOOLS[@]}" && found="${base}"
+    [[ "${w}" =~ ^-[a-zA-Z]*R || "${w}" == "--recursive" ]] && flag_upper_r=1
+    [[ "${w}" =~ ^-[a-zA-Z]*r ]] && flag_r=1
+  done
+  if [[ -z "${found}" && -n "${flag_r}${flag_upper_r}" ]]; then
+    for w in "$@"; do
+      base="${w##*/}"
+      if [[ -n "${flag_upper_r}" ]] && in_list "${base}" "${FLAG_TOOLS[@]}" \
+        || in_list "${base}" "${LOWER_R_TOOLS[@]}"; then
+        found="${base} -R"
+      fi
+    done
+  fi
+  printf '%s' "${found}"
+}
+
+# The command is split into segments at ; && || | & and newlines, and the
+# crawl-root test applies per segment: `cd ~ && find dotfiles` names ~ only in
+# the `cd`, and the find runs in ~/dotfiles. A `cd` is followed, so
+# `cd ~ && find .` (or a find with no existing path operand) still asks.
 check_bash() {
-  local -r cmd="$1"
-  local -a words=()
-  local w base sanitized recursive="" root
-  local flag_r="" flag_upper_r=""
-  # Shell punctuation and quotes become word breaks; `--opt=/path` -> `/path`
+  local -r cmd="$1" start_dir="$2"
+  local -a words=() segments=()
+  local w base sanitized seg recursive root dir="${start_dir}" target operand_ok
+
+  # Guarded roots: any absolute word anywhere in the command.
   sanitized="${cmd//[;|&()<>\"\'\`=]/ }"
   read -ra words <<< "${sanitized//$'\n'/ }"
-
   for w in "${words[@]}"; do
     base="${w##*/}"
     if in_list "${base}" "${INDEX_TOOLS[@]}"; then
       ask "${base} searches an index that includes mounted storage"
     fi
-    in_list "${base}" "${RECURSIVE_TOOLS[@]}" && recursive="${base}"
-    [[ "${w}" =~ ^-[a-zA-Z]*R || "${w}" == "--recursive" ]] && flag_upper_r=1
-    [[ "${w}" =~ ^-[a-zA-Z]*r ]] && flag_r=1
-  done
-  if [[ -z "${recursive}" && -n "${flag_r}${flag_upper_r}" ]]; then
-    for w in "${words[@]}"; do
-      base="${w##*/}"
-      if [[ -n "${flag_upper_r}" ]] && in_list "${base}" "${FLAG_TOOLS[@]}" \
-        || in_list "${base}" "${LOWER_R_TOOLS[@]}"; then
-        recursive="${base} -R"
-      fi
-    done
-  fi
-
-  for w in "${words[@]}"; do
-    if [[ -n "${recursive}" ]] && in_list "${w}" "${CRAWL_ROOTS[@]}"; then
-      ask "${recursive} on '${w}' crosses every mount below it (NFS/NTFS, many TB)"
-    fi
-    [[ "${w}" == /* ]] || continue
-    if root="$(guarded_root "${w}")"; then
+    case "${w}" in
+      /*|'~'|'~/'*|'$HOME'*|'${HOME}'*) ;;
+      *) continue ;;
+    esac
+    target="$(abs_path "${w}" /)"
+    if root="$(guarded_root "${target}")"; then
       ask "touches mounted storage under ${root}: ${w}"
+    fi
+    # Through a symlink (~/Downloads -> Android storage); one fork per
+    # existing path only.
+    [[ -e "${target}" ]] || continue
+    target="$(readlink -f -- "${target}" 2>/dev/null)" || continue
+    if root="$(guarded_root "${target}")"; then
+      ask "touches mounted storage under ${root}: ${w} (-> ${target})"
+    fi
+  done
+
+  # Crawl roots: per segment.
+  sanitized="${cmd//$'\n'/;}"
+  sanitized="${sanitized//&&/;}"
+  sanitized="${sanitized//||/;}"
+  sanitized="${sanitized//[|&]/;}"
+  IFS=';' read -ra segments <<< "${sanitized}"
+  for seg in "${segments[@]}"; do
+    seg="${seg//[()<>\"\'\`=]/ }"
+    read -ra words <<< "${seg}"
+    (( ${#words[@]} )) || continue
+    if [[ "${words[0]}" == "cd" ]]; then
+      dir="$(abs_path "${words[1]:-~}" "${dir:-/}")"
+      continue
+    fi
+    recursive="$(recursive_tool "${words[@]}")"
+    [[ -n "${recursive}" ]] || continue
+    operand_ok=""
+    for w in "${words[@]:1}"; do
+      if is_crawl_root "${w}"; then
+        ask "${recursive} on '${w}' crosses every mount below it (NFS/NTFS, many TB)"
+      fi
+      [[ "${w}" == -* ]] && continue
+      [[ "${w}" == "." || "${w}" == "./" ]] && { operand_ok=""; break; }
+      target="$(abs_path "${w}" "${dir:-/}")"
+      [[ -e "${target}" ]] && ! is_crawl_root "${target}" && operand_ok=1
+    done
+    # No usable path operand: the tool crawls its working directory.
+    if [[ -z "${operand_ok}" ]] && [[ -n "${dir}" ]] && is_crawl_root "${dir}"; then
+      ask "${recursive} in '${dir}' crosses every mount below it (NFS/NTFS, many TB)"
     fi
   done
 }
@@ -160,7 +253,7 @@ main() {
 
   case "${tool}" in
     Bash)
-      check_bash "$(jq -r '.tool_input.command // empty' <<< "${input}")"
+      check_bash "$(jq -r '.tool_input.command // empty' <<< "${input}")" "${cwd}"
       ;;
     Glob|Grep)
       check_search "${tool}" \

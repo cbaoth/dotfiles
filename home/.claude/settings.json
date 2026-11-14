@@ -540,10 +540,14 @@
       "Read(//mnt/**)",
       "Read(//media/**)",
       "Read(//run/media/**)",
+      "Read(//storage/**)",
+      "Read(//root/Storage/**)",
       "Edit(//srv/**)",
       "Edit(//mnt/**)",
       "Edit(//media/**)",
-      "Edit(//run/media/**)"
+      "Edit(//run/media/**)",
+      "Edit(//storage/**)",
+      "Edit(//root/Storage/**)"
     ],
     "defaultMode": "auto",
     "deny": [
