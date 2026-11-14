@@ -27,7 +27,7 @@ declare -r ST_SETUP_DIR="${ST_REPO_DIR}/setup"
 declare -r ST_MODULE_DIR="${ST_SETUP_DIR}/modules"
 export ST_SETUP_DIR ST_REPO_DIR
 
-declare -ra ST_PROFILES=(desktop server wsl wsl-work container)
+declare -ra ST_PROFILES=(desktop server wsl wsl-work container proot)
 
 if [[ ! -d "${ST_MODULE_DIR}" ]]; then
   printf 'ERROR: module dir not found: %s\n' "${ST_MODULE_DIR}" >&2
@@ -216,6 +216,13 @@ main() {
   if (( opt_list )); then
     list_modules
     exit 0
+  fi
+
+  # Termux has apt, but its own repos and package names and no sudo: every
+  # module would install the wrong thing or fail half way.
+  if st::is_termux; then
+    st::err "Termux detected: system-setup targets Ubuntu/Debian, nothing here applies"
+    exit 1
   fi
 
   # Build the run set: explicit modules win over --profile.

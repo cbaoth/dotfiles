@@ -10,7 +10,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="XDG user dirs: create the ones nothing else creates (Screenshots)"
-MODULE_PROFILES=(desktop)
+MODULE_PROFILES=(desktop proot)
 MODULE_DOC="docs/setup/xdg-user-dirs.md"
 
 # The defaults are repeated from home/.common_env rather than relied upon

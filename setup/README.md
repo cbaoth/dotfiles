@@ -14,9 +14,12 @@ system-setup 20-flatpak 30-docker        # run specific modules
 ```
 
 Profiles: `desktop`, `server`, `wsl`, `container` (devcontainers, see
-[docs/setup/devcontainer.md](../docs/setup/devcontainer.md)). `auto` takes the
-host's entry in `hosts.list`, else detects container → WSL → graphical session
-(desktop) → server. Naming modules explicitly overrides the profile filter.
+[docs/setup/devcontainer.md](../docs/setup/devcontainer.md)), `proot` (Ubuntu
+in a PRoot on Android, no systemd, see
+[docs/setup/droiddeck.md](../docs/setup/droiddeck.md)). `auto` takes the
+host's entry in `hosts.list`, else detects container → PRoot → WSL →
+graphical session (desktop) → server. Naming modules explicitly overrides the
+profile filter. Termux is refused: it has apt, but not Ubuntu's packages.
 
 ## The one rule
 

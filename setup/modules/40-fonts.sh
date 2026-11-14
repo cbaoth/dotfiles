@@ -10,7 +10,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="Nerd Fonts (FiraCode, FiraMono) + default monospace font"
-MODULE_PROFILES=(desktop)
+MODULE_PROFILES=(desktop proot)
 MODULE_DOC="docs/setup/fonts.md"
 
 # One release archive per family (~3 MB each), pinned and checksummed, instead of

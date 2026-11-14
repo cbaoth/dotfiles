@@ -27,7 +27,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="yt-dlp (official standalone binary, ~/.local/bin/yt-dlp)"
-MODULE_PROFILES=(desktop server)
+MODULE_PROFILES=(desktop server proot)
 MODULE_DOC="docs/setup/yt-dlp.md"
 
 declare -r YTDLP_BIN="${HOME}/.local/bin/yt-dlp"

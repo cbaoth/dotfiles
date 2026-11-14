@@ -561,6 +561,20 @@ st::is_container() {
   [[ -f /.dockerenv || -f /run/.containerenv ]]
 }
 
+# Are we in a distro rootfs on an Android kernel (PRoot: DroidDeck,
+# proot-distro)? apt and sudo may work, but there is no systemd, no kernel
+# tuning and no real root. Same test as IS_PROOT in home/.common_env.
+st::is_proot() {
+  [[ "$(uname -r)" == *android* && -f /etc/os-release ]]
+}
+
+# Are we in Termux itself? Its own apt repos and package names, no sudo, no
+# /etc/os-release: none of the modules apply. Same test as IS_TERMUX.
+st::is_termux() {
+  [[ "$(uname -r)" == *android* && ! -f /etc/os-release \
+     && -d /data/data/com.termux/files/usr/bin ]]
+}
+
 # Is a graphical session running? Only a hint for --profile auto: it is false
 # on a desktop reached via TTY/SSH. Installed packages (gnome-shell used to be
 # checked) are worse: a server with leftover desktop packages looks like one.
@@ -584,6 +598,8 @@ st::guess_profile() {
     printf '%s' "${listed}"
   elif st::is_container; then
     printf 'container'
+  elif st::is_proot; then
+    printf 'proot'
   elif st::is_wsl; then
     printf 'wsl'
   elif st::is_desktop; then

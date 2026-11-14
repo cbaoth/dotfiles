@@ -25,7 +25,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="static FFmpeg (BtbN GPL build, ~/.local/bin) via bin/ffmpeg-install"
-MODULE_PROFILES=(desktop server)
+MODULE_PROFILES=(desktop server proot)
 MODULE_DOC="docs/setup/ubuntu-base.md"
 
 declare -r FFMPEG_LINK="${HOME}/.local/bin/ffmpeg"

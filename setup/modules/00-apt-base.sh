@@ -11,7 +11,7 @@
 # Sourced by bin/system-setup. Helpers (st::*) come from setup/lib/setup-lib.sh.
 
 MODULE_DESC="Regional apt mirror, system upgrade, base packages"
-MODULE_PROFILES=(desktop server wsl wsl-work container)
+MODULE_PROFILES=(desktop server wsl wsl-work container proot)
 MODULE_DOC="docs/setup/ubuntu-base.md"
 
 # German Ubuntu mirror — noticeably faster from here than the default.
