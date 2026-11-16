@@ -399,7 +399,7 @@ fi
 pkgu() {
   if [[ -n "$(command -v apt 2>/dev/null)" ]]; then
     echo "> Updating and upgrading apt packages (incl. auto-remove) ..."
-    apu || echo -e "[\e[33mWARNING:\e[0m Apt update/upgrade failed]"
+    agupf || echo -e "[\e[33mWARNING:\e[0m Apt update/upgrade failed]"
     echo
   fi
   if [[ -n "$(command -v snap 2>/dev/null)" ]]; then
