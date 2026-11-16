@@ -85,6 +85,7 @@ button:hover {
 #memory,
 #cpu,
 #custom-power-warn,
+#battery,
 #power-profiles-daemon,
 #custom-sway-awake,
 #custom-volume,
@@ -105,6 +106,7 @@ button:hover {
 #memory,
 #cpu,
 #custom-power-warn,
+#battery,
 #power-profiles-daemon,
 #custom-sway-awake,
 #custom-volume,
@@ -133,7 +135,7 @@ button:hover {
 }
 
 /* percentage values: fixed width, so 9% -> 10% does not shift the bar */
-#cpu, #memory, #custom-vram, #custom-volume, #custom-mic {
+#cpu, #memory, #custom-vram, #custom-volume, #custom-mic, #battery {
     min-width: 3.2em;
 }
 
@@ -270,6 +272,18 @@ button:hover {
 #custom-mic.muted {
     background-color: @crit_bg;
     color: @fg;
+}
+
+/* Battery (thresholds in config.jsonc). Discharging is the case to watch:
+   below 30% text colour, below 15% inverted. While charging the same charge
+   is nothing to act on, so the charging class keeps the base colour. */
+#battery.warning:not(.charging):not(.plugged) {
+    color: @warn;
+}
+
+#battery.critical:not(.charging):not(.plugged) {
+    background-color: @crit_bg;
+    color: #ffffff;
 }
 
 /* Power profile: balanced is the neutral default; both others change system

@@ -2,8 +2,8 @@
 title: tmux — SSH auto-attach, sessions vs windows, and getting back to work
 hosts: [all]
 status: resolved
-tags: [tmux, ssh, shell, remote, agents]
-updated: 2026-10-31
+tags: [tmux, ssh, shell, remote, agents, status-line]
+updated: 2026-11-16
 ---
 
 # tmux on SSH logins
@@ -108,6 +108,18 @@ With `mouse on`, dragging selects and copies too.
   sizes* below for why that is the actual remedy.
 - **Check before assuming nothing runs**: `tmux ls` costs nothing and answers
   "did I leave something open?" — which is otherwise unanswerable after a day.
+
+## Status line: catppuccin load order
+
+`home/.tmux.conf` appends the cpu, ram and battery modules with `set -agF`,
+which expands `#{E:@catppuccin_status_*}` **when the line runs**. Catppuccin
+must be loaded before those lines (an explicit, guarded `run` of
+`~/.tmux/plugins/tmux/catppuccin.tmux`); otherwise the modules expand to empty
+and silently vanish from the bar. TPM loading it again at the end is harmless
+(`set -ogq`). Check with `tmux show -gv status-right`: it should list
+`tmux-cpu`/`tmux-battery` script paths. The battery module is added only when
+`/sys/class/power_supply/BAT*` exists, and shows the battery of the host that
+runs the tmux *server*.
 
 ## Two devices, two sizes
 

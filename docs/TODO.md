@@ -876,7 +876,7 @@ over ssh.
       color reflects state (error, vi command mode, sudo cached, root).
 - [ ] [S] Re-add modules the preset dropped and the old prompt had: exit
       status, command duration, sudo indicator, background jobs, battery
-      (notebook), plus language/tool modules beyond the preset's five
+      (notebook; done 2026-11-16), plus language/tool modules beyond the preset's five
       (python, docker, …).
 - [ ] [S] Separators: triangles instead of rounded ends (optional; rounded is
       fine for now).
@@ -890,16 +890,20 @@ over ssh.
       and time the prompt (`starship timings`). If slow, either disable
       `git_status` there or set `windows_starship` (needs a Windows-native
       starship.exe); then record the result in `docs/setup/wsl-work.md`.
-- [ ] [M] Battery indicator, **only on devices with a battery** (puppet), in both
-      places. Found missing 2026-11-07, when puppet's battery had swollen
-      unnoticed (the old p10k prompt had one; the starship setup does not).
-  - starship: a custom/`battery` segment with charge, a charging / on-AC mark
-    and low/critical colors. Decide "has a battery" once at shell startup
-    (`/sys/class/power_supply/BAT*` exists), not per prompt.
-  - waybar: `battery` module in `config.jsonc` (charge, charging state, tooltip
-    with health = `energy_full / energy_full_design`), added only on hosts with
-    a battery (per-host config or a small wrapper script).
-  - Idea: warn when health drops below ~80% or the battery is not charging on AC.
+- [x] [M] Battery indicator, **only on devices with a battery** (puppet).
+      Found missing 2026-11-07, when puppet's battery had swollen unnoticed.
+      Done 2026-11-16, all built-in modules, which hide themselves without a
+      battery (no per-host config needed):
+  - starship: `[battery]` in the tier5 segment, always shown, `warn`/`error`
+    colours below 30 / 15 % (sysfs read per prompt, < 1 ms).
+  - waybar: `battery` module (charging / plugged icons, tooltip with health).
+  - tmux: catppuccin + tmux-battery, guarded by `if-shell` on
+    `/sys/class/power_supply/BAT*`. It was configured before but rendered
+    empty: catppuccin loaded after the `set -agF` lines (also hid cpu/ram).
+- [ ] [S] Battery health warning: notify when health drops below ~80 % or the
+      battery is not charging on AC below the conservation cap.
+- [ ] [S] Maybe: battery in tmux on Android/termux (tmux-battery supports
+      `termux-battery-status`, needs the Termux:API app).
 - [ ] [S] Maybe: foot `prompt-prev`/`prompt-next` (`Ctrl+Shift+z/x`, jump
       between prompts in scrollback) need OSC 133 prompt marks — check whether
       starship emits them or a small precmd hook is needed.

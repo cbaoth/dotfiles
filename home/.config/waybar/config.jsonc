@@ -23,6 +23,7 @@
         "memory",
         "cpu",
         "custom/power-warn",
+        "battery",
         "power-profiles-daemon",
         "custom/sway-awake",
         "custom/volume",
@@ -94,6 +95,22 @@
         "interval": 10,
         "format": "󰢮 {}%",
         "tooltip": true
+    },
+
+    // Battery charge and state (sysfs, event driven). Hidden on hosts without
+    // a battery: waybar omits the module when it finds none. "plugged" = on AC
+    // but not charging, e.g. puppet's ideapad conservation mode holding ~60 %
+    // (/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode).
+    // Tooltip health = full / design capacity (the swollen pack was at 76 %).
+    "battery": {
+        "interval": 60,
+        "format": "{icon} {capacity}%",
+        "format-charging": "󰂄 {capacity}%",
+        "format-plugged": "󰚥 {capacity}%",
+        "format-full": "󰚥 {capacity}%",
+        "format-icons": ["󰂎", "󰁻", "󰁽", "󰁿", "󰂁", "󰁹"],
+        "tooltip-format": "{timeTo}\nPower: {power:0.1f} W\nHealth: {health}%",
+        "states": { "warning": 30, "critical": 15 }
     },
 
     // Lenovo DYTC thermal modes (the Vantage "Intelligent Cooling" equivalent):

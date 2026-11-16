@@ -3,7 +3,7 @@ title: puppet — laggy internal keyboard, swollen battery, USB-C charger intera
 hosts: [puppet]
 status: open
 tags: [keyboard, battery, hardware, usb-c, power, ec]
-updated: 2026-11-08
+updated: 2026-11-16
 revisit: after the battery replacement
 ---
 
@@ -60,3 +60,4 @@ keyboard, touchpad and mouse were fine.
   healthy battery, the charger is the cause; stop sharing it with other
   devices (or use the original charger).
 - Add a battery indicator (waybar, zsh): see `docs/TODO.md`.
+  2026-11-16: done in waybar, the starship prompt and tmux.

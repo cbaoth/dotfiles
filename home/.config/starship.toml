@@ -56,6 +56,7 @@ $rust\
 $golang\
 $php\
 [](fg:tier4 bg:tier5)\
+$battery\
 $time\
 [ ](fg:tier5)\
 \n${env_var.CB_PROMPT_ROOT}\
@@ -106,6 +107,30 @@ format = '[[ $symbol ($version) ](fg:accent bg:tier4)]($style)'
 symbol = ""
 style = "bg:tier4"
 format = '[[ $symbol ($version) ](fg:accent bg:tier4)]($style)'
+
+# local: battery, only on hosts that have one (the module renders nothing
+# otherwise; it reads /sys/class/power_supply, well under 1 ms). Always shown,
+# coloured below 30 / 15 %. unknown = on AC but not charging, e.g. puppet's
+# ideapad conservation mode holding the charge at ~60 % ("Not charging").
+[battery]
+format = "[ $symbol$percentage ]($style)"
+full_symbol = "󰁹 "
+charging_symbol = "󰂄 "
+discharging_symbol = "󰁿 "
+unknown_symbol = "󰚥 "
+empty_symbol = "󰂎 "
+
+[[battery.display]]
+threshold = 15
+style = "bg:tier5 fg:error bold"
+
+[[battery.display]]
+threshold = 30
+style = "bg:tier5 fg:warn"
+
+[[battery.display]]
+threshold = 100
+style = "bg:tier5 fg:muted"
 
 [time]
 disabled = false
@@ -183,7 +208,8 @@ Pop = ""
 # local: colour roles shared by every palette below — head = first segment
 # colour (see format above), accent/tier3-5 = the segment background gradient
 # (brightest to darkest), text_dark/bright = fixed-contrast text on head/error
-# blocks, muted = time text, error = root/failed-command red.
+# blocks, muted = time text, error = root/failed-command red, warn = battery
+# below 30 %.
 [palettes.local]
 head = "#a3aed2"
 accent = "#769ff0"
@@ -193,6 +219,7 @@ tier5 = "#1d2230"
 text_dark = "#0a0b0f"
 muted = "#a0a9cb"
 error = "#c54544"
+warn = "#ff9e64"  # tokyo night orange
 bright = "#ffffff"
 
 # Same as [palettes.local] except for `head` — used for the ssh/root variant
@@ -206,6 +233,7 @@ tier5 = "#1d2230"
 text_dark = "#0a0b0f"
 muted = "#a0a9cb"
 error = "#c54544"
+warn = "#ff9e64"  # tokyo night orange
 bright = "#ffffff"
 
 # Same as [palettes.remote], `head` in green — used inside containers (see
@@ -219,6 +247,7 @@ tier5 = "#1d2230"
 text_dark = "#0a0b0f"
 muted = "#a0a9cb"
 error = "#c54544"
+warn = "#ff9e64"  # tokyo night orange
 bright = "#ffffff"
 
 # Eldritch adaptations (https://github.com/eldritch-theme/starship) — colours
@@ -232,6 +261,7 @@ tier5 = "#212337"       # background
 text_dark = "#212337"   # background
 muted = "#7081d0"       # comment
 error = "#f16c75"       # red
+warn = "#f7c67f"  # orange
 bright = "#ebfafa"      # foreground
 
 [palettes.eldritch_abyss]
@@ -243,4 +273,5 @@ tier5 = "#171928"       # background
 text_dark = "#171928"   # background
 muted = "#506299"       # comment
 error = "#cc5860"       # red
+warn = "#c9a46c"  # orange
 bright = "#d8e6e6"      # foreground
