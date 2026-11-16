@@ -549,13 +549,58 @@ Just some quick unrefined notes, before I forget:
 
 # 7. System Updates — Reminders, Auto-Update & Release Upgrades
 
-**Open for a planning session (not started).** Goal: stop relying on memory to
-keep software current across hosts. Decide per source and per host what should
-update automatically, what should only produce a reminder, and how that
-reminder reaches the user. Two scopes, likely with different answers:
+**Planned 2026-11-08, build in progress.** Goal: stop relying on memory to
+keep software current across hosts. Two scopes, with different answers:
 **package/app updates** (below) and **Ubuntu release upgrades** (own
 subsection at the end) — the latter is the one that can silently strand a host
 on an unsupported release.
+
+**Decisions (2026-11-08).** Auto-apply where breakage is cheap, report the rest
+once, and keep one fixed apply command:
+
+| Source | Policy |
+| ------ | ------ |
+| apt security | unattended-upgrades on all hosts |
+| Browsers and VS Code (desktops) | auto, via extra origins; all channels including nightly/unstable |
+| flatpak (system + user) | auto |
+| nix profile, `uv self update`, `yt-dlp -U` | auto, weekly user timer |
+| Node (fnm) | auto within the installed major, never `fnm install --lts` (it crosses majors); notify on major bumps and EOL lines only |
+| zinit, rustup | report |
+| Containers on servers | report only; `docker-image-check`, later with endoflife.date |
+| Devcontainers | warn on the age of the `system-setup` layer, not the image date: 30 days, 14 for Node-heavy ones |
+| AppImages | report age only, later |
+
+Build order:
+
+- [x] [S] Quick fixes (2026-11-08): saito auto-upgrades, `docker-image-check`
+      on the vserver, flatpak catch-up on motoko, `pkgu` really upgrading apt.
+      puppet is out of service; catch up everything when it returns.
+- [ ] [M] Idempotent `setup/` module for the auto-apply rows above.
+- [ ] [M] One cached check per ecosystem (`~/.cache/cb-updates/<name>`, user
+      timer); `pkgu` / `pkgu <name>` applies and clears the entry. Warn when the
+      cache itself is stale, so a dead timer cannot look like "all good".
+- [x] [M] Login signal (2026-11-16): `~/.hushlogin` silences the MOTD; the zsh
+      welcome is dimmed and adds colored lines only for a pending reboot (red
+      after 3 days), failed units, held security updates and local mail. The
+      update count is apt's cached MOTD value and can disagree with
+      `apt list --upgradable`; the per-ecosystem cache will replace it.
+      On saito and the vserver `/run/reboot-required` is empty, which is why
+      the stock MOTD never showed the restart notice there.
+- [ ] [M] Reboots: automatic on the vserver (no LUKS, containers restart
+      themselves), report only on saito and the desktops (LUKS needs a person).
+- [ ] [M] ntfy only for security, severe or urgent topics. Done 2026-11-16:
+      netdata reboot alert delayed 72h (`/etc/netdata/health.d/reboot.conf`, a
+      full copy of the stock file), `caddy-catchall` dropped from the fail2ban
+      alert, vserver postfix fixed (it failed at every boot). Still open:
+      `notes-sync` should alert only after repeated failures, the saito-side
+      Forgejo check only after a few minutes, and a fail2ban action plan that
+      decides which numbers are worth a push.
+- [ ] [S] Later: AppImage ages, Nextcloud `occ update:check` (the image tag does
+      not cover `custom_apps`), per-service "re-check on upgrade" notes.
+
+Project dependency updates are a separate topic: the repos are on Forgejo, which
+has no Dependabot, so Renovate (timer on the vserver or Forgejo Actions) is the
+likely answer.
 
 **Trigger (2026-09-24):** the Tailscale client on the vserver (11001001) was
 outdated without anyone noticing. It only came up because `tailscale get
@@ -571,13 +616,12 @@ Upgraded to 26.04.1 the same day.
 
 **Current state, as far as known:**
 
-- Only **apt** is auto-updated, via unattended-upgrades, and not everywhere:
-  it is **disabled on motoko** (boot-time updates were a nuisance), so apt is
-  updated by hand there. Options and the "fold into bedtime-shutdown" idea are
-  in [docs/setup/unattended-upgrades.md](setup/unattended-upgrades.md); verify
-  each host's actual state. Also check which origins are allowed: third-party
-  repos (Tailscale, browsers, Netdata) are probably not covered by the default
-  config.
+- Only **apt** is auto-updated, via unattended-upgrades (verified 2026-11-08:
+  active on motoko, puppet and 11001001; saito was missing its
+  `20auto-upgrades` switch). Options and the "fold into bedtime-shutdown" idea
+  are in [docs/setup/unattended-upgrades.md](setup/unattended-upgrades.md).
+  Third-party repos (Tailscale, browsers, Netdata) are not in the allowed
+  origins.
 - **flatpak**: several desktop apps, practically never updated unless an app
   prompts or something breaks.
 - **snap**: rarely used, but present.
@@ -670,8 +714,8 @@ For these it might be sensible to reference the official install doc or repo pag
 saito and 11001001 (`sudo pro attach <token>`, then `apt update` +
 `full-upgrade`): ESM Apps/Infra security updates plus Livepatch (snap).
 
-- [ ] [S] puppet: attach Ubuntu Pro too (token in the Ubuntu One account),
-      then `apu!; agupf`; check `pro status`.
+Interim hosts need no Pro: ESM covers LTS only, so the token was removed from
+motoko and puppet (2026-11-08).
 
 **Questions for the session:**
 

@@ -3,7 +3,7 @@ title: Unattended upgrades — taming boot-time updates
 hosts: [motoko, saito]
 status: workaround
 tags: [apt, upgrades, systemd, boot]
-updated: 2026-07-12
+updated: 2026-11-08
 ---
 
 # Unattended upgrades
@@ -48,7 +48,9 @@ security updates that matter most, so this trades away the important half.
 **4. Manual** — with a cached "updates available" hint in the zsh prompt. Still
 requires handling snap/flatpak separately.
 
-Currently: **option 1 on motoko**, with updates applied deliberately.
+Currently (verified 2026-11-08): **enabled on all hosts**, motoko included;
+the boot-time nuisance is no longer the deciding factor. The per-source policy
+is in [TODO §7](../TODO.md).
 
 ## Idea: fold upgrades into bedtime-shutdown
 
