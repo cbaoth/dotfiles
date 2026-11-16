@@ -976,16 +976,57 @@ command -v cb_devtools_completions > /dev/null && cb_devtools_completions
 # }}} - DEV TOOL COMPLETIONS -------------------------------------------------
 
 # {{{ - MOTD -----------------------------------------------------------------
+# ~/.hushlogin silences the system MOTD (and sshd's "Last login"), so this is the
+# only login message. Routine facts are dimmed; only what needs acting on is
+# colored: yellow = soon, bold red = now (docs/TODO.md §7).
+
+# _cb_motd_line LEVEL TEXT -- LEVEL is warn (yellow) or crit (bold red)
+_cb_motd_line() {
+  if [[ "$1" == crit ]]; then
+    printf '%s\n' "$(cl::fx b)$(cl::fx red)! $2$(cl::fx r)"
+  else
+    printf '%s\n' "$(cl::fx yellow)! $2$(cl::fx r)"
+  fi
+}
+
+_cb_motd_alerts() {
+  local -i age_d=0 n=0
+  local text=""
+  local -r cache=/var/lib/update-notifier/updates-available
+  # Pending reboot (kernel, libc, ...): red once it has waited 3 days
+  if [[ -e /run/reboot-required ]]; then
+    age_d=$(( ($(date +%s) - $(stat -c %Y /run/reboot-required)) / 86400 ))
+    text="$(sort -u /run/reboot-required.pkgs 2>/dev/null | head -n 3 | paste -sd ' ')"
+    _cb_motd_line "$( (( age_d >= 3 )) && echo crit || echo warn )" \
+      "REBOOT REQUIRED for ${age_d} day(s)${text:+ (${text})}"
+  fi
+  text="$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | head -n 4 | paste -sd ' ')"
+  [[ -n "${text}" ]] && _cb_motd_line warn "failed units: ${text}"
+  text="$(systemctl --user --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | head -n 4 | paste -sd ' ')"
+  [[ -n "${text}" ]] && _cb_motd_line warn "failed user units: ${text}"
+  # Security updates still pending although unattended-upgrades runs daily mean
+  # something is held back. The count is apt's cached MOTD value and may lag.
+  n="$(grep -oE '^[0-9]+ of these updates? (is|are) (a )?(standard )?security' "${cache}" 2>/dev/null \
+    | grep -oE '^[0-9]+' | head -n 1)"
+  (( n > 0 )) && _cb_motd_line crit "${n} security update(s) pending: pkgu"
+  [[ -s "/var/mail/${USER}" ]] && _cb_motd_line warn "local mail in /var/mail/${USER}"
+  n="$(grep -oE '^[0-9]+ updates? can be applied' "${cache}" 2>/dev/null | grep -oE '^[0-9]+' | head -n 1)"
+  (( n > 0 )) && printf '%s\n' "$(cl::fx d)${n} update(s) pending (cached count): pkgu$(cl::fx r)"
+  return 0
+}
+
 # Print MOTD messages only for top-level shells (no sub-shells, su, tmux, etc.)
 if (( SHLVL == 1 )); then
   # Print welcome message for login shells (includes ssh sessions) or docker containers
   if [[ -o login ]] || [[ -n "${IS_DOCKER:-}" ]]; then
-    printf "%s\n" "$(cl::fx b)$(cl::fx white)Welcome to $(cl::fx green)$(hostname) $(cl::fx white)running $(cl::fx green)$(uname -srm)$(cl::fx reset)"
+    printf "%s\n" "$(cl::fx d)Welcome to $(hostname) running $(uname -srm)$(cl::fx r)"
   fi
-  printf "%s\n" "$(cl::fx b)$(cl::fx white)Time: $(cl::fx green)$(date '+%a %Y-%m-%d %T')$(cl::fx white), Uptime: $(cl::fx green)$(uptime -p)$(cl::fx white) since $(cl::fx green)$(uptime -s)$(cl::fx white)$(cl::fx reset)"
+  printf "%s\n" "$(cl::fx d)Time: $(date '+%a %Y-%m-%d %T'), Uptime: $(uptime -p) since $(uptime -s)$(cl::fx r)"
+  [[ -o login ]] && [[ -z "${IS_DOCKER:-}" ]] && _cb_motd_alerts
   # defined in ~/.zsh.d/zshrc-linux_wsl.zsh (WSL only)
   (( $+functions[cb_wsl_update_check] )) && cb_wsl_update_check
 fi
+unfunction _cb_motd_line _cb_motd_alerts
 # }}} - MOTD -----------------------------------------------------------------
 
 # opt-in per host via CB_TMUX_AUTOATTACH (see ~/.common_rc); keep this last
