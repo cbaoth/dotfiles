@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Launch Awakened PoE Trade (AppImage) on Sway/Wayland.
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# Launch Awakened PoE Trade (AppImage) on Sway/Wayland, installing pending updates first.
 #
 # Two workarounds are needed to start the AppImage from a shell under Sway:
 #
@@ -14,16 +19,85 @@
 #   2. The app is Electron. --ozone-platform=x11 forces it onto XWayland so its
 #      global overlay works over the (XWayland) game. See issue #1647.
 #
+# Updates: the app's built-in updater (electron-updater) only downloads a new
+# version into ~/.cache/awakened-poe-trade-updater/pending/ and swaps the
+# AppImage on a *graceful* quit. bin/poe-trade-toggle stops the overlay with
+# pkill (which also tears down the AppImage's FUSE mount), so that swap never
+# happened and the old version kept running. This launcher installs a pending,
+# sha512-verified update itself, always runs the highest installed version, and
+# deletes every other copy of the app from ~/Applications.
+#
 # Plain launcher; "trade mode" (float game + hide waybar + DND + start/stop) is
 # handled by bin/poe-trade-toggle, which tracks the overlay by process pattern.
+
+# Errors abort: a half-installed update must never be launched.
 set -euo pipefail
 
-app=$(find "$HOME/Applications" -maxdepth 1 -iname 'Awakened-PoE-Trade*' -print -quit)
-[[ -n $app ]] || { echo "poe-awakened-trade: AppImage not found in ~/Applications" >&2; exit 1; }
+declare -r APP_DIR="${HOME}/Applications"
+declare -r PENDING_DIR="${HOME}/.cache/awakened-poe-trade-updater/pending"
 
-export APPIMAGELAUNCHER_DISABLE=1
-# ELECTRON_RUN_AS_NODE is injected by the VS Code terminal; it would make the
-# Electron binary run as plain node instead of launching the GUI.
-unset ELECTRON_RUN_AS_NODE
+log() { printf 'poe-awakened-trade: %s\n' "$*" >&2; }
 
-exec "$app" --ozone-platform=x11 "$@"
+# Print installed versioned AppImages, highest version last.
+installed_versions() {
+  find "${APP_DIR}" -maxdepth 1 -type f -name 'Awakened-PoE-Trade-*.AppImage' -print \
+    | sort -V
+}
+
+# Move a downloaded update into APP_DIR if its sha512 matches the updater's
+# metadata. Any mismatch leaves the installed versions untouched.
+install_pending_update() {
+  local -r info="${PENDING_DIR}/update-info.json"
+  local name want have src old
+  [[ -f "${info}" ]] || return 0
+  name="$(jq -r '.fileName // empty' "${info}" 2>/dev/null)" || return 0
+  [[ "${name}" == Awakened-PoE-Trade-*.AppImage && "${name}" != */* ]] || return 0
+  src="${PENDING_DIR}/${name}"
+  [[ -f "${src}" ]] || return 0
+  [[ -e "${APP_DIR}/${name}" ]] && return 0  # already installed
+
+  want="$(jq -r '.sha512 // empty' "${info}")"
+  have="$(openssl dgst -sha512 -binary "${src}" | base64 -w0)"
+  if [[ -z "${want}" || "${want}" != "${have}" ]]; then
+    log "pending update ${name}: sha512 mismatch, not installing"
+    return 0
+  fi
+
+  chmod +x "${src}"
+  mv -- "${src}" "${APP_DIR}/${name}"
+  rm -f -- "${info}"
+  log "installed update ${name}"
+}
+
+# Remove every other copy of the app in APP_DIR: older versions, and the
+# hash-named copies AppImageLauncher's "Integrate and run" dialog makes
+# (awakened_poe_trade_<md5>.appimage). Runs only after the newest version is
+# in place, so a failed update still leaves a working one. appimagelauncherd
+# drops the matching desktop entries by itself once the files are gone.
+prune_other_copies() {
+  local -r keep="$1"
+  local old
+  while IFS= read -r old; do
+    [[ "${old}" == "${keep}" ]] && continue
+    rm -f -- "${old}" && log "removed ${old##*/}"
+  done < <(find "${APP_DIR}" -maxdepth 1 -type f -iname 'awakened[-_]poe[-_]trade*.appimage' -print)
+}
+
+main() {
+  local app
+  install_pending_update
+
+  app="$(installed_versions | tail -n 1)"
+  [[ -n "${app}" ]] || { log "no Awakened-PoE-Trade-*.AppImage in ${APP_DIR}"; exit 1; }
+  prune_other_copies "${app}"
+  log "starting ${app##*/}"
+
+  export APPIMAGELAUNCHER_DISABLE=1
+  # ELECTRON_RUN_AS_NODE is injected by the VS Code terminal; it would make the
+  # Electron binary run as plain node instead of launching the GUI.
+  unset ELECTRON_RUN_AS_NODE
+
+  exec "${app}" --ozone-platform=x11 "$@"
+}
+
+main "$@"
