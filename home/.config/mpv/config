@@ -23,9 +23,9 @@ loop-playlist=inf                       # playlist infinity loop
 no-input-right-alt-gr                   # disable alt-gr numerical input (cocoa and Windows only)
 # consider using this on X instead (global): xmodmap -e 'clear mod5'; xmodmap -e 'keycode 108 = Alt_L'
 
-screenshot-format=png
-screenshot-png-compression=8
-screenshot-template='%X{~/Pictures/mpv/}/%F_@%wH%wM%wS.%wT %#n'
+# default format: jpg (quality 90)
+screenshot-dir=~/Pictures/mpv
+screenshot-template='%F_@%wH%wM%wS.%wT %#n'
 
 # =======
 #  Video
