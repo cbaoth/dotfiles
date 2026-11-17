@@ -82,4 +82,5 @@ bin/aria2c-d
 bin/wget-p
 bin/git-fix-chmod
 bin/git-push-token
+bin/urlcoder
 # }}} - Tools in bin/ --------------------------------------------------------

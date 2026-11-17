@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; indent-tabs-mode: nil; tab-width: 2 -*-
+# vim: ft=bash:et:ts=2:sts=2:sw=2
+# code: language=bash insertSpaces=true tabSize=2
+# shellcheck shell=bash
+#
+# urlcoder — URL encode/decode with optional input from stdin or arguments.
+# Usage:
+#   urlcoder [-d|--decode]  [STRING]  - decode URL-encoded string (default)
+#   urlcoder [-e|--encode]  [STRING]  - encode string as URL
+#   urlcoder -h|--help                - show this help
+#
+# Input sources (checked in order):
+#   1. STRING argument (if provided, overrides stdin)
+#   2. stdin (if no argument and stdin is not a tty)
+#   3. interactive prompt (if both argument and stdin are absent)
+#
+# Examples:
+#   urlcoder 'hello%20world'           # decode from argument
+#   echo 'hello world' | urlcoder -e   # encode from stdin
+#   urlcoder < file.txt                # decode from file
+#   urlcoder -d                        # prompt for input
+
+set -euo pipefail
+
+usage() {
+  local prog="${0##*/}"
+  cat >&2 <<EOF
+Usage: $prog [OPTIONS] [STRING]
+
+Options:
+  -d, --decode       Decode URL-encoded string (default)
+  -e, --encode       Encode string as URL
+  -h, --help         Show this help message
+
+Input (in order of precedence):
+  1. STRING argument
+  2. stdin (if not a terminal and no argument)
+  3. interactive prompt (if both are absent)
+
+Examples:
+  $prog 'hello%20world'           # decode from argument
+  echo 'hello world' | $prog -e   # encode from stdin
+  $prog < file.txt                # decode from file
+  $prog -d                        # prompt for input interactively
+EOF
+}
+
+main() {
+  local mode="decode"
+  local input=""
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -d|--decode) mode="decode"; shift ;;
+      -e|--encode) mode="encode"; shift ;;
+      -h|--help) usage; exit 0 ;;
+      -*) echo "urlcoder: unknown option: $1" >&2; usage; exit 1 ;;
+      *) input="$1"; shift ;;
+    esac
+  done
+
+  if [[ -z "$input" ]]; then
+    if [[ -t 0 ]]; then
+      read -r -p "Enter string to $mode: " input
+    else
+      input="$(cat)"
+    fi
+  fi
+
+  case "$mode" in
+    decode) python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.argv[1]), end='')" "$input" ;;
+    encode) python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''), end='')" "$input" ;;
+  esac
+}
+
+main "$@"
