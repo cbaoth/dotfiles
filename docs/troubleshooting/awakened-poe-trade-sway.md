@@ -177,3 +177,20 @@ part of the loop.
   it windowed. That fits "no game window found" on the first press
   (unconfirmed). The toggle now logs every decision to
   `~/.local/state/poe-trade-toggle.log`.
+
+## 8. Update 2026-11-18 evening: Proton Experimental does not help
+
+- PoE switched to Proton Experimental (`experimental-11.0-20261112`); the
+  running processes confirm it. The prefix version stays `11.0-100`, which is
+  also Experimental's `CURRENT_PREFIX_VERSION`. Result unchanged: no item text.
+- The state-aware toggle picked the right branch on every press (toggle log
+  17:44–17:50).
+- Clipboard owners identified: the first 31-byte owner is APT
+  (`WM_NAME "Chromium clipboard"`). The second owner, about 15 ms later,
+  with incrementing window IDs, is the game's Wine side: its ID range reset
+  when the game restarted, and the client has no WM properties. Wine re-exports
+  APT's marker; the game's own copy (Ctrl+Alt+C) never reaches X11.
+- Open question: does Ctrl+Alt+C reach the game at all (APT sends it with
+  XTEST), or does Wine hold the copy back until the game loses focus (#1846)?
+  Test: copy manually in game and watch
+  `journalctl -t xwayland-clipboard-bridge -f`.
