@@ -65,6 +65,10 @@ automated_by: setup/modules/50-power.sh   # optional; omit if manual-only
 "this is a dead end, don't re-run the experiment", which is exactly the thing a
 pile of undated notes cannot tell you.
 
+The YAML `title` is metadata, not a Markdown heading. The repo's
+[markdownlint config](../.markdownlint.json) lets a note have both a `title`
+field and a body H1 without triggering MD025.
+
 ## What does NOT go here
 
 This repo is **public on GitHub**. Before writing:
