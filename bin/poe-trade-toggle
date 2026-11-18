@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Toggle Awakened PoE Trade "trade mode" on Sway (bind to a key, e.g. $hyper+Alt+p).
+# Toggle Awakened PoE Trade "trade mode" on Sway (bind to a key, e.g. $hyper+g).
 #
 # Path of Exile defaults to sway-fullscreen (fullscreen_mode=1) like any Steam
 # game: best gameplay experience, waybar covered, no overlay. But the APT overlay
