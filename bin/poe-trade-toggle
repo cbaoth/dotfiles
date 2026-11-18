@@ -16,11 +16,12 @@
 # after the overlay crashed or the game restarted in the "other" state:
 #
 #   game fullscreen  --press-->  ON : game tiled fs=0 (fills below waybar,
-#                                     border none = no titlebar), start the
-#                                     overlay unless it is already running.
-#   game windowed    --press-->  OFF: stop the overlay if running, game
-#                                     sway-fullscreen.
-#   no game window   --press-->  start/stop the overlay only.
+#                                     border none = no titlebar), pause the
+#                                     clipboard bridge, start the overlay
+#                                     unless it is already running.
+#   game windowed    --press-->  OFF: resume the bridge, stop the overlay if
+#                                     running, game sway-fullscreen.
+#   no game window   --press-->  start/stop the overlay (and bridge) only.
 #
 # Waybar is intentionally left visible in trade mode (switch desktops, use the
 # overlay's browser result page); fullscreen covers it during gameplay anyway.
@@ -41,9 +42,28 @@ set -euo pipefail
 declare -r APT_PAT='awakened-poe-trade|Applications/Awakened-PoE-Trade'
 declare -r POE_CLASS='(?i)^steam_app_238960$'
 declare -r LOG_FILE="${XDG_STATE_HOME:-${HOME}/.local/state}/poe-awakened-trade.log"
+declare -r TOGGLE_LOG="${XDG_STATE_HOME:-${HOME}/.local/state}/poe-trade-toggle.log"
+# The clipboard bridge (bin/xwayland-clipboard-bridge) re-publishes every X11
+# copy to Wayland. During APT's copy cycle that churn races the game's Ctrl+C:
+# 2026-11-18, 5/5 copies with the bridge stopped vs about 1/9 with it running.
+# So trade mode pauses it; the marker file remembers that we did.
+declare -r BRIDGE_UNIT="xwayland-clipboard-bridge.service"
+declare -r BRIDGE_PAUSED="${XDG_STATE_HOME:-${HOME}/.local/state}/poe-trade-toggle.bridge-paused"
 
-notify() {  # best-effort desktop confirmation of the keypress
+notify() {  # best-effort desktop confirmation of the keypress, also logged
   notify-send -a 'PoE Trade' -t 2500 "$1" "${2:-}" >/dev/null 2>&1 || true
+  log_decision "notify: $1 / ${2:-}"
+}
+
+# One line per decision in TOGGLE_LOG (last 200 lines kept), to explain a
+# press that did the unexpected thing.
+log_decision() {
+  mkdir -p "${TOGGLE_LOG%/*}"
+  printf '%s %s\n' "$(date '+%F %T')" "$*" >>"${TOGGLE_LOG}"
+  if (( $(wc -l <"${TOGGLE_LOG}") > 400 )); then
+    tail -n 200 "${TOGGLE_LOG}" >"${TOGGLE_LOG}.tmp" && mv -f -- "${TOGGLE_LOG}.tmp" "${TOGGLE_LOG}"
+  fi
+  return 0
 }
 
 overlay_running() { pgrep -f "${APT_PAT}" >/dev/null 2>&1; }
@@ -55,18 +75,46 @@ game_fullscreen_mode() {
              | first | .fullscreen_mode // empty' 2>/dev/null || true
 }
 
+pause_bridge() {
+  systemctl --user is-active --quiet "${BRIDGE_UNIT}" 2>/dev/null || return 0
+  if systemctl --user stop "${BRIDGE_UNIT}" 2>/dev/null; then
+    : >"${BRIDGE_PAUSED}"
+    log_decision "bridge: paused ${BRIDGE_UNIT}"
+  fi
+}
+
+# Only restart what this script stopped (not a bridge the user stopped).
+resume_bridge() {
+  [[ -f "${BRIDGE_PAUSED}" ]] || return 0
+  rm -f -- "${BRIDGE_PAUSED}"
+  systemctl --user start "${BRIDGE_UNIT}" 2>/dev/null || true
+  log_decision "bridge: resumed ${BRIDGE_UNIT}"
+}
+
 start_overlay() {
+  pause_bridge
   overlay_running && return 0
   mkdir -p "${LOG_FILE%/*}"
   [[ -f "${LOG_FILE}" ]] && mv -f -- "${LOG_FILE}" "${LOG_FILE}.1"
   setsid --fork poe-awakened-trade </dev/null >"${LOG_FILE}" 2>&1
 }
 
+# Stop APT and wait (max 3 s) until it is gone, then force-kill the same PIDs.
+# Synchronous on purpose: a delayed background `pkill -KILL` by pattern once
+# killed the *next* instance when the toggle was pressed twice within 2 s.
 stop_overlay() {
-  overlay_running || return 0
-  pkill -TERM -f "${APT_PAT}" 2>/dev/null || true
-  # Force-kill any stragglers a moment later, without blocking the keypress.
-  ( sleep 2; pkill -KILL -f "${APT_PAT}" 2>/dev/null ) >/dev/null 2>&1 &
+  local -a pids
+  local -i tries
+  resume_bridge
+  mapfile -t pids < <(pgrep -f "${APT_PAT}")
+  (( ${#pids[@]} )) || return 0
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  for (( tries = 0; tries < 30; tries++ )); do
+    kill -0 "${pids[@]}" 2>/dev/null || return 0
+    sleep 0.1
+  done
+  kill -KILL "${pids[@]}" 2>/dev/null || true
+  log_decision "stop: force-killed leftover APT processes"
 }
 
 trade_mode_on() {
@@ -85,8 +133,10 @@ trade_mode_off() {
 }
 
 main() {
-  local fs_mode
+  local fs_mode running=no
   fs_mode="$(game_fullscreen_mode)"
+  overlay_running && running=yes
+  log_decision "press: game fullscreen_mode='${fs_mode}' (empty = no game window), overlay running=${running}"
   case "${fs_mode}" in
     0) trade_mode_off ;;
     '')  # no game window: only start/stop the overlay
