@@ -144,7 +144,8 @@ sudo sh -c 'echo shutdown > /sys/power/disk && echo disk > /sys/power/state'
 ```
 
 Running only the first line shut the GPU down (black screen) and required
-several power-off reboots to get WiFi back. The two commands are not independent
+several power-off reboots to get WiFi back (same pattern as
+`ath12k-resume-failure.md`, Mode B). The two commands are not independent
 steps; the first one is a preparation that leaves the machine in a broken state
 if the second never runs.
 
