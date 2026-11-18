@@ -32,6 +32,7 @@ something to publish in this public repo, so pass the profile explicitly.
 | `22-fnm` | yes | fnm and Node are MIT. Needs the upstream installer (`fnm.vercel.app`) to be reachable through the corporate proxy |
 | `31-github-copilot` | yes | Enterprise Copilot is the approved AI. Sign in with the **work** GitHub account, and check the enterprise policy allows Copilot CLI |
 | `56-sshd` | yes (no-op without `openssh-server`) | auth hardening only |
+| `58-wslg-x11` | yes | Writable `/tmp/.X11-unix` at boot for Xwayland in nested sway, see [sway-wslg.md](sway-wslg.md) |
 | `21-snap` | **no** | Snap store is an extra software channel outside IT's approved ones; only holds `bottom` (btop/htop already in base), and the shared list would pull in anything personal added later |
 | `28-claude-code` | **no** | Not an approved AI tool at work |
 | `29-claude-desktop`, `32-github-copilot-app`, `33-vocalinux` | no | desktop profile only anyway |

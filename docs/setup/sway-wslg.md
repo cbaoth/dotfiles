@@ -3,18 +3,21 @@ title: sway nested in WSLg
 hosts: [wsl-work, motoko]
 status: open
 tags: [wsl, wslg, sway, wayland, windows, clipboard, keyboard]
-updated: 2026-11-06
+updated: 2026-11-18
 revisit: 2026-12
+automated_by: setup/modules/58-wslg-x11.sh
 ---
 
 # sway nested in WSLg
 
 Tiling on a Windows PC without a VM: WSLg (WSL2's built-in Wayland
 compositor) shows sway as one Windows window; everything started inside is
-tiled by sway. Manual setup, no `setup/` module yet (see *Open*).
+tiled by sway. Packages are installed by hand; the `/tmp/.X11-unix` fix is
+`setup/modules/58-wslg-x11.sh` (see *Open*).
 
 ```bash
 sudo apt install sway foot wl-clipboard xwayland xclip   # wev: optional, key debugging
+system-setup --profile wsl-work 58-wslg-x11              # or --profile wsl
 dotfiles-link                                      # links the files below
 sway-wslg -s 2560x1400                             # detaches; log in ~/.local/state/sway-wslg/
 ```
@@ -39,14 +42,13 @@ booted into Windows) link it anyway.
 - Window size = output mode: `swaymsg -- output WL-1 mode --custom WxH` resizes
   the Windows window. Dragging its edge does nothing (no decorations).
 - Xwayland is not a dependency of the `sway` package: install `xwayland`.
-- WSLg mounts `/tmp/.X11-unix` read-only without the sticky bit (twice,
-  stacked), so wlroots refuses to start Xwayland. Fix until the next WSL
-  restart (keeps WSLg's own `:0` working); not automated yet:
-  ```bash
-  while mountpoint -q /tmp/.X11-unix; do sudo umount /tmp/.X11-unix || break; done
-  sudo chmod 1777 /tmp/.X11-unix
-  sudo ln -sf /mnt/wslg/.X11-unix/X0 /tmp/.X11-unix/X0
-  ```
+- WSL's generated `wslg.service` bind-mounts `/mnt/wslg/.X11-unix` over
+  `/tmp/.X11-unix`, read-only and without the sticky bit, so wlroots refuses
+  to start Xwayland. `58-wslg-x11` installs `wslg-x11-unix.service`, which
+  runs after it at every boot: unmount, `chmod 1777`, link WSLg's `X0` back
+  (keeps `:0` working). A second entry can stay in mountinfo below
+  `tmp.mount`; `umount` then says "not mounted" and the directory is already
+  the writable one. Idea from a gist by tdcosta100 (its `wslg-fix.service`).
   sway then logs "Failed to bind … X0: Address already in use" and takes `X1`
   (Xwayland starts lazily on the first X11 client). Harmless.
 - **Clipboard:** WSLg ⇄ Windows syncs (text). Nested sway ⇄ WSLg does **not**.
@@ -108,4 +110,11 @@ The Win+drag move hotkey is still useful for the sway window as a whole.
 - Does sway survive closing the last WSL terminal? WSL may stop the distro
   once no `wsl.exe` session is left; `sway-wslg -f` from a Windows shortcut
   would keep one open.
-- If this stays: a `setup/` module for the packages above (`wsl-work`).
+- If this stays: a `setup/` module or package list for the packages above.
+- Alternative to evaluate (motoko first): [Weaselway](https://github.com/weaselway/weaselway)
+  runs the compositor on a virtual KMS display (`dxgdrm` kernel module,
+  patched Mesa d3d12) and shows it via a bundled FreeRDP viewer on Windows:
+  real keyboard (own modifiers), fullscreen, clipboard, GPU. Costs: kernel
+  module tied to exact WSL kernel releases (hold `wsl --update`), patched
+  Mesa (Ubuntu installer disables snaps), an extra `.exe` on Windows. Not
+  for a managed work PC without IT approval.
