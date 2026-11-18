@@ -1,0 +1,25 @@
+root = true
+
+[[bash]]
+indent_style = space
+indent_size = 2
+shell_variant = bash
+binary_next_line = true
+switch_case_indent = true
+space_redirects = false
+function_next_line = false
+simplify = false
+
+# These contain syntax that the currently available shfmt parser cannot process.
+[lib/commons.sh]
+ignore = true
+
+[lib/functions.sh]
+ignore = true
+
+# Zsh formatting remains a separate experiment.
+[*.zsh]
+ignore = true
+
+[{.zshrc,.zshenv,.zprofile,.zlogin,.zlogout}]
+ignore = true

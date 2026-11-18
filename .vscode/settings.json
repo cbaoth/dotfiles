@@ -1,0 +1,6 @@
+{
+    "[shellscript]": {
+        "editor.defaultFormatter": "mkhl.shfmt"
+    },
+    "shfmt.formatIgnored": false
+}
