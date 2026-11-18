@@ -3,13 +3,44 @@ title: Git workflow — multi-machine dotfiles, branches, worktrees, recovery
 hosts: [all]
 status: resolved
 tags: [git, workflow, rebase, worktree, stash, reflog]
-updated: 2026-07-20
+updated: 2026-11-18
 ---
 
 Practical git workflow for this repo (and any personal repo synced across
 machines). The recurring pain here is **working directly on `master` from
 several machines**, which produces `ahead N, behind M` divergence. This note is
 how to make that painless and how to never lose work.
+
+For Gerrit reviews, see [gerrit-workflow.md](gerrit-workflow.md).
+
+## Inspect branch divergence
+
+`gif` fetches all configured remotes and prunes stale remote-tracking branches.
+`gifl` runs `gif && gibm && gild`: after a successful fetch, `gibm` shows
+local branches and their upstream ahead/behind counts, then `gild` shows the
+current branch's divergent commits.
+
+```sh
+gifl
+```
+
+In `gild`, `<` marks commits only on the current branch and `>` marks commits
+only on its configured upstream. It shows all divergent commits, including
+those fetched previously, and prints nothing when the histories match. Fetch
+reports which refs changed in that run; `gild` answers what is still different
+without fetching again. Git reports an error if there is no usable upstream or
+HEAD is detached. For a long history, use `gild ,l` in zsh to page the output.
+
+To see only one side, remember that `A..B` lists commits reachable from `B`
+but not `A`:
+
+```sh
+git log --oneline 'HEAD..@{upstream}'   # upstream-only (incoming)
+git log --oneline '@{upstream}..HEAD'   # local-only (outgoing)
+```
+
+Without an upstream, choose the intended comparison branch explicitly rather
+than assuming the remote's default branch is the right base.
 
 ## Defaults now set (in `.gitconfig`)
 

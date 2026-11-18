@@ -741,10 +741,12 @@ alias gicn='git commit --amend --no-edit'
 # log — bounded by default since the pager is off; append ,l for the full walk
 alias gil='git log --graph --oneline --decorate -20'
 alias gila='git log --graph --oneline --decorate --all'
+alias gild="git log --graph --oneline --decorate --left-right 'HEAD...@{upstream}'" # local <, upstream >
 alias gilp='git log --patch'        # patch per commit, e.g. gilp -- FILE
 
 # fetch / pull / push (pull rebase+autostash are set in ~/.gitconfig)
 alias gif='git fetch --all --prune'
+alias gifl='gif && gibm && gild'
 alias gipl='git pull'
 alias gipu='git push'
 alias gipf='git push --force-with-lease'
