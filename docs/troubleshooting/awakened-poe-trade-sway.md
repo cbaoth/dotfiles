@@ -151,3 +151,29 @@ To confirm next time: keep an SSH session from another device open
 see whether the session recovers. If not, stop the bridge
 (`systemctl --user stop xwayland-clipboard-bridge`) to test whether it is
 part of the loop.
+
+## 7. Update 2026-11-18: clipboard confirmed as the blocker
+
+- APT's on-screen key log (`logKeys`) shows every key: hotkey detection works.
+  Keys are matched by **physical QWERTY position** (Colemak `s` shows as `D`,
+  `d` as `G`), so a binding of `D` means the physical D key.
+- The wiki hotkey (`z`) shows `[ClipboardPoller] No item text found`. That is
+  the Proton 10+/11 failure from #1846.
+- Bridge journal 17:12–17:28: only 31-byte copies, **no item text at all**.
+  The 31 bytes are presumably APT's marker, written before it sends
+  Ctrl+Alt+C. On 2026-11-17 the item texts did arrive, probably late: users in
+  #1846 report Wine/Proton only publishes a copy once the game **loses focus**
+  (e.g. a workspace switch), after APT's poller has given up. The
+  maintainer's workaround (e735d39) is not enough here on 3.30.101.
+- Users report fixes with Proton 10.0-4, GE-Proton 10-34 and Proton
+  Experimental (11.0, 2026-07-24 build). Installed here: Proton Experimental
+  `experimental-11.0-20261112`, newer and still 11.0, so no prefix downgrade.
+  Next test: run PoE on Proton Experimental.
+- APT's "game settings file not found" is `gameConfig: null`. Under Proton the
+  file is in the prefix:
+  `~/SteamLibrary/steamapps/compatdata/238960/pfx/drive_c/users/steamuser/Documents/My Games/Path of Exile/production_Config.ini`.
+  The client log is `~/SteamLibrary/steamapps/common/Path of Exile/logs/Client.txt`.
+- The toggle's first press left the game fullscreen; the second press made
+  it windowed. That fits "no game window found" on the first press
+  (unconfirmed). The toggle now logs every decision to
+  `~/.local/state/poe-trade-toggle.log`.
