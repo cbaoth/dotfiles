@@ -27,6 +27,11 @@
 # sha512-verified update itself, always runs the highest installed version, and
 # deletes every other copy of the app from ~/Applications.
 #
+# Simulated keys: APT copies items and types chat commands by sending fake
+# key events with XSendEvent, which PoE under Proton 10+ ignores. The
+# xsend2xtest LD_PRELOAD shim (built from ~/.local/share/poe-awakened-trade/)
+# re-sends them through XTEST, which the game accepts.
+#
 # Plain launcher; "trade mode" (float game + hide waybar + DND + start/stop) is
 # handled by bin/poe-trade-toggle, which tracks the overlay by process pattern.
 
@@ -35,6 +40,11 @@ set -euo pipefail
 
 declare -r APP_DIR="${HOME}/Applications"
 declare -r PENDING_DIR="${HOME}/.cache/awakened-poe-trade-updater/pending"
+# LD_PRELOAD shim: APT's simulated keys (XSendEvent) -> XTEST, which Proton 10+
+# accepts. Source deployed by dotfiles-link; built on demand. See the .c file.
+# XSEND2XTEST_DELAY_MS (env, default 100) is passed through to the shim.
+declare -r SHIM_SRC="${HOME}/.local/share/poe-awakened-trade/xsend2xtest.c"
+declare -r SHIM_SO="${HOME}/.cache/poe-awakened-trade/xsend2xtest.so"
 
 log() { printf 'poe-awakened-trade: %s\n' "$*" >&2; }
 
@@ -83,8 +93,27 @@ prune_other_copies() {
   done < <(find "${APP_DIR}" -maxdepth 1 -type f -iname 'awakened[-_]poe[-_]trade*.appimage' -print)
 }
 
+# Build the shim if it is missing or older than its source; print its path on
+# success. Without it APT still starts, only its simulated keys fail in game.
+# POE_APT_NO_SHIM=1 skips it (to compare behavior).
+build_shim() {
+  [[ -z "${POE_APT_NO_SHIM:-}" && -f "${SHIM_SRC}" ]] || return 0
+  if [[ ! -f "${SHIM_SO}" || "${SHIM_SRC}" -nt "${SHIM_SO}" ]]; then
+    mkdir -p "${SHIM_SO%/*}"
+    if ! cc -O2 -Wall -Wextra -shared -fPIC -o "${SHIM_SO}.tmp" "${SHIM_SRC}" -ldl 2>&1 | sed 's/^/  cc: /' >&2 \
+      || [[ ! -f "${SHIM_SO}.tmp" ]]; then
+      log "warning: could not build ${SHIM_SO##*/} (needs cc + libx11-dev); simulated keys will not reach the game"
+      rm -f -- "${SHIM_SO}.tmp"
+      return 0
+    fi
+    mv -f -- "${SHIM_SO}.tmp" "${SHIM_SO}"
+    log "built ${SHIM_SO}"
+  fi
+  printf '%s\n' "${SHIM_SO}"
+}
+
 main() {
-  local app
+  local app shim
   install_pending_update
 
   app="$(installed_versions | tail -n 1)"
@@ -96,6 +125,16 @@ main() {
   # ELECTRON_RUN_AS_NODE is injected by the VS Code terminal; it would make the
   # Electron binary run as plain node instead of launching the GUI.
   unset ELECTRON_RUN_AS_NODE
+
+  shim="$(build_shim)"
+  if [[ -n "${shim}" ]]; then
+    export LD_PRELOAD="${shim}${LD_PRELOAD:+:${LD_PRELOAD}}"
+    # Chat commands write the clipboard and paste right away; without a delay
+    # Wine has not imported the text yet (2026-11-18: F5 /hideout failed at 0,
+    # worked at 100 ms; item copies worked at both).
+    export XSEND2XTEST_DELAY_MS="${XSEND2XTEST_DELAY_MS:-100}"
+    log "preloading ${shim##*/} (XSendEvent keys -> XTEST, delay ${XSEND2XTEST_DELAY_MS} ms)"
+  fi
 
   exec "${app}" --ozone-platform=x11 "$@"
 }
