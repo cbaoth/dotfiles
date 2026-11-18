@@ -16,6 +16,9 @@
 # The variable must be set on the CLI call that does the capture; the tray
 # daemon's environment is irrelevant.
 #
+# For `gui` it also restores fullscreen on windows the capture window took it
+# from (e.g. a fullscreen game); see "Restore fullscreen after gui" below.
+#
 # Usage: flameshot-hidpi FLAMESHOT_ARGS...
 # Example: flameshot-hidpi gui
 
@@ -31,5 +34,55 @@ if [[ "${scale}" != "1" && "${scale}" != "1.0" && "${scale}" != "1.00" ]]; then
   QT_SCALE_FACTOR="$(awk -v s="${scale}" 'BEGIN { printf "%.4f", 1 / s }')"
   export QT_SCALE_FACTOR
 fi
+
+# {{{ - Restore fullscreen after `gui` ---------------------------------------
+# The `gui` capture window goes fullscreen, and Sway allows one fullscreen
+# window per workspace, so a fullscreen game underneath drops to its windowed
+# geometry (e.g. a floating PoE overlapping waybar) and stays there after the
+# capture closes. Remember the visible fullscreen windows, wait until the
+# capture window has appeared and gone, then re-fullscreen whichever lost it.
+
+visible_fullscreen_ids() {
+  swaymsg -t get_tree -r 2>/dev/null \
+    | jq -r '.. | objects | select(.fullscreen_mode? == 1 and .visible == true and (.app_id // "") != "flameshot") | .id'
+}
+
+flameshot_window_open() {
+  swaymsg -t get_tree -r 2>/dev/null \
+    | jq -e '[.. | objects | select((.app_id // .window_properties?.class // "") | test("^flameshot$"; "i"))] | length > 0' \
+    >/dev/null
+}
+
+# Background watcher: polls every 0.2 s; gives up if no capture window shows
+# up within 5 s, or after 10 min. Polling, not `swaymsg -t subscribe`, keeps it
+# independent of whether `flameshot gui` blocks or returns immediately.
+restore_fullscreen_watch() {
+  local -a ids
+  local -i ticks=0 seen=0
+  local id
+  mapfile -t ids < <(visible_fullscreen_ids)
+  (( ${#ids[@]} )) || return 0
+  while (( ticks < 3000 )); do
+    if flameshot_window_open; then
+      seen=1
+    elif (( seen || ticks >= 25 )); then
+      break
+    fi
+    sleep 0.2
+    ticks+=1
+  done
+  for id in "${ids[@]}"; do
+    swaymsg -t get_tree -r \
+      | jq -e --argjson id "${id}" '.. | objects | select(.id? == $id and .fullscreen_mode == 0)' >/dev/null \
+      && swaymsg "[con_id=${id}] fullscreen enable" >/dev/null
+  done
+  return 0
+}
+
+if [[ "${1:-}" == gui ]]; then
+  restore_fullscreen_watch </dev/null >/dev/null 2>&1 &
+  disown
+fi
+# }}} - Restore fullscreen after `gui` ---------------------------------------
 
 exec flameshot "$@"
