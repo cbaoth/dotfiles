@@ -619,6 +619,13 @@ uv self update
 
 # rust/cargo
 rustup update
+
+# rclone on saito: official static binary in ~/.local/bin (Ubuntu's 1.60 is too
+# old for bisync, which drives the Nextcloud replica). `--check` only reports,
+# so it suits a reminder; self-updating in place needs no sudo. Run it between
+# timer runs (rclone-bisync@*.timer): replacing the binary mid-sync is untested.
+rclone selfupdate --check
+rclone selfupdate
 ```
   - One exception is `nix`, which prints a "MOD" message when opening a new shell, or connecting remotely via SSH. Which can be a bit annoying at times (rather regularly, maybe a weekly or bi-weekly cadence would suffice), but at least it is a reminder. Auto update would surely be convenient, if it can be done reliably and safely (e.g. weekly cron/timer early in the morning, or on next startup when the system was down, which is likely the case for desktop and notebook).
 - **Ubuntu release upgrades**: nothing tracks them at all — see the subsection
