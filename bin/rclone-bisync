@@ -50,6 +50,7 @@ ${CONF_DIR}/NAME.conf:
   LOCAL=/path/to/local/dir         (required)
   REMOTE=remote:path               (required)
   MAX_DELETE=5                     (percent of files; bisync aborts above)
+  RCLONE_ARGS=--flag --other=x     (optional; split on spaces, no quoting)
 
 and, if present, the filter rules in ${CONF_DIR}/NAME.filter.
 
@@ -184,12 +185,15 @@ main() {
     exit 1
   fi
 
-  local local_dir remote max_delete
+  local local_dir remote max_delete conf_args
+  local -a conf_argv=()
   local_dir="$(read_conf "${conf}" LOCAL)"
   local_dir="${local_dir%/}"
   remote="$(read_conf "${conf}" REMOTE)"
   max_delete="$(read_conf "${conf}" MAX_DELETE)"
   max_delete="${max_delete:-5}"
+  conf_args="$(read_conf "${conf}" RCLONE_ARGS)"
+  read -r -a conf_argv <<<"${conf_args}"
   if [[ -z "${local_dir}" || -z "${remote}" ]]; then
     p_err "LOCAL and REMOTE must be set in ${conf}"
     exit 1
@@ -224,6 +228,7 @@ main() {
     --log-level INFO --stats 0
   )
   [[ -f "${filter}" ]] && args+=(--filters-file "${filter}")
+  args+=("${conf_argv[@]}")
 
   local out_file
   out_file="$(mktemp -t rclone-bisync.XXXXXX)" || { p_err "mktemp failed"; exit 1; }

@@ -1,0 +1,18 @@
+# rclone filter rules for rclone-bisync gdrive (--filters-file).
+# Changing this file makes the next bisync demand --resync.
+
+# Never synced, never backed up (same convention as OneDrive and Nextcloud)
+- /_NoSync/**
+
+# Lock, partial and temp files; mirrors the desktop client's default excludes
+- .~lock.*#
+- ~$*
+- *.part
+- *~
+- .*.sw?
+- .Trash-*/**
+
+# OS clutter
+- desktop.ini
+- Thumbs.db
+- .DS_Store
