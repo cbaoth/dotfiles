@@ -859,7 +859,7 @@ subdomain) plus a router port-forward. The real reasons are:
 1. **Security (the durable reason):** a pull model means a compromised vserver
    has **no credentials and no delete power** over the backups. Push-based
    backups are what ransomware eats.
-2. **Practical (today):** saito runs the **NordVPN client on auto-connect**, which
+2. **Practical (today):** saito ran the **NordVPN client on auto-connect** (uninstalled 2026-11-21), which
    breaks inbound port-forwarding — verified from the vserver: saito's forwarded
    SSH port times out while the VPN is up. See the saito section for why, and the fix.
 
@@ -933,6 +933,10 @@ format and (ideally) one dashboard:
       at what has been erroring nightly and for how long.
 
 ### saito: NordVPN breaks inbound port-forwarding
+
+> **Update 2026-11-21:** the NordVPN client was uninstalled from saito, so this
+> problem no longer exists there. Kept for the diagnosis, which applies to any
+> system-wide VPN on a host that must accept inbound connections.
 
 Verified from the vserver: saito's forwarded SSH port times out while NordVPN is
 connected (auto-connect is on). Not a firewall problem — **asymmetric routing**:

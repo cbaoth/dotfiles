@@ -3,7 +3,7 @@ title: Tailscale — tailnet client and Trayscale applet
 hosts: [motoko, saito, 11001001]
 status: resolved
 tags: [tailscale, vpn, wireguard, flatpak, desktop]
-updated: 2026-09-24
+updated: 2026-11-21
 automated_by: setup/modules/35-tailscale.sh
 ---
 
@@ -66,6 +66,6 @@ The module prints a warning until the host has joined.
 
 ## Gotcha: NordVPN
 
-NordVPN takes over the routes the tailnet needs. On saito it is disabled; on
+NordVPN takes over the routes the tailnet needs. On saito the client was uninstalled (2026-11-21); on
 motoko the tailnet is only reachable while NordVPN is off. See
 [monitoring.md](monitoring.md).

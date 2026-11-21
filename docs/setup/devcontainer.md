@@ -3,7 +3,7 @@ title: Devcontainers (dotfiles, cb-voice-lab, web-tools)
 hosts: [motoko, saito]
 status: open
 tags: [docker, devcontainer, vscode, system-setup, claude]
-updated: 2026-11-07
+updated: 2026-11-21
 automated_by: .devcontainer/Dockerfile
 ---
 
@@ -215,7 +215,9 @@ source of truth for build, mounts and a `gluetun` sidecar. `webtools` uses
 (OpenVPN, service credentials) and a dropped tunnel means no connectivity.
 Reasons, in short:
 
-- **Why not the host VPN on saito:** system-wide NordVPN breaks inbound
+- **Why not the host VPN on saito:** (the NordVPN client has since been
+  uninstalled from saito, 2026-11-21; this is why it was not coming back)
+  system-wide NordVPN breaks inbound
   forwarding (asymmetric routing) and the tailnet routes, see
   [vserver-migration.md](vserver-migration.md) and [tailscale.md](tailscale.md).
   Scoping it to a container leaves the host untouched.
