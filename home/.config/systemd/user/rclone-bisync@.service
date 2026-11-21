@@ -1,0 +1,23 @@
+[Unit]
+Description=Bisync %i (one guarded rclone bisync run)
+Documentation=file:%h/dotfiles/bin/rclone-bisync
+After=network-online.target
+Wants=network-online.target
+
+# Transient failures (offline, server down, local dir unmounted) exit 0 and
+# retry next tick. This only fires on a *persistent* failure (no completed sync
+# for RCLONE_BISYNC_MAX_AGE), a blocked mass delete or a needed --resync.
+OnFailure=rclone-bisync-failed@%i.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/rclone-bisync --quiet %i
+# ntfy-send lives in ~/bin, rclone in ~/.local/bin (official binary).
+Environment=PATH=%h/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+TimeoutStartSec=6h
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target

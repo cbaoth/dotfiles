@@ -1,0 +1,15 @@
+[Unit]
+Description=Bisync %i every 30 minutes
+Documentation=file:%h/dotfiles/bin/rclone-bisync
+
+[Timer]
+# Interval counted from the end of the previous run, so a slow catch-up never
+# stacks runs.
+OnStartupSec=12min
+OnUnitInactiveSec=30min
+AccuracySec=1min
+RandomizedDelaySec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,23 @@
+# rclone filter rules for rclone-bisync nextcloud (--filters-file).
+# Changing this file makes the next bisync demand --resync.
+
+# Journal and log of the Nextcloud desktop client (copied over from puppet)
+- /.sync_*.db*
+- /.nextcloudsync.log
+- /.owncloudsync.log
+
+# Never synced, never backed up (same convention as OneDrive's /_NoSync)
+- /_NoSync/**
+
+# Lock, partial and temp files; mirrors the desktop client's default excludes
+- .~lock.*#
+- ~$*
+- *.part
+- *~
+- .*.sw?
+- .Trash-*/**
+
+# OS clutter
+- desktop.ini
+- Thumbs.db
+- .DS_Store
