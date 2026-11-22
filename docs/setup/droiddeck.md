@@ -3,7 +3,7 @@ title: DroidDeck — Ubuntu in a PRoot on Android
 hosts: [droiddeck]
 status: workaround
 tags: [android, proot, droiddeck, zsh, performance, flatpak, browser, arm64]
-updated: 2026-11-14
+updated: 2026-11-22
 automated_by: setup/modules/00-apt-base.sh
 ---
 
@@ -82,11 +82,14 @@ uv, Claude Code, Copilot CLI). Not included: nix, docker, tailscale,
 sysctl, power, console, release upgrades, vicinae (systemd user service), and
 flatpak apps (see Browsers). Termux is refused outright: own repos, no sudo.
 
-`21-snap` is included, but does the opposite here: the image ships `snapd`,
-KDE's updater upgrades it, and its postinst fails under PRoot (`Invalid file
-'setcap'`). Left half-configured, it makes every later `apt install` exit 100.
-The module removes it and pins it out (`/etc/apt/preferences.d/no-snapd`).
-Snaps need systemd anyway.
+**snapd is removed first.** The image ships `snapd`, KDE's updater upgrades
+it, and its postinst fails under PRoot (`Invalid file 'setcap'`). Left
+half-configured, it makes every later `apt-get upgrade`/`install` exit 100.
+`00-apt-base` removes it and pins it out (`/etc/apt/preferences.d/no-snapd`)
+*before* its upgrade step. `21-snap` is not in the profile: snaps need
+systemd anyway. (Until 2026-11-22 this lived in `21-snap`, which runs after
+the apt steps, so the first run on a fresh install failed twice and only a
+re-run was clean.)
 
 ## Linking: the `proot` profile
 

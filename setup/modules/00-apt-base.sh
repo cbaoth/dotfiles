@@ -24,6 +24,33 @@ declare -r APT_NOWARN_FILE="/etc/apt/apt.conf.d/90disable-apt-script-warning"
 declare -r APT_NOWARN_CONTENT='// Managed by dotfiles: setup/modules/00-apt-base.sh
 Apt::Cmd::Disable-Script-Warning true;'
 
+# PRoot (DroidDeck): snapd needs systemd and real root; its postinst fails
+# there ("Invalid file 'setcap'"), and the half-configured package makes every
+# later apt-get upgrade/install exit 100. The vendor image ships it and KDE's
+# updater upgrades it, so it is removed and pinned out before the first apt run.
+declare -r APT_PROOT_SNAPD_PIN="/etc/apt/preferences.d/no-snapd"
+declare -r APT_PROOT_SNAPD_PIN_CONTENT='# Managed by dotfiles: setup/modules/00-apt-base.sh
+# snapd cannot work in a PRoot (no systemd, no real root); a half-configured
+# snapd breaks every apt install.
+Package: snapd
+Pin: release *
+Pin-Priority: -1'
+
+# PRoot: keep snapd off (see APT_PROOT_SNAPD_PIN).
+proot_no_snapd() {
+  local status
+  st::file_content "${APT_PROOT_SNAPD_PIN}" "${APT_PROOT_SNAPD_PIN_CONTENT}"
+
+  # Not st::apt_remove: it only removes state "installed", and the broken
+  # snapd is "half-configured".
+  status="$(dpkg-query -W -f='${db:Status-Status}' snapd 2>/dev/null)" || status=""
+  case "${status}" in
+    ""|not-installed|config-files) st::noop "snapd not installed" ;;
+    *) st::run "remove snapd (${status}; cannot work in a PRoot)" -- \
+         sudo apt-get remove -y snapd ;;
+  esac
+}
+
 module_run() {
   # {{{ - Regional mirror -----------------------------------------------------
   # Ubuntu 24.04+ moved sources to deb822 (.sources); older releases still use
@@ -55,6 +82,11 @@ module_run() {
   # parses, so the two extra lines are pure noise.
   st::file_content "${APT_NOWARN_FILE}" "${APT_NOWARN_CONTENT}"
   # }}} - Script warning ------------------------------------------------------
+
+  # {{{ - PRoot: no snapd -----------------------------------------------------
+  # Before the upgrade: a broken snapd fails it and every install after it.
+  if st::is_proot; then proot_no_snapd; fi
+  # }}} - PRoot: no snapd -----------------------------------------------------
 
   # {{{ - Upgrade -------------------------------------------------------------
   # A mirror switch must re-fetch regardless of cache age; otherwise package
