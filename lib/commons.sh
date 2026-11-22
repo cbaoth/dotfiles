@@ -275,59 +275,72 @@ cl::p_usg() {
   printf "Usage: %s\n" "$@"
 }
 
-# print an info message in format: "> MSG.."
+# internal: shared implementation of cl::p_msg, cl::p_err and cl::p_war
+# usage: cl::_p_log msg|err|war [-t|--timestamp] [--] MSG..
+# Each MSG argument is printed on its own line, each line with the prefix.
+# Error and warning go to stderr, info to stdout.
+cl::_p_log() {
+  local -r kind="$1"
+  shift
+  local timestamp=""
+  # exact match, so a message that merely contains "-t" is not an option
+  case "${1:-}" in
+    -t|--timestamp)
+      timestamp="${CL_TIMESTAMP_FORMAT:+$(date +"${CL_TIMESTAMP_FORMAT}")}"
+      shift
+      ;;
+  esac
+  [[ "${1:-}" == "--" ]] && shift
+  if [[ -z "${1:-}" ]]; then
+    cl::p_usg "cl::p_${kind} [-t|--timestamp] [--] MSG.."
+    return 1
+  fi
+
+  # cl::fx fails on a dumb terminal; "|| true" keeps that from tripping set -e
+  local prefix="" suffix="" fx_label="" fx_reset="" fx_msg=""
+  local -i fd=1
+  fx_reset="$(cl::fx r)" || true
+  case "$kind" in
+    msg)
+      prefix="> "
+      ;;
+    err)
+      fx_label="$(cl::fx white b_red b)" || true
+      fx_msg="$(cl::fx u)" || true
+      prefix="${fx_label}ERROR:${fx_reset} ${fx_msg}"
+      suffix="${fx_reset}"
+      fd=2
+      ;;
+    war)
+      fx_label="$(cl::fx black b_yellow)" || true
+      prefix="${fx_label}WARNING:${fx_reset} "
+      fd=2
+      ;;
+    *)
+      printf "cl::_p_log: unknown kind: %s\n" "$kind" >&2
+      return 1
+      ;;
+  esac
+
+  local line
+  for line in "$@"; do
+    printf "%s%s%s%s\n" "${timestamp:+${timestamp} }" "$prefix" "$line" "$suffix"
+  done >&"$fd"
+}
+
+# print an info message in format: "[TIMESTAMP ]> MSG.."
 cl::p_msg() {
-  if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) MSG.."
-    return 1
-  fi
-
-  printf "> %s\n" "$@"
+  cl::_p_log msg "$@"
 }
 
-# TODO consider using cl::p_dbg with added ERROR level instead? cl::p_err can use it for backward compatibility (if needed) and cl::p_dbg could be renamed to cl::log
-# print error message in format "> ERROR : [msg]..", Usage: p_err [msg]
+# print an error message to stderr in format: "[TIMESTAMP ]ERROR: MSG.."
 cl::p_err() {
-  local timestamp
-  # timestamp option set?
-  if [[ "${1:-}" =~ (-t|--timestamp) ]]; then
-    timestamp=${CL_TIMESTAMP_FORMAT:+"$(date +"${CL_TIMESTAMP_FORMAT}")"}
-    shift
-  fi
-  declare -r timestamp
-  # sufficient arguments?
-  if [[ -z "${1:-}" ]]; then
-    cl::p_usg "$(cl::func_name) [-t|--timestamp] MSG.."
-    return 1
-  fi
-
-  # print error message
-  printf "%s%sERROR:%s %s%s%s\n" \
-    "${timestamp:+${timestamp} }" "$(cl::fx white b_red b)" \
-    "$(cl::fx r)" "$(cl::fx u)" \
-    "$@" "$(cl::fx r)" >&2
+  cl::_p_log err "$@"
 }
 
-# TODO consider using cl::p_dbg with added WARNING level instead? cl::p_war can use it for backward compatibility (if needed) and cl::p_dbg could be renamed to cl::log
-# print error message in format "> WARNING: [msg]..", Usage: p_war [msg]
+# print a warning message to stderr in format: "[TIMESTAMP ]WARNING: MSG.."
 cl::p_war() {
-  local timestamp
-  # timestamp option set?
-  if [[ -n "${1:-}" && "$1" =~ (-t|--timestamp) ]]; then
-    timestamp=${CL_TIMESTAMP_FORMAT:+"$(date +"${CL_TIMESTAMP_FORMAT}")"}
-    shift
-  fi
-  declare -r timestamp
-  # sufficient arguments?
-  if [[ -z "${1:-}" ]]; then
-    echo "cl::p_war [-t|--timestamp] MSG.."
-    return 1
-  fi
-
-  # print warning message
-  printf "%s%sWARNING:%s %s\n" \
-    "${timestamp:+${timestamp} }" "$(cl::fx black b_yellow)" \
-    "$(cl::fx r)" "$@"
+  cl::_p_log war "$@"
 }
 
 # log level lookup tables
@@ -415,15 +428,15 @@ cl::_get_all_log_level_args() {
 
 # TODO consider option (vs. mandatory arg) to set local debug level (e.g. -l|--local-lvl or -0, -1, -2, -3)
 # TODO consider renaming to cl::log and cl::p_dbg becoming a wrapper for backward compatibility (if needed)
-# TODO consider adding ERROR level and using cl::p_err for backward compatibility (if needed)
-# TODO consider adding WARNING level and using cl::p_war for backward compatibility (if needed)
+# Not merged with cl::p_err/cl::p_war on purpose: those are never filtered,
+# while cl::p_dbg is gated by DBG_LVL/DEBUG_LVL and takes two level args.
 # print debug message in format "> DEBUG({lvl}): [msg].."
 # env DEBUG_LVL supercedes [dbg_lvl] (first arg.) if DEBUG_LVL > dbg_lvl
 # set dbg_lvl custom debug level or to 0 if DEBUG_LVL should be used exclusively
 cl::p_dbg() {
   local with_timestamp=false
   # timestamp option set? (date is forked only once we know we print)
-  if [[ -n "${1:-}" && "$1" =~ (-t|--timestamp) ]]; then
+  if [[ "${1:-}" == -t || "${1:-}" == --timestamp ]]; then
     with_timestamp=true
     shift
   fi
