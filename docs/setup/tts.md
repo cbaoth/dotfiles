@@ -3,7 +3,7 @@ title: Text-to-speech (read selection aloud)
 hosts: [motoko]
 status: resolved
 tags: [tts, piper, sway, accessibility, voxtral, translation]
-updated: 2026-11-13
+updated: 2026-11-23
 ---
 
 # Text-to-speech: read the selection aloud
@@ -55,7 +55,11 @@ text with a margin survives). Everything else is rule-based; no LLM.
 | `MAX_RETRY_COUNT` | "max retry count" |
 | `5 km`, `20 °C`, `3.5 GB/s` | full unit words |
 | `x^2`, `mc²` | "x to the power of two" / "x hoch zwei" |
-| `🚀 Launch`, `:rocket: Launch` | "rocket emoji, Launch" / "Rakete Emoji, Launch": a leading emoji acts as a bullet; a run is named once; names from the `emoji` package (CLDR) |
+| `🚀 Launch`, `:rocket: Launch` | "rocket emoji, Launch" / "rakete Emoji, Launch": a leading emoji acts as a bullet; a run is named once; names from the `emoji` package (CLDR) |
+| `☑️ A` / `☑️ B` (same emoji on every emoji-led line of a block) | "check box with check emoji, A. B.": named once, then it is a bullet; `🐛 Fix` / `🚀 Speed` keep both names |
+| `- A` / `- B` | "A. B.", each item a chunk of its own with a pause after it (see *Playback*) |
+| `1. Open` / `2. Save` (also `1)`) | "one: Open. two: Save." / "eins: …"; the list's start number is kept |
+| `- Fruit` with `- Apple`, `- Pear` below | "Fruit: Apple. Pear.": an item that heads a sublist introduces it |
 
 - **Spoken forms are held back** on private-use characters until abbreviation
   and number passes are done, so they cannot rewrite them (`Speaker`, `Held`).
@@ -85,6 +89,19 @@ playlist (`loop-playlist=inf`) would never end, so the worker would never exit;
 looping can still be toggled in the player. The first chunk gets 250 ms of
 leading silence (`TTS_PAD_MS`): the audio device wakes up late and otherwise
 swallows the first syllable. Saved files (`-o`) are padded at both ends.
+
+**Pauses** keep lists and paragraphs apart, which the voice alone does not: a
+list item ends like any sentence. `tts-clean --pauses` ends a chunk at every
+list item and paragraph and appends a tab and the pause level (`0` none, `1`
+item, `2` paragraph or heading); `tts-speak` splits that into `chunks.txt` and
+`pauses.txt` and adds the silence after the chunk: an mpv `apad` filter per
+playlist entry, a `sleep` with `-u none`, a silent wav in the `-o` concat list.
+Defaults: `TTS_PAUSE_ITEM_MS=500`, `TTS_PAUSE_PARAGRAPH_MS=800`, on top of the
+engine's own pause at a sentence end (Piper's `sentence_silence`, 0.2 s). The
+Piper pronunciation fixes can split a line in two (see the fixes script); the
+level travels behind the tab through `sed`, so the pause stays on the last
+piece and `pauses.txt` is rewritten to match Piper's lines. A kept session's
+`playlist.m3u` has no pauses.
 
 The UI follows where it runs:
 

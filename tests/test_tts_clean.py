@@ -124,7 +124,8 @@ def test_code_block_de() -> None:
 @pytest.mark.parametrize(
     ("text", "spoken"),
     [
-        ("☑️ Current Tab as Link\n☑️ List of Links", "check box with check emoji, Current Tab as Link. check box with check emoji, List of Links."),
+        ("☑️ Current Tab as Link\n☑️ List of Links", "check box with check emoji, Current Tab as Link. List of Links."),
+        ("🐛 Fix crash\n🐛 Fix voice\n🚀 Faster", "bug emoji, Fix crash. bug emoji, Fix voice. rocket emoji, Faster."),
         (":ballot_box_with_check: Current Tab", "check box with check emoji, Current Tab."),
         ("- 🚀 Launch\n- 💡 Idea", "rocket emoji, Launch. light bulb emoji, Idea."),
         ("## 🚀 Features\n\nText.", "rocket emoji, Features.\n\nText."),
@@ -152,6 +153,48 @@ def test_colons_are_not_shortcodes() -> None:
 def test_emoji_de() -> None:
     assert de("🚀 Start\n⚠️ Achtung") == "rakete Emoji, Start. warnung Emoji, Achtung."
     assert de("Ein :rocket: fliegt.") == "Ein rakete Emoji fliegt."
+
+
+def test_bullet_emoji_named_once_per_block() -> None:
+    text = "Pros:\n\n- ✅ Fast\n- ✅ Free\n\nCons:\n\n- ❌ Big\n- ❌ Loud"
+    assert en(text) == "Pros:\n\ncheck mark button emoji, Fast. Free.\n\nCons:\n\ncross mark emoji, Big. Loud."
+
+
+@pytest.mark.parametrize(
+    ("text", "spoken"),
+    [
+        ("Steps:\n\n1. Open it\n2. Save", "Steps:\n\none: Open it. two: Save."),
+        ("3. Third\n4. Fourth", "three: Third. four: Fourth."),
+        ("1) Plain\n2) Text", "one: Plain. two: Text."),
+        ("- Fruit\n  - Apple\n  - Pear\n- Vegetables", "Fruit: Apple. Pear. Vegetables."),
+        ("- Done.\n  - Sub", "Done. Sub."),
+    ],
+)
+def test_lists(text: str, spoken: str) -> None:
+    assert en(text) == spoken
+
+
+def test_ordered_list_de() -> None:
+    assert de("1. Antrag stellen\n2. Warten") == "eins: Antrag stellen. zwei: Warten."
+
+
+def test_paragraph_starting_with_a_number_stays_apart() -> None:
+    assert en("Intro here.\n\n2024 was good.") == "Intro here.\n\ntwenty twenty-four was good."
+
+
+def test_chunk_pauses() -> None:
+    text = tts_clean.clean("Steps:\n\n- Open it. Then wait\n- Save\n\nDone.", "en", items=True)
+    assert tts_clean.chunk(text, 300, 150, pauses=True) == [
+        ("Steps:", tts_clean.PAUSE_PARAGRAPH),
+        ("Open it. Then wait.", tts_clean.PAUSE_ITEM),
+        ("Save.", tts_clean.PAUSE_PARAGRAPH),
+        ("Done.", tts_clean.PAUSE_NONE),
+    ]
+
+
+def test_chunk_without_pauses_is_one_run() -> None:
+    text = tts_clean.clean("Steps:\n\n- Open it\n- Save\n\nDone.", "en")
+    assert tts_clean.chunk(text, 300) == [("Steps: Open it. Save. Done.", tts_clean.PAUSE_NONE)]
 
 
 def test_reference_heading_with_emoji_is_cut() -> None:

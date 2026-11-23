@@ -43,6 +43,10 @@ declare -a TTS_MPV_ARGS=()
 # Silence before the first chunk and after saved files (ms): the audio device
 # often wakes up late and swallows the first syllable.
 TTS_PAD_MS="${TTS_PAD_MS:-250}"
+# Silence added after a list item, and after a paragraph or heading (ms), on top
+# of the engine's own pause at a sentence end (Piper: sentence_silence, 0.2 s).
+TTS_PAUSE_ITEM_MS="${TTS_PAUSE_ITEM_MS:-500}"
+TTS_PAUSE_PARAGRAPH_MS="${TTS_PAUSE_PARAGRAPH_MS:-800}"
 # Keep every read-aloud as a session dir under this dir (empty = don't keep)
 TTS_KEEP_DIR="${TTS_KEEP_DIR:-}"
 TTS_PIPER_BIN="${TTS_PIPER_BIN:-${HOME}/.venv/bin/piper}"
@@ -235,8 +239,21 @@ engine_piper() {
     # Piper also glues the next sentence onto a block's sentence (an over-long
     # utterance again), so a block ending a sentence ends the line: one more wav.
     sed_args+=(-e 's/\]\]([,.;:!?]+)/\1]]/g' -e 's/\]\]([^ ])/]] \1/g' -e 's/([.!?])\]\] +/\1]]\n/g')
+    # Each line carries its pause level behind a tab, so a split line keeps its
+    # pause on the last piece; pauses.txt is rewritten to match the new lines
+    # before piper starts, i.e. before playback reads it.
+    local -r pauses="${chunks%/*}/pauses.txt"
     input="${out_dir}/../chunks.piper.txt"
-    sed -E "${sed_args[@]}" "${chunks}" > "${input}" || { p_warn "a fixes script failed; reading unfixed"; input="${chunks}"; }
+    if paste -- "${chunks}" "${pauses}" | sed -E "${sed_args[@]}" | awk -F '\t' -v text="${input}" \
+        -v levels="${pauses}.piper" '
+          $1 ~ /[^[:space:]]/ { line[++n] = $1; level[n] = 0 }
+          NF > 1 && n { level[n] = $2 }
+          END { for (i = 1; i <= n; i++) { print line[i] > text; print level[i] > levels } }'; then
+      mv -- "${pauses}.piper" "${pauses}"
+    else
+      p_warn "a fixes script failed; reading unfixed"
+      input="${chunks}"
+    fi
   fi
   # One process for all chunks: model load is paid once, and piper writes one
   # wav per input line as soon as it is synthesized.
@@ -341,17 +358,40 @@ list_wavs() {
   find "$1" -maxdepth 1 -name '*.wav' | LC_ALL=C sort -V
 }
 
+# Silence (ms) to add after audio file N (0-based) of the job whose audio is in
+# OUT_DIR: ../pauses.txt has one level per chunk line, 0 none, 1 list item,
+# 2 paragraph (tts-clean --pauses; remapped by engine_piper for split lines).
+pause_ms() {
+  local -r out_dir="$1"
+  local -ri n="$2"
+  local level=""
+  [[ -f "${out_dir}/../pauses.txt" ]] && level="$(sed -n "$(( n + 1 ))p" "${out_dir}/../pauses.txt")"
+  case "${level}" in
+    1) printf '%s' "${TTS_PAUSE_ITEM_MS}" ;;
+    2) printf '%s' "${TTS_PAUSE_PARAGRAPH_MS}" ;;
+    *) printf '0' ;;
+  esac
+}
+
+# Seconds for an ffmpeg option, from ms.
+ms_to_s() {
+  awk -v ms="$1" 'BEGIN { printf "%.3f", ms / 1000 }'
+}
+
 # Play files as the engine produces them. Liveness is checked BEFORE listing so
 # a file written just before the engine exited is never missed.
 play_chunks() {
   local -r out_dir="$1" prod="$2"
   local -i i=0 alive
   local -a files
+  local pause
   while :; do
     kill -0 "${prod}" 2> /dev/null && alive=1 || alive=0
     mapfile -t files < <(list_wavs "${out_dir}")
     if (( ${#files[@]} > i + 1 )) || { (( alive == 0 )) && (( ${#files[@]} > i )); }; then
       pw-play -- "${files[i]}" || sleep 0.2
+      pause="$(pause_ms "${out_dir}" "${i}")"
+      (( pause > 0 )) && sleep "$(ms_to_s "${pause}")"
       (( ++i ))
     elif (( alive == 0 )); then
       break
@@ -403,14 +443,22 @@ play_mpv() {
     sleep 0.05
   done
 
-  local -i i=0 alive idle_checks=0
-  local -a files
+  local -i i=0 alive idle_checks=0 pause
+  local -a files filters
+  local af
   while kill -0 "${player}" 2> /dev/null; do
     kill -0 "${prod}" 2> /dev/null && alive=1 || alive=0
     mapfile -t files < <(list_wavs "${out_dir}")
     if (( ${#files[@]} > i + 1 )) || { (( alive == 0 )) && (( ${#files[@]} > i )); }; then
-      if (( i == 0 && TTS_PAD_MS > 0 )); then
-        mpv_ipc loadfile "${files[i]}" append-play -1 "af=lavfi=[adelay=${TTS_PAD_MS}:all=1]" > /dev/null
+      # Lead-in silence on the first file, the item/paragraph pause after any.
+      filters=()
+      (( i == 0 && TTS_PAD_MS > 0 )) && filters+=("adelay=${TTS_PAD_MS}:all=1")
+      pause="$(pause_ms "${out_dir}" "${i}")"
+      (( pause > 0 )) && filters+=("apad=pad_dur=$(ms_to_s "${pause}")")
+      if (( ${#filters[@]} > 0 )); then
+        # %LEN% quotes the value: loadfile options split at commas, even inside [ ].
+        af="lavfi=[$(IFS=,; printf '%s' "${filters[*]}")]"
+        mpv_ipc loadfile "${files[i]}" append-play -1 "af=%${#af}%${af}" > /dev/null
       else
         mpv_ipc loadfile "${files[i]}" append-play > /dev/null
       fi
@@ -478,13 +526,28 @@ player_control() {
 save_chunks() {
   local -r out_dir="$1" out_file="$2"
   local list="${out_dir}/../concat.txt" f
+  local -i i=0 pause
   : > "${list}"
-  while IFS= read -r f; do printf "file '%s'\n" "${f}" >> "${list}"; done < <(list_wavs "${out_dir}")
-  local pad_s rc=0
-  pad_s="$(awk -v ms="${TTS_PAD_MS}" 'BEGIN { printf "%.3f", ms / 1000 }')"
+  # Pauses are silent wavs in the concat list, in the format of the chunks (the
+  # concat demuxer needs one format throughout).
+  local codec rate channels
+  IFS=, read -r codec rate channels < <(ffprobe -v error -select_streams a:0 \
+    -show_entries stream=codec_name,sample_rate,channels -of csv=p=0 "$(list_wavs "${out_dir}" | head -n 1)")
+  while IFS= read -r f; do
+    printf "file '%s'\n" "${f}" >> "${list}"
+    pause="$(pause_ms "${out_dir}" "${i}")"
+    if (( pause > 0 )); then
+      [[ -f "${out_dir}/../silence-${pause}.wav" ]] ||
+        ffmpeg -loglevel error -y -f lavfi -i "anullsrc=r=${rate:-22050}:cl=$(( ${channels:-1} > 1 ? 2 : 1 ))c" \
+          -t "$(ms_to_s "${pause}")" -c:a "${codec:-pcm_s16le}" "${out_dir}/../silence-${pause}.wav"
+      printf "file '%s'\n" "${out_dir}/../silence-${pause}.wav" >> "${list}"
+    fi
+    (( ++i ))
+  done < <(list_wavs "${out_dir}")
+  local rc=0
   ffmpeg -loglevel error -y -f concat -safe 0 -i "${list}" \
-    -af "adelay=${TTS_PAD_MS}:all=1,apad=pad_dur=${pad_s}" "${out_file}" || rc=$?
-  rm -f -- "${list}"
+    -af "adelay=${TTS_PAD_MS}:all=1,apad=pad_dur=$(ms_to_s "${TTS_PAD_MS}")" "${out_file}" || rc=$?
+  rm -f -- "${list}" "${out_dir}/../silence-"*.wav
   return "${rc}"
 }
 
@@ -646,11 +709,16 @@ speak() {
   local lang="${lang_opt}"
   if [[ "${do_clean}" == 1 ]]; then
     [[ "${lang}" == auto ]] && lang="$(tts-clean --detect <<< "${text}")"
-    tts-clean --lang "${lang}" --chunk "${TTS_CHUNK_CHARS}" --sentence "${TTS_SENTENCE_CHARS}" \
-      <<< "${text}" > "${tmp}/chunks.txt"
+    # Lines are "CHUNK<tab>PAUSE": the text for the engine, the pause for the player.
+    tts-clean --lang "${lang}" --chunk "${TTS_CHUNK_CHARS}" --sentence "${TTS_SENTENCE_CHARS}" --pauses \
+      <<< "${text}" > "${tmp}/chunks.tab"
+    cut -f 1 "${tmp}/chunks.tab" > "${tmp}/chunks.txt"
+    cut -f 2 "${tmp}/chunks.tab" > "${tmp}/pauses.txt"
+    rm -f -- "${tmp}/chunks.tab"
   else
     [[ "${lang}" == auto ]] && lang="$(tts-clean --detect <<< "${text}")"
     tr '\n' ' ' <<< "${text}" > "${tmp}/chunks.txt"; echo >> "${tmp}/chunks.txt"
+    echo 0 > "${tmp}/pauses.txt"
   fi
   if [[ ! -s "${tmp}/chunks.txt" ]]; then notify "nothing to read"; return 0; fi
 
@@ -661,7 +729,7 @@ speak() {
   if [[ -n "${keep_dir}" ]]; then
     local dir
     if dir="$(new_session "${keep_dir}" "${engine}" "${voice}" "${lang}" "${speed}" "${do_clean}" "${tmp}/chunks.txt")"; then
-      mv -- "${tmp}/chunks.txt" "${dir}/"
+      mv -- "${tmp}/chunks.txt" "${tmp}/pauses.txt" "${dir}/"
       printf '%s\n' "${text}" > "${dir}/text.txt"
       rmdir -- "${tmp}"
       tmp="${dir}"

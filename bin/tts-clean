@@ -11,7 +11,8 @@ engine behind tts-speak gets the same pre-processed text.
 
 Input is always parsed as markdown; plain text passes through unharmed. Removes or rewrites:
   * ANSI escapes, box-drawing and agent UI characters, markdown syntax, HTML
-  * emoji and ``:shortcodes:`` (named: ``rocket emoji``, ``Rakete Emoji``)
+  * emoji and ``:shortcodes:`` (named: ``rocket emoji``; the same one leading every line: named once)
+  * list numbers (``1. Open`` -> ``one: Open``); ``--chunk --pauses`` marks item and paragraph ends
   * code blocks (announced with their language and length), small tables (row by row; large ones announced)
   * footnotes and citation markers (``[1]``, ``[^1]``, ``[citation needed]``, superscripts), trailing
     "References" / "Einzelnachweise" / "Siehe auch" sections
@@ -125,6 +126,10 @@ ITEM_MARK = "\x01"
 EMOJI_MARK, EMOJI_SLOT = "\x02", "\x03"
 EMOJI_RUN_RE = re.compile(rf"(\w?)({EMOJI_SLOT}(?:[ \t]*{EMOJI_SLOT})*)(\w?)")
 LINE_EMOJI_RE = re.compile(rf"^[ \t]*{EMOJI_MARK}(.)[ \t]*(?=\S)", re.MULTILINE)
+# The same once scrub() is done: "☑️ A" is ITEM_MARK, the held name, ", A".
+LEAD_EMOJI_RE = re.compile(rf"^({ITEM_MARK}*)([\U000F0000-\U0010FFFD]), ", re.MULTILINE)
+# Pause after a chunk, see chunk().
+PAUSE_NONE, PAUSE_ITEM, PAUSE_PARAGRAPH = 0, 1, 2
 HELD_RE = re.compile(r"[\U000F0000-\U0010FFFD]")
 # A line at least this fraction of the widest line is taken as hard-wrapped, not as a heading/item.
 WRAP_RATIO = 0.6
@@ -394,9 +399,10 @@ class Held:
     base: int = 0xF0000
 
     def hold(self, spoken: str) -> str:
-        """Store ``spoken``, return its placeholder."""
-        self.slots.append(spoken)
-        return chr(self.base + len(self.slots) - 1)
+        """Store ``spoken``, return its placeholder; the same words always get the same one."""
+        if spoken not in self.slots:
+            self.slots.append(spoken)
+        return chr(self.base + self.slots.index(spoken))
 
     def restore(self, text: str) -> str:
         """Put every held spoken form back."""
@@ -409,6 +415,7 @@ class Speaker:
 
     lang: str
     held: Held = field(default_factory=Held)
+    emoji_held: set[str] = field(default_factory=set)  # placeholders that name emoji
 
     def text(self, text: str) -> str:
         """Rewrite every entity found in a run of plain text."""
@@ -488,8 +495,9 @@ class Speaker:
 
         def run(m: re.Match[str]) -> str:
             spoken = ", ".join(dict.fromkeys(next(found) for _ in range(m.group(2).count(EMOJI_SLOT))))
-            mention = EMOJI_MARK + self.held.hold(f"{spoken} {self._word('emoji')}")
-            return " ".join(filter(None, [m.group(1), mention, m.group(3)]))
+            held = self.held.hold(f"{spoken} {self._word('emoji')}")
+            self.emoji_held.add(held)
+            return " ".join(filter(None, [m.group(1), EMOJI_MARK + held, m.group(3)]))
 
         text = EMOJI_SHORTCODE_RE.sub(lambda m: emoji.emojize(m.group(0), language="alias"), text)
         return EMOJI_RUN_RE.sub(run, emoji.replace_emoji(text, note))
@@ -698,6 +706,7 @@ def render_blocks(tokens: list[Token], speaker: Speaker) -> list[Block]:
     blocks: list[Block] = []
     depth = 0
     item_start = False
+    number = ""  # of the current item in an ordered list
     i = 0
     while i < len(tokens):
         token = tokens[i]
@@ -721,15 +730,43 @@ def render_blocks(tokens: list[Token], speaker: Speaker) -> list[Block]:
                 blocks[-1].sep = "\n\n"
         elif token.type == "list_item_open":
             item_start = True
+            number = token.info  # empty in a bullet list
         elif token.type == "heading_open":
             i += 1
             blocks.append(Block(render_inline(tokens[i], speaker), heading=True))
         elif token.type == "inline":
-            mark = ITEM_MARK if item_start else ""
+            text = render_inline(token, speaker).strip()
+            if item_start:
+                # "One: Open the settings"; an item that heads a sublist introduces it: "Fruit: Apple. Pear."
+                if _opens_sublist(tokens, i) and not text.endswith(SENTENCE_END):
+                    text += ":"
+                text = ITEM_MARK + (f"{number}: " if number else "") + text
             item_start = False
-            blocks.append(Block(mark + render_inline(token, speaker).lstrip(), "\n" if depth else "\n\n"))
+            blocks.append(Block(text, "\n" if depth else "\n\n"))
         i += 1
     return blocks
+
+
+def _opens_sublist(tokens: list[Token], i: int) -> bool:
+    """Whether the inline token at ``i`` is directly followed by a nested list."""
+    return i + 2 < len(tokens) and tokens[i + 2].type in ("bullet_list_open", "ordered_list_open")
+
+
+def name_bullet_emoji_once(text: str, emoji_held: set[str]) -> str:
+    """Name a leading emoji on the first line of a block only, when it leads every emoji-led line there.
+
+    Repeated like that it is a bullet: ``☑️ A`` / ``☑️ B`` is said "check box with check emoji, A. B.", while
+    ``🐛 Fix`` / ``🚀 Speed`` keeps both names, which carry meaning.
+    """
+    def per_block(block: str) -> str:
+        leads = [m for m in LEAD_EMOJI_RE.finditer(block) if m.group(2) in emoji_held]
+        if len(leads) < 2 or len({m.group(2) for m in leads}) > 1:
+            return block
+        first = leads[0].start()
+        return LEAD_EMOJI_RE.sub(lambda m: m.group(1) if m.start() > first and m.group(2) in emoji_held
+                                 else m.group(0), block)
+
+    return "\n\n".join(per_block(block) for block in text.split("\n\n"))
 
 
 def drop_reference_sections(blocks: list[Block]) -> list[Block]:
@@ -756,20 +793,21 @@ def to_speech_text(text: str, speaker: Speaker, keep_references: bool = False) -
     blocks = render_blocks(MARKDOWN.parse(text), speaker)
     if not keep_references:
         blocks = drop_reference_sections(blocks)
-    return "".join(b.text + b.sep for b in blocks if b.text.strip(f" \n{ITEM_MARK}"))
+    text = "".join(b.text + b.sep for b in blocks if b.text.strip(f" \n{ITEM_MARK}"))
+    return name_bullet_emoji_once(text, speaker.emoji_held)
 
 
 # }}} Markdown
 
 
-def reflow(text: str) -> str:
+def reflow(text: str, item_sep: str = " ") -> str:
     """Join hard-wrapped lines; give short unpunctuated lines (headings, bullets) a sentence end.
 
     A blank line stays a paragraph break. A single newline is a soft wrap when the line before it
     runs close to the text's widest line (or ends in a comma or hyphen); a clearly shorter line
     without punctuation is a heading or list item and gets a full stop so the voice pauses.
     A lowercase start also means "continuation"; an uppercase start proves nothing, since German
-    capitalizes every noun.
+    capitalizes every noun. List items are joined with ``item_sep``; "\\n" keeps them apart for chunk().
     """
     blocks = [
         [ln for ln in (re.sub(r"[ \t]+", " ", raw).strip() for raw in block.split("\n")) if ln]
@@ -787,13 +825,13 @@ def reflow(text: str) -> str:
             item = nxt.startswith(ITEM_MARK)
             nxt = nxt.lstrip(ITEM_MARK)
             if item:
-                out += (" " if prev.endswith(SENTENCE_END) else ". ") + nxt
+                out += ("" if prev.endswith(SENTENCE_END) else ".") + item_sep + nxt
             elif prev.endswith("-") and len(prev) > 1 and prev[-2].isalpha():
                 out = (out[:-1] if nxt[:1].islower() else out) + nxt  # "recog-" + "nition", "Lebens-" + "Weise"
             elif prev.endswith(SENTENCE_END + (",",)) or nxt[:1].islower() or len(prev) >= WRAP_RATIO * width:
                 out += " " + nxt
             else:
-                out += ". " + nxt  # short line without punctuation: heading or item
+                out += "." + item_sep + nxt  # short line without punctuation: heading or item
         paragraphs.append(out if out.endswith(SENTENCE_END) else out + ".")
     return "\n\n".join(paragraphs)
 
@@ -877,7 +915,7 @@ _DE_ORDINAL_RE = re.compile(rf"(?:\b({_WORD})\s+)?\b(\d{{1,4}})\.(?=\s+({_WORD})
 _DE_THOUSANDS_RE = re.compile(r"\b\d{1,3}(?:\.\d{3})+\b(?!\.\d)")
 _DE_DECIMAL_RE = re.compile(r"\b(\d+),(\d+)\b")
 _DE_PERCENT_RE = re.compile(r"(\d)\s?%")
-_DE_CARDINAL_RE = re.compile(r"(?:\b(\S+)\s+)?(?<![\w.,:])(\d{1,9})(?!\w|[.,:]\d)")
+_DE_CARDINAL_RE = re.compile(r"(?:\b(\S+)[ \t]+)?(?<![\w.,:])(\d{1,9})(?!\w|[.,:]\d)")
 _DE_TIME_RE = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b(?:\s+Uhr\b)?")
 
 
@@ -1009,7 +1047,7 @@ _EN_DECADE_RE = re.compile(r"(?<![\w.,])'?(\d{1,3}0)'?s\b")
 _EN_THOUSANDS_RE = re.compile(r"\b\d{1,3}(?:,\d{3})+\b(?!\.\d)")
 _EN_DECIMAL_RE = re.compile(r"(?<![\w.,])(\d+)\.(\d+)\b(?!\.\d)")
 _EN_PERCENT_RE = re.compile(r"(\d)\s?%")
-_EN_CARDINAL_RE = re.compile(r"(?:\b(\S+)\s+)?(?<![\w.,:])(\d{1,12})(?!\w|[.,:]\d)")
+_EN_CARDINAL_RE = re.compile(r"(?:\b(\S+)[ \t]+)?(?<![\w.,:])(\d{1,12})(?!\w|[.,:]\d)")
 
 
 def spell_numbers_en(text: str) -> str:
@@ -1058,14 +1096,18 @@ def detect_language(text: str) -> str:
     return detect_lang(to_speech_text(strip_terminal(text), Speaker("en")))
 
 
-def clean(text: str, lang: str = "auto", spell_numbers: bool = True, keep_references: bool = False) -> str:
-    """Run the full cleaning pipeline; ``lang`` is ``de``, ``en`` or ``auto``."""
+def clean(text: str, lang: str = "auto", spell_numbers: bool = True, keep_references: bool = False,
+          items: bool = False) -> str:
+    """Run the full cleaning pipeline; ``lang`` is ``de``, ``en`` or ``auto``.
+
+    With ``items``, list items stay on lines of their own (for chunk() with pauses).
+    """
     if lang == "auto":
         lang = detect_language(text)
     speaker = Speaker(lang)
     text = to_speech_text(strip_terminal(text), speaker, keep_references)
     text = expand_abbreviations(text, lang)
-    text = reflow(text)
+    text = reflow(text, "\n" if items else " ")
     if spell_numbers:
         text = spell_numbers_de(text) if lang == "de" else spell_numbers_en(text)
     text = speaker.held.restore(text)
@@ -1088,35 +1130,49 @@ def split_point(sentence: str, limit: int) -> int:
     return limit
 
 
-def chunk(text: str, limit: int, sentence_limit: int = 0) -> list[str]:
+def chunk(text: str, limit: int, sentence_limit: int = 0, pauses: bool = False) -> list[tuple[str, int]]:
     """Split into single-line chunks of at most ``limit`` chars, breaking at sentence ends.
 
     The first chunk is kept short (a third of the limit) so playback starts quickly while
     the rest is still being synthesized. A sentence longer than ``sentence_limit`` (0: the
     chunk limit) is cut at clause breaks and each piece gets a line of its own: engines
     speak a line's sentence in one go, and Piper rushes and slurs beyond ~13 s of speech.
+
+    Each chunk comes with the pause the player adds after it. With ``pauses``, every list item
+    (a line of its own, see clean()) and every paragraph ends a chunk, with PAUSE_ITEM or
+    PAUSE_PARAGRAPH; without, it is all one run and every pause is PAUSE_NONE.
     """
-    sentences = [s for para in text.split("\n\n") for s in re.split(r"(?<=[.!?\u2026])\s+", para.replace("\n", " ")) if s]
+    if pauses:
+        units = [(item, PAUSE_ITEM if n < len(items) - 1 else PAUSE_PARAGRAPH)
+                 for para in text.split("\n\n") if (items := [s for s in para.split("\n") if s.strip()])
+                 for n, item in enumerate(items)]
+    else:
+        units = [(re.sub(r"\s+", " ", text), PAUSE_NONE)]
     sentence_limit = min(sentence_limit or limit, limit)
-    chunks: list[str] = []
-    current = ""
-    for sentence in sentences:
-        while len(sentence) > sentence_limit:
-            cut = split_point(sentence, sentence_limit)
-            sentence, rest = sentence[:cut].strip(), sentence[cut:].strip()
-            if current:
-                chunks.append(current)
-                current = ""
-            chunks.append(sentence)
-            sentence = rest
-        max_len = limit // 3 if not chunks else limit
-        if current and len(current) + 1 + len(sentence) > max_len:
-            chunks.append(current)
-            current = sentence
-        else:
-            current = f"{current} {sentence}".strip()
-    if current:
-        chunks.append(current)
+    chunks: list[tuple[str, int]] = []
+    for unit, pause in units:
+        current = ""
+        for sentence in (s for s in re.split(r"(?<=[.!?\u2026])\s+", unit) if s):
+            while len(sentence) > sentence_limit:
+                cut = split_point(sentence, sentence_limit)
+                sentence, rest = sentence[:cut].strip(), sentence[cut:].strip()
+                if current:
+                    chunks.append((current, PAUSE_NONE))
+                    current = ""
+                chunks.append((sentence, PAUSE_NONE))
+                sentence = rest
+            max_len = limit // 3 if not chunks else limit
+            if current and len(current) + 1 + len(sentence) > max_len:
+                chunks.append((current, PAUSE_NONE))
+                current = sentence
+            else:
+                current = f"{current} {sentence}".strip()
+        if current:
+            chunks.append((current, pause))
+        elif chunks:
+            chunks[-1] = (chunks[-1][0], pause)
+    if chunks:
+        chunks[-1] = (chunks[-1][0], PAUSE_NONE)  # nothing follows the last one
     return chunks
 
 
@@ -1130,6 +1186,9 @@ def main() -> int:
     parser.add_argument("-s", "--sentence", type=int, metavar="N", default=0,
                         help="with --chunk: split sentences longer than N chars at clause breaks "
                              "(; : – then commas), one piece per line (default: the chunk size)")
+    parser.add_argument("-p", "--pauses", action="store_true",
+                        help="with --chunk: end a chunk at every list item and paragraph, and append a tab and the "
+                             "pause after it to each line: 0 none, 1 item, 2 paragraph")
     parser.add_argument("--no-numbers", action="store_true", help="keep digits (numbers are spelled out by default)")
     parser.add_argument("--keep-references", action="store_true",
                         help='keep trailing sections such as "References", "See also", "Einzelnachweise"')
@@ -1140,9 +1199,12 @@ def main() -> int:
     if args.detect:
         print(detect_language(text))
         return 0
-    cleaned = clean(text, args.lang, spell_numbers=not args.no_numbers, keep_references=args.keep_references)
+    pauses = bool(args.chunk and args.pauses)
+    cleaned = clean(text, args.lang, spell_numbers=not args.no_numbers, keep_references=args.keep_references,
+                    items=pauses)
     if args.chunk:
-        print("\n".join(chunk(cleaned, args.chunk, args.sentence)))
+        chunks = chunk(cleaned, args.chunk, args.sentence, pauses)
+        print("\n".join(f"{line}\t{pause}" if pauses else line for line, pause in chunks))
     else:
         print(cleaned)
     return 0
