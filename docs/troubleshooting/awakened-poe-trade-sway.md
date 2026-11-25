@@ -413,3 +413,19 @@ was a **mobalytics.gg** build guide
 prime suspect for the offer set. Next targeted test: copy from that page
 (selection and any copy buttons), check vicinae's offer list, switch to the
 game with the watchdog running (`_local/fdwatch start`, motoko only).
+
+### Update 2026-11-25 15:20: exact offer set reproduced, no leak
+
+Copies on the mobalytics page produced the freeze's offer set exactly
+(15:22:37 and 15:24:00: `application/x-moz-custom-clipdata` + `text/html` +
+2–3 bytes `text/plain` + `text/x-moz-url-priv`); `wl-paste -l` also lists a
+custom `POB` type (the page's own clipboard data). Then: whole-page copies,
+quick switches to the game, overlay use in between. sway stayed at ~300 fds,
+no errors, no hiccups.
+
+So the clipboard content alone does not trigger the leak; some timing or
+state (what the game/Wine or APT was doing at that moment) must coincide. Not
+reproducible on demand; active hunting stopped. If it happens again: wait for
+sway to recover (it did after ~6 min), then collect `_local/fdwatch log`,
+sway's `session.log`, vicinae's clipboard lines for that minute, and the
+active browser tab.
