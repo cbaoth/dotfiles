@@ -93,6 +93,9 @@ playerctl
 # nm-applet (network/VPN tray icon). The real package is network-manager-gnome;
 # `network-manager-applet` is only the upstream project name.
 network-manager-gnome
+# Polkit authentication agent, started by config.d/90-launch-apps.conf. Without
+# it GUI privilege prompts fail (input-remapper-gtk, nm-connection-editor).
+policykit-1-gnome
 pulseaudio-utils
 pavucontrol
 blueman

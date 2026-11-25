@@ -114,6 +114,18 @@ sourced libs need explicit handling. `lib/functions.sh` already fixed
   `dotfiles-link` mentions). Deploy needs sudo outside `BSS_TAMPER_*`
   (17:00-05:00); run `dotfiles-link` only after the deploy, or the `~/bin` links
   vanish before the new copies exist.
+- [ ] [L] bedtime-shutdown: raise the barrier against disabling it from the
+  boot-time recovery / root-shell path (added 2026-11-25). In practice that is
+  the remaining easy way out at night. Goal: in-window, that path should not
+  give enough time or access to switch the shutdown off.
+  - **Do not tell the user the bypass routes**, and do not write them here
+    (public repo, and the user reads this file). Research them during
+    implementation; report only *that* a path is closed, not how it was open.
+  - Design constraint: that path is also the emergency exit from a real
+    lockout. Closing it needs a deliberate replacement (slow and
+    inconvenient on purpose, but reliable), decided before anything ships.
+  - Ship opt-in and dry-runnable like the other self-defense features
+    (`system-scripts/bedtime-shutdown/`).
 - [ ] `bin/tts-clean` optional extras, only if listening shows a need
   (`docs/setup/tts.md`, *What the cleaner says*)
   - [ ] [S] Site rules for URLs ("the German Wikipedia article Projekt Gutenberg")
@@ -207,6 +219,9 @@ Removable as dead weight, not a correctness issue.
       `xdg-desktop-autostart.target` is inactive in this session anyway.
 - [ ] [S] Verify the polkit agent actually prompts after the next sway restart
       (`nm-connection-editor` → edit and save a connection is the quickest test).
+      **Found 2026-11-25:** it never ran — `policykit-1-gnome` was not
+      installed (`input-remapper-gtk` failed with "No session for cookie").
+      Now in `setup/packages/desktop.list`.
 - [ ] [M] TTY auto-login: systemd `getty@tty1` drop-in + start sway from
       `~/.zprofile`, so a boot lands in sway without typing a password twice.
       Currently still a manual `sway-start` after logging in at the TTY.
