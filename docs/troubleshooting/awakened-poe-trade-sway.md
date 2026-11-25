@@ -15,7 +15,8 @@ keys, a 100 ms key delay, the clipboard bridge paused in trade mode, and APT
 hotkeys only on keys that Colemak and QWERTY share. See **section 9** for the
 working setup and its rules. Still open: typing into the in-game settings
 fields (use the browser settings page, see 9), and the session freeze
-(section 6), not seen again since the bridge pause. motoko: sway, Nvidia
+(sections 6 and 10: sway leaks XWayland clipboard pipes until it runs out of
+file descriptors; trigger not yet confirmed). motoko: sway, Nvidia
 proprietary driver, PoE through Proton Experimental 11.0, APT 3.30.101
 AppImage.
 
@@ -309,3 +310,97 @@ A restart via the toggle cleared it. `logKeys` is off again
   loop); Firefox Nightly works and is now the default browser
   (`mimeapps.list` → `firefox-nightly.desktop`, not Firefox's generated
   `userapp-Nightly-<random>.desktop`).
+
+## 10. Freeze again: sway runs out of file descriptors (2026-11-18 21:22, open)
+
+Second freeze, this time with the clipboard bridge **paused** (trade mode on
+since 20:09) and no hotkey held. What happened: talked to a vendor, switched
+to the browser workspace and back to the game. Display and input hung from
+about 21:23 to 21:28 (waybar clock stuck at 21:23); game audio kept playing.
+The game then lost its server connection and returned to the login screen.
+
+Evidence (`journalctl`, `~/.local/state/sway/session.log`, whose timestamps
+are sway uptime, sway started 15:21:16):
+
+- System alive throughout: cron, `bedtime.service`, `notes-sync` and timekpr
+  all ran on time. Only the graphical session hung.
+- 21:21:56: last sway line before the gap (libinput "event processing lagging
+  behind").
+- 21:22:28: vicinae logs a new Wayland clipboard owner with 4 offers
+  (`application/x-moz-custom-clipdata`, `text/html`, `text/plain` 9 bytes,
+  `text/x-moz-url-priv`): a copy in **Firefox Nightly** (Wayland-native).
+- 21:28:38: sway comes back with `[xwayland/selection/outgoing.c:285] pipe()
+  failed: Too many open files`, then `ipc-server: Unable to accept IPC client
+  connection`, `egl dup failed`, `selection/incoming.c convert selection
+  failed`. From there a flood of `[xwayland/xwm.c:1457] Failed to get window
+  property`, accelerating from 3 000 to 25 000 lines/min.
+- 21:38: sway held **155 623 fds, 152 823 of them pipes** (limit 524 288;
+  ~315 is normal). No other process held the other ends.
+- 21:38:58: a new clipboard owner (plain text). In the same second sway
+  dropped to 315 fds and the flood stopped.
+
+So: while Firefox owned the clipboard, some X11 client kept requesting the
+selection, and wlroots' XWayland selection relay opened a pipe per request
+without closing it, until sway hit EMFILE. Replacing the clipboard owner
+freed everything. Same log lines as the old wlroots bug
+[#2192](https://github.com/swaywm/wlroots/issues/2192) (fixed in 0.13; here
+wlroots 0.20.2, sway 1.12, Xwayland 24.1.14), so possibly a regression or a
+new trigger. Section 6 (2026-11-17) fits too: clipboard churn right before,
+then sway silent.
+
+Unconfirmed: **which X11 client** made the requests (candidates: the game's
+Wine clipboard import on focus, APT, Steam), and whether Firefox's `x-moz-*`
+offers matter.
+
+SSH did not help, and this is not a symptom: after 21:00 the bedtime rule in
+`/etc/security/time.conf` (`*;*;cbaoth;!Al2100-0700`, `pam_time` in
+`common-account`) denies every login, SSH and TTY alike ("Access denied … by
+PAM account configuration"), and UFW drops port 22 on the Wi-Fi interface. A
+session opened **before 21:00** stays usable.
+
+Next time:
+
+1. Before 21:00, keep an SSH session open from another host.
+2. In a freeze, check sway's fd count there:
+   `ls /proc/$(pgrep -x sway)/fd | wc -l`.
+3. If it is high, replace the clipboard owner (`wl-copy x`, with
+   `WAYLAND_DISPLAY=wayland-1 XDG_RUNTIME_DIR=/run/user/1000`) and see whether
+   the session recovers; that confirms the trigger and gives a way out.
+
+### Update 2026-11-25: no recurrence
+
+Several long sessions (2026-11-22 and after the 2026-11-23 reboot) with
+frequent game/browser switches and deliberate Firefox copies (incl.
+`Ctrl+A, Ctrl+C` on large pages): no freeze. The current sway log has zero
+`Too many open files` / `pipe() failed` lines; only the usual small bursts of
+`xwm.c:1457 Failed to get window property` (≤ 120/min, vs 3 000–25 000/min
+during the leak). A throw-away watchdog (`_local/sway-fd-watch`, motoko only)
+saw sway at 284–314 fds on 2026-11-22; it was a transient unit and did not
+survive the reboot, so later sessions were unwatched.
+
+Not reproduced yet: the 21:22 clipboard carried
+`application/x-moz-custom-clipdata`, which Firefox adds (as far as known)
+when a **page script** sets the clipboard data (a site's "copy" button, e.g.
+the trade site's whisper button), not for a plain selection copy. None of the copies since had it (only `text/html`,
+`text/x-moz-url-priv`). So the suspected trigger is narrower than "any
+Firefox copy" and remains untested. Micro-stutters seen in game were network
+related (better without VPN and on the Amsterdam realm).
+
+### Update 2026-11-25 afternoon: targeted tests, still no leak
+
+Watchdog running (sway 292–306 fds throughout), game and Firefox Nightly
+side by side, several switches to the game after each copy:
+
+| Copy in Firefox | Offers seen by vicinae | Leak |
+| --------------- | ---------------------- | ---- |
+| Trade site "copy item" button | `text/plain` + `text/x-moz-url-priv` | no |
+| Mouse selection + `Ctrl+C` (trade site, incl. a 9-byte one) | `text/_moz_htmlcontext`, `text/_moz_htmlinfo`, `text/html`, `text/plain`, `text/x-moz-url-priv` | no |
+| In-game `Ctrl+C` (APT price check) | `text/plain` | no |
+
+The freeze clipboard (2026-11-18 21:22) had a fourth, different set:
+`application/x-moz-custom-clipdata` + `text/html` + `text/plain` (9 bytes) +
+`text/x-moz-url-priv`, **without** the `_moz_html*` pair. Neither a plain
+selection copy nor the trade site's buttons produce it; it most likely comes
+from a page whose copy handler writes its own clipboard data. Which page was
+open at 21:22 is unknown. Until that combination is reproduced, the trigger
+stays unconfirmed.
