@@ -404,3 +404,12 @@ selection copy nor the trade site's buttons produce it; it most likely comes
 from a page whose copy handler writes its own clipboard data. Which page was
 open at 21:22 is unknown. Until that combination is reproduced, the trigger
 stays unconfirmed.
+
+**Source page found** (Firefox Nightly history): at 21:22:28 the active page
+was a **mobalytics.gg** build guide
+(`https://mobalytics.gg/poe/builds/pohx-righteous-fire-chieftain`, loaded
+21:22:09, left 21:22:31 for pohx.net). The 9-byte copy with
+`x-moz-custom-clipdata` came from there; the site's copy handling is the
+prime suspect for the offer set. Next targeted test: copy from that page
+(selection and any copy buttons), check vicinae's offer list, switch to the
+game with the watchdog running (`_local/fdwatch start`, motoko only).
