@@ -102,7 +102,12 @@
     // but not charging, e.g. puppet's ideapad conservation mode holding ~60 %
     // (/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode).
     // Tooltip health = full / design capacity (the swollen pack was at 76 %).
+    // "bat" is pinned (puppet = BAT1): without it waybar inotify-watches every
+    // power_supply entry, including HID batteries of USB receivers (SpaceMouse
+    // dongle hid-*-battery-*). When the KVM/USB switch unplugs one, waybar
+    // aborts ("Could not watch events for ..."), taking the whole bar down.
     "battery": {
+        "bat": "BAT1",
         "interval": 60,
         "format": "{icon} {capacity}%",
         "format-charging": "󰂄 {capacity}%",
