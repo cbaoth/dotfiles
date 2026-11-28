@@ -4,12 +4,12 @@
 # code: language=bash insertSpaces=true tabSize=2
 # shellcheck shell=bash
 #
-# ffmpeg-check.sh <file...>: fully decode media files and report decoder errors (timestamped log).
+# ffmpeg-check <file...>: fully decode media files and report decoder errors (timestamped log).
 
 # Catches damage in the middle of a file that a CRC/size check or a look at the
 # header/tail cannot see. ffmpeg's exit status is not reliable for this (it
 # exits 0 after logging decode errors), so a file counts as bad when ffmpeg
-# prints anything at -v error, or exits non-zero.
+# prints anything at -v error (except harmless dts warnings, see BENIGN_RE), or exits non-zero.
 #
 # Exit: 0 = all files clean, 1 = at least one file bad/missing, 2 = usage error.
 # Log:  ${XDG_STATE_HOME:-~/.local/state}/ffmpeg-check/ffmpeg-check_<epoch>.log
@@ -21,6 +21,8 @@ set -uo pipefail
 
 declare -r LOG_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/ffmpeg-check"
 declare LOG_FILE=""
+# ffmpeg messages that are timestamp quirks, not damaged data
+declare -r BENIGN_RE='non monotonically increasing dts to muxer'
 
 usage() {
   printf 'Usage: %s <file...>\n' "$(basename "$0")" >&2
@@ -37,13 +39,20 @@ check_file() {
     echo "ERROR: File not found [${f}], skipping..." | log >&2
     return 1
   fi
-  local fp out rc
+  local fp out rc real warn_n
   fp="$(realpath -- "${f}")"
   echo "Checking integrity of file [${fp}]..." | log
   out="$(ffmpeg -nostdin -v error -i "${f}" -f null - 2>&1)"
   rc=$?
-  [[ -n "${out}" ]] && echo "${out}" | log
-  if ((rc != 0)) || [[ -n "${out}" ]]; then
+  # Timestamp quirks (typical for remuxed mkv) reach the null muxer as warnings but are not decode damage:
+  # count them, do not fail on them.
+  real="$(grep -Ev "${BENIGN_RE}" <<< "${out}")"
+  warn_n="$(grep -Ec "${BENIGN_RE}" <<< "${out}")"
+  # Prefix with the file name: parallel runs interleave lines in a shared log
+  # shellcheck disable=SC2001
+  [[ -n "${real}" ]] && sed "s|^|[${fp}] |" <<< "${real}" | log
+  ((warn_n > 0)) && echo "WARN: [${fp}] ${warn_n}x non-monotonic dts (harmless timestamp quirk)" | log
+  if ((rc != 0)) || [[ -n "${real}" ]]; then
     echo "ERROR: File [${fp}] has errors (ffmpeg exit ${rc})!" | log >&2
     return 1
   fi
